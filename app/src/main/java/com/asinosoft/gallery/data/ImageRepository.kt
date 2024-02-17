@@ -9,7 +9,7 @@ import java.time.ZoneId
 import java.util.Date
 
 class ImageRepository(private val context: Context) {
-    fun findAll() = with(Dispatchers.IO) {
+    fun findAll(): List<Image> = with(Dispatchers.IO) {
         val collection = Media.EXTERNAL_CONTENT_URI
 
         val projection = arrayOf(

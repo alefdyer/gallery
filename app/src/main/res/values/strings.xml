@@ -1,3 +1,5 @@
 <resources>
     <string name="app_name">Gallery</string>
+    <string name="permission_disclaimer">Для работы приложению требуется доступ к медиафайлам</string>
+    <string name="grant">Разрешить</string>
 </resources>
