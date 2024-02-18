@@ -14,7 +14,6 @@ class ImageRepository(private val context: Context) {
 
         val projection = arrayOf(
             Media._ID,
-            Media.DISPLAY_NAME,
             Media.DATE_ADDED,
             Media.DATE_TAKEN,
             Media.WIDTH,
@@ -38,7 +37,6 @@ class ImageRepository(private val context: Context) {
         query?.use { cursor ->
             // Cache column indices.
             val idColumn = cursor.getColumnIndexOrThrow(Media._ID)
-            val nameColumn = cursor.getColumnIndexOrThrow(Media.DISPLAY_NAME)
             val dateAddedColumn = cursor.getColumnIndexOrThrow(Media.DATE_ADDED)
             val dateTakenColumn = cursor.getColumnIndexOrThrow(Media.DATE_TAKEN)
             val widthColumn = cursor.getColumnIndexOrThrow(Media.WIDTH)
@@ -51,7 +49,6 @@ class ImageRepository(private val context: Context) {
             while (cursor.moveToNext()) {
                 // Get values of columns for a given video.
                 val id = cursor.getLong(idColumn)
-                val name = cursor.getString(nameColumn)
                 val dateAdded: Long = cursor.getLong(dateAddedColumn)
                 val dateTaken: Long = cursor.getLong(dateTakenColumn)
                 val date = if (dateTaken > 0) dateTaken else (dateAdded * 1000)
