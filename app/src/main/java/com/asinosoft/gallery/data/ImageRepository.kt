@@ -3,7 +3,7 @@ package com.asinosoft.gallery.data
 import android.content.ContentUris
 import android.content.Context
 import android.provider.MediaStore.Images.Media
-import androidx.core.database.getStringOrNull
+import androidx.compose.ui.unit.IntSize
 import kotlinx.coroutines.Dispatchers
 import java.time.ZoneId
 import java.util.Date
@@ -18,7 +18,6 @@ class ImageRepository(private val context: Context) {
             Media.DATE_TAKEN,
             Media.WIDTH,
             Media.HEIGHT,
-            Media.RESOLUTION,
             Media.OWNER_PACKAGE_NAME,
             Media.VOLUME_NAME,
         )
@@ -41,10 +40,6 @@ class ImageRepository(private val context: Context) {
             val dateTakenColumn = cursor.getColumnIndexOrThrow(Media.DATE_TAKEN)
             val widthColumn = cursor.getColumnIndexOrThrow(Media.WIDTH)
             val heightColumn = cursor.getColumnIndexOrThrow(Media.HEIGHT)
-            val resolutionColumn = cursor.getColumnIndexOrThrow(Media.RESOLUTION)
-            val ownerColumn =
-                cursor.getColumnIndexOrThrow(Media.OWNER_PACKAGE_NAME)
-            val volumeColumn = cursor.getColumnIndexOrThrow(Media.VOLUME_NAME)
 
             while (cursor.moveToNext()) {
                 // Get values of columns for a given video.
@@ -54,9 +49,6 @@ class ImageRepository(private val context: Context) {
                 val date = if (dateTaken > 0) dateTaken else (dateAdded * 1000)
                 val width: Int = cursor.getInt(widthColumn)
                 val height: Int = cursor.getInt(heightColumn)
-                val resolution: String? = cursor.getStringOrNull(resolutionColumn)
-                val owner: String? = cursor.getStringOrNull(ownerColumn)
-                val volume: String? = cursor.getStringOrNull(volumeColumn)
 
                 val url = ContentUris.withAppendedId(collection, id)
                 val time = Date(date).toInstant().atZone(ZoneId.systemDefault()).toLocalDate()
@@ -64,11 +56,7 @@ class ImageRepository(private val context: Context) {
                 val image = Image(
                     url,
                     time,
-                    width,
-                    height,
-                    resolution,
-                    owner,
-                    volume,
+                    IntSize(width, height),
                 )
                 images.add(image)
             }
