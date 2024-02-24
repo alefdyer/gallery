@@ -53,7 +53,7 @@ fun ImageView(
         AsyncImage(
             model = image.url,
             contentDescription = "",
-            contentScale = ContentScale.Inside,
+            contentScale = ContentScale.Fit,
             modifier = Modifier
                 .fillMaxSize()
                 .scale(scale)

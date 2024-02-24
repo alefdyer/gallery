@@ -6,15 +6,16 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.pager.rememberPagerState
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.util.fastMap
 import com.asinosoft.gallery.data.Image
 
 @OptIn(ExperimentalFoundationApi::class)
@@ -30,20 +31,28 @@ fun PagerView(
     Box(modifier = Modifier.background(Color.Black)) {
         HorizontalPager(
             state = pagerState,
-            reverseLayout = true,
-            userScrollEnabled = isPagerEnabled
+            pageSpacing = 16.dp,
+            userScrollEnabled = isPagerEnabled,
+            modifier = Modifier
+                .pointerInput(Unit) {
+                    awaitPointerEventScope {
+                        while (true) {
+                            val event = awaitPointerEvent()
+
+                            // Блокируем пейджер, когда работает мультитач (зум)
+                            isPagerEnabled = event.changes
+                                .fastMap { it.id }
+                                .distinct()
+                                .count() < 2
+                        }
+                    }
+                }
         ) {
             ImageView(
                 image = images[it],
                 canBeSwiped = { isPagerEnabled = it }
             )
         }
-
-        Text(
-            text = "enabled: $isPagerEnabled",
-            color = Color.White,
-            modifier = Modifier.align(Alignment.BottomCenter)
-        )
 
         PagerViewBar(onClose)
     }
