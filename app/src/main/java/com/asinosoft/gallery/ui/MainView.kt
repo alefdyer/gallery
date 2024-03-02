@@ -1,15 +1,19 @@
 package com.asinosoft.gallery.ui
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.hilt.navigation.compose.hiltViewModel
 import com.asinosoft.gallery.data.Image
-import com.asinosoft.gallery.data.ImageRepository
+import com.asinosoft.gallery.model.GalleryViewModel
 import com.asinosoft.gallery.util.groupByDate
 
 @Composable
-fun MainView(repo: ImageRepository) {
-    val images = remember { repo.findAll() }
+fun MainView(model: GalleryViewModel = hiltViewModel()) {
+    val images by model.images.collectAsState(initial = listOf())
+
     val image = remember {
         mutableStateOf<Image?>(null)
     }
