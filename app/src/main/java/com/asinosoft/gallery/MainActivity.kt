@@ -4,7 +4,8 @@ import android.Manifest
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import com.asinosoft.gallery.ui.MainView
+import androidx.navigation.compose.rememberNavController
+import com.asinosoft.gallery.ui.Navigation
 import com.asinosoft.gallery.ui.PermissionDisclaimer
 import com.asinosoft.gallery.ui.theme.GalleryTheme
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
@@ -22,9 +23,11 @@ class MainActivity : ComponentActivity() {
             val storagePermission =
                 rememberPermissionState(Manifest.permission.READ_EXTERNAL_STORAGE)
 
+            val navController = rememberNavController()
+
             GalleryTheme {
                 when (storagePermission.status.isGranted) {
-                    true -> MainView()
+                    true -> Navigation(navController = navController)
 
                     else -> PermissionDisclaimer {
                         storagePermission.launchPermissionRequest()

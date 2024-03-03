@@ -11,20 +11,18 @@ import com.asinosoft.gallery.model.GalleryViewModel
 import com.asinosoft.gallery.util.groupByDate
 
 @Composable
-fun MainView(model: GalleryViewModel = hiltViewModel()) {
+fun MainView(
+    model: GalleryViewModel,
+    onImageClick: (Int) -> Unit,
+) {
     val images by model.images.collectAsState(initial = listOf())
 
-    val image = remember {
-        mutableStateOf<Image?>(null)
-    }
+    GroupView(
+        groups = groupByDate(images),
+        onClick = { image ->
+            val position = images.indexOf(image)
 
-    if (image.value == null) {
-        GroupView(groups = groupByDate(images)) {
-            image.value = it
+            onImageClick(position)
         }
-    } else {
-        PagerView(images = images, position = images.indexOf(image.value)) {
-            image.value = null
-        }
-    }
+    )
 }
