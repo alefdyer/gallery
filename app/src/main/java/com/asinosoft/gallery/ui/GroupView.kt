@@ -35,7 +35,7 @@ fun GroupView(
 
             items(group.images) { image ->
                 AsyncImage(
-                    model = image.url,
+                    model = image.path,
                     contentDescription = "",
                     contentScale = ContentScale.Crop,
                     modifier = Modifier

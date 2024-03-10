@@ -1,11 +1,14 @@
 package com.asinosoft.gallery.data
 
-import android.net.Uri
-import androidx.compose.ui.unit.IntSize
+import androidx.room.Entity
+import androidx.room.PrimaryKey
 import java.time.LocalDate
 
+@Entity(tableName = "images")
 data class Image(
-    val url: Uri,
-    val time: LocalDate,
-    val size: IntSize,
+    @PrimaryKey
+    val path: String,
+    val date: LocalDate,
+    val width: Int,
+    val height: Int,
 )

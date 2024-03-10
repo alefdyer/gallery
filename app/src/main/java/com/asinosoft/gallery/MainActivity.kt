@@ -5,6 +5,8 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.navigation.compose.rememberNavController
+import com.asinosoft.gallery.data.ImageFetcher
+import com.asinosoft.gallery.job.MediaObserver
 import com.asinosoft.gallery.ui.Navigation
 import com.asinosoft.gallery.ui.PermissionDisclaimer
 import com.asinosoft.gallery.ui.theme.GalleryTheme
@@ -12,9 +14,14 @@ import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.isGranted
 import com.google.accompanist.permissions.rememberPermissionState
 import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.runBlocking
+import javax.inject.Inject
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
+    @Inject
+    lateinit var fetcher: ImageFetcher
+
     @OptIn(ExperimentalPermissionsApi::class)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -35,5 +42,15 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+
+        if (!MediaObserver.isScheduled(this)) {
+            MediaObserver.schedule(this)
+        }
+
+        Thread {
+            runBlocking {
+                fetcher.fetchAll()
+            }
+        }.apply { start() }
     }
 }

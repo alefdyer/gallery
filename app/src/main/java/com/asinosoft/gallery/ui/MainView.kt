@@ -3,10 +3,6 @@ package com.asinosoft.gallery.ui
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.hilt.navigation.compose.hiltViewModel
-import com.asinosoft.gallery.data.Image
 import com.asinosoft.gallery.model.GalleryViewModel
 import com.asinosoft.gallery.util.groupByDate
 

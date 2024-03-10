@@ -51,7 +51,7 @@ fun ImageView(
 
     Box {
         AsyncImage(
-            model = image.url,
+            model = image.path,
             contentDescription = "",
             contentScale = ContentScale.Fit,
             modifier = Modifier
@@ -60,9 +60,9 @@ fun ImageView(
                 .offset { offset.round() }
                 .onGloballyPositioned {
                     viewSize = it.size.toSize()
-                    imageSize = image.size.toSize() * min(
-                        viewSize.width / image.size.width,
-                        viewSize.height / image.size.height
+                    imageSize = Size(image.width.toFloat(), image.height.toFloat()) * min(
+                        viewSize.width / image.width,
+                        viewSize.height / image.height
                     )
                 }
                 .transformable(
