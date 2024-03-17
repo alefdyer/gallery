@@ -14,6 +14,7 @@ import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.isGranted
 import com.google.accompanist.permissions.rememberPermissionState
 import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import javax.inject.Inject
 
@@ -47,10 +48,8 @@ class MainActivity : ComponentActivity() {
             MediaObserver.schedule(this)
         }
 
-        Thread {
-            runBlocking {
-                fetcher.fetchAll()
-            }
-        }.apply { start() }
+        runBlocking(Dispatchers.IO) {
+            fetcher.fetchAll()
+        }
     }
 }

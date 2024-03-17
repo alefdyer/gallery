@@ -11,14 +11,17 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.sp
+import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
 import com.asinosoft.gallery.data.Image
 import com.asinosoft.gallery.data.ImageGroup
+import com.asinosoft.gallery.model.GalleryViewModel
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
 
 @Composable
 fun GroupView(
+    viewModel: GalleryViewModel = hiltViewModel(),
     groups: List<ImageGroup>,
     onClick: (Image) -> Unit
 ) {
@@ -35,7 +38,7 @@ fun GroupView(
 
             items(group.images) { image ->
                 AsyncImage(
-                    model = image.path,
+                    model = viewModel.preview(image),
                     contentDescription = "",
                     contentScale = ContentScale.Crop,
                     modifier = Modifier
