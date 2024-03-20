@@ -10,9 +10,13 @@ import android.content.Context
 import android.net.Uri
 import android.provider.MediaStore
 import com.asinosoft.gallery.data.ImageFetcher
+import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import javax.inject.Inject
+import kotlin.concurrent.thread
 
+@AndroidEntryPoint
 class MediaObserver @Inject constructor(
     private val fetcher: ImageFetcher,
 ) : JobService() {
@@ -45,7 +49,7 @@ class MediaObserver @Inject constructor(
 
     override fun onStartJob(params: JobParameters): Boolean {
         isInterrupted = false
-        job = Thread { fetchAll(params) }.apply { start() }
+        job = thread { fetchAll(params) }
         return true
     }
 
@@ -54,7 +58,7 @@ class MediaObserver @Inject constructor(
         return true
     }
 
-    private fun fetchAll(params: JobParameters) = runBlocking {
+    private fun fetchAll(params: JobParameters) = runBlocking(Dispatchers.IO) {
         params.triggeredContentUris?.forEach {
             fetcher.fetchOne(it.toString())
         }
