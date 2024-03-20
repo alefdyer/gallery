@@ -1,9 +1,12 @@
 package com.asinosoft.gallery
 
 import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.layout.Box
 import androidx.navigation.compose.rememberNavController
 import com.asinosoft.gallery.data.ImageFetcher
 import com.asinosoft.gallery.job.MediaObserver
@@ -27,9 +30,18 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        val permission =
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) Manifest.permission.READ_MEDIA_IMAGES
+            else Manifest.permission.READ_EXTERNAL_STORAGE
+
+        if (PackageManager.PERMISSION_GRANTED == checkSelfPermission(permission)) {
+            startFetcher()
+        }
+
         setContent {
-            val storagePermission =
-                rememberPermissionState(Manifest.permission.READ_EXTERNAL_STORAGE)
+            val storagePermission = rememberPermissionState(permission) { granted ->
+                if (granted) startFetcher()
+            }
 
             val navController = rememberNavController()
 
@@ -37,8 +49,8 @@ class MainActivity : ComponentActivity() {
                 when (storagePermission.status.isGranted) {
                     true -> Navigation(navController = navController)
 
-                    else -> PermissionDisclaimer {
-                        storagePermission.launchPermissionRequest()
+                    else -> Box {
+                        PermissionDisclaimer(storagePermission)
                     }
                 }
             }
@@ -47,7 +59,9 @@ class MainActivity : ComponentActivity() {
         if (!MediaObserver.isScheduled(this)) {
             MediaObserver.schedule(this)
         }
+    }
 
+    private fun startFetcher() {
         runBlocking(Dispatchers.IO) {
             fetcher.fetchAll()
         }
