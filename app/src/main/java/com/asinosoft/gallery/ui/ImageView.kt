@@ -1,8 +1,8 @@
 package com.asinosoft.gallery.ui
 
-import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.gestures.rememberTransformableState
-import androidx.compose.foundation.gestures.transformable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.calculatePan
+import androidx.compose.foundation.gestures.calculateZoom
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.offset
@@ -16,38 +16,26 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.positionChanged
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.unit.round
 import androidx.compose.ui.unit.toSize
+import androidx.compose.ui.util.fastForEach
 import coil.compose.AsyncImage
 import com.asinosoft.gallery.data.Image
 import kotlin.math.max
 import kotlin.math.min
 
-@OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun ImageView(
-    image: Image,
-    canBeSwiped: (can: Boolean) -> Unit
-) {
+fun ImageView(image: Image) {
     var viewSize by remember { mutableStateOf(Size.Zero) }
     var imageSize by remember { mutableStateOf(Size.Zero) }
+    var bounds by remember { mutableStateOf(Size.Zero) }
 
     var scale by remember { mutableFloatStateOf(1f) }
     var offset by remember { mutableStateOf(Offset.Zero) }
-    val state = rememberTransformableState { zoom, pan, _ ->
-        scale = max(1f, scale * zoom)
-        canBeSwiped(scale.equals(1f))
-
-        val bounds: Size = imageSize - viewSize / scale
-        offset = (offset + pan).within(
-            Size(
-                max(0f, bounds.width),
-                max(0f, bounds.height),
-            )
-        )
-    }
 
     Box {
         AsyncImage(
@@ -58,17 +46,39 @@ fun ImageView(
                 .fillMaxSize()
                 .scale(scale)
                 .offset { offset.round() }
-                .onGloballyPositioned {
-                    viewSize = it.size.toSize()
+                .onSizeChanged {
+                    viewSize = it.toSize()
                     imageSize = Size(image.width.toFloat(), image.height.toFloat()) * min(
-                        viewSize.width / image.width,
-                        viewSize.height / image.height
+                        viewSize.width / image.width, viewSize.height / image.height
                     )
                 }
-                .transformable(
-                    state = state,
-                    canPan = { !scale.equals(1f) },
-                )
+                .pointerInput(Unit) {
+                    awaitEachGesture {
+                        while (true) {
+                            val event = awaitPointerEvent()
+                            val zoom = event.calculateZoom()
+                            val pan = event.calculatePan()
+
+                            scale = max(1f, scale * zoom)
+                            bounds = (imageSize - viewSize / scale).positive()
+
+                            val x0 = offset.x
+                            offset = (offset + pan).within(bounds)
+
+                            val zoomed = !zoom.equals(1f)
+                            val panned = offset.x != x0
+
+                            if (zoomed or panned) {
+                                event.changes.fastForEach {
+                                    if (it.positionChanged()) {
+                                        it.consume()
+                                    }
+                                }
+                            }
+
+                        }
+                    }
+                }
         )
     }
 }
@@ -84,3 +94,5 @@ operator fun Size.minus(another: Size) = Size(
     width - another.width,
     height - another.height
 )
+
+fun Size.positive() = Size(max(0f, width), max(0f, height))
