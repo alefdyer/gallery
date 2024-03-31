@@ -7,14 +7,12 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.asinosoft.gallery.model.GalleryViewModel
-import java.util.logging.Logger
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -25,11 +23,6 @@ fun PagerView(
 ) {
     val images by viewModel.images.collectAsState(initial = listOf())
     val pagerState: PagerState = rememberPagerState(position) { images.count() }
-
-    LaunchedEffect(key1 = position) {
-        Logger.getLogger("app").info("Pager: position = $position")
-
-    }
 
     Box(modifier = Modifier.background(Color.Black)) {
         HorizontalPager(state = pagerState, pageSpacing = 16.dp) { n ->

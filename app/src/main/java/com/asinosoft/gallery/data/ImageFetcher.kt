@@ -1,18 +1,18 @@
 package com.asinosoft.gallery.data
 
+import android.util.Log
 import kotlinx.coroutines.flow.first
-import java.util.logging.Logger
 import javax.inject.Inject
 import kotlin.system.measureTimeMillis
+
+const val TAG = "gallery.fetcher"
 
 class ImageFetcher @Inject constructor(
     private val imageDao: ImageDao,
     private val repository: LocalImageRepository,
 ) {
-    private val logger = Logger.getLogger(javaClass.simpleName)
-
     suspend fun fetchAll() {
-        logger.info("START")
+        Log.d(TAG, "fetchAll")
 
         measureTimeMillis {
             val images = repository.fetchAll()
@@ -22,11 +22,13 @@ class ImageFetcher @Inject constructor(
             imageDao.deleteAll(deleted)
             imageDao.upsertAll(images)
         }.also {
-            logger.info("FINISH in $it ms")
+            Log.i(TAG, "DONE in $it ms")
         }
     }
 
     suspend fun fetchOne(path: String) {
+        Log.d(TAG, "fetchOne: $path")
+
         imageDao.upsert(repository.fetchOne(path))
     }
 }

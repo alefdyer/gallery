@@ -9,6 +9,7 @@ import android.content.ComponentName
 import android.content.Context
 import android.net.Uri
 import android.provider.MediaStore
+import android.util.Log
 import com.asinosoft.gallery.data.ImageFetcher
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.Dispatchers
@@ -16,11 +17,15 @@ import kotlinx.coroutines.runBlocking
 import javax.inject.Inject
 import kotlin.concurrent.thread
 
+const val TAG = "gallery.observer"
+
 @AndroidEntryPoint
-class MediaObserver @Inject constructor(
-    private val fetcher: ImageFetcher,
-) : JobService() {
+class MediaObserver : JobService() {
+    @Inject
+    lateinit var fetcher: ImageFetcher
+
     private var job: Thread? = null
+
     private var isInterrupted = false
 
     companion object {
@@ -42,25 +47,31 @@ class MediaObserver @Inject constructor(
         }
 
         fun isScheduled(context: Context): Boolean =
-            context.getSystemService(JobScheduler::class.java)
-                .allPendingJobs
-                .any { it.id == JOB_ID }
+            context.getSystemService(JobScheduler::class.java).allPendingJobs.any { it.id == JOB_ID }
     }
 
     override fun onStartJob(params: JobParameters): Boolean {
+        Log.d(TAG, "onStartJob")
+
         isInterrupted = false
         job = thread { fetchAll(params) }
         return true
     }
 
     override fun onStopJob(params: JobParameters): Boolean {
+        Log.d(TAG, "onStopJob")
+
         job?.join()
         return true
     }
 
     private fun fetchAll(params: JobParameters) = runBlocking(Dispatchers.IO) {
         params.triggeredContentUris?.forEach {
-            fetcher.fetchOne(it.toString())
+            if (it.pathSegments.count() == MediaStore.Images.Media.EXTERNAL_CONTENT_URI.pathSegments.count()) {
+                fetcher.fetchOne(it.toString())
+            } else {
+                fetcher.fetchAll()
+            }
         }
 
         jobFinished(params, false)
