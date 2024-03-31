@@ -3,6 +3,7 @@ package com.asinosoft.gallery.ui
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.calculatePan
 import androidx.compose.foundation.gestures.calculateZoom
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.offset
@@ -50,6 +51,15 @@ fun ImageView(image: Image) {
                     viewSize = it.toSize()
                     imageSize = Size(image.width.toFloat(), image.height.toFloat()) * min(
                         viewSize.width / image.width, viewSize.height / image.height
+                    )
+                }
+                .pointerInput(Unit) {
+                    detectTapGestures(
+                        onDoubleTap = {
+                            scale = if (scale.equals(1f)) 2.3f else 1f
+                            bounds = (imageSize - viewSize / scale).positive()
+                            offset = offset.within(bounds)
+                        }
                     )
                 }
                 .pointerInput(Unit) {
