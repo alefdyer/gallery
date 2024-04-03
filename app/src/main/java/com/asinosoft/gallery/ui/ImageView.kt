@@ -43,16 +43,12 @@ fun ImageView(image: Image) {
             model = image.path,
             contentDescription = "",
             contentScale = ContentScale.Fit,
+            onState = { state -> state.painter?.let { imageSize = it.intrinsicSize } },
             modifier = Modifier
                 .fillMaxSize()
                 .scale(scale)
                 .offset { offset.round() }
-                .onSizeChanged {
-                    viewSize = it.toSize()
-                    imageSize = Size(image.width.toFloat(), image.height.toFloat()) * min(
-                        viewSize.width / image.width, viewSize.height / image.height
-                    )
-                }
+                .onSizeChanged { viewSize = it.toSize() }
                 .pointerInput(Unit) {
                     detectTapGestures(
                         onDoubleTap = {
