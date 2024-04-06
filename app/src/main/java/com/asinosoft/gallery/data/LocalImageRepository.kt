@@ -3,6 +3,7 @@ package com.asinosoft.gallery.data
 import android.content.ContentUris
 import android.content.Context
 import android.provider.MediaStore.Images.Media
+import androidx.core.database.getStringOrNull
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.time.ZoneId
 import java.util.Date
@@ -19,8 +20,9 @@ class LocalImageRepository @Inject constructor(
             Media.DATE_TAKEN,
             Media.WIDTH,
             Media.HEIGHT,
-            Media.OWNER_PACKAGE_NAME,
-            Media.VOLUME_NAME,
+            Media.ORIENTATION,
+            Media.BUCKET_DISPLAY_NAME,
+            Media.SIZE,
         )
     }
 
@@ -48,6 +50,9 @@ class LocalImageRepository @Inject constructor(
             val dateTakenColumn = cursor.getColumnIndexOrThrow(Media.DATE_TAKEN)
             val widthColumn = cursor.getColumnIndexOrThrow(Media.WIDTH)
             val heightColumn = cursor.getColumnIndexOrThrow(Media.HEIGHT)
+            val orientationColumn = cursor.getColumnIndexOrThrow(Media.ORIENTATION)
+            val bucketNameColumn = cursor.getColumnIndexOrThrow(Media.BUCKET_DISPLAY_NAME)
+            val sizeColumn = cursor.getColumnIndexOrThrow(Media.SIZE)
 
             while (cursor.moveToNext()) {
                 val id = cursor.getLong(idColumn)
@@ -56,15 +61,22 @@ class LocalImageRepository @Inject constructor(
                 val date = if (dateTaken > 0) dateTaken else (dateAdded * 1000)
                 val width: Int = cursor.getInt(widthColumn)
                 val height: Int = cursor.getInt(heightColumn)
+                val orientation: Int = cursor.getInt(orientationColumn)
 
                 val url = ContentUris.withAppendedId(COLLECTION, id).toString()
                 val time = Date(date).toInstant().atZone(ZoneId.systemDefault()).toLocalDate()
+
+                val album: String? = cursor.getStringOrNull(bucketNameColumn)
+                val size: Long = cursor.getLong(sizeColumn)
 
                 val image = Image(
                     url,
                     time,
                     width,
                     height,
+                    orientation,
+                    album,
+                    size,
                 )
                 images.add(image)
             }

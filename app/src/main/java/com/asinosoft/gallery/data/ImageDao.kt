@@ -8,8 +8,19 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface ImageDao {
-    @Query("SELECT * FROM images ORDER BY date DESC")
+    @Query("SELECT * FROM image ORDER BY date DESC")
     fun getImages(): Flow<List<Image>>
+
+    @Query("""
+        SELECT
+            album as name,
+            count(*) as count,
+            sum(size) as size,
+            max(path) as cover
+        FROM image
+        GROUP BY album
+    """)
+    fun getAlbums(): List<Album>
 
     @Upsert
     suspend fun upsert(image: Image)

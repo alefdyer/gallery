@@ -8,6 +8,7 @@ import kotlin.system.measureTimeMillis
 const val TAG = "gallery.fetcher"
 
 class ImageFetcher @Inject constructor(
+    private val albumDao: AlbumDao,
     private val imageDao: ImageDao,
     private val repository: LocalImageRepository,
 ) {
@@ -21,6 +22,9 @@ class ImageFetcher @Inject constructor(
 
             imageDao.deleteAll(deleted)
             imageDao.upsertAll(images)
+
+            val albums = imageDao.getAlbums()
+            albumDao.upsertAll(albums)
         }.also {
             Log.i(TAG, "DONE in $it ms")
         }

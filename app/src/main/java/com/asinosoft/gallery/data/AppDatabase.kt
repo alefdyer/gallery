@@ -6,9 +6,11 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
 
-@Database(entities = [Image::class], version = 1, exportSchema = false)
+@Database(entities = [Album::class, Image::class], version = 1, exportSchema = false)
 @TypeConverters(Converters::class)
 abstract class AppDatabase : RoomDatabase() {
+    abstract fun albumDao(): AlbumDao
+
     abstract fun imageDao(): ImageDao
 
     companion object {

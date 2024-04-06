@@ -1,6 +1,7 @@
 package com.asinosoft.gallery.di
 
 import android.content.Context
+import com.asinosoft.gallery.data.AlbumDao
 import com.asinosoft.gallery.data.AppDatabase
 import com.asinosoft.gallery.data.ImageDao
 import dagger.Module
@@ -17,6 +18,11 @@ object DatabaseModule {
     @Provides
     fun provideAppDatabase(@ApplicationContext context: Context): AppDatabase {
         return AppDatabase.getInstance(context)
+    }
+
+    @Provides
+    fun provideAlbumDao(appDatabase: AppDatabase): AlbumDao {
+        return appDatabase.albumDao()
     }
 
     @Provides

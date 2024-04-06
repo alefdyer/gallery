@@ -3,4 +3,6 @@
     <string name="permission_disclaimer">Для работы приложению требуется доступ к медиафайлам</string>
     <string name="grant">Разрешить</string>
     <string name="permission_denied">Нет доступа к медиафайлам</string>
+    <string name="photos">Фото</string>
+    <string name="albums">Альбомы</string>
 </resources>

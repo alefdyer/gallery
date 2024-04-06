@@ -8,7 +8,9 @@ sealed class Router(
     val route: String,
     val arguments: List<NamedNavArgument> = emptyList()
 ) {
-    data object Home : Router("home")
+    data object Photos : Router("photos")
+
+    data object Albums : Router("albums")
 
     data object Pager : Router(
         route = "image/{offset}",
