@@ -47,7 +47,7 @@ class MainActivity : ComponentActivity() {
 
             GalleryTheme {
                 when (storagePermission.status.isGranted) {
-                    true -> Navigation(navController = navController)
+                    true -> Navigation(navController)
 
                     else -> Box {
                         PermissionDisclaimer(storagePermission)

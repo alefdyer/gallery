@@ -11,7 +11,11 @@ interface ImageDao {
     @Query("SELECT * FROM image ORDER BY date DESC")
     fun getImages(): Flow<List<Image>>
 
-    @Query("""
+    @Query("SELECT * FROM image WHERE album=:album ORDER BY date DESC")
+    fun getAlbumImages(album: String): Flow<List<Image>>
+
+    @Query(
+        """
         SELECT
             album as name,
             count(*) as count,
@@ -19,8 +23,20 @@ interface ImageDao {
             max(path) as cover
         FROM image
         GROUP BY album
-    """)
+    """,
+    )
     fun getAlbums(): List<Album>
+
+    @Query(
+        """
+        SELECT *
+        FROM image
+        WHERE album=:album
+        ORDER BY date DESC
+        LIMIT 1
+    """,
+    )
+    fun getAlbumLastImage(album: String): Image
 
     @Upsert
     suspend fun upsert(image: Image)

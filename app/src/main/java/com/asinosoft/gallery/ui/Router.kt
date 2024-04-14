@@ -6,17 +6,22 @@ import androidx.navigation.navArgument
 
 sealed class Router(
     val route: String,
-    val arguments: List<NamedNavArgument> = emptyList()
+    val arguments: List<NamedNavArgument> = emptyList(),
 ) {
     data object Photos : Router("photos")
 
     data object Albums : Router("albums")
 
+    data object Album : Router("album")
+
     data object Pager : Router(
         route = "image/{offset}",
-        arguments = listOf(navArgument("offset") {
-            type = NavType.IntType
-        })
+        arguments =
+            listOf(
+                navArgument("offset") {
+                    type = NavType.IntType
+                },
+            ),
     ) {
         fun createRoute(offset: Int) = "image/$offset"
     }

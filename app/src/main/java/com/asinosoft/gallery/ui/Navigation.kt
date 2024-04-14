@@ -17,6 +17,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -35,54 +36,71 @@ import com.asinosoft.gallery.model.GalleryViewModel
 
 @Composable
 fun Navigation(
-    navController: NavHostController,
+    nav: NavHostController,
     model: GalleryViewModel = hiltViewModel(),
 ) {
     val albums by model.albums.collectAsState(listOf())
     val images by model.images.collectAsState(listOf())
 
     NavHost(
-        navController = navController,
+        navController = nav,
         startDestination = Router.Photos.route,
         enterTransition = { fadeIn(animationSpec = tween(300)) },
-        exitTransition = { fadeOut(animationSpec = tween(300)) }
+        exitTransition = { fadeOut(animationSpec = tween(300)) },
     ) {
         composable(route = Router.Photos.route) {
+            LaunchedEffect(Unit) {
+                model.switchToPhotos()
+            }
             Box(
                 modifier = Modifier.fillMaxSize(),
                 contentAlignment = Alignment.BottomCenter,
             ) {
                 MainView(images) { image ->
                     val offset = images.indexOf(image)
-                    navController.navigate(Router.Pager.createRoute(offset))
+                    nav.navigate(Router.Pager.createRoute(offset))
                 }
-                ViewModeBar(onAlbums = { navController.navigate(Router.Albums.route) })
+                ViewModeBar(onAlbums = { nav.navigate(Router.Albums.route) })
             }
         }
+
         composable(route = Router.Albums.route) {
             Box(
                 modifier = Modifier.fillMaxSize(),
                 contentAlignment = Alignment.BottomCenter,
             ) {
                 AlbumListView(albums) { album ->
-                    // TODO: navigate to album
+                    model.switchToAlbum(album)
+                    nav.navigate(Router.Album.route)
                 }
-                ViewModeBar(onPhotos = { navController.navigate(Router.Photos.route) })
+                ViewModeBar(onPhotos = {
+                    model.switchToPhotos()
+                    nav.navigate(Router.Photos.route)
+                })
             }
         }
-        composable(route = Router.Pager.route,
+
+        composable(route = Router.Album.route) {
+            MainView(images) { image ->
+                val offset = images.indexOf(image)
+                nav.navigate(Router.Pager.createRoute(offset))
+            }
+        }
+
+        composable(
+            route = Router.Pager.route,
             arguments = Router.Pager.arguments,
             enterTransition = {
                 fadeIn(animationSpec = tween(300, easing = LinearEasing))
             },
             exitTransition = {
                 fadeOut(animationSpec = tween(300, easing = LinearEasing))
-            }
+            },
         ) {
             val offset = it.arguments?.getInt("offset") ?: 0
 
             PagerView(images, offset) {
-                navController.navigateUp()
+                nav.navigateUp()
             }
         }
     }
