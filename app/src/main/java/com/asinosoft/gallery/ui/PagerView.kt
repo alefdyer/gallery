@@ -1,5 +1,6 @@
 package com.asinosoft.gallery.ui
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -16,10 +17,11 @@ import com.asinosoft.gallery.data.Image
 @Composable
 fun PagerView(
     images: List<Image>,
-    position: Int,
+    image: Image? = null,
     onClose: () -> Unit,
 ) {
-    val pagerState: PagerState = rememberPagerState(position) { images.count() }
+    val offset = images.indexOf(image).coerceAtLeast(0)
+    val pagerState: PagerState = rememberPagerState(offset) { images.count() }
 
     Box(modifier = Modifier.background(Color.Black)) {
         HorizontalPager(state = pagerState, pageSpacing = 16.dp) { n ->
@@ -27,5 +29,7 @@ fun PagerView(
         }
 
         PagerViewBar(onClose)
+
+        BackHandler(onBack = onClose)
     }
 }

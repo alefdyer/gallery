@@ -1,7 +1,6 @@
 package com.asinosoft.gallery.data
 
 import android.util.Log
-import kotlinx.coroutines.flow.first
 import javax.inject.Inject
 import kotlin.system.measureTimeMillis
 
@@ -17,7 +16,7 @@ class ImageFetcher @Inject constructor(
 
         measureTimeMillis {
             val images = repository.fetchAll()
-            val deleted = imageDao.getImages().first()
+            val deleted = imageDao.getImages()
                 .filterNot { cached -> images.any { it.path == cached.path } }
 
             imageDao.deleteAll(deleted)

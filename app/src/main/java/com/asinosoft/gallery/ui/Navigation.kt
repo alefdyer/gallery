@@ -1,37 +1,16 @@
 package com.asinosoft.gallery.ui
 
-import androidx.compose.animation.core.LinearEasing
+import android.net.Uri
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.DateRange
-import androidx.compose.material.icons.filled.Notifications
-import androidx.compose.material3.Icon
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
-import com.asinosoft.gallery.R
 import com.asinosoft.gallery.model.GalleryViewModel
 
 @Composable
@@ -39,118 +18,46 @@ fun Navigation(
     nav: NavHostController,
     model: GalleryViewModel = hiltViewModel(),
 ) {
-    val albums by model.albums.collectAsState(listOf())
-    val images by model.images.collectAsState(listOf())
+    val albums by model.albums.collectAsState()
+    val images by model.images.collectAsState()
+    val albumImages by model.albumImages.collectAsState()
 
     NavHost(
         navController = nav,
-        startDestination = Router.Photos.route,
+        startDestination = "main",
         enterTransition = { fadeIn(animationSpec = tween(300)) },
         exitTransition = { fadeOut(animationSpec = tween(300)) },
     ) {
-        composable(route = Router.Photos.route) {
-            LaunchedEffect(Unit) {
-                model.switchToPhotos()
-            }
-            Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.BottomCenter,
-            ) {
-                MainView(images) { image ->
-                    val offset = images.indexOf(image)
-                    nav.navigate(Router.Pager.createRoute(offset))
-                }
-                ViewModeBar(onAlbums = { nav.navigate(Router.Albums.route) })
+        composable("main") {
+            MainView(
+                images,
+                albums,
+                onImageClick = { image -> nav.navigate("pager/" + Uri.encode(image.path)) },
+                onAlbumClick = { album -> nav.navigate("album/" + Uri.encode(album.name)) },
+            )
+        }
+
+        composable("pager/{path}") { route ->
+            val path = Uri.decode(route.arguments?.getString("path"))
+            val image = images.find { it.path == path }
+            PagerView(images, image) { nav.navigateUp() }
+        }
+
+        composable("album/{name}") { route ->
+            val name = Uri.decode(route.arguments?.getString("name"))
+            model.switchToAlbum(name)
+            GroupView(albumImages) {
+                val path = Uri.encode(it.path)
+                nav.navigate("album/$name/pager/$path")
             }
         }
 
-        composable(route = Router.Albums.route) {
-            Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.BottomCenter,
-            ) {
-                AlbumListView(albums) { album ->
-                    model.switchToAlbum(album)
-                    nav.navigate(Router.Album.route)
-                }
-                ViewModeBar(onPhotos = {
-                    model.switchToPhotos()
-                    nav.navigate(Router.Photos.route)
-                })
-            }
+        composable("album/{name}/pager/{path}") { route ->
+            val name: String? = Uri.decode(route.arguments?.getString("name"))
+            name?.let { model.switchToAlbum(it) }
+            val path = Uri.decode(route.arguments?.getString("path"))
+            val image = albumImages.find { it.path == path }
+            PagerView(albumImages, image) { nav.navigateUp() }
         }
-
-        composable(route = Router.Album.route) {
-            MainView(images) { image ->
-                val offset = images.indexOf(image)
-                nav.navigate(Router.Pager.createRoute(offset))
-            }
-        }
-
-        composable(
-            route = Router.Pager.route,
-            arguments = Router.Pager.arguments,
-            enterTransition = {
-                fadeIn(animationSpec = tween(300, easing = LinearEasing))
-            },
-            exitTransition = {
-                fadeOut(animationSpec = tween(300, easing = LinearEasing))
-            },
-        ) {
-            val offset = it.arguments?.getInt("offset") ?: 0
-
-            PagerView(images, offset) {
-                nav.navigateUp()
-            }
-        }
-    }
-}
-
-@Composable
-fun ViewModeBar(
-    onPhotos: (() -> Unit)? = null,
-    onAlbums: (() -> Unit)? = null,
-) {
-    NavigationBar(
-        containerColor = Color.White.copy(0.5f),
-        modifier = Modifier
-            .fillMaxWidth(0.5f)
-            .clip(RoundedCornerShape(16.dp))
-    ) {
-        NavigationBarItem(
-            selected = onPhotos == null,
-            onClick = onPhotos ?: {},
-            icon = {
-                Icon(
-                    imageVector = Icons.Default.DateRange,
-                    contentDescription = stringResource(id = R.string.photos)
-                )
-            },
-            label = { stringResource(id = R.string.photos) }
-        )
-        NavigationBarItem(
-            selected = onAlbums == null,
-            onClick = onAlbums ?: {},
-            icon = {
-                Icon(
-                    imageVector = Icons.Default.Notifications,
-                    contentDescription = stringResource(id = R.string.albums)
-                )
-            },
-            label = { stringResource(id = R.string.albums) }
-        )
-    }
-}
-
-@Preview
-@Composable
-fun ViewModeBarPreview() {
-    Box(
-        modifier = Modifier
-            .size(200.dp, 400.dp)
-            .background(Color.Blue),
-        contentAlignment = Alignment.BottomCenter
-    ) {
-        ViewModeBar()
     }
 }

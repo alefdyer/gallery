@@ -8,20 +8,24 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.asinosoft.gallery.data.Image
-import com.asinosoft.gallery.data.ImageGroup
+import com.asinosoft.gallery.util.groupByDate
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
 
 @Composable
 fun GroupView(
-    groups: List<ImageGroup>,
-    onClick: (Image) -> Unit
+    images: List<Image>,
+    onImageClick: (Image) -> Unit,
 ) {
+    val groups by remember(images) { mutableStateOf(groupByDate(images)) }
     val dateFormat = DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM)
 
     LazyVerticalGrid(columns = GridCells.Fixed(3)) {
@@ -33,14 +37,14 @@ fun GroupView(
                 )
             }
 
-            items(group.images) { image ->
+            items(group.images) {
                 AsyncImage(
-                    model = image.path,
+                    model = it.path,
                     contentDescription = "",
                     contentScale = ContentScale.Crop,
                     modifier = Modifier
                         .aspectRatio(1f)
-                        .clickable { onClick(image) }
+                        .clickable { onImageClick(it) }
                 )
             }
         }

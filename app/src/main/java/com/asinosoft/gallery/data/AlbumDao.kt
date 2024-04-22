@@ -3,12 +3,14 @@ package com.asinosoft.gallery.data
 import androidx.room.Dao
 import androidx.room.Query
 import androidx.room.Upsert
-import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface AlbumDao {
     @Query("SELECT * FROM album")
-    fun getAlbums(): Flow<List<Album>>
+    suspend fun getAlbums(): List<Album>
+
+    @Query("SELECT * FROM album WHERE name=:name")
+    fun getAlbumByName(name: String): Album?
 
     @Upsert
     suspend fun upsert(album: Album)
