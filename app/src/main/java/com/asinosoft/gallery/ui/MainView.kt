@@ -1,35 +1,32 @@
 package com.asinosoft.gallery.ui
 
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.PagerState
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.DateRange
-import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.Photo
+import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.asinosoft.gallery.R
 import com.asinosoft.gallery.data.Album
 import com.asinosoft.gallery.data.Image
+import kotlinx.coroutines.launch
 
-enum class MainViewMode {
-    PHOTOS,
-    ALBUMS
-}
-
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun MainView(
     images: List<Image>,
@@ -37,61 +34,67 @@ fun MainView(
     onImageClick: (Image) -> Unit,
     onAlbumClick: (Album) -> Unit,
 ) {
-    var mode by rememberSaveable { mutableStateOf(MainViewMode.PHOTOS) }
+    val pagerState = rememberPagerState { 2 }
+    val coroutineScope = rememberCoroutineScope()
 
-    Box(
-        modifier = Modifier.fillMaxSize(),
-        contentAlignment = Alignment.BottomCenter,
+    Scaffold(
+        bottomBar = {
+            ViewModeBar(
+                pagerState = pagerState,
+                onPhotos = { coroutineScope.launch { pagerState.scrollToPage(0) } },
+                onAlbums = { coroutineScope.launch { pagerState.scrollToPage(1) } }
+            )
+        },
     ) {
-        when (mode) {
-            MainViewMode.PHOTOS ->
-                GroupView(images, onImageClick)
-
-            MainViewMode.ALBUMS ->
-                AlbumListView(albums, onAlbumClick)
+        HorizontalPager(
+            modifier = Modifier.padding(it),
+            state = pagerState
+        ) {
+            when (it) {
+                0 -> ImageListView(images, onImageClick)
+                1 -> AlbumListView(albums, onAlbumClick)
+            }
         }
 
-        ViewModeBar(
-            mode,
-            onPhotos = { mode = MainViewMode.PHOTOS },
-            onAlbums = { mode = MainViewMode.ALBUMS }
-        )
+
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun ViewModeBar(
-    mode: MainViewMode,
+    modifier: Modifier = Modifier,
+    pagerState: PagerState,
     onPhotos: () -> Unit,
     onAlbums: () -> Unit,
 ) {
     NavigationBar(
-        containerColor = Color.White.copy(0.5f),
-        modifier = Modifier
-            .fillMaxWidth(0.5f)
-            .clip(RoundedCornerShape(16.dp))
+        modifier = modifier,
+        containerColor = Color.White.copy(0.8f)
     ) {
+        Spacer(Modifier.width(60.dp))
         NavigationBarItem(
-            selected = mode == MainViewMode.PHOTOS,
+            selected = 0 == pagerState.currentPage,
             onClick = onPhotos,
             icon = {
                 Icon(
-                    imageVector = Icons.Default.DateRange,
+                    imageVector = Icons.Default.Photo,
                     contentDescription = stringResource(id = R.string.photos)
                 )
             },
-            label = { stringResource(id = R.string.photos) }
+            label = { Text(stringResource(id = R.string.photos)) },
         )
         NavigationBarItem(
-            selected = mode == MainViewMode.ALBUMS,
+            selected = 1 == pagerState.currentPage,
             onClick = onAlbums,
             icon = {
                 Icon(
-                    imageVector = Icons.Default.Notifications,
+                    imageVector = Icons.Default.PhotoLibrary,
                     contentDescription = stringResource(id = R.string.albums)
                 )
             },
-            label = { stringResource(id = R.string.albums) }
+            label = { Text(stringResource(id = R.string.albums)) },
         )
+        Spacer(Modifier.width(60.dp))
     }
 }

@@ -6,7 +6,7 @@ import androidx.room.Upsert
 
 @Dao
 interface AlbumDao {
-    @Query("SELECT * FROM album")
+    @Query("SELECT * FROM album ORDER BY date DESC")
     suspend fun getAlbums(): List<Album>
 
     @Query("SELECT * FROM album WHERE name=:name")

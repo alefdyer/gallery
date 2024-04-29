@@ -46,7 +46,7 @@ fun Navigation(
         composable("album/{name}") { route ->
             val name = Uri.decode(route.arguments?.getString("name"))
             model.switchToAlbum(name)
-            GroupView(albumImages) {
+            ImageListView(albumImages) {
                 val path = Uri.encode(it.path)
                 nav.navigate("album/$name/pager/$path")
             }

@@ -2,6 +2,7 @@ package com.asinosoft.gallery.data
 
 import androidx.room.Entity
 import androidx.room.PrimaryKey
+import java.time.LocalDate
 
 @Entity
 data class Album(
@@ -9,5 +10,6 @@ data class Album(
     val name: String,
     val count: Int,
     val size: Long,
-    val cover: String
+    val cover: String,
+    val date: LocalDate,
 )

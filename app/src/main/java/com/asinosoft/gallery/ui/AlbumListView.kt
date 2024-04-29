@@ -28,6 +28,7 @@ import coil.compose.AsyncImage
 import com.asinosoft.gallery.data.Album
 import com.asinosoft.gallery.ui.theme.GalleryTheme
 import com.asinosoft.gallery.ui.theme.Typography
+import java.time.LocalDate
 
 @Composable
 fun AlbumListView(
@@ -94,11 +95,31 @@ fun AlbumInfo(album: Album) {
 @Composable
 fun AlbumListViewPreview() {
     GalleryTheme() {
-        AlbumListView(albums = listOf(
-            Album("Лу Синь в юности", 123, 1234567890, ""),
-            Album("Журавль Красавка и Серый волк в сапогах", 123, 1234567890, ""),
-            Album("Chicago Pizza", 98, 3456, "")
-        )) {
+        AlbumListView(
+            albums = listOf(
+                Album(
+                    "Лу Синь в юности",
+                    123,
+                    1234567890,
+                    "android.resource://com.asinosoft.gallery/drawable/foxy",
+                    LocalDate.now()
+                ),
+                Album(
+                    "Журавль Красавка и Серый волк в сапогах",
+                    123,
+                    1234567890,
+                    "android.resource://com.asinosoft.gallery/drawable/foxy",
+                    LocalDate.now()
+                ),
+                Album(
+                    "Chicago Pizza",
+                    98,
+                    3456,
+                    "android.resource://com.asinosoft.gallery/drawable/foxy",
+                    LocalDate.now()
+                )
+            )
+        ) {
         }
     }
 }

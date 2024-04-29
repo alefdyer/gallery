@@ -13,6 +13,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import javax.inject.Inject
+import kotlin.system.measureTimeMillis
 
 const val TAG = "gallery.viewmodel"
 
@@ -24,16 +25,20 @@ constructor(
     private val imageDao: ImageDao,
 ) : ViewModel() {
     init {
-        viewModelScope.launch {
-            val images = imageDao.getImages()
-            Log.d(TAG, "initial images: ${images.count()}")
-            _images.emit(images)
+        viewModelScope.launch(Dispatchers.IO) {
+            measureTimeMillis {
+                val images = imageDao.getImages()
+                _images.emit(images)
+                Log.d(TAG, "initial images: ${images.count()}")
+            }.also { Log.d(TAG, "initial images: $it ms") }
         }
 
-        viewModelScope.launch {
-            val albums = albumDao.getAlbums()
-            Log.d(TAG, "initial albums: ${albums.count()}")
-            _albums.emit(albums.sortedBy { it.name.lowercase() })
+        viewModelScope.launch(Dispatchers.IO) {
+            measureTimeMillis {
+                val albums = albumDao.getAlbums()
+                _albums.emit(albums)
+                Log.d(TAG, "initial albums: ${albums.count()}")
+            }.also { Log.d(TAG, "initial albums: $it ms") }
         }
     }
 

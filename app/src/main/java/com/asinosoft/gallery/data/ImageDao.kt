@@ -22,7 +22,8 @@ interface ImageDao {
             album as name,
             count(*) as count,
             sum(size) as size,
-            max(path) as cover
+            max(path) as cover,
+            max(date) as date
         FROM image
         GROUP BY album
     """,
