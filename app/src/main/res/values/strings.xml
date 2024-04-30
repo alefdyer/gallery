@@ -5,4 +5,8 @@
     <string name="permission_denied">Нет доступа к медиафайлам</string>
     <string name="photos">Фото</string>
     <string name="albums">Альбомы</string>
+    <string name="share">Поделиться</string>
+    <string name="edit">Изменить</string>
+    <string name="search">Поиск</string>
+    <string name="delete">Удалить</string>
 </resources>
