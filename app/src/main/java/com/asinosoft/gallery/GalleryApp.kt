@@ -4,4 +4,8 @@ import android.app.Application
 import dagger.hilt.android.HiltAndroidApp
 
 @HiltAndroidApp
-class GalleryApp : Application()
+class GalleryApp : Application() {
+    companion object {
+        const val TAG = "gallery.app"
+    }
+}

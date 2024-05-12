@@ -4,17 +4,18 @@ import androidx.room.Dao
 import androidx.room.Delete
 import androidx.room.Query
 import androidx.room.Upsert
+import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface ImageDao {
     @Query("SELECT * FROM image ORDER BY date DESC")
-    suspend fun getImages(): List<Image>
+    fun getImages(): Flow<List<Image>>
 
     @Query("SELECT * FROM image WHERE path=:path")
-    fun getImageByPath(path: String): Image?
+    fun getImageByPath(path: String): Flow<Image?>
 
     @Query("SELECT * FROM image WHERE album=:album ORDER BY date DESC")
-    suspend fun getAlbumImages(album: String): List<Image>
+    fun getAlbumImages(album: String): Flow<List<Image>>
 
     @Query(
         """
@@ -28,7 +29,7 @@ interface ImageDao {
         GROUP BY album
     """,
     )
-    suspend fun getAlbums(): List<Album>
+    fun getAlbums(): Flow<List<Album>>
 
     @Query(
         """

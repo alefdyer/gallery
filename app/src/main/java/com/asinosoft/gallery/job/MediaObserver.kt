@@ -10,14 +10,13 @@ import android.content.Context
 import android.net.Uri
 import android.provider.MediaStore
 import android.util.Log
+import com.asinosoft.gallery.GalleryApp
 import com.asinosoft.gallery.data.ImageFetcher
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import javax.inject.Inject
 import kotlin.concurrent.thread
-
-const val TAG = "gallery.observer"
 
 @AndroidEntryPoint
 class MediaObserver : JobService() {
@@ -51,7 +50,7 @@ class MediaObserver : JobService() {
     }
 
     override fun onStartJob(params: JobParameters): Boolean {
-        Log.d(TAG, "onStartJob")
+        Log.d(GalleryApp.TAG, "onStartJob")
 
         isInterrupted = false
         job = thread { fetchAll(params) }
@@ -59,21 +58,26 @@ class MediaObserver : JobService() {
     }
 
     override fun onStopJob(params: JobParameters): Boolean {
-        Log.d(TAG, "onStopJob")
+        Log.d(GalleryApp.TAG, "onStopJob")
 
         job?.join()
         return true
     }
 
-    private fun fetchAll(params: JobParameters) = runBlocking(Dispatchers.IO) {
-        params.triggeredContentUris?.forEach {
-            if (it.pathSegments.count() == MediaStore.Images.Media.EXTERNAL_CONTENT_URI.pathSegments.count()) {
-                fetcher.fetchOne(it.toString())
-            } else {
-                fetcher.fetchAll()
-            }
-        }
+    private fun fetchAll(params: JobParameters) = thread {
+        runBlocking(Dispatchers.IO) {
+            params.triggeredContentUris?.let {
+                it.forEach {
+                    try {
+                        fetcher.fetchOne(it.toString())
+                    } catch (ex: Throwable) {
+                        Log.d(GalleryApp.TAG, "Exception: $ex")
+                        // ignore
+                    }
+                }
+            } ?: fetcher.fetchAll()
 
-        jobFinished(params, false)
+            jobFinished(params, false)
+        }
     }
 }

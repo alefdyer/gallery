@@ -18,9 +18,9 @@ fun Navigation(
     nav: NavHostController,
     model: GalleryViewModel = hiltViewModel(),
 ) {
-    val albums by model.albums.collectAsState()
-    val images by model.images.collectAsState()
-    val albumImages by model.albumImages.collectAsState()
+    val albums by model.albums.collectAsState(initial = listOf())
+    val images by model.images.collectAsState(initial = listOf())
+    val albumImages by model.albumImages.collectAsState(listOf())
 
     NavHost(
         navController = nav,
@@ -43,20 +43,23 @@ fun Navigation(
             PagerView(images, image) { nav.navigateUp() }
         }
 
-        composable("album/{name}") { route ->
-            val name = Uri.decode(route.arguments?.getString("name"))
-            model.switchToAlbum(name)
-            ImageListView(albumImages) {
-                val path = Uri.encode(it.path)
-                nav.navigate("album/$name/pager/$path")
+        composable("album/{albumName}") { route ->
+            val albumName = Uri.decode(route.arguments?.getString("albumName"))
+            model.setAlbumName(albumName)
+
+            ImageListView(albumImages) { image ->
+                val imagePath = Uri.encode(image.path)
+                nav.navigate("album/$albumName/pager/$imagePath")
             }
         }
 
-        composable("album/{name}/pager/{path}") { route ->
-            val name: String? = Uri.decode(route.arguments?.getString("name"))
-            name?.let { model.switchToAlbum(it) }
-            val path = Uri.decode(route.arguments?.getString("path"))
-            val image = albumImages.find { it.path == path }
+        composable("album/{albumName}/pager/{imagePath}") { route ->
+            val albumName = Uri.decode(route.arguments?.getString("albumName"))
+            model.setAlbumName(albumName)
+
+            val imagePath = Uri.decode(route.arguments?.getString("imagePath"))
+            val image = albumImages.find { it.path == imagePath }
+
             PagerView(albumImages, image) { nav.navigateUp() }
         }
     }

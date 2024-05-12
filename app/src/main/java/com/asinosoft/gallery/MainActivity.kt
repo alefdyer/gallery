@@ -20,6 +20,7 @@ import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import javax.inject.Inject
+import kotlin.concurrent.thread
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
@@ -62,8 +63,10 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun startFetcher() {
-        runBlocking(Dispatchers.IO) {
-            fetcher.fetchAll()
+        thread {
+            runBlocking(Dispatchers.IO) {
+                fetcher.fetchAll()
+            }
         }
     }
 }

@@ -3,11 +3,12 @@ package com.asinosoft.gallery.data
 import androidx.room.Dao
 import androidx.room.Query
 import androidx.room.Upsert
+import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface AlbumDao {
     @Query("SELECT * FROM album ORDER BY date DESC")
-    suspend fun getAlbums(): List<Album>
+    fun getAlbums(): Flow<List<Album>>
 
     @Query("SELECT * FROM album WHERE name=:name")
     fun getAlbumByName(name: String): Album?
