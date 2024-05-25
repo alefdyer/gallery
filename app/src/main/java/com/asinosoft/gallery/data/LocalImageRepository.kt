@@ -23,6 +23,7 @@ class LocalImageRepository @Inject constructor(
             Media.ORIENTATION,
             Media.BUCKET_DISPLAY_NAME,
             Media.SIZE,
+            Media.DATA,
         )
     }
 
@@ -53,6 +54,7 @@ class LocalImageRepository @Inject constructor(
             val orientationColumn = cursor.getColumnIndexOrThrow(Media.ORIENTATION)
             val bucketNameColumn = cursor.getColumnIndexOrThrow(Media.BUCKET_DISPLAY_NAME)
             val sizeColumn = cursor.getColumnIndexOrThrow(Media.SIZE)
+            val dataColumn = cursor.getColumnIndexOrThrow(Media.DATA)
 
             while (cursor.moveToNext()) {
                 val id = cursor.getLong(idColumn)
@@ -64,19 +66,23 @@ class LocalImageRepository @Inject constructor(
                 val orientation: Int = cursor.getInt(orientationColumn)
 
                 val url = ContentUris.withAppendedId(COLLECTION, id).toString()
-                val time = Date(date).toInstant().atZone(ZoneId.systemDefault()).toLocalDate()
+                val datetime = Date(date).toInstant().atZone(ZoneId.systemDefault()).toLocalDateTime()
 
                 val album: String? = cursor.getStringOrNull(bucketNameColumn)
                 val size: Long = cursor.getLong(sizeColumn)
 
+                val data: String = cursor.getString(dataColumn)
+
                 val image = Image(
                     url,
-                    time,
+                    datetime.toLocalDate(),
+                    datetime.toLocalTime(),
                     width,
                     height,
                     orientation,
                     album,
                     size,
+                    filename = data
                 )
                 images.add(image)
             }

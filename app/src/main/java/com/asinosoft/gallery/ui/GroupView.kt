@@ -12,6 +12,7 @@ import coil.compose.AsyncImage
 import com.asinosoft.gallery.data.Image
 import com.asinosoft.gallery.data.ImageGroup
 import java.time.LocalDate
+import java.time.LocalTime
 
 @Composable
 fun GroupView(
@@ -58,11 +59,13 @@ fun PreviewGroupView() {
     val image = Image(
         "android.resource://com.asinosoft.gallery/drawable/foxy",
         LocalDate.now(),
+        LocalTime.now(),
         950,
         950,
         0,
         null,
-        12345
+        12345,
+        "ssd/DCIM/foxy.JPEG"
     )
 
     GroupView(

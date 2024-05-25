@@ -9,4 +9,8 @@
     <string name="edit">Изменить</string>
     <string name="search">Поиск</string>
     <string name="delete">Удалить</string>
+    <string name="info">Информация</string>
+    <string name="path">Путь к файлу</string>
+    <string name="size">Размер</string>
+    <string name="date">Дата</string>
 </resources>

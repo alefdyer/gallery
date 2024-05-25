@@ -8,13 +8,13 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface ImageDao {
-    @Query("SELECT * FROM image ORDER BY date DESC")
+    @Query("SELECT * FROM image ORDER BY date DESC, time DESC")
     fun getImages(): Flow<List<Image>>
 
     @Query("SELECT * FROM image WHERE path=:path")
     fun getImageByPath(path: String): Flow<Image?>
 
-    @Query("SELECT * FROM image WHERE album=:album ORDER BY date DESC")
+    @Query("SELECT * FROM image WHERE album=:album ORDER BY date DESC, time DESC")
     fun getAlbumImages(album: String): Flow<List<Image>>
 
     @Query(

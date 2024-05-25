@@ -19,6 +19,7 @@ import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.PagerState
@@ -52,7 +53,6 @@ fun PagerView(
     val context = LocalContext.current
     val offset = images.indexOf(startImage).coerceAtLeast(0)
     val pagerState: PagerState = rememberPagerState(offset) { images.count() }
-    var showControls by remember { mutableStateOf(true) }
     val currentImage by remember { derivedStateOf { images[pagerState.currentPage] } }
 
     val launcher =
@@ -101,10 +101,25 @@ fun PagerView(
         modifier = Modifier
             .background(Color.Black),
     ) {
+        var showControls by remember { mutableStateOf(true) }
+        var showImageInfo by remember { mutableStateOf(false) }
+
+
+        if (showImageInfo) {
+            ImageInfoSheet(currentImage) { showImageInfo = false }
+        }
+
         HorizontalPager(
             state = pagerState,
             pageSpacing = 16.dp,
-            modifier = Modifier.onSingleClick { showControls = !showControls },
+            modifier = Modifier
+                .onSingleClick { showControls = !showControls }
+                .pointerInput(Unit) {
+                    detectVerticalDragGestures { _, amount ->
+                        if (amount > 0) onClose()
+                        if (amount < 0) showImageInfo = true
+                    }
+                }
         ) { n ->
             ImageView(image = images[n])
         }
@@ -114,7 +129,10 @@ fun PagerView(
             enter = slideInVertically(tween(easing = LinearEasing)),
             exit = slideOutVertically(tween(easing = LinearEasing)),
         ) {
-            PagerViewBar(onBack = onClose)
+            PagerViewBar(
+                onBack = onClose,
+                onShowImageInfo = { showImageInfo = true }
+            )
         }
 
         AnimatedVisibility(
