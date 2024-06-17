@@ -51,8 +51,8 @@ fun MainView(
             state = pagerState
         ) {
             when (it) {
-                0 -> ImageListView(images, onImageClick)
-                1 -> AlbumListView(albums, onAlbumClick)
+                0 -> ImageListView(images = images, onImageClick = onImageClick)
+                1 -> AlbumListView(albums = albums, onAlbumClick = onAlbumClick)
             }
         }
 

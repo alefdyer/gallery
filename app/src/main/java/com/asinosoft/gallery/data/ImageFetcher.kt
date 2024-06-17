@@ -26,7 +26,7 @@ class ImageFetcher @Inject constructor(
             val albums = imageDao.getAlbums().first()
             albumDao.upsertAll(albums)
         }.also {
-            Log.i(javaClass.simpleName, "DONE in $it ms")
+            Log.i(GalleryApp.TAG, "DONE in $it ms")
         }
     }
 

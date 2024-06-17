@@ -46,8 +46,8 @@ interface ImageDao {
     suspend fun upsert(image: Image)
 
     @Upsert
-    suspend fun upsertAll(images: List<Image>)
+    suspend fun upsertAll(images: Collection<Image>)
 
     @Delete
-    suspend fun deleteAll(images: List<Image>)
+    suspend fun deleteAll(images: Collection<Image>)
 }

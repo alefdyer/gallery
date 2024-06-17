@@ -1,8 +1,12 @@
 package com.asinosoft.gallery.ui
 
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.material3.Checkbox
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.Layout
@@ -14,23 +18,44 @@ import com.asinosoft.gallery.data.ImageGroup
 import java.time.LocalDate
 import java.time.LocalTime
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun GroupView(
-    columns: Int = 3,
     group: ImageGroup,
-    onImageClick: (Image) -> Unit,
+    columns: Int = 3,
+    selectedImages: Set<Image> = setOf(),
+    selectionMode: Boolean = false,
+    onImageClick: (Image) -> Unit = {},
+    onImageSelect: (Image) -> Unit = {},
 ) {
     Layout(
         content = {
             group.images.forEach { image ->
-                AsyncImage(
-                    model = image.path,
-                    contentDescription = "",
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier
-                        .aspectRatio(1f)
-                        .clickable { onImageClick(image) }
-                )
+                Box(contentAlignment = Alignment.BottomEnd) {
+                    AsyncImage(
+                        model = image.path,
+                        contentDescription = "",
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier
+                            .aspectRatio(1f)
+                            .combinedClickable(
+                                onClick = {
+                                    if (selectionMode) {
+                                        onImageSelect(image)
+                                    } else {
+                                        onImageClick(image)
+                                    }
+                                },
+                                onLongClick = { onImageSelect(image) }
+                            )
+                    )
+
+                    if (selectionMode) {
+                        Checkbox(
+                            checked = selectedImages.contains(image),
+                            onCheckedChange = { onImageSelect(image) })
+                    }
+                }
             }
         }
     ) { measurables, constraints ->
@@ -72,7 +97,9 @@ fun PreviewGroupView() {
         group = ImageGroup(
             LocalDate.now(),
             listOf(image, image, image, image, image)
-        )
+        ),
+        selectionMode = true,
+        selectedImages = setOf(image)
     ) {
 
     }

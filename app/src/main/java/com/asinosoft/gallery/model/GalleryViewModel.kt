@@ -37,4 +37,7 @@ constructor(
         imageDao.deleteAll(listOf(image))
     }
 
+    fun deleteAll(images: Collection<Image>) = viewModelScope.launch {
+        imageDao.deleteAll(images)
+    }
 }
