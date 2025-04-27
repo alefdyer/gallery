@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.asinosoft.gallery.data.AlbumDao
 import com.asinosoft.gallery.data.Image
 import com.asinosoft.gallery.data.ImageDao
+import com.asinosoft.gallery.data.ImageFetcher
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -19,6 +20,7 @@ class GalleryViewModel
 constructor(
     albumDao: AlbumDao,
     private val imageDao: ImageDao,
+    private val fetcher: ImageFetcher
 ) : ViewModel() {
     private val albumName = MutableStateFlow<String?>(null)
 
@@ -29,12 +31,12 @@ constructor(
     @OptIn(ExperimentalCoroutinesApi::class)
     val albumImages = albumName.filterNotNull().flatMapLatest { imageDao.getAlbumImages(it) }
 
-    fun setAlbumName(name: String) = viewModelScope.launch {
-        albumName.emit(name)
+    fun rescan() = viewModelScope.launch {
+        fetcher.fetchAll()
     }
 
-    fun delete(image: Image) = viewModelScope.launch {
-        imageDao.deleteAll(listOf(image))
+    fun setAlbumName(name: String) = viewModelScope.launch {
+        albumName.emit(name)
     }
 
     fun deleteAll(images: Collection<Image>) = viewModelScope.launch {

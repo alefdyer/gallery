@@ -66,7 +66,8 @@ class LocalImageRepository @Inject constructor(
                 val orientation: Int = cursor.getInt(orientationColumn)
 
                 val url = ContentUris.withAppendedId(COLLECTION, id).toString()
-                val datetime = Date(date).toInstant().atZone(ZoneId.systemDefault()).toLocalDateTime()
+                val datetime =
+                    Date(date).toInstant().atZone(ZoneId.systemDefault()).toLocalDateTime()
 
                 val album: String? = cursor.getStringOrNull(bucketNameColumn)
                 val size: Long = cursor.getLong(sizeColumn)

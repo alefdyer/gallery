@@ -16,15 +16,20 @@ class ImageFetcher @Inject constructor(
 
         measureTimeMillis {
             val images = repository.fetchAll()
-            val deleted = imageDao.getImages()
+            val deletedImages = imageDao.getImages()
                 .first()
                 .filterNot { cached -> images.any { it.path == cached.path } }
 
-            imageDao.deleteAll(deleted)
+            imageDao.deleteAll(deletedImages)
             imageDao.upsertAll(images)
 
             val albums = imageDao.getAlbums().first()
+            val deletedAlbums = albumDao.getAlbums()
+                .first()
+                .filterNot { cached -> albums.any { it.name == cached.name } }
             albumDao.upsertAll(albums)
+            albumDao.deleteAll(deletedAlbums)
+
         }.also {
             Log.i(GalleryApp.TAG, "DONE in $it ms")
         }

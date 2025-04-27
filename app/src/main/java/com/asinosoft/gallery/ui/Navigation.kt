@@ -34,6 +34,7 @@ fun Navigation(
                 albums,
                 onImageClick = { image -> nav.navigate("pager/" + Uri.encode(image.path)) },
                 onAlbumClick = { album -> nav.navigate("album/" + Uri.encode(album.name)) },
+                onRescan = model::rescan
             )
         }
 

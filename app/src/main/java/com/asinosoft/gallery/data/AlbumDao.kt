@@ -1,6 +1,7 @@
 package com.asinosoft.gallery.data
 
 import androidx.room.Dao
+import androidx.room.Delete
 import androidx.room.Query
 import androidx.room.Upsert
 import kotlinx.coroutines.flow.Flow
@@ -17,5 +18,8 @@ interface AlbumDao {
     suspend fun upsert(album: Album)
 
     @Upsert
-    suspend fun upsertAll(images: List<Album>)
+    suspend fun upsertAll(albums: List<Album>)
+
+    @Delete
+    suspend fun deleteAll(albums: List<Album>)
 }

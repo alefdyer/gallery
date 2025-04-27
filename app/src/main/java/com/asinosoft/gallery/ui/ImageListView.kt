@@ -92,10 +92,9 @@ fun ImageListView(
     fun Set<Image>.delete() {
         Log.d(GalleryApp.TAG, "delete ${count()} images")
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            val delete: PendingIntent = MediaStore.createTrashRequest(
+            val delete: PendingIntent = MediaStore.createDeleteRequest(
                 context.contentResolver,
-                selectedImages.map { Uri.parse(it.path) },
-                true
+                selectedImages.map { Uri.parse(it.path) }
             )
 
             deleter.launch(IntentSenderRequest.Builder(delete.intentSender).build())

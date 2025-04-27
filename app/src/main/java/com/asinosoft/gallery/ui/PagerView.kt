@@ -59,12 +59,12 @@ fun PagerView(
         rememberLauncherForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) {
             if (Activity.RESULT_OK == it.resultCode) {
                 Log.d(GalleryApp.TAG, "delete: $currentImage")
-                model.delete(currentImage)
+                model.deleteAll(listOf(currentImage))
             }
         }
 
     fun Image.share() {
-        Log.d(GalleryApp.TAG, "share ${currentImage.path}")
+        Log.d(GalleryApp.TAG, "Share $path")
         val send = Intent().apply {
             action = Intent.ACTION_SEND
             type = "image/jpeg"
@@ -76,7 +76,7 @@ fun PagerView(
     }
 
     fun Image.edit() {
-        Log.d(GalleryApp.TAG, "edit ${currentImage.path}")
+        Log.d(GalleryApp.TAG, "Edit $path")
         val edit = Intent().apply {
             action = Intent.ACTION_EDIT
             data = Uri.parse(path)
@@ -85,12 +85,11 @@ fun PagerView(
     }
 
     fun Image.delete() {
-        Log.d(GalleryApp.TAG, "delete ${currentImage.path}")
+        Log.d(GalleryApp.TAG, "Delete $path")
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            val delete: PendingIntent = MediaStore.createTrashRequest(
+            val delete: PendingIntent = MediaStore.createDeleteRequest(
                 context.contentResolver,
-                listOf(Uri.parse(path)),
-                true
+                listOf(Uri.parse(path))
             )
 
             launcher.launch(IntentSenderRequest.Builder(delete.intentSender).build())
@@ -154,8 +153,8 @@ fun PagerView(
 }
 
 internal fun Modifier.onSingleClick(onClick: () -> Unit): Modifier = this then pointerInput(Unit) {
-    awaitPointerEventScope {
-        while (true) {
+    while (true) {
+        awaitPointerEventScope {
             val down = awaitFirstDown(false)
 
             if (awaitPointerEvent().changes.fastAll { it.id == down.id && !it.pressed && androidx.compose.ui.geometry.Offset.Zero == it.position - down.position }) {
