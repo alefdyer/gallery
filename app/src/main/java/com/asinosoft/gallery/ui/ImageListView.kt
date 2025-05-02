@@ -12,7 +12,6 @@ import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -39,14 +38,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.asinosoft.gallery.GalleryApp
 import com.asinosoft.gallery.data.Image
 import com.asinosoft.gallery.model.GalleryViewModel
-import com.asinosoft.gallery.util.groupByDate
-import java.time.format.DateTimeFormatter
-import java.time.format.FormatStyle
+import com.asinosoft.gallery.util.groupByMonth
 
 @Composable
 fun ImageListView(
@@ -55,8 +51,7 @@ fun ImageListView(
     onImageClick: (Image) -> Unit,
 ) {
     val context = LocalContext.current
-    val groups by remember(images) { mutableStateOf(groupByDate(images)) }
-    val dateFormat = DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM)
+    val groups by remember(images) { mutableStateOf(groupByMonth(images)) }
     var selectedImages by remember { mutableStateOf<Set<Image>>(setOf()) }
     val selectionMode by remember { derivedStateOf { selectedImages.isNotEmpty() } }
     var selectionBarHeight by remember { mutableIntStateOf(0) }
@@ -115,28 +110,21 @@ fun ImageListView(
             modifier = Modifier.padding(top = imageListTopPadding.pxToDp())
         ) {
             items(groups) { group ->
-                Column {
-                    Text(
-                        text = group.date.format(dateFormat),
-                        fontSize = 24.sp
-                    )
-
-                    GroupView(
-                        group = group,
-                        selectionMode = selectionMode,
-                        selectedImages = selectedImages,
-                        onImageClick = onImageClick,
-                        onImageSelect = { image ->
-                            if (selectedImages.contains(image)) {
-                                Log.d(GalleryApp.TAG, "deselect image ${image.path}")
-                                selectedImages -= image
-                            } else {
-                                Log.d(GalleryApp.TAG, "select image ${image.path}")
-                                selectedImages += image
-                            }
+                GroupView(
+                    group = group,
+                    selectionMode = selectionMode,
+                    selectedImages = selectedImages,
+                    onImageClick = onImageClick,
+                    onImageSelect = { image ->
+                        if (selectedImages.contains(image)) {
+                            Log.d(GalleryApp.TAG, "deselect image ${image.path}")
+                            selectedImages -= image
+                        } else {
+                            Log.d(GalleryApp.TAG, "select image ${image.path}")
+                            selectedImages += image
                         }
-                    )
-                }
+                    }
+                )
             }
         }
 

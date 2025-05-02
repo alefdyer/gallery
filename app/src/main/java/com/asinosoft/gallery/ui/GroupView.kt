@@ -3,8 +3,10 @@ package com.asinosoft.gallery.ui
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.material3.Checkbox
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -12,6 +14,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.asinosoft.gallery.data.Image
 import com.asinosoft.gallery.data.ImageGroup
@@ -28,51 +31,58 @@ fun GroupView(
     onImageClick: (Image) -> Unit = {},
     onImageSelect: (Image) -> Unit = {},
 ) {
-    Layout(
-        content = {
-            group.images.forEach { image ->
-                Box(contentAlignment = Alignment.BottomEnd) {
-                    AsyncImage(
-                        model = image.path,
-                        contentDescription = "",
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier
-                            .aspectRatio(1f)
-                            .combinedClickable(
-                                onClick = {
-                                    if (selectionMode) {
-                                        onImageSelect(image)
-                                    } else {
-                                        onImageClick(image)
-                                    }
-                                },
-                                onLongClick = { onImageSelect(image) }
-                            )
-                    )
+    Column {
+        Text(
+            text = group.label,
+            fontSize = 24.sp
+        )
 
-                    if (selectionMode) {
-                        Checkbox(
-                            checked = selectedImages.contains(image),
-                            onCheckedChange = { onImageSelect(image) })
+        Layout(
+            content = {
+                group.images.forEach { image ->
+                    Box(contentAlignment = Alignment.BottomEnd) {
+                        AsyncImage(
+                            model = image.path,
+                            contentDescription = "",
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier
+                                .aspectRatio(1f)
+                                .combinedClickable(
+                                    onClick = {
+                                        if (selectionMode) {
+                                            onImageSelect(image)
+                                        } else {
+                                            onImageClick(image)
+                                        }
+                                    },
+                                    onLongClick = { onImageSelect(image) }
+                                )
+                        )
+
+                        if (selectionMode) {
+                            Checkbox(
+                                checked = selectedImages.contains(image),
+                                onCheckedChange = { onImageSelect(image) })
+                        }
                     }
                 }
             }
-        }
-    ) { measurables, constraints ->
-        val size = constraints.maxWidth / columns
-        val childConstraints = Constraints(size, size)
+        ) { measurables, constraints ->
+            val size = constraints.maxWidth / columns
+            val childConstraints = Constraints(size, size)
 
-        val rows = (measurables.count() + columns - 1) / columns
-        val height = rows * size
+            val rows = (measurables.count() + columns - 1) / columns
+            val height = rows * size
 
-        layout(constraints.maxWidth, height) {
-            measurables.map {
-                it.measure(childConstraints)
-            }.forEachIndexed { index, placeable ->
-                val x = size * (index % columns)
-                val y = size * (index / columns)
+            layout(constraints.maxWidth, height) {
+                measurables.map {
+                    it.measure(childConstraints)
+                }.forEachIndexed { index, placeable ->
+                    val x = size * (index % columns)
+                    val y = size * (index / columns)
 
-                placeable.placeRelative(x, y)
+                    placeable.placeRelative(x, y)
+                }
             }
         }
     }
@@ -96,7 +106,8 @@ fun PreviewGroupView() {
     GroupView(
         group = ImageGroup(
             LocalDate.now(),
-            listOf(image, image, image, image, image)
+            listOf(image, image, image, image, image),
+            "Another Group"
         ),
         selectionMode = true,
         selectedImages = setOf(image)
