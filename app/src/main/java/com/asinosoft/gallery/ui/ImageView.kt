@@ -8,6 +8,8 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.offset
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -35,14 +37,19 @@ fun ImageView(image: Image) {
     var imageSize by remember { mutableStateOf(Size.Zero) }
     var bounds by remember { mutableStateOf(Size.Zero) }
 
+    val minScale by remember { derivedStateOf { imageSize.scaleInto(viewSize) } }
+    val maxScale by remember { derivedStateOf { imageSize.scaleUpTo(viewSize) } }
     var scale by remember { mutableFloatStateOf(1f) }
     var offset by remember { mutableStateOf(Offset.Zero) }
+
+    LaunchedEffect(minScale) { scale = minScale }
 
     Box {
         AsyncImage(
             model = image.path,
+            clipToBounds = false,
             contentDescription = "",
-            contentScale = ContentScale.Fit,
+            contentScale = ContentScale.None,
             onState = { state -> state.painter?.let { imageSize = it.intrinsicSize } },
             modifier = Modifier
                 .fillMaxSize()
@@ -52,7 +59,7 @@ fun ImageView(image: Image) {
                 .pointerInput(Unit) {
                     detectTapGestures(
                         onDoubleTap = {
-                            scale = if (scale.equals(1f)) 2.3f else 1f
+                            scale = if (scale.equals(minScale)) maxScale else minScale
                             bounds = (imageSize - viewSize / scale).positive()
                             offset = offset.within(bounds)
                         }
@@ -65,7 +72,7 @@ fun ImageView(image: Image) {
                             val zoom = event.calculateZoom()
                             val pan = event.calculatePan()
 
-                            scale = max(1f, scale * zoom)
+                            scale = max(minScale, scale * zoom)
                             bounds = (imageSize - viewSize / scale).positive()
 
                             val x0 = offset.x
@@ -102,3 +109,8 @@ operator fun Size.minus(another: Size) = Size(
 )
 
 fun Size.positive() = Size(max(0f, width), max(0f, height))
+
+fun Size.scaleInto(box: Size): Float = (box.width / width).coerceAtMost(box.height / height)
+
+fun Size.scaleUpTo(box: Size): Float =
+    (box.width / width).coerceAtLeast(box.height / height).coerceAtLeast(2f)
