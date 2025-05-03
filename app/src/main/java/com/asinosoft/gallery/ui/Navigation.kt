@@ -21,6 +21,7 @@ fun Navigation(
     val albums by model.albums.collectAsState(initial = listOf())
     val images by model.images.collectAsState(initial = listOf())
     val albumImages by model.albumImages.collectAsState(listOf())
+    val isRefreshing by model.isRescanning.collectAsState()
 
     NavHost(
         navController = nav,
@@ -34,7 +35,8 @@ fun Navigation(
                 albums,
                 onImageClick = { image -> nav.navigate("pager/" + Uri.encode(image.path)) },
                 onAlbumClick = { album -> nav.navigate("album/" + Uri.encode(album.name)) },
-                onRescan = model::rescan
+                isRefreshing = isRefreshing,
+                onRefresh = model::rescan
             )
         }
 
