@@ -8,7 +8,7 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface AlbumDao {
-    @Query("SELECT * FROM album ORDER BY date DESC")
+    @Query("SELECT * FROM album ORDER BY name")
     fun getAlbums(): Flow<List<Album>>
 
     @Query("SELECT * FROM album WHERE name=:name")
