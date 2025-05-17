@@ -26,7 +26,7 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.unit.round
 import androidx.compose.ui.unit.toSize
 import androidx.compose.ui.util.fastForEach
-import coil.compose.AsyncImage
+import coil3.compose.AsyncImage
 import com.asinosoft.gallery.data.Image
 import kotlin.math.max
 import kotlin.math.min

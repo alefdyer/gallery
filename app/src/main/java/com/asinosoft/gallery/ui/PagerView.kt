@@ -16,7 +16,6 @@ import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
-import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
@@ -42,7 +41,6 @@ import com.asinosoft.gallery.GalleryApp
 import com.asinosoft.gallery.data.Image
 import com.asinosoft.gallery.model.GalleryViewModel
 
-@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun PagerView(
     images: List<Image>,
@@ -152,7 +150,7 @@ fun PagerView(
     }
 }
 
-internal fun Modifier.onSingleClick(onClick: () -> Unit): Modifier = this then pointerInput(Unit) {
+internal fun Modifier.onSingleClick(onClick: () -> Unit): Modifier = this then Modifier.pointerInput(Unit) {
     while (true) {
         awaitPointerEventScope {
             val down = awaitFirstDown(false)

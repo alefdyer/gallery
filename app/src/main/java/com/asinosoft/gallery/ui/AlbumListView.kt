@@ -26,7 +26,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import coil.compose.AsyncImage
+import coil3.compose.AsyncImage
 import com.asinosoft.gallery.data.Album
 import com.asinosoft.gallery.ui.theme.GalleryTheme
 import com.asinosoft.gallery.ui.theme.Typography
