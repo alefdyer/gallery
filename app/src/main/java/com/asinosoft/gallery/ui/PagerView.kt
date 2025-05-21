@@ -52,12 +52,17 @@ fun PagerView(
     val offset = images.indexOf(startImage).coerceAtLeast(0)
     val pagerState: PagerState = rememberPagerState(offset) { images.count() }
     val currentImage by remember { derivedStateOf { images[pagerState.currentPage] } }
+    var closeAfterDelete by remember(images) { mutableStateOf(false) }
 
     val launcher =
         rememberLauncherForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) {
             if (Activity.RESULT_OK == it.resultCode) {
                 Log.d(GalleryApp.TAG, "delete: $currentImage")
                 model.deleteAll(listOf(currentImage))
+
+                if (closeAfterDelete) {
+                    onClose()
+                }
             }
         }
 
@@ -90,6 +95,7 @@ fun PagerView(
                 listOf(Uri.parse(path))
             )
 
+            closeAfterDelete = 1 == images.count()
             launcher.launch(IntentSenderRequest.Builder(delete.intentSender).build())
         }
     }

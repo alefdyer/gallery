@@ -19,7 +19,7 @@ import javax.inject.Inject
 class GalleryViewModel
 @Inject
 constructor(
-    albumDao: AlbumDao,
+    private val albumDao: AlbumDao,
     private val imageDao: ImageDao,
     private val fetcher: ImageFetcher
 ) : ViewModel() {
@@ -47,5 +47,6 @@ constructor(
 
     fun deleteAll(images: Collection<Image>) = viewModelScope.launch {
         imageDao.deleteAll(images)
+        albumDao.deleteAll(albumDao.getEmptyAlbums())
     }
 }

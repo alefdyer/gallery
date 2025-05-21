@@ -43,17 +43,21 @@ fun Navigation(
         composable("pager/{path}") { route ->
             val path = Uri.decode(route.arguments?.getString("path"))
             val image = images.find { it.path == path }
-            PagerView(images, image) { nav.navigateUp() }
+            PagerView(images, image, onClose = nav::navigateUp)
         }
 
         composable("album/{albumName}") { route ->
             val albumName = Uri.decode(route.arguments?.getString("albumName"))
             model.setAlbumName(albumName)
 
-            ImageListView(albumImages) { image ->
-                val imagePath = Uri.encode(image.path)
-                nav.navigate("album/$albumName/pager/$imagePath")
-            }
+            ImageListView(
+                albumImages,
+                onImageClick = { image ->
+                    val imagePath = Uri.encode(image.path)
+                    nav.navigate("album/$albumName/pager/$imagePath")
+                },
+                onClose = nav::navigateUp
+            )
         }
 
         composable("album/{albumName}/pager/{imagePath}") { route ->
@@ -63,7 +67,7 @@ fun Navigation(
             val imagePath = Uri.decode(route.arguments?.getString("imagePath"))
             val image = albumImages.find { it.path == imagePath }
 
-            PagerView(albumImages, image) { nav.navigateUp() }
+            PagerView(albumImages, image, onClose = { nav.navigate("main") })
         }
     }
 }

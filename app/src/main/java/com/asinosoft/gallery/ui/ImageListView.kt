@@ -49,6 +49,7 @@ fun ImageListView(
     images: List<Image>,
     model: GalleryViewModel = hiltViewModel(),
     onImageClick: (Image) -> Unit,
+    onClose: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val groups by remember(images) { mutableStateOf(groupByMonth(images)) }
@@ -56,6 +57,7 @@ fun ImageListView(
     val selectionMode by remember { derivedStateOf { selectedImages.isNotEmpty() } }
     var selectionBarHeight by remember { mutableIntStateOf(0) }
     var imageListTopPadding by remember { mutableIntStateOf(0) }
+    var closeAfterDelete by remember(images) { mutableStateOf(false) }
     val lazyGridState = rememberLazyGridState()
 
     fun Set<Image>.share() {
@@ -78,9 +80,14 @@ fun ImageListView(
 
     val deleter =
         rememberLauncherForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) {
+            Log.d(GalleryApp.TAG, "Test: ${it.data?.getBooleanExtra("test", false)}")
             if (Activity.RESULT_OK == it.resultCode) {
                 model.deleteAll(selectedImages)
                 selectedImages = setOf()
+
+                if (closeAfterDelete) {
+                    onClose()
+                }
             }
         }
 
@@ -92,6 +99,7 @@ fun ImageListView(
                 selectedImages.map { Uri.parse(it.path) }
             )
 
+            closeAfterDelete = selectedImages.count() == images.count()
             deleter.launch(IntentSenderRequest.Builder(delete.intentSender).build())
         }
     }

@@ -14,6 +14,9 @@ interface AlbumDao {
     @Query("SELECT * FROM album WHERE name=:name")
     fun getAlbumByName(name: String): Album?
 
+    @Query("SELECT a.* FROM album a LEFT JOIN image i on i.album=a.name WHERE i.filename IS NULL")
+    suspend fun getEmptyAlbums(): List<Album>
+
     @Upsert
     suspend fun upsert(album: Album)
 
