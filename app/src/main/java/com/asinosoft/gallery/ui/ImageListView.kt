@@ -38,11 +38,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
-import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.asinosoft.gallery.GalleryApp
 import com.asinosoft.gallery.data.Image
 import com.asinosoft.gallery.model.GalleryViewModel
 import com.asinosoft.gallery.util.groupByMonth
+import androidx.core.net.toUri
 
 @Composable
 fun ImageListView(
@@ -63,7 +64,7 @@ fun ImageListView(
     fun Set<Image>.share() {
         Log.d(GalleryApp.TAG, "share ${count()} images")
         val paths: ArrayList<Uri> =
-            selectedImages.map { Uri.parse(it.path) }.toCollection(ArrayList())
+            selectedImages.map { it.path.toUri() }.toCollection(ArrayList())
         val send = Intent().apply {
             action = Intent.ACTION_SEND_MULTIPLE
             type = "image/jpeg"
@@ -96,7 +97,7 @@ fun ImageListView(
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             val delete: PendingIntent = MediaStore.createDeleteRequest(
                 context.contentResolver,
-                selectedImages.map { Uri.parse(it.path) }
+                selectedImages.map { it.path.toUri() }
             )
 
             closeAfterDelete = selectedImages.count() == images.count()

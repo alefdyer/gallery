@@ -1,3 +1,5 @@
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -16,15 +18,23 @@ ksp {
     allWarningsAsErrors = true
 }
 
+kotlin {
+    jvmToolchain {
+        compilerOptions {
+            jvmTarget.set(JvmTarget.JVM_21)
+        }
+    }
+}
+
 android {
     namespace = "com.asinosoft.gallery"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.asinosoft.gallery"
         minSdk = 26
-        targetSdk = 35
-        versionCode = 1
+        targetSdk = 36
+        versionCode = 2
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
@@ -44,17 +54,11 @@ android {
         }
     }
     compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_1_8
-        targetCompatibility = JavaVersion.VERSION_1_8
-    }
-    kotlinOptions {
-        jvmTarget = "1.8"
+        sourceCompatibility = JavaVersion.VERSION_21
+        targetCompatibility = JavaVersion.VERSION_21
     }
     buildFeatures {
         compose = true
-    }
-    composeOptions {
-        kotlinCompilerExtensionVersion = "1.5.10"
     }
     packaging {
         resources {
@@ -64,25 +68,25 @@ android {
 }
 
 dependencies {
-    val roomVersion = "2.7.1"
+    val roomVersion = "2.8.4"
 
-    implementation("androidx.core:core-ktx:1.16.0")
-    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.9.0")
-    implementation("androidx.activity:activity-compose:1.10.1")
-    implementation(platform("androidx.compose:compose-bom:2025.05.00"))
+    implementation("androidx.core:core-ktx:1.17.0")
+    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.10.0")
+    implementation("androidx.activity:activity-compose:1.12.2")
+    implementation(platform("androidx.compose:compose-bom:2025.12.01"))
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.ui:ui-graphics")
     implementation("androidx.compose.ui:ui-tooling-preview")
     implementation("androidx.compose.material3:material3")
     implementation("androidx.compose.material:material-icons-extended:1.7.8")
-    implementation("androidx.navigation:navigation-compose:2.9.0")
-    implementation("io.coil-kt.coil3:coil-compose:3.2.0")
+    implementation("androidx.navigation:navigation-compose:2.9.6")
+    implementation("io.coil-kt.coil3:coil-compose:3.3.0")
     implementation("com.google.accompanist:accompanist-permissions:0.37.3")
 
     // DI
-    implementation("com.google.dagger:hilt-android:2.56.1")
-    implementation("androidx.hilt:hilt-navigation-compose:1.2.0")
-    ksp("com.google.dagger:hilt-android-compiler:2.56.1")
+    implementation("com.google.dagger:hilt-android:2.57.2")
+    implementation("androidx.hilt:hilt-navigation-compose:1.3.0")
+    ksp("com.google.dagger:hilt-android-compiler:2.57.2")
 
     // Room
     implementation("androidx.room:room-runtime:$roomVersion")
@@ -91,10 +95,10 @@ dependencies {
     ksp("androidx.room:room-compiler:$roomVersion")
 
     testImplementation("junit:junit:4.13.2")
-    androidTestImplementation("androidx.test.ext:junit:1.2.1")
-    androidTestImplementation("androidx.test.espresso:espresso-core:3.6.1")
-    androidTestImplementation(platform("androidx.compose:compose-bom:2025.05.00"))
+    androidTestImplementation("androidx.test.ext:junit:1.3.0")
+    androidTestImplementation("androidx.test.espresso:espresso-core:3.7.0")
+    androidTestImplementation(platform("androidx.compose:compose-bom:2025.12.01"))
     androidTestImplementation("androidx.compose.ui:ui-test-junit4")
     debugImplementation("androidx.compose.ui:ui-tooling")
-    debugImplementation("androidx.compose.ui:ui-test-manifest:1.8.1")
+    debugImplementation("androidx.compose.ui:ui-test-manifest:1.10.0")
 }
