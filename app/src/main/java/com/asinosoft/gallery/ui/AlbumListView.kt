@@ -24,13 +24,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import com.asinosoft.gallery.data.Album
-import com.asinosoft.gallery.ui.theme.GalleryTheme
 import com.asinosoft.gallery.ui.theme.Typography
-import java.time.LocalDate
 
 @Composable
 fun AlbumListView(
@@ -111,38 +108,5 @@ fun BoxScope.AlbumInfo(album: Album) {
             modifier = Modifier
                 .padding(end = 8.dp)
         )
-    }
-}
-
-@Preview
-@Composable
-fun AlbumListViewPreview() {
-    GalleryTheme() {
-        AlbumListView(
-            albums = listOf(
-                Album(
-                    "Лу Синь в юности",
-                    123,
-                    1234567890,
-                    "android.resource://com.asinosoft.gallery/drawable/foxy",
-                    LocalDate.now()
-                ),
-                Album(
-                    "Журавль Красавка и Серый волк в сапогах",
-                    123,
-                    1234567890,
-                    "android.resource://com.asinosoft.gallery/drawable/foxy",
-                    LocalDate.now()
-                ),
-                Album(
-                    "Chicago Pizza",
-                    98,
-                    3456,
-                    "android.resource://com.asinosoft.gallery/drawable/foxy",
-                    LocalDate.now()
-                )
-            )
-        ) {
-        }
     }
 }

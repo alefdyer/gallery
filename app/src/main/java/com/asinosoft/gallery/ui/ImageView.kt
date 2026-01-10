@@ -78,7 +78,7 @@ fun ImageView(image: Image) {
                             val x0 = offset.x
                             offset = (offset + pan).within(bounds)
 
-                            val zoomed = !zoom.equals(1f)
+                            val zoomed = zoom != 1f
                             val panned = offset.x != x0
 
                             if (zoomed or panned) {

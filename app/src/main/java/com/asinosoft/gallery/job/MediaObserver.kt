@@ -7,9 +7,9 @@ import android.app.job.JobScheduler
 import android.app.job.JobService
 import android.content.ComponentName
 import android.content.Context
-import android.net.Uri
 import android.provider.MediaStore
 import android.util.Log
+import androidx.core.net.toUri
 import com.asinosoft.gallery.GalleryApp
 import com.asinosoft.gallery.data.ImageFetcher
 import dagger.hilt.android.AndroidEntryPoint
@@ -29,7 +29,7 @@ class MediaObserver : JobService() {
 
     companion object {
         private const val JOB_ID = 1
-        private val MEDIA_URI = Uri.parse("content://${MediaStore.AUTHORITY}/")
+        private val MEDIA_URI = "content://${MediaStore.AUTHORITY}/".toUri()
         fun schedule(context: Context) {
             val componentName = ComponentName(context, MediaObserver::class.java)
             context.getSystemService(JobScheduler::class.java).schedule(
@@ -67,9 +67,9 @@ class MediaObserver : JobService() {
     private fun fetchAll(params: JobParameters) = thread {
         runBlocking(Dispatchers.IO) {
             params.triggeredContentUris?.let {
-                it.forEach {
+                it.forEach { uri ->
                     try {
-                        fetcher.fetchOne(it.toString())
+                        fetcher.fetchOne(uri.toString())
                     } catch (ex: Throwable) {
                         Log.d(GalleryApp.TAG, "Exception: $ex")
                         // ignore
