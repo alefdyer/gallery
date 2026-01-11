@@ -10,10 +10,6 @@ plugins {
     kotlin("kapt")
 }
 
-kapt {
-    correctErrorTypes = true
-}
-
 ksp {
     allWarningsAsErrors = true
 }
@@ -53,6 +49,12 @@ android {
             signingConfig = signingConfigs.getByName("debug")
         }
     }
+
+    base {
+        archivesName =
+            "gallery@${defaultConfig.versionName}.${defaultConfig.versionCode}"
+    }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_21
         targetCompatibility = JavaVersion.VERSION_21
@@ -91,7 +93,6 @@ dependencies {
     // Room
     implementation("androidx.room:room-runtime:$roomVersion")
     implementation("androidx.room:room-ktx:$roomVersion")
-    annotationProcessor("androidx.room:room-compiler:$roomVersion")
     ksp("androidx.room:room-compiler:$roomVersion")
 
     testImplementation("junit:junit:4.13.2")

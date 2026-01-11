@@ -7,6 +7,7 @@ import androidx.core.database.getStringOrNull
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.time.ZoneId
 import java.util.Date
+import java.util.UUID
 import javax.inject.Inject
 
 class LocalImageRepository @Inject constructor(
@@ -75,6 +76,7 @@ class LocalImageRepository @Inject constructor(
                 val data: String = cursor.getString(dataColumn)
 
                 val image = Image(
+                    id = UUID.randomUUID(),
                     url,
                     datetime.toLocalDate(),
                     datetime.toLocalTime(),
