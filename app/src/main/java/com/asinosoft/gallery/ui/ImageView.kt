@@ -23,10 +23,12 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChanged
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.round
 import androidx.compose.ui.unit.toSize
 import androidx.compose.ui.util.fastForEach
 import coil3.compose.AsyncImage
+import coil3.request.ImageRequest
 import com.asinosoft.gallery.data.Image
 import kotlin.math.max
 import kotlin.math.min
@@ -46,7 +48,10 @@ fun ImageView(image: Image) {
 
     Box {
         AsyncImage(
-            model = image.path,
+            model = ImageRequest.Builder(LocalContext.current)
+                .data(image.path)
+                .size(2000)
+                .build(),
             clipToBounds = false,
             contentDescription = "",
             contentScale = ContentScale.None,

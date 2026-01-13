@@ -3,7 +3,6 @@ package com.asinosoft.gallery.ui
 import android.app.Activity
 import android.app.PendingIntent
 import android.content.Intent
-import android.net.Uri
 import android.os.Build
 import android.provider.MediaStore
 import android.util.Log
@@ -36,7 +35,8 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.util.fastAll
-import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.core.net.toUri
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.asinosoft.gallery.GalleryApp
 import com.asinosoft.gallery.data.Image
 import com.asinosoft.gallery.model.GalleryViewModel
@@ -46,7 +46,7 @@ fun PagerView(
     images: List<Image>,
     startImage: Image? = null,
     model: GalleryViewModel = hiltViewModel(),
-    onClose: () -> Unit,
+    onClose: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val offset = images.indexOf(startImage).coerceAtLeast(0)
@@ -71,7 +71,7 @@ fun PagerView(
         val send = Intent().apply {
             action = Intent.ACTION_SEND
             type = "image/jpeg"
-            putExtra(Intent.EXTRA_STREAM, Uri.parse(path))
+            putExtra(Intent.EXTRA_STREAM, path.toUri())
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }
         val chooser = Intent.createChooser(send, null)
@@ -82,7 +82,7 @@ fun PagerView(
         Log.d(GalleryApp.TAG, "Edit $path")
         val edit = Intent().apply {
             action = Intent.ACTION_EDIT
-            data = Uri.parse(path)
+            data = path.toUri()
         }
         context.startActivity(edit)
     }
@@ -92,7 +92,7 @@ fun PagerView(
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             val delete: PendingIntent = MediaStore.createDeleteRequest(
                 context.contentResolver,
-                listOf(Uri.parse(path))
+                listOf(path.toUri())
             )
 
             closeAfterDelete = 1 == images.count()
@@ -156,14 +156,15 @@ fun PagerView(
     }
 }
 
-internal fun Modifier.onSingleClick(onClick: () -> Unit): Modifier = this then Modifier.pointerInput(Unit) {
-    while (true) {
-        awaitPointerEventScope {
-            val down = awaitFirstDown(false)
+internal fun Modifier.onSingleClick(onClick: () -> Unit): Modifier =
+    this then Modifier.pointerInput(Unit) {
+        while (true) {
+            awaitPointerEventScope {
+                val down = awaitFirstDown(false)
 
-            if (awaitPointerEvent().changes.fastAll { it.id == down.id && !it.pressed && androidx.compose.ui.geometry.Offset.Zero == it.position - down.position }) {
-                onClick()
+                if (awaitPointerEvent().changes.fastAll { it.id == down.id && !it.pressed && androidx.compose.ui.geometry.Offset.Zero == it.position - down.position }) {
+                    onClick()
+                }
             }
         }
     }
-}
