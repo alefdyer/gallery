@@ -40,12 +40,14 @@ fun GroupItem(
             ImageRequest.Builder(LocalContext.current)
                 .data(image.path)
                 .listener(onSuccess = { request, result ->
-                    scope.launch(Dispatchers.IO) {
-                        Log.d("GroupItem", "Cache ${request.data}")
+                    if (image.size / result.image.size >= 4) {
+                        scope.launch(Dispatchers.IO) {
+                            Log.d("GroupItem", "Cache ${request.data}")
 
-                        thumbnail.outputStream().use {
-                            result.image.toBitmap()
-                                .compress(CompressFormat.WEBP, 100, it)
+                            thumbnail.outputStream().use {
+                                result.image.toBitmap()
+                                    .compress(CompressFormat.WEBP, 100, it)
+                            }
                         }
                     }
                 })
