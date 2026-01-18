@@ -46,7 +46,39 @@ fun ImageView(image: Image) {
 
     LaunchedEffect(minScale) { scale = minScale }
 
-    Box {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .pointerInput(Unit) {
+                detectTapGestures(
+                    onDoubleTap = {
+                        scale = if (scale.equals(minScale)) maxScale else minScale
+                        bounds = (imageSize - viewSize / scale).positive()
+                        offset = offset.within(bounds)
+                    }
+                )
+            }
+            .pointerInput(Unit) {
+                awaitEachGesture {
+                    while (true) {
+                        val event = awaitPointerEvent()
+                        val zoom = event.calculateZoom()
+
+                        scale = max(minScale, scale * zoom)
+                        bounds = (imageSize - viewSize / scale).positive()
+
+                        if (zoom != 1f) {
+                            event.changes.fastForEach {
+                                if (it.positionChanged()) {
+                                    it.consume()
+                                }
+                            }
+                        }
+
+                    }
+                }
+            }
+    ) {
         AsyncImage(
             model = ImageRequest.Builder(LocalContext.current)
                 .data(image.path)
@@ -62,31 +94,14 @@ fun ImageView(image: Image) {
                 .offset { offset.round() }
                 .onSizeChanged { viewSize = it.toSize() }
                 .pointerInput(Unit) {
-                    detectTapGestures(
-                        onDoubleTap = {
-                            scale = if (scale.equals(minScale)) maxScale else minScale
-                            bounds = (imageSize - viewSize / scale).positive()
-                            offset = offset.within(bounds)
-                        }
-                    )
-                }
-                .pointerInput(Unit) {
                     awaitEachGesture {
                         while (true) {
                             val event = awaitPointerEvent()
-                            val zoom = event.calculateZoom()
                             val pan = event.calculatePan()
 
-                            scale = max(minScale, scale * zoom)
-                            bounds = (imageSize - viewSize / scale).positive()
-
-                            val x0 = offset.x
                             offset = (offset + pan).within(bounds)
 
-                            val zoomed = zoom != 1f
-                            val panned = offset.x != x0
-
-                            if (zoomed or panned) {
+                            if (scale != minScale) {
                                 event.changes.fastForEach {
                                     if (it.positionChanged()) {
                                         it.consume()
