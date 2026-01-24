@@ -24,23 +24,30 @@ import com.google.accompanist.permissions.shouldShowRationale
 
 @Composable
 @OptIn(ExperimentalPermissionsApi::class)
-fun PermissionDisclaimer(permission: PermissionState) {
+fun PermissionDisclaimer(
+    permission: PermissionState,
+    modifier: Modifier = Modifier,
+) {
     Column(
-        modifier = Modifier.fillMaxSize(1f),
+        modifier = modifier.fillMaxSize(1f),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
         val text =
-            if (permission.status.shouldShowRationale) R.string.permission_disclaimer
-            else R.string.permission_denied
+            if (permission.status.shouldShowRationale) {
+                R.string.permission_disclaimer
+            } else {
+                R.string.permission_denied
+            }
 
         Text(
             text = stringResource(id = text),
             style = Typography.bodyLarge,
             textAlign = TextAlign.Center,
-            modifier = Modifier
-                .padding(16.dp, 16.dp)
-                .width(200.dp),
+            modifier =
+                Modifier
+                    .padding(16.dp, 16.dp)
+                    .width(200.dp),
         )
         Button(onClick = { permission.launchPermissionRequest() }) {
             Text(text = stringResource(id = R.string.grant))
@@ -51,14 +58,16 @@ fun PermissionDisclaimer(permission: PermissionState) {
 @Preview(showSystemUi = true)
 @Composable
 @OptIn(ExperimentalPermissionsApi::class)
-fun Preview() {
-    val state = remember {
-        object : PermissionState {
-            override val permission = ""
-            override val status = PermissionStatus.Denied(true)
-            override fun launchPermissionRequest() {}
+private fun Preview() {
+    val state =
+        remember {
+            object : PermissionState {
+                override val permission = ""
+                override val status = PermissionStatus.Denied(true)
+
+                override fun launchPermissionRequest() {}
+            }
         }
-    }
 
     PermissionDisclaimer(state)
 }

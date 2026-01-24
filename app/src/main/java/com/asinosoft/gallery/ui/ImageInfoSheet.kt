@@ -33,7 +33,7 @@ fun ImageInfoSheet(
     val time = image.time.format(DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT))
 
     ModalBottomSheet(
-        onDismissRequest = onDismissRequest
+        onDismissRequest = onDismissRequest,
     ) {
         Text(
             text = stringResource(R.string.info),
@@ -45,19 +45,19 @@ fun ImageInfoSheet(
         ListItem(
             leadingContent = { Icon(Icons.Default.Folder, null) },
             headlineContent = { Text(stringResource(R.string.path)) },
-            supportingContent = { Text(image.filename) }
+            supportingContent = { Text(image.filename) },
         )
         ListItem(
             leadingContent = { Icon(Icons.Default.AspectRatio, null) },
             headlineContent = { Text(stringResource(R.string.size)) },
-            supportingContent = { Text("${image.width}×${image.height}, $size") }
+            supportingContent = { Text("${image.width}×${image.height}, $size") },
         )
         ListItem(
             leadingContent = { Icon(Icons.Default.CalendarToday, null) },
             headlineContent = { Text(stringResource(R.string.date)) },
             supportingContent = {
                 Text("$date $time")
-            }
+            },
         )
     }
 }

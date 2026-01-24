@@ -9,8 +9,10 @@ import java.time.LocalDate
 
 fun groupByMonth(images: List<Image>): List<ListItem> {
     val result = ArrayList<ListItem>()
-    val monthNames = DateFormatSymbols.getInstance()
-        .getMonths(DateFormatSymbols.STANDALONE, DateFormatSymbols.WIDE)
+    val monthNames =
+        DateFormatSymbols
+            .getInstance()
+            .getMonths(DateFormatSymbols.STANDALONE, DateFormatSymbols.WIDE)
     var month: LocalDate? = null
 
     images.sortedByDescending { it.date }.forEach { image ->

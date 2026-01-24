@@ -32,24 +32,28 @@ import com.asinosoft.gallery.ui.theme.Typography
 @Composable
 fun AlbumListView(
     albums: List<Album>,
-    onAlbumClick: (Album) -> Unit
+    onAlbumClick: (Album) -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     LazyVerticalGrid(
         columns = GridCells.Fixed(2),
+        modifier = modifier,
     ) {
         items(albums) { album ->
             Box(
-                modifier = Modifier
-                    .padding(1.dp)
-                    .clip(RoundedCornerShape(12.dp))
+                modifier =
+                    Modifier
+                        .padding(1.dp)
+                        .clip(RoundedCornerShape(12.dp)),
             ) {
                 AsyncImage(
                     model = album.cover,
                     contentDescription = "",
                     contentScale = ContentScale.Crop,
-                    modifier = Modifier
-                        .aspectRatio(1f)
-                        .clickable { onAlbumClick(album) }
+                    modifier =
+                        Modifier
+                            .aspectRatio(1f)
+                            .clickable { onAlbumClick(album) },
                 )
 
                 AlbumImages(album)
@@ -61,31 +65,39 @@ fun AlbumListView(
 }
 
 @Composable
-fun BoxScope.AlbumImages(album: Album) {
+fun BoxScope.AlbumImages(
+    album: Album,
+    modifier: Modifier = Modifier,
+) {
     Text(
         text = " ${album.count} ",
         color = Color.White,
-        modifier = Modifier
-            .align(Alignment.TopEnd)
-            .background(
-                Brush.verticalGradient(
-                    listOf(
-                        Color.Transparent.copy(0.5f),
-                        Color.Transparent
-                    )
-                )
-            )
+        modifier =
+            modifier
+                .align(Alignment.TopEnd)
+                .background(
+                    Brush.verticalGradient(
+                        listOf(
+                            Color.Transparent.copy(0.5f),
+                            Color.Transparent,
+                        ),
+                    ),
+                ),
     )
 }
 
 @Composable
-fun BoxScope.AlbumInfo(album: Album) {
+fun BoxScope.AlbumInfo(
+    album: Album,
+    modifier: Modifier = Modifier,
+) {
     Row(
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier
-            .background(Color.Black.copy(alpha = 0.4f))
-            .align(Alignment.BottomCenter)
+        modifier =
+            modifier
+                .background(Color.Black.copy(alpha = 0.4f))
+                .align(Alignment.BottomCenter),
     ) {
         val size = Formatter.formatShortFileSize(LocalContext.current, album.size)
 
@@ -94,10 +106,11 @@ fun BoxScope.AlbumInfo(album: Album) {
             overflow = TextOverflow.Ellipsis,
             maxLines = 1,
             color = Color.White,
-            modifier = Modifier
-                .padding(start = 8.dp)
-                .fillMaxWidth()
-                .weight(1f)
+            modifier =
+                Modifier
+                    .padding(start = 8.dp)
+                    .fillMaxWidth()
+                    .weight(1f),
         )
 
         Text(
@@ -105,8 +118,9 @@ fun BoxScope.AlbumInfo(album: Album) {
             style = Typography.bodySmall,
             color = Color.White,
             maxLines = 1,
-            modifier = Modifier
-                .padding(end = 8.dp)
+            modifier =
+                Modifier
+                    .padding(end = 8.dp),
         )
     }
 }

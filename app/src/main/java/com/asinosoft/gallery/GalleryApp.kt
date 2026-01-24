@@ -19,16 +19,17 @@ class GalleryApp : Application() {
         super.onCreate()
 
         SingletonImageLoader.setSafe {
-            ImageLoader.Builder(baseContext)
+            ImageLoader
+                .Builder(baseContext)
                 .crossfade(true)
                 .coroutineContext(Dispatchers.IO)
                 .memoryCachePolicy(CachePolicy.ENABLED)
                 .memoryCache(
-                    MemoryCache.Builder()
+                    MemoryCache
+                        .Builder()
                         .maxSizePercent(this, 0.25)
-                        .build()
-                )
-                .build()
+                        .build(),
+                ).build()
         }
     }
 }

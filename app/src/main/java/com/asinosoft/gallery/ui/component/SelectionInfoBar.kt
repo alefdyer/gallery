@@ -31,7 +31,7 @@ fun SelectionInfoBar(
             IconButton(onClick = onBack) {
                 Icon(
                     imageVector = Icons.Filled.Close,
-                    contentDescription = null
+                    contentDescription = null,
                 )
             }
         },
@@ -39,16 +39,15 @@ fun SelectionInfoBar(
             IconButton(onClick = { onShare(selectedImages) }) {
                 Icon(
                     imageVector = Icons.Filled.Share,
-                    contentDescription = null
+                    contentDescription = null,
                 )
             }
             IconButton(onClick = { onDelete(selectedImages) }) {
                 Icon(
                     imageVector = Icons.Filled.Delete,
-                    contentDescription = null
+                    contentDescription = null,
                 )
             }
         },
     )
-
 }

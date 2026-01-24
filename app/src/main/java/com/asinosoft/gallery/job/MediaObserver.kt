@@ -30,18 +30,21 @@ class MediaObserver : JobService() {
     companion object {
         private const val JOB_ID = 1
         private val MEDIA_URI = "content://${MediaStore.AUTHORITY}/".toUri()
+
         fun schedule(context: Context) {
             val componentName = ComponentName(context, MediaObserver::class.java)
             context.getSystemService(JobScheduler::class.java).schedule(
-                JobInfo.Builder(JOB_ID, componentName).apply {
-                    addTriggerContentUri(
-                        TriggerContentUri(
-                            MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
-                            TriggerContentUri.FLAG_NOTIFY_FOR_DESCENDANTS
+                JobInfo
+                    .Builder(JOB_ID, componentName)
+                    .apply {
+                        addTriggerContentUri(
+                            TriggerContentUri(
+                                MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+                                TriggerContentUri.FLAG_NOTIFY_FOR_DESCENDANTS,
+                            ),
                         )
-                    )
-                    addTriggerContentUri(TriggerContentUri(MEDIA_URI, 0))
-                }.build()
+                        addTriggerContentUri(TriggerContentUri(MEDIA_URI, 0))
+                    }.build(),
             )
         }
 
@@ -64,20 +67,21 @@ class MediaObserver : JobService() {
         return true
     }
 
-    private fun fetchAll(params: JobParameters) = thread {
-        runBlocking(Dispatchers.IO) {
-            params.triggeredContentUris?.let {
-                it.forEach { uri ->
-                    try {
-                        fetcher.fetchOne(uri.toString())
-                    } catch (ex: Throwable) {
-                        Log.d(GalleryApp.TAG, "Exception: $ex")
-                        // ignore
+    private fun fetchAll(params: JobParameters) =
+        thread {
+            runBlocking(Dispatchers.IO) {
+                params.triggeredContentUris?.let {
+                    it.forEach { uri ->
+                        try {
+                            fetcher.fetchOne(uri.toString())
+                        } catch (ex: Throwable) {
+                            Log.d(GalleryApp.TAG, "Exception: $ex")
+                            // ignore
+                        }
                     }
-                }
-            } ?: fetcher.fetchAll()
+                } ?: fetcher.fetchAll()
 
-            jobFinished(params, false)
+                jobFinished(params, false)
+            }
         }
-    }
 }

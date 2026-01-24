@@ -9,8 +9,8 @@ import java.util.UUID
 
 @Entity(
     indices = [
-        Index(value = ["path"], unique = true)
-    ]
+        Index(value = ["path"], unique = true),
+    ],
 )
 data class Image(
     @PrimaryKey

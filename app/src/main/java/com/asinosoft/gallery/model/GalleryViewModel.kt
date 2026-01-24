@@ -17,36 +17,39 @@ import javax.inject.Inject
 
 @HiltViewModel
 class GalleryViewModel
-@Inject
-constructor(
-    private val albumDao: AlbumDao,
-    private val imageDao: ImageDao,
-    private val fetcher: ImageFetcher
-) : ViewModel() {
-    private val albumName = MutableStateFlow<String?>(null)
-    private val rescanFlow = MutableStateFlow(false)
+    @Inject
+    constructor(
+        private val albumDao: AlbumDao,
+        private val imageDao: ImageDao,
+        private val fetcher: ImageFetcher,
+    ) : ViewModel() {
+        private val albumName = MutableStateFlow<String?>(null)
+        private val rescanFlow = MutableStateFlow(false)
 
-    val albums = albumDao.getAlbums()
+        val albums = albumDao.getAlbums()
 
-    val images = imageDao.getImages()
+        val images = imageDao.getImages()
 
-    val isRescanning: StateFlow<Boolean> = rescanFlow
+        val isRescanning: StateFlow<Boolean> = rescanFlow
 
-    @OptIn(ExperimentalCoroutinesApi::class)
-    val albumImages = albumName.filterNotNull().flatMapLatest { imageDao.getAlbumImages(it) }
+        @OptIn(ExperimentalCoroutinesApi::class)
+        val albumImages = albumName.filterNotNull().flatMapLatest { imageDao.getAlbumImages(it) }
 
-    fun rescan() = viewModelScope.launch {
-        rescanFlow.emit(true)
-        fetcher.fetchAll()
-        rescanFlow.emit(false)
+        fun rescan() =
+            viewModelScope.launch {
+                rescanFlow.emit(true)
+                fetcher.fetchAll()
+                rescanFlow.emit(false)
+            }
+
+        fun setAlbumName(name: String) =
+            viewModelScope.launch {
+                albumName.emit(name)
+            }
+
+        fun deleteAll(images: Collection<Image>) =
+            viewModelScope.launch {
+                imageDao.deleteAll(images)
+                albumDao.deleteAll(albumDao.getEmptyAlbums())
+            }
     }
-
-    fun setAlbumName(name: String) = viewModelScope.launch {
-        albumName.emit(name)
-    }
-
-    fun deleteAll(images: Collection<Image>) = viewModelScope.launch {
-        imageDao.deleteAll(images)
-        albumDao.deleteAll(albumDao.getEmptyAlbums())
-    }
-}

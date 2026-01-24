@@ -44,6 +44,7 @@ import com.asinosoft.gallery.model.GalleryViewModel
 @Composable
 fun PagerView(
     images: List<Image>,
+    modifier: Modifier = Modifier,
     startImage: Image? = null,
     model: GalleryViewModel = hiltViewModel(),
     onClose: () -> Unit = {},
@@ -68,32 +69,35 @@ fun PagerView(
 
     fun Image.share() {
         Log.d(GalleryApp.TAG, "Share $path")
-        val send = Intent().apply {
-            action = Intent.ACTION_SEND
-            type = "image/jpeg"
-            putExtra(Intent.EXTRA_STREAM, path.toUri())
-            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-        }
+        val send =
+            Intent().apply {
+                action = Intent.ACTION_SEND
+                type = "image/jpeg"
+                putExtra(Intent.EXTRA_STREAM, path.toUri())
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
         val chooser = Intent.createChooser(send, null)
         context.startActivity(chooser)
     }
 
     fun Image.edit() {
         Log.d(GalleryApp.TAG, "Edit $path")
-        val edit = Intent().apply {
-            action = Intent.ACTION_EDIT
-            data = path.toUri()
-        }
+        val edit =
+            Intent().apply {
+                action = Intent.ACTION_EDIT
+                data = path.toUri()
+            }
         context.startActivity(edit)
     }
 
     fun Image.delete() {
         Log.d(GalleryApp.TAG, "Delete $path")
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            val delete: PendingIntent = MediaStore.createDeleteRequest(
-                context.contentResolver,
-                listOf(path.toUri())
-            )
+            val delete: PendingIntent =
+                MediaStore.createDeleteRequest(
+                    context.contentResolver,
+                    listOf(path.toUri()),
+                )
 
             closeAfterDelete = 1 == images.count()
             launcher.launch(IntentSenderRequest.Builder(delete.intentSender).build())
@@ -101,12 +105,12 @@ fun PagerView(
     }
 
     Box(
-        modifier = Modifier
-            .background(Color.Black),
+        modifier =
+            modifier
+                .background(Color.Black),
     ) {
         var showControls by remember { mutableStateOf(true) }
         var showImageInfo by remember { mutableStateOf(false) }
-
 
         if (showImageInfo) {
             ImageInfoSheet(currentImage) { showImageInfo = false }
@@ -115,14 +119,15 @@ fun PagerView(
         HorizontalPager(
             state = pagerState,
             pageSpacing = 16.dp,
-            modifier = Modifier
-                .onSingleClick { showControls = !showControls }
-                .pointerInput(Unit) {
-                    detectVerticalDragGestures { _, amount ->
-                        if (amount > 0 && !showImageInfo) onClose()
-                        if (amount < 0) showImageInfo = true
-                    }
-                }
+            modifier =
+                Modifier
+                    .onSingleClick { showControls = !showControls }
+                    .pointerInput(Unit) {
+                        detectVerticalDragGestures { _, amount ->
+                            if (amount > 0 && !showImageInfo) onClose()
+                            if (amount < 0) showImageInfo = true
+                        }
+                    },
         ) { n ->
             ImageView(image = images[n])
         }
@@ -134,7 +139,7 @@ fun PagerView(
         ) {
             PagerViewBar(
                 onBack = onClose,
-                onShowImageInfo = { showImageInfo = true }
+                onShowImageInfo = { showImageInfo = true },
             )
         }
 
@@ -157,14 +162,20 @@ fun PagerView(
 }
 
 internal fun Modifier.onSingleClick(onClick: () -> Unit): Modifier =
-    this then Modifier.pointerInput(Unit) {
-        while (true) {
-            awaitPointerEventScope {
-                val down = awaitFirstDown(false)
+    this then
+        Modifier.pointerInput(Unit) {
+            while (true) {
+                awaitPointerEventScope {
+                    val down = awaitFirstDown(false)
 
-                if (awaitPointerEvent().changes.fastAll { it.id == down.id && !it.pressed && androidx.compose.ui.geometry.Offset.Zero == it.position - down.position }) {
-                    onClick()
+                    if (awaitPointerEvent().changes.fastAll {
+                            it.id == down.id &&
+                                !it.pressed &&
+                                androidx.compose.ui.geometry.Offset.Zero == it.position - down.position
+                        }
+                    ) {
+                        onClick()
+                    }
                 }
             }
         }
-    }

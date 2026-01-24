@@ -24,18 +24,21 @@ fun PagerBottomBar(
     onEdit: () -> Unit,
     onSearch: () -> Unit,
     onDelete: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
-    val colors = NavigationBarItemDefaults.colors(
-        unselectedIconColor = Color.White,
-        unselectedTextColor = Color.White,
-    )
+    val colors =
+        NavigationBarItemDefaults.colors(
+            unselectedIconColor = Color.White,
+            unselectedTextColor = Color.White,
+        )
 
     NavigationBar(
         containerColor = Color.Transparent,
         contentColor = Color.White,
-        modifier = Modifier.background(
-            Brush.verticalGradient(listOf(Color.Transparent, Color.Transparent.copy(0.5f)))
-        ),
+        modifier =
+            modifier.background(
+                Brush.verticalGradient(listOf(Color.Transparent, Color.Transparent.copy(0.5f))),
+            ),
     ) {
         NavigationBarItem(
             selected = false,
@@ -66,7 +69,7 @@ fun PagerBottomBar(
             icon = {
                 Icon(
                     imageVector = Icons.Filled.Delete,
-                    stringResource(id = R.string.delete)
+                    stringResource(id = R.string.delete),
                 )
             },
             label = { Text(stringResource(id = R.string.delete)) },

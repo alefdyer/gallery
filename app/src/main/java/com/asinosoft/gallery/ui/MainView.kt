@@ -36,16 +36,18 @@ fun MainView(
     onAlbumClick: (Album) -> Unit,
     isRefreshing: Boolean,
     onRefresh: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     val pagerState = rememberPagerState { 2 }
     val coroutineScope = rememberCoroutineScope()
 
     Scaffold(
+        modifier,
         bottomBar = {
             ViewModeBar(
                 pagerState = pagerState,
                 onPhotos = { coroutineScope.launch { pagerState.scrollToPage(0) } },
-                onAlbums = { coroutineScope.launch { pagerState.scrollToPage(1) } }
+                onAlbums = { coroutineScope.launch { pagerState.scrollToPage(1) } },
             )
         },
     ) { paddingValues ->
@@ -66,14 +68,14 @@ fun MainView(
 
 @Composable
 fun ViewModeBar(
-    modifier: Modifier = Modifier,
     pagerState: PagerState,
     onPhotos: () -> Unit,
     onAlbums: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     NavigationBar(
         modifier = modifier,
-        containerColor = Color.White.copy(0.8f)
+        containerColor = Color.White.copy(0.8f),
     ) {
         Spacer(Modifier.width(60.dp))
         NavigationBarItem(
@@ -82,7 +84,7 @@ fun ViewModeBar(
             icon = {
                 Icon(
                     imageVector = Icons.Default.Photo,
-                    contentDescription = stringResource(id = R.string.photos)
+                    contentDescription = stringResource(id = R.string.photos),
                 )
             },
             label = { Text(stringResource(id = R.string.photos)) },
@@ -93,7 +95,7 @@ fun ViewModeBar(
             icon = {
                 Icon(
                     imageVector = Icons.Default.PhotoLibrary,
-                    contentDescription = stringResource(id = R.string.albums)
+                    contentDescription = stringResource(id = R.string.albums),
                 )
             },
             label = { Text(stringResource(id = R.string.albums)) },

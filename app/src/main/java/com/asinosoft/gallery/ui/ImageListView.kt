@@ -45,9 +45,10 @@ import com.asinosoft.gallery.util.groupByMonth
 @Composable
 fun ImageListView(
     images: List<Image>,
-    model: GalleryViewModel = hiltViewModel(),
-    onImageClick: (Image) -> Unit,
+    modifier: Modifier = Modifier,
     onClose: () -> Unit = {},
+    onImageClick: (Image) -> Unit = {},
+    model: GalleryViewModel = hiltViewModel(),
 ) {
     val context = LocalContext.current
     val items by remember(images) { mutableStateOf(groupByMonth(images)) }
@@ -62,19 +63,19 @@ fun ImageListView(
         Log.d(GalleryApp.TAG, "share ${count()} images")
         val paths: ArrayList<Uri> =
             selectedImages.map { it.path.toUri() }.toCollection(ArrayList())
-        val send = Intent().apply {
-            action = Intent.ACTION_SEND_MULTIPLE
-            type = "image/jpeg"
+        val send =
+            Intent().apply {
+                action = Intent.ACTION_SEND_MULTIPLE
+                type = "image/jpeg"
 
-            putParcelableArrayListExtra(Intent.EXTRA_STREAM, paths)
-            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-        }
+                putParcelableArrayListExtra(Intent.EXTRA_STREAM, paths)
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
 
         val chooser = Intent.createChooser(send, null)
         context.startActivity(chooser)
         selectedImages = setOf()
     }
-
 
     val deleter =
         rememberLauncherForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) {
@@ -92,10 +93,11 @@ fun ImageListView(
     fun Set<Image>.delete() {
         Log.d(GalleryApp.TAG, "delete ${count()} images")
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            val delete: PendingIntent = MediaStore.createDeleteRequest(
-                context.contentResolver,
-                selectedImages.map { it.path.toUri() }
-            )
+            val delete: PendingIntent =
+                MediaStore.createDeleteRequest(
+                    context.contentResolver,
+                    selectedImages.map { it.path.toUri() },
+                )
 
             closeAfterDelete = selectedImages.count() == images.count()
             deleter.launch(IntentSenderRequest.Builder(delete.intentSender).build())
@@ -113,7 +115,7 @@ fun ImageListView(
         LazyVerticalGrid(
             state = lazyGridState,
             columns = GridCells.Fixed(3),
-            modifier = Modifier.padding(top = imageListTopPadding.pxToDp())
+            modifier = modifier.padding(top = imageListTopPadding.pxToDp()),
         ) {
             items(
                 items,
@@ -122,25 +124,30 @@ fun ImageListView(
                         is HeaderItem -> GridItemSpan(maxLineSpan)
                         else -> GridItemSpan(1)
                     }
-                }
+                },
             ) {
                 when (it) {
-                    is HeaderItem -> GroupHeader(it)
-                    is ImageItem -> GroupItem(
-                        image = it.image,
-                        selectionMode = selectionMode,
-                        selectedImages = selectedImages,
-                        onImageClick = onImageClick,
-                        onImageSelect = { image ->
-                            if (selectedImages.contains(image)) {
-                                Log.d(GalleryApp.TAG, "deselect image ${image.path}")
-                                selectedImages -= image
-                            } else {
-                                Log.d(GalleryApp.TAG, "select image ${image.path}")
-                                selectedImages += image
-                            }
-                        }
-                    )
+                    is HeaderItem -> {
+                        GroupHeader(it)
+                    }
+
+                    is ImageItem -> {
+                        GroupItem(
+                            image = it.image,
+                            selectionMode = selectionMode,
+                            selectedImages = selectedImages,
+                            onImageClick = onImageClick,
+                            onImageSelect = { image ->
+                                if (selectedImages.contains(image)) {
+                                    Log.d(GalleryApp.TAG, "deselect image ${image.path}")
+                                    selectedImages -= image
+                                } else {
+                                    Log.d(GalleryApp.TAG, "select image ${image.path}")
+                                    selectedImages += image
+                                }
+                            },
+                        )
+                    }
                 }
             }
         }
@@ -161,4 +168,3 @@ fun ImageListView(
 
 @Composable
 fun Int.pxToDp() = with(LocalDensity.current) { this@pxToDp.toDp() }
-

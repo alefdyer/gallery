@@ -28,26 +28,34 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
 
         val permission =
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) Manifest.permission.READ_MEDIA_IMAGES
-            else Manifest.permission.READ_EXTERNAL_STORAGE
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                Manifest.permission.READ_MEDIA_IMAGES
+            } else {
+                Manifest.permission.READ_EXTERNAL_STORAGE
+            }
 
         if (PackageManager.PERMISSION_GRANTED == checkSelfPermission(permission)) {
             model.rescan()
         }
 
         setContent {
-            val storagePermission = rememberPermissionState(permission) { granted ->
-                if (granted) model.rescan()
-            }
+            val storagePermission =
+                rememberPermissionState(permission) { granted ->
+                    if (granted) model.rescan()
+                }
 
             val navController = rememberNavController()
 
             GalleryTheme {
                 when (storagePermission.status.isGranted) {
-                    true -> Navigation(navController)
+                    true -> {
+                        Navigation(navController)
+                    }
 
-                    else -> Box {
-                        PermissionDisclaimer(storagePermission)
+                    else -> {
+                        Box {
+                            PermissionDisclaimer(storagePermission)
+                        }
                     }
                 }
             }

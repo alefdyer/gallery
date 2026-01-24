@@ -17,16 +17,14 @@ abstract class AppDatabase : RoomDatabase() {
         @Volatile
         private var instance: AppDatabase? = null
 
-        fun getInstance(context: Context): AppDatabase {
-            return instance ?: synchronized(this) {
+        fun getInstance(context: Context): AppDatabase =
+            instance ?: synchronized(this) {
                 instance ?: buildDatabase(context).also { instance = it }
             }
-        }
 
-        private fun buildDatabase(context: Context): AppDatabase {
-            return Room
+        private fun buildDatabase(context: Context): AppDatabase =
+            Room
                 .databaseBuilder(context, AppDatabase::class.java, "images.db")
                 .build()
-        }
     }
 }

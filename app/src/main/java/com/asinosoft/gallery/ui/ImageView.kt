@@ -34,7 +34,10 @@ import kotlin.math.max
 import kotlin.math.min
 
 @Composable
-fun ImageView(image: Image) {
+fun ImageView(
+    image: Image,
+    modifier: Modifier = Modifier,
+) {
     var viewSize by remember { mutableStateOf(Size.Zero) }
     var imageSize by remember { mutableStateOf(Size.Zero) }
     var bounds by remember { mutableStateOf(Size.Zero) }
@@ -47,90 +50,95 @@ fun ImageView(image: Image) {
     LaunchedEffect(minScale) { scale = minScale }
 
     Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .pointerInput(Unit) {
-                detectTapGestures(
-                    onDoubleTap = {
-                        scale = if (scale.equals(minScale)) maxScale else minScale
-                        bounds = (imageSize - viewSize / scale).positive()
-                        offset = offset.within(bounds)
-                    }
-                )
-            }
-            .pointerInput(Unit) {
-                awaitEachGesture {
-                    while (true) {
-                        val event = awaitPointerEvent()
-                        val zoom = event.calculateZoom()
-
-                        scale = max(minScale, scale * zoom)
-                        bounds = (imageSize - viewSize / scale).positive()
-
-                        if (zoom != 1f) {
-                            event.changes.fastForEach {
-                                if (it.positionChanged()) {
-                                    it.consume()
-                                }
-                            }
-                        }
-
-                    }
-                }
-            }
-    ) {
-        AsyncImage(
-            model = ImageRequest.Builder(LocalContext.current)
-                .data(image.path)
-                .size(2000)
-                .build(),
-            clipToBounds = false,
-            contentDescription = "",
-            contentScale = ContentScale.None,
-            onState = { state -> state.painter?.let { imageSize = it.intrinsicSize } },
-            modifier = Modifier
+        modifier =
+            modifier
                 .fillMaxSize()
-                .scale(scale)
-                .offset { offset.round() }
-                .onSizeChanged { viewSize = it.toSize() }
                 .pointerInput(Unit) {
+                    detectTapGestures(
+                        onDoubleTap = {
+                            scale = if (scale.equals(minScale)) maxScale else minScale
+                            bounds = (imageSize - viewSize / scale).positive()
+                            offset = offset.within(bounds)
+                        },
+                    )
+                }.pointerInput(Unit) {
                     awaitEachGesture {
                         while (true) {
                             val event = awaitPointerEvent()
-                            val pan = event.calculatePan()
+                            val zoom = event.calculateZoom()
 
-                            offset = (offset + pan).within(bounds)
+                            scale = max(minScale, scale * zoom)
+                            bounds = (imageSize - viewSize / scale).positive()
 
-                            if (scale != minScale) {
+                            if (zoom != 1f) {
                                 event.changes.fastForEach {
                                     if (it.positionChanged()) {
                                         it.consume()
                                     }
                                 }
                             }
-
                         }
                     }
-                }
+                },
+    ) {
+        AsyncImage(
+            model =
+                ImageRequest
+                    .Builder(LocalContext.current)
+                    .data(image.path)
+                    .size(2000)
+                    .build(),
+            clipToBounds = false,
+            contentDescription = "",
+            contentScale = ContentScale.None,
+            onState = { state -> state.painter?.let { imageSize = it.intrinsicSize } },
+            modifier =
+                Modifier
+                    .fillMaxSize()
+                    .scale(scale)
+                    .offset { offset.round() }
+                    .onSizeChanged { viewSize = it.toSize() }
+                    .pointerInput(Unit) {
+                        awaitEachGesture {
+                            while (true) {
+                                val event = awaitPointerEvent()
+                                val pan = event.calculatePan()
+
+                                offset = (offset + pan).within(bounds)
+
+                                if (scale != minScale) {
+                                    event.changes.fastForEach {
+                                        if (it.positionChanged()) {
+                                            it.consume()
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
         )
     }
 }
 
-fun Offset.within(bounds: Size) = Offset(
-    x.within(-bounds.width / 2, bounds.width / 2),
-    y.within(-bounds.height / 2, bounds.height / 2),
-)
+fun Offset.within(bounds: Size) =
+    Offset(
+        x.within(-bounds.width / 2, bounds.width / 2),
+        y.within(-bounds.height / 2, bounds.height / 2),
+    )
 
-fun Float.within(min: Float, max: Float) = max(min, min(max, this))
+fun Float.within(
+    min: Float,
+    max: Float,
+) = max(min, min(max, this))
 
-operator fun Size.minus(another: Size) = Size(
-    width - another.width,
-    height - another.height
-)
+operator fun Size.minus(another: Size) =
+    Size(
+        width - another.width,
+        height - another.height,
+    )
 
 fun Size.positive() = Size(max(0f, width), max(0f, height))
 
 fun Size.scaleInto(box: Size): Float = (box.width / width).coerceAtMost(box.height / height)
 
-fun Size.scaleUpTo(box: Size): Float =
-    (box.width / width).coerceAtLeast(box.height / height).coerceAtLeast(2f)
+fun Size.scaleUpTo(box: Size): Float = (box.width / width).coerceAtLeast(box.height / height).coerceAtLeast(2f)

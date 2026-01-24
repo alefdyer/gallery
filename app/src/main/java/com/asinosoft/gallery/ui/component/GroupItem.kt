@@ -23,58 +23,69 @@ import java.io.File
 @Composable
 fun GroupItem(
     image: Image,
+    modifier: Modifier = Modifier,
     selectedImages: Set<Image> = setOf(),
     selectionMode: Boolean = false,
     onImageClick: (Image) -> Unit = {},
     onImageSelect: (Image) -> Unit = {},
 ) {
-    Box(contentAlignment = Alignment.BottomEnd) {
+    Box(
+        modifier = modifier,
+        contentAlignment = Alignment.BottomEnd,
+    ) {
         val scope = rememberCoroutineScope()
         val thumbnail = File(LocalContext.current.cacheDir, image.id.toString())
 
-        val request = if (thumbnail.exists())
-            ImageRequest.Builder(LocalContext.current)
-                .data(thumbnail)
-                .build()
-        else
-            ImageRequest.Builder(LocalContext.current)
-                .data(image.path)
-                .listener(onSuccess = { request, result ->
-                    if (image.size / result.image.size >= 4) {
-                        scope.launch(Dispatchers.IO) {
-                            Log.d("GroupItem", "Cache ${request.data}")
+        val request =
+            if (thumbnail.exists()) {
+                ImageRequest
+                    .Builder(LocalContext.current)
+                    .data(thumbnail)
+                    .build()
+            } else {
+                ImageRequest
+                    .Builder(LocalContext.current)
+                    .data(image.path)
+                    .listener(onSuccess = { request, result ->
+                        if (image.size / result.image.size >= 4) {
+                            scope.launch(Dispatchers.IO) {
+                                Log.d("GroupItem", "Cache ${request.data}")
 
-                            thumbnail.outputStream().use {
-                                result.image.toBitmap()
-                                    .compress(CompressFormat.WEBP, 100, it)
+                                thumbnail.outputStream().use {
+                                    result.image
+                                        .toBitmap()
+                                        .compress(CompressFormat.WEBP, 100, it)
+                                }
                             }
                         }
-                    }
-                })
-                .build()
+                    })
+                    .build()
+            }
 
         AsyncImage(
             model = request,
             contentDescription = "",
             contentScale = ContentScale.Crop,
-            modifier = Modifier
-                .aspectRatio(1f)
-                .combinedClickable(
-                    onClick = {
-                        if (selectionMode) {
-                            onImageSelect(image)
-                        } else {
-                            onImageClick(image)
-                        }
-                    },
-                    onLongClick = { onImageSelect(image) }
-                )
+            modifier =
+                Modifier
+                    .aspectRatio(1f)
+                    .combinedClickable(
+                        onClick = {
+                            if (selectionMode) {
+                                onImageSelect(image)
+                            } else {
+                                onImageClick(image)
+                            }
+                        },
+                        onLongClick = { onImageSelect(image) },
+                    ),
         )
 
         if (selectionMode) {
             Checkbox(
                 checked = selectedImages.contains(image),
-                onCheckedChange = { onImageSelect(image) })
+                onCheckedChange = { onImageSelect(image) },
+            )
         }
     }
 }

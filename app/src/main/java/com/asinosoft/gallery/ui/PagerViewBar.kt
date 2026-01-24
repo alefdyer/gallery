@@ -29,23 +29,25 @@ import com.asinosoft.gallery.R
 fun PagerViewBar(
     onBack: () -> Unit,
     onShowImageInfo: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     TopAppBar(
         title = { },
-        modifier = Modifier
-            .background(
-                Brush.verticalGradient(listOf(Color.Transparent.copy(0.5f), Color.Transparent))
+        modifier =
+            modifier.background(
+                Brush.verticalGradient(listOf(Color.Transparent.copy(0.5f), Color.Transparent)),
             ),
-        colors = TopAppBarDefaults.topAppBarColors(
-            containerColor = Color.Transparent,
-            actionIconContentColor = Color.White,
-            navigationIconContentColor = Color.White,
-        ),
+        colors =
+            TopAppBarDefaults.topAppBarColors(
+                containerColor = Color.Transparent,
+                actionIconContentColor = Color.White,
+                navigationIconContentColor = Color.White,
+            ),
         navigationIcon = {
             IconButton(onClick = onBack) {
                 Icon(
                     imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = null
+                    contentDescription = null,
                 )
             }
         },
@@ -58,13 +60,14 @@ fun PagerViewBar(
 @Composable
 fun MenuButton(
     onShowImageInfo: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     var showMenu by remember { mutableStateOf(false) }
 
-    IconButton(onClick = { showMenu = true }) {
+    IconButton({ showMenu = true }, modifier) {
         Icon(
             imageVector = Icons.Filled.Menu,
-            contentDescription = null
+            contentDescription = null,
         )
         DropdownMenu(
             expanded = showMenu,
@@ -72,13 +75,17 @@ fun MenuButton(
         ) {
             DropdownMenuItem(
                 text = { Text(stringResource(R.string.info)) },
-                onClick = { onShowImageInfo(); showMenu = false },
+                onClick = {
+                    onShowImageInfo()
+                    showMenu = false
+                },
                 leadingIcon = {
                     Icon(
                         Icons.Outlined.Info,
-                        contentDescription = stringResource(R.string.info)
+                        contentDescription = stringResource(R.string.info),
                     )
-                })
+                },
+            )
         }
     }
 }

@@ -16,17 +16,13 @@ import javax.inject.Singleton
 object DatabaseModule {
     @Singleton
     @Provides
-    fun provideAppDatabase(@ApplicationContext context: Context): AppDatabase {
-        return AppDatabase.getInstance(context)
-    }
+    fun provideAppDatabase(
+        @ApplicationContext context: Context,
+    ): AppDatabase = AppDatabase.getInstance(context)
 
     @Provides
-    fun provideAlbumDao(appDatabase: AppDatabase): AlbumDao {
-        return appDatabase.albumDao()
-    }
+    fun provideAlbumDao(appDatabase: AppDatabase): AlbumDao = appDatabase.albumDao()
 
     @Provides
-    fun provideImageDao(appDatabase: AppDatabase): ImageDao {
-        return appDatabase.imageDao()
-    }
+    fun provideImageDao(appDatabase: AppDatabase): ImageDao = appDatabase.imageDao()
 }
