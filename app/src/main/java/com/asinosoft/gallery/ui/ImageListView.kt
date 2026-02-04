@@ -1,14 +1,8 @@
 package com.asinosoft.gallery.ui
 
 import android.app.Activity
-import android.app.PendingIntent
-import android.content.Intent
-import android.net.Uri
-import android.os.Build
-import android.provider.MediaStore
 import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.layout.Box
@@ -30,7 +24,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
-import androidx.core.net.toUri
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.asinosoft.gallery.GalleryApp
 import com.asinosoft.gallery.data.HeaderItem
@@ -56,53 +49,21 @@ fun ImageListView(
     val selectionMode by remember { derivedStateOf { selectedImages.isNotEmpty() } }
     var selectionBarHeight by remember { mutableIntStateOf(0) }
     var imageListTopPadding by remember { mutableIntStateOf(0) }
-    var closeAfterDelete by remember(images) { mutableStateOf(false) }
     val lazyGridState = rememberLazyGridState()
-
-    fun Set<Image>.share() {
-        Log.d(GalleryApp.TAG, "share ${count()} images")
-        val paths: ArrayList<Uri> =
-            selectedImages.map { it.path.toUri() }.toCollection(ArrayList())
-        val send =
-            Intent().apply {
-                action = Intent.ACTION_SEND_MULTIPLE
-                type = "image/jpeg"
-
-                putParcelableArrayListExtra(Intent.EXTRA_STREAM, paths)
-                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-            }
-
-        val chooser = Intent.createChooser(send, null)
-        context.startActivity(chooser)
-        selectedImages = setOf()
-    }
 
     val deleter =
         rememberLauncherForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) {
             Log.d(GalleryApp.TAG, "Test: ${it.data?.getBooleanExtra("test", false)}")
             if (Activity.RESULT_OK == it.resultCode) {
                 model.deleteAll(selectedImages)
-                selectedImages = setOf()
 
-                if (closeAfterDelete) {
+                if (selectedImages.count() == images.count()) {
                     onClose()
+                } else {
+                    selectedImages = setOf()
                 }
             }
         }
-
-    fun Set<Image>.delete() {
-        Log.d(GalleryApp.TAG, "delete ${count()} images")
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            val delete: PendingIntent =
-                MediaStore.createDeleteRequest(
-                    context.contentResolver,
-                    selectedImages.map { it.path.toUri() },
-                )
-
-            closeAfterDelete = selectedImages.count() == images.count()
-            deleter.launch(IntentSenderRequest.Builder(delete.intentSender).build())
-        }
-    }
 
     LaunchedEffect(selectionMode) {
         imageListTopPadding = if (selectionMode) selectionBarHeight else 0
@@ -159,8 +120,8 @@ fun ImageListView(
                 onBack = {
                     selectedImages = setOf()
                 },
-                onShare = { it.share() },
-                onDelete = { it.delete() },
+                onShare = { model.share(it, context) },
+                onDelete = { model.delete(it, context, deleter) },
             )
         }
     }

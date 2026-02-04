@@ -1,14 +1,8 @@
 package com.asinosoft.gallery.ui
 
 import android.app.Activity
-import android.app.PendingIntent
-import android.content.Intent
-import android.os.Build
-import android.provider.MediaStore
-import android.util.Log
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.LinearEasing
@@ -35,9 +29,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.util.fastAll
-import androidx.core.net.toUri
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
-import com.asinosoft.gallery.GalleryApp
 import com.asinosoft.gallery.data.Image
 import com.asinosoft.gallery.model.GalleryViewModel
 
@@ -53,56 +45,17 @@ fun PagerView(
     val offset = images.indexOf(startImage).coerceAtLeast(0)
     val pagerState: PagerState = rememberPagerState(offset) { images.count() }
     val currentImage by remember { derivedStateOf { images[pagerState.currentPage] } }
-    var closeAfterDelete by remember(images) { mutableStateOf(false) }
 
     val launcher =
         rememberLauncherForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) {
             if (Activity.RESULT_OK == it.resultCode) {
-                Log.d(GalleryApp.TAG, "delete: $currentImage")
                 model.deleteAll(listOf(currentImage))
 
-                if (closeAfterDelete) {
+                if (1 == images.count()) {
                     onClose()
                 }
             }
         }
-
-    fun Image.share() {
-        Log.d(GalleryApp.TAG, "Share $path")
-        val send =
-            Intent().apply {
-                action = Intent.ACTION_SEND
-                type = "image/jpeg"
-                putExtra(Intent.EXTRA_STREAM, path.toUri())
-                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-            }
-        val chooser = Intent.createChooser(send, null)
-        context.startActivity(chooser)
-    }
-
-    fun Image.edit() {
-        Log.d(GalleryApp.TAG, "Edit $path")
-        val edit =
-            Intent().apply {
-                action = Intent.ACTION_EDIT
-                data = path.toUri()
-            }
-        context.startActivity(edit)
-    }
-
-    fun Image.delete() {
-        Log.d(GalleryApp.TAG, "Delete $path")
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            val delete: PendingIntent =
-                MediaStore.createDeleteRequest(
-                    context.contentResolver,
-                    listOf(path.toUri()),
-                )
-
-            closeAfterDelete = 1 == images.count()
-            launcher.launch(IntentSenderRequest.Builder(delete.intentSender).build())
-        }
-    }
 
     Box(
         modifier =
@@ -150,10 +103,10 @@ fun PagerView(
             exit = slideOutVertically(tween(easing = LinearEasing)) { it / 2 },
         ) {
             PagerBottomBar(
-                onShare = { currentImage.share() },
-                onEdit = { currentImage.edit() },
+                onShare = { model.share(listOf(currentImage), context) },
+                onEdit = { model.edit(currentImage, context) },
                 onSearch = {},
-                onDelete = { currentImage.delete() },
+                onDelete = { model.delete(listOf(currentImage), context, launcher) },
             )
         }
 
@@ -163,19 +116,19 @@ fun PagerView(
 
 internal fun Modifier.onSingleClick(onClick: () -> Unit): Modifier =
     this then
-        Modifier.pointerInput(Unit) {
-            while (true) {
-                awaitPointerEventScope {
-                    val down = awaitFirstDown(false)
+            Modifier.pointerInput(Unit) {
+                while (true) {
+                    awaitPointerEventScope {
+                        val down = awaitFirstDown(false)
 
-                    if (awaitPointerEvent().changes.fastAll {
-                            it.id == down.id &&
-                                !it.pressed &&
-                                androidx.compose.ui.geometry.Offset.Zero == it.position - down.position
+                        if (awaitPointerEvent().changes.fastAll {
+                                it.id == down.id &&
+                                        !it.pressed &&
+                                        androidx.compose.ui.geometry.Offset.Zero == it.position - down.position
+                            }
+                        ) {
+                            onClick()
                         }
-                    ) {
-                        onClick()
                     }
                 }
             }
-        }
