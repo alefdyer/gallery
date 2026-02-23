@@ -5,7 +5,6 @@ import androidx.compose.animation.core.exponentialDecay
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.calculatePan
 import androidx.compose.foundation.gestures.calculateZoom
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
@@ -33,6 +32,7 @@ import androidx.compose.ui.util.fastForEach
 import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
 import com.asinosoft.gallery.data.Image
+import com.asinosoft.gallery.ui.util.onDoubleClick
 import kotlinx.coroutines.launch
 import kotlin.math.max
 
@@ -59,18 +59,16 @@ fun ImageView(
         modifier =
             modifier
                 .fillMaxSize()
-                .pointerInput(Unit) {
-                    detectTapGestures(
-                        onDoubleTap = {
-                            scale = if (scale.equals(minScale)) maxScale else minScale
-                            val bounds = (imageSize * scale - viewSize).positive()
-                            offsetX.updateBounds(-bounds.width / 2f, bounds.width / 2)
-                            offsetY.updateBounds(-bounds.height / 2f, bounds.height / 2)
-                        },
-                    )
-                }
+                .onDoubleClick({
+                    scale = if (scale.equals(minScale)) maxScale else minScale
+                    val bounds = (imageSize * scale - viewSize).positive()
+                    offsetX.updateBounds(-bounds.width / 2f, bounds.width / 2)
+                    offsetY.updateBounds(-bounds.height / 2f, bounds.height / 2)
+                })
                 .pointerInput(imageSize) {
-                    if (!imageSize.isEmpty()) awaitEachGesture {
+                    if (imageSize.isEmpty()) return@pointerInput
+
+                    awaitEachGesture {
                         val trackers = mutableMapOf<PointerId, VelocityTracker>()
 
                         do {
@@ -112,7 +110,7 @@ fun ImageView(
                             }
                         }
                     }
-                }
+                },
     ) {
         AsyncImage(
             model =
@@ -134,7 +132,7 @@ fun ImageView(
                         scaleY = scale
                         translationX = offsetX.value
                         translationY = offsetY.value
-                    }
+                    },
         )
     }
 }
@@ -149,5 +147,4 @@ private fun Size.positive() = Size(max(0f, width), max(0f, height))
 
 private fun Size.scaleInto(box: Size): Float = (box.width / width).coerceAtMost(box.height / height)
 
-private fun Size.scaleUpTo(box: Size): Float =
-    (box.width / width).coerceAtLeast(box.height / height).coerceAtLeast(2f)
+private fun Size.scaleUpTo(box: Size): Float = (box.width / width).coerceAtLeast(box.height / height).coerceAtLeast(2f)

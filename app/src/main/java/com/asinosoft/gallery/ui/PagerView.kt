@@ -10,7 +10,6 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.pager.HorizontalPager
@@ -28,10 +27,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.util.fastAll
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.asinosoft.gallery.data.Image
 import com.asinosoft.gallery.model.GalleryViewModel
+import com.asinosoft.gallery.ui.util.onSingleClick
 
 @Composable
 fun PagerView(
@@ -113,22 +112,3 @@ fun PagerView(
         BackHandler(onBack = onClose)
     }
 }
-
-internal fun Modifier.onSingleClick(onClick: () -> Unit): Modifier =
-    this then
-            Modifier.pointerInput(Unit) {
-                while (true) {
-                    awaitPointerEventScope {
-                        val down = awaitFirstDown(false)
-
-                        if (awaitPointerEvent().changes.fastAll {
-                                it.id == down.id &&
-                                        !it.pressed &&
-                                        androidx.compose.ui.geometry.Offset.Zero == it.position - down.position
-                            }
-                        ) {
-                            onClick()
-                        }
-                    }
-                }
-            }
