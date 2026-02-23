@@ -69,8 +69,8 @@ fun ImageView(
                         },
                     )
                 }
-                .pointerInput(Unit) {
-                    awaitEachGesture {
+                .pointerInput(imageSize) {
+                    if (!imageSize.isEmpty()) awaitEachGesture {
                         val trackers = mutableMapOf<PointerId, VelocityTracker>()
 
                         do {

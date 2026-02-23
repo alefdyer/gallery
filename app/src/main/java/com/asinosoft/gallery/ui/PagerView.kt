@@ -77,8 +77,8 @@ fun PagerView(
                     .onSingleClick { showControls = !showControls }
                     .pointerInput(Unit) {
                         detectVerticalDragGestures { _, amount ->
-                            if (amount > 0 && !showImageInfo) onClose()
-                            if (amount < 0) showImageInfo = true
+                            if (amount > 10 && !showImageInfo) onClose()
+                            if (amount < -10) showImageInfo = true
                         }
                     },
         ) { n ->
