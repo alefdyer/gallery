@@ -10,8 +10,8 @@ class ImageFetcher
     @Inject
     constructor(
         private val albumDao: AlbumDao,
-        private val imageDao: ImageDao,
-        private val repository: LocalImageRepository,
+        private val mediaDao: MediaDao,
+        private val repository: LocalMediaRepository,
     ) {
         suspend fun fetchAll() {
             Log.d(GalleryApp.TAG, "fetchAll")
@@ -19,15 +19,15 @@ class ImageFetcher
             measureTimeMillis {
                 val images = repository.fetchAll()
                 val deletedImages =
-                    imageDao
+                    mediaDao
                         .getImages()
                         .first()
-                        .filterNot { cached -> images.any { it.path == cached.path } }
+                        .filterNot { cached -> images.any { it.uri == cached.uri } }
 
-                imageDao.deleteAll(deletedImages)
-                imageDao.upsertAll(images)
+                mediaDao.deleteAll(deletedImages)
+                mediaDao.upsertAll(images)
 
-                val albums = imageDao.getAlbums().first()
+                val albums = mediaDao.getAlbums().first()
                 val deletedAlbums =
                     albumDao
                         .getAlbums()
@@ -43,6 +43,6 @@ class ImageFetcher
         suspend fun fetchOne(path: String) {
             Log.d(GalleryApp.TAG, "fetchOne: $path")
 
-            imageDao.upsert(repository.fetchOne(path))
+            mediaDao.upsert(repository.fetchOne(path))
         }
     }

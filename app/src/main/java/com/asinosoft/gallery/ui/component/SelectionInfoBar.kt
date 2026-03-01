@@ -11,21 +11,21 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import com.asinosoft.gallery.data.Image
+import com.asinosoft.gallery.data.Media
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SelectionInfoBar(
     modifier: Modifier = Modifier,
-    selectedImages: Set<Image> = setOf(),
+    selected: Set<Media> = setOf(),
     onBack: () -> Unit = {},
-    onShare: (images: Set<Image>) -> Unit = {},
-    onDelete: (images: Set<Image>) -> Unit = {},
+    onShare: (media: Set<Media>) -> Unit = {},
+    onDelete: (media: Set<Media>) -> Unit = {},
 ) {
     TopAppBar(
         modifier = modifier,
         title = {
-            Text(text = selectedImages.count().toString())
+            Text(text = selected.count().toString())
         },
         navigationIcon = {
             IconButton(onClick = onBack) {
@@ -36,13 +36,13 @@ fun SelectionInfoBar(
             }
         },
         actions = {
-            IconButton(onClick = { onShare(selectedImages) }) {
+            IconButton(onClick = { onShare(selected) }) {
                 Icon(
                     imageVector = Icons.Filled.Share,
                     contentDescription = null,
                 )
             }
-            IconButton(onClick = { onDelete(selectedImages) }) {
+            IconButton(onClick = { onDelete(selected) }) {
                 Icon(
                     imageVector = Icons.Filled.Delete,
                     contentDescription = null,

@@ -15,26 +15,26 @@ import androidx.compose.ui.platform.LocalContext
 import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
 import coil3.toBitmap
-import com.asinosoft.gallery.data.Image
+import com.asinosoft.gallery.data.Media
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import java.io.File
 
 @Composable
 fun GroupItem(
-    image: Image,
+    media: Media,
     modifier: Modifier = Modifier,
-    selectedImages: Set<Image> = setOf(),
+    selected: Set<Media> = setOf(),
     selectionMode: Boolean = false,
-    onImageClick: (Image) -> Unit = {},
-    onImageSelect: (Image) -> Unit = {},
+    onClick: (Media) -> Unit = {},
+    onSelect: (Media) -> Unit = {},
 ) {
     Box(
         modifier = modifier,
         contentAlignment = Alignment.BottomEnd,
     ) {
         val scope = rememberCoroutineScope()
-        val thumbnail = File(LocalContext.current.cacheDir, image.id.toString())
+        val thumbnail = File(LocalContext.current.cacheDir, media.id.toString())
 
         val request =
             if (thumbnail.exists()) {
@@ -45,9 +45,9 @@ fun GroupItem(
             } else {
                 ImageRequest
                     .Builder(LocalContext.current)
-                    .data(image.path)
+                    .data(media.uri)
                     .listener(onSuccess = { request, result ->
-                        if (image.size / result.image.size >= 4) {
+                        if (media.size / result.image.size >= 4) {
                             scope.launch(Dispatchers.IO) {
                                 Log.d("GroupItem", "Cache ${request.data}")
 
@@ -72,19 +72,19 @@ fun GroupItem(
                     .combinedClickable(
                         onClick = {
                             if (selectionMode) {
-                                onImageSelect(image)
+                                onSelect(media)
                             } else {
-                                onImageClick(image)
+                                onClick(media)
                             }
                         },
-                        onLongClick = { onImageSelect(image) },
+                        onLongClick = { onSelect(media) },
                     ),
         )
 
         if (selectionMode) {
             Checkbox(
-                checked = selectedImages.contains(image),
-                onCheckedChange = { onImageSelect(image) },
+                checked = selected.contains(media),
+                onCheckedChange = { onSelect(media) },
             )
         }
     }

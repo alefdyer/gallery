@@ -3,7 +3,7 @@ package com.asinosoft.gallery.di
 import android.content.Context
 import com.asinosoft.gallery.data.AlbumDao
 import com.asinosoft.gallery.data.AppDatabase
-import com.asinosoft.gallery.data.ImageDao
+import com.asinosoft.gallery.data.MediaDao
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -24,5 +24,5 @@ object DatabaseModule {
     fun provideAlbumDao(appDatabase: AppDatabase): AlbumDao = appDatabase.albumDao()
 
     @Provides
-    fun provideImageDao(appDatabase: AppDatabase): ImageDao = appDatabase.imageDao()
+    fun provideImageDao(appDatabase: AppDatabase): MediaDao = appDatabase.imageDao()
 }

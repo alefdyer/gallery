@@ -79,6 +79,7 @@ android {
 }
 
 dependencies {
+    implementation("com.google.code.gson:gson:2.13.1")
     val roomVersion = "2.8.4"
 
     implementation("androidx.core:core-ktx:1.17.0")

@@ -1,5 +1,6 @@
 package com.asinosoft.gallery.ui
 
+import android.net.Uri
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.exponentialDecay
 import androidx.compose.foundation.gestures.awaitEachGesture
@@ -31,14 +32,14 @@ import androidx.compose.ui.util.fastAny
 import androidx.compose.ui.util.fastForEach
 import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
-import com.asinosoft.gallery.data.Image
+import com.asinosoft.gallery.data.Media
 import com.asinosoft.gallery.ui.util.onDoubleClick
 import kotlinx.coroutines.launch
 import kotlin.math.max
 
 @Composable
 fun ImageView(
-    image: Image,
+    uri: Uri,
     modifier: Modifier = Modifier,
 ) {
     val scope = rememberCoroutineScope()
@@ -116,7 +117,7 @@ fun ImageView(
             model =
                 ImageRequest
                     .Builder(LocalContext.current)
-                    .data(image.path)
+                    .data(uri)
                     .size(2000)
                     .build(),
             clipToBounds = false,

@@ -2,8 +2,8 @@ package com.asinosoft.gallery.data
 
 sealed interface ListItem
 
-data class ImageItem(
-    val image: Image,
+data class MediaItem(
+    val media: Media,
 ) : ListItem
 
 data class HeaderItem(

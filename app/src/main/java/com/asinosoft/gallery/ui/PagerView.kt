@@ -28,29 +28,29 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
-import com.asinosoft.gallery.data.Image
+import com.asinosoft.gallery.data.Media
 import com.asinosoft.gallery.model.GalleryViewModel
 import com.asinosoft.gallery.ui.util.onSingleClick
 
 @Composable
 fun PagerView(
-    images: List<Image>,
+    items: List<Media>,
     modifier: Modifier = Modifier,
-    startImage: Image? = null,
+    current: Media? = null,
     model: GalleryViewModel = hiltViewModel(),
     onClose: () -> Unit = {},
 ) {
     val context = LocalContext.current
-    val offset = images.indexOf(startImage).coerceAtLeast(0)
-    val pagerState: PagerState = rememberPagerState(offset) { images.count() }
-    val currentImage by remember { derivedStateOf { images[pagerState.currentPage] } }
+    val offset = items.indexOf(current).coerceAtLeast(0)
+    val pagerState: PagerState = rememberPagerState(offset) { items.count() }
+    val currentItem by remember { derivedStateOf { items[pagerState.currentPage] } }
 
     val launcher =
         rememberLauncherForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) {
             if (Activity.RESULT_OK == it.resultCode) {
-                model.deleteAll(listOf(currentImage))
+                model.deleteAll(listOf(currentItem))
 
-                if (1 == images.count()) {
+                if (1 == items.count()) {
                     onClose()
                 }
             }
@@ -62,10 +62,10 @@ fun PagerView(
                 .background(Color.Black),
     ) {
         var showControls by remember { mutableStateOf(true) }
-        var showImageInfo by remember { mutableStateOf(false) }
+        var showInfo by remember { mutableStateOf(false) }
 
-        if (showImageInfo) {
-            ImageInfoSheet(currentImage) { showImageInfo = false }
+        if (showInfo) {
+            MediaInfoSheet(currentItem) { showInfo = false }
         }
 
         HorizontalPager(
@@ -76,12 +76,19 @@ fun PagerView(
                     .onSingleClick { showControls = !showControls }
                     .pointerInput(Unit) {
                         detectVerticalDragGestures { _, amount ->
-                            if (amount > 10 && !showImageInfo) onClose()
-                            if (amount < -10) showImageInfo = true
+                            if (amount > 10 && !showInfo) onClose()
+                            if (amount < -10) showInfo = true
                         }
                     },
         ) { n ->
-            ImageView(image = images[n])
+            val item = items[n]
+            if (null !== item.image) {
+                ImageView(item.uri)
+            } else if (null != item.video) {
+                VideoView(item.uri)
+            } else {
+                DummyView()
+            }
         }
 
         AnimatedVisibility(
@@ -91,7 +98,7 @@ fun PagerView(
         ) {
             PagerViewBar(
                 onBack = onClose,
-                onShowImageInfo = { showImageInfo = true },
+                onShowInfo = { showInfo = true },
             )
         }
 
@@ -102,10 +109,10 @@ fun PagerView(
             exit = slideOutVertically(tween(easing = LinearEasing)) { it / 2 },
         ) {
             PagerBottomBar(
-                onShare = { model.share(listOf(currentImage), context) },
-                onEdit = { model.edit(currentImage, context) },
+                onShare = { model.share(listOf(currentItem), context) },
+                onEdit = { model.edit(currentItem, context) },
                 onSearch = {},
-                onDelete = { model.delete(listOf(currentImage), context, launcher) },
+                onDelete = { model.delete(listOf(currentItem), context, launcher) },
             )
         }
 
