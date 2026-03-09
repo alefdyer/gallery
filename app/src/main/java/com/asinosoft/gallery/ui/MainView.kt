@@ -24,15 +24,15 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.asinosoft.gallery.R
 import com.asinosoft.gallery.data.Album
-import com.asinosoft.gallery.data.Image
+import com.asinosoft.gallery.data.Media
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MainView(
-    images: List<Image>,
+    images: List<Media>,
     albums: List<Album>,
-    onImageClick: (Image) -> Unit,
+    onMediaClick: (Media) -> Unit,
     onAlbumClick: (Album) -> Unit,
     isRefreshing: Boolean,
     onRefresh: () -> Unit,
@@ -58,7 +58,7 @@ fun MainView(
         ) {
             HorizontalPager(state = pagerState) {
                 when (it) {
-                    0 -> ImageListView(images = images, onImageClick = onImageClick)
+                    0 -> ImageListView(media = images, onClick = onMediaClick)
                     1 -> AlbumListView(albums = albums, onAlbumClick = onAlbumClick)
                 }
             }

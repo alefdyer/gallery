@@ -7,14 +7,13 @@ import android.provider.MediaStore
 import android.util.Log
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.IntentSenderRequest
-import androidx.core.net.toUri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.asinosoft.gallery.GalleryApp
 import com.asinosoft.gallery.data.AlbumDao
-import com.asinosoft.gallery.data.Image
-import com.asinosoft.gallery.data.ImageDao
 import com.asinosoft.gallery.data.ImageFetcher
+import com.asinosoft.gallery.data.Media
+import com.asinosoft.gallery.data.MediaDao
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -29,7 +28,7 @@ class GalleryViewModel
     @Inject
     constructor(
         private val albumDao: AlbumDao,
-        private val imageDao: ImageDao,
+        private val mediaDao: MediaDao,
         private val fetcher: ImageFetcher,
     ) : ViewModel() {
         private val albumName = MutableStateFlow<String?>(null)
@@ -37,12 +36,12 @@ class GalleryViewModel
 
         val albums = albumDao.getAlbums()
 
-        val images = imageDao.getImages()
+        val images = mediaDao.getImages()
 
         val isRescanning: StateFlow<Boolean> = rescanFlow
 
         @OptIn(ExperimentalCoroutinesApi::class)
-        val albumImages = albumName.filterNotNull().flatMapLatest { imageDao.getAlbumImages(it) }
+        val albumImages = albumName.filterNotNull().flatMapLatest { mediaDao.getAlbumImages(it) }
 
         fun rescan() =
             viewModelScope.launch {
@@ -57,17 +56,17 @@ class GalleryViewModel
             }
 
         fun delete(
-            images: Collection<Image>,
+            media: Collection<Media>,
             context: Context,
             launcher: ActivityResultLauncher<IntentSenderRequest>,
         ) {
-            Log.d(GalleryApp.TAG, "Delete ${images.count()} images")
+            Log.d(GalleryApp.TAG, "Delete ${media.count()} images")
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
                 val sender =
                     MediaStore
                         .createDeleteRequest(
                             context.contentResolver,
-                            images.map { it.path.toUri() },
+                            media.map { it.uri },
                         ).intentSender
 
                 val request =
@@ -83,29 +82,29 @@ class GalleryViewModel
         }
 
         fun edit(
-            image: Image,
+            media: Media,
             context: Context,
         ) {
-            Log.d(GalleryApp.TAG, "Edit ${image.path}")
+            Log.d(GalleryApp.TAG, "Edit ${media.uri}")
             val edit =
                 Intent().apply {
                     action = Intent.ACTION_EDIT
-                    data = image.path.toUri()
+                    data = media.uri
                 }
             context.startActivity(edit)
         }
 
         fun share(
-            images: Collection<Image>,
+            media: Collection<Media>,
             context: Context,
         ) {
-            Log.d(GalleryApp.TAG, "Share ${images.count()} images")
+            Log.d(GalleryApp.TAG, "Share ${media.count()} images")
             val send =
-                if (1 == images.size) {
+                if (1 == media.size) {
                     Intent().apply {
                         action = Intent.ACTION_SEND
                         type = "image/jpeg"
-                        putExtra(Intent.EXTRA_STREAM, images.first().path.toUri())
+                        putExtra(Intent.EXTRA_STREAM, media.first().uri)
                         addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                     }
                 } else {
@@ -115,7 +114,7 @@ class GalleryViewModel
 
                         putParcelableArrayListExtra(
                             Intent.EXTRA_STREAM,
-                            images.map { it.path.toUri() }.toCollection(ArrayList()),
+                            media.map { it.uri }.toCollection(ArrayList()),
                         )
                         addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                     }
@@ -124,9 +123,9 @@ class GalleryViewModel
             context.startActivity(chooser)
         }
 
-        fun deleteAll(images: Collection<Image>) =
+        fun deleteAll(media: Collection<Media>) =
             viewModelScope.launch {
-                imageDao.deleteAll(images)
+                mediaDao.deleteAll(media)
                 albumDao.deleteAll(albumDao.getEmptyAlbums())
             }
     }

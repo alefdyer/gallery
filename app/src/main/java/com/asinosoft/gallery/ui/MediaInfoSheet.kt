@@ -17,20 +17,20 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import com.asinosoft.gallery.R
-import com.asinosoft.gallery.data.Image
+import com.asinosoft.gallery.data.Media
 import com.asinosoft.gallery.ui.theme.Typography
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ImageInfoSheet(
-    image: Image,
+fun MediaInfoSheet(
+    media: Media,
     onDismissRequest: () -> Unit,
 ) {
-    val size = Formatter.formatShortFileSize(LocalContext.current, image.size)
-    val date = image.date.format(DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM))
-    val time = image.time.format(DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT))
+    val size = Formatter.formatShortFileSize(LocalContext.current, media.size)
+    val date = media.date.format(DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM))
+    val time = media.time.format(DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT))
 
     ModalBottomSheet(
         onDismissRequest = onDismissRequest,
@@ -45,13 +45,15 @@ fun ImageInfoSheet(
         ListItem(
             leadingContent = { Icon(Icons.Default.Folder, null) },
             headlineContent = { Text(stringResource(R.string.path)) },
-            supportingContent = { Text(image.filename) },
+            supportingContent = { Text(media.filename) },
         )
-        ListItem(
-            leadingContent = { Icon(Icons.Default.AspectRatio, null) },
-            headlineContent = { Text(stringResource(R.string.size)) },
-            supportingContent = { Text("${image.width}×${image.height}, $size") },
-        )
+        media.image?.let {
+            ListItem(
+                leadingContent = { Icon(Icons.Default.AspectRatio, null) },
+                headlineContent = { Text(stringResource(R.string.size)) },
+                supportingContent = { Text("${it.width}×${it.height}, $size") },
+            )
+        }
         ListItem(
             leadingContent = { Icon(Icons.Default.CalendarToday, null) },
             headlineContent = { Text(stringResource(R.string.date)) },

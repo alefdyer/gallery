@@ -1,6 +1,9 @@
 package com.asinosoft.gallery.data
 
+import android.net.Uri
+import androidx.core.net.toUri
 import androidx.room.TypeConverter
+import com.google.gson.Gson
 import java.time.LocalDate
 import java.time.LocalTime
 
@@ -16,4 +19,22 @@ class Converters {
 
     @TypeConverter
     fun longToLocalDateTime(value: Long): LocalTime = LocalTime.ofNanoOfDay(value)
+
+    @TypeConverter
+    fun uriToString(value: Uri): String = value.toString()
+
+    @TypeConverter
+    fun stringToUri(value: String): Uri = value.toUri()
+
+    @TypeConverter
+    fun imageToString(value: Image): String = Gson().toJson(value)
+
+    @TypeConverter
+    fun stringToImage(value: String): Image = Gson().fromJson(value, Image::class.java)
+
+    @TypeConverter
+    fun videoToString(value: Video): String = Gson().toJson(value)
+
+    @TypeConverter
+    fun stringToVideo(value: String): Video = Gson().fromJson(value, Video::class.java)
 }

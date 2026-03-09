@@ -7,6 +7,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.core.net.toUri
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
@@ -19,7 +20,7 @@ fun Navigation(
     model: GalleryViewModel = hiltViewModel(),
 ) {
     val albums by model.albums.collectAsState(initial = listOf())
-    val images by model.images.collectAsState(initial = listOf())
+    val media by model.images.collectAsState(initial = listOf())
     val albumImages by model.albumImages.collectAsState(listOf())
     val isRefreshing by model.isRescanning.collectAsState()
 
@@ -31,19 +32,19 @@ fun Navigation(
     ) {
         composable("main") {
             MainView(
-                images,
+                media,
                 albums,
-                onImageClick = { image -> nav.navigate("pager/" + Uri.encode(image.path)) },
+                onMediaClick = { image -> nav.navigate("pager/" + Uri.encode(image.uri.toString())) },
                 onAlbumClick = { album -> nav.navigate("album/" + Uri.encode(album.name)) },
                 isRefreshing = isRefreshing,
                 onRefresh = model::rescan,
             )
         }
 
-        composable("pager/{path}") { route ->
-            val path = Uri.decode(route.arguments?.getString("path"))
-            val image = images.find { it.path == path }
-            PagerView(images, startImage = image, onClose = nav::navigateUp)
+        composable("pager/{uri}") { route ->
+            val uri = Uri.decode(route.arguments?.getString("uri")).toUri()
+            val image = media.find { it.uri == uri }
+            PagerView(media, current = image, onClose = nav::navigateUp)
         }
 
         composable("album/{albumName}") { route ->
@@ -52,8 +53,8 @@ fun Navigation(
 
             ImageListView(
                 albumImages,
-                onImageClick = { image ->
-                    val imagePath = Uri.encode(image.path)
+                onClick = { image ->
+                    val imagePath = Uri.encode(image.uri.toString())
                     nav.navigate("album/$albumName/pager/$imagePath")
                 },
                 onClose = nav::navigateUp,
@@ -64,10 +65,10 @@ fun Navigation(
             val albumName = Uri.decode(route.arguments?.getString("albumName"))
             model.setAlbumName(albumName)
 
-            val imagePath = Uri.decode(route.arguments?.getString("imagePath"))
-            val image = albumImages.find { it.path == imagePath }
+            val imagePath = Uri.decode(route.arguments?.getString("imagePath")).toUri()
+            val image = albumImages.find { it.uri == imagePath }
 
-            PagerView(albumImages, startImage = image, onClose = nav::navigateUp)
+            PagerView(albumImages, current = image, onClose = nav::navigateUp)
         }
     }
 }

@@ -28,7 +28,7 @@ import com.asinosoft.gallery.R
 @Composable
 fun PagerViewBar(
     onBack: () -> Unit,
-    onShowImageInfo: () -> Unit,
+    onShowInfo: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     TopAppBar(
@@ -52,14 +52,14 @@ fun PagerViewBar(
             }
         },
         actions = {
-            MenuButton(onShowImageInfo)
+            MenuButton(onShowInfo)
         },
     )
 }
 
 @Composable
 fun MenuButton(
-    onShowImageInfo: () -> Unit,
+    onShowInfo: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var showMenu by remember { mutableStateOf(false) }
@@ -76,7 +76,7 @@ fun MenuButton(
             DropdownMenuItem(
                 text = { Text(stringResource(R.string.info)) },
                 onClick = {
-                    onShowImageInfo()
+                    onShowInfo()
                     showMenu = false
                 },
                 leadingIcon = {

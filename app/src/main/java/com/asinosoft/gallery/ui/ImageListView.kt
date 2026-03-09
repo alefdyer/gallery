@@ -27,8 +27,8 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.asinosoft.gallery.GalleryApp
 import com.asinosoft.gallery.data.HeaderItem
-import com.asinosoft.gallery.data.Image
-import com.asinosoft.gallery.data.ImageItem
+import com.asinosoft.gallery.data.Media
+import com.asinosoft.gallery.data.MediaItem
 import com.asinosoft.gallery.model.GalleryViewModel
 import com.asinosoft.gallery.ui.component.GroupHeader
 import com.asinosoft.gallery.ui.component.GroupItem
@@ -37,46 +37,46 @@ import com.asinosoft.gallery.util.groupByMonth
 
 @Composable
 fun ImageListView(
-    images: List<Image>,
+    media: List<Media>,
     modifier: Modifier = Modifier,
     onClose: () -> Unit = {},
-    onImageClick: (Image) -> Unit = {},
+    onClick: (Media) -> Unit = {},
     model: GalleryViewModel = hiltViewModel(),
 ) {
     val context = LocalContext.current
-    val items by remember(images) { mutableStateOf(groupByMonth(images)) }
-    var selectedImages by remember { mutableStateOf<Set<Image>>(setOf()) }
-    val selectionMode by remember { derivedStateOf { selectedImages.isNotEmpty() } }
+    val items by remember(media) { mutableStateOf(groupByMonth(media)) }
+    var selected by remember { mutableStateOf<Set<Media>>(setOf()) }
+    val selectionMode by remember { derivedStateOf { selected.isNotEmpty() } }
     var selectionBarHeight by remember { mutableIntStateOf(0) }
-    var imageListTopPadding by remember { mutableIntStateOf(0) }
+    var topPadding by remember { mutableIntStateOf(0) }
     val lazyGridState = rememberLazyGridState()
 
     val deleter =
         rememberLauncherForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) {
             Log.d(GalleryApp.TAG, "Test: ${it.data?.getBooleanExtra("test", false)}")
             if (Activity.RESULT_OK == it.resultCode) {
-                model.deleteAll(selectedImages)
+                model.deleteAll(selected)
 
-                if (selectedImages.count() == images.count()) {
+                if (selected.count() == media.count()) {
                     onClose()
                 } else {
-                    selectedImages = setOf()
+                    selected = setOf()
                 }
             }
         }
 
     LaunchedEffect(selectionMode) {
-        imageListTopPadding = if (selectionMode) selectionBarHeight else 0
+        topPadding = if (selectionMode) selectionBarHeight else 0
 
         val offset = if (selectionMode) selectionBarHeight else -selectionBarHeight
         lazyGridState.dispatchRawDelta(offset.toFloat())
     }
 
-    Box {
+    Box(modifier) {
         LazyVerticalGrid(
             state = lazyGridState,
             columns = GridCells.Fixed(3),
-            modifier = modifier.padding(top = imageListTopPadding.pxToDp()),
+            modifier = Modifier.padding(top = topPadding.pxToDp()),
         ) {
             items(
                 items,
@@ -92,19 +92,17 @@ fun ImageListView(
                         GroupHeader(it)
                     }
 
-                    is ImageItem -> {
+                    is MediaItem -> {
                         GroupItem(
-                            image = it.image,
+                            media = it.media,
                             selectionMode = selectionMode,
-                            selectedImages = selectedImages,
-                            onImageClick = onImageClick,
-                            onImageSelect = { image ->
-                                if (selectedImages.contains(image)) {
-                                    Log.d(GalleryApp.TAG, "deselect image ${image.path}")
-                                    selectedImages -= image
+                            selected = selected,
+                            onClick = onClick,
+                            onSelect = { image ->
+                                if (selected.contains(image)) {
+                                    selected -= image
                                 } else {
-                                    Log.d(GalleryApp.TAG, "select image ${image.path}")
-                                    selectedImages += image
+                                    selected += image
                                 }
                             },
                         )
@@ -115,10 +113,10 @@ fun ImageListView(
 
         AnimatedVisibility(visible = selectionMode) {
             SelectionInfoBar(
-                selectedImages = selectedImages,
+                selected = selected,
                 modifier = Modifier.onSizeChanged { selectionBarHeight = it.height },
                 onBack = {
-                    selectedImages = setOf()
+                    selected = setOf()
                 },
                 onShare = { model.share(it, context) },
                 onDelete = { model.delete(it, context, deleter) },
