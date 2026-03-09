@@ -80,6 +80,7 @@ android {
 
 dependencies {
     implementation("com.google.code.gson:gson:2.13.1")
+    implementation("io.coil-kt.coil3:coil-video:3.2.0")
     val roomVersion = "2.8.4"
 
     implementation("androidx.core:core-ktx:1.17.0")

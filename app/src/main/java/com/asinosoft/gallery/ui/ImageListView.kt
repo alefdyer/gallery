@@ -72,11 +72,11 @@ fun ImageListView(
         lazyGridState.dispatchRawDelta(offset.toFloat())
     }
 
-    Box {
+    Box(modifier) {
         LazyVerticalGrid(
             state = lazyGridState,
             columns = GridCells.Fixed(3),
-            modifier = modifier.padding(top = topPadding.pxToDp()),
+            modifier = Modifier.padding(top = topPadding.pxToDp()),
         ) {
             items(
                 items,

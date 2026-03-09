@@ -9,39 +9,39 @@ import java.time.ZoneId
 import java.util.Date
 import java.util.UUID
 import javax.inject.Inject
+import android.provider.MediaStore.Video as Videos
 
 class LocalMediaRepository
     @Inject
     constructor(
         @param:ApplicationContext private val context: Context,
     ) : MediaRepository {
-        private companion object {
-            private val COLLECTION = Images.Media.EXTERNAL_CONTENT_URI
-            private val PROJECTION =
-                arrayOf(
-                    Images.Media._ID,
-                    Images.Media.DATE_ADDED,
-                    Images.Media.DATE_TAKEN,
-                    Images.Media.WIDTH,
-                    Images.Media.HEIGHT,
-                    Images.Media.ORIENTATION,
-                    Images.Media.BUCKET_DISPLAY_NAME,
-                    Images.Media.SIZE,
-                    Images.Media.DATA,
-                )
-        }
+        override fun fetchAll(): List<Media> = fetchImages("") + fetchVideos("")
 
-        override fun fetchAll(): List<Media> = fetch("")
+        override fun fetchOne(path: String): Media =
+            if (path.startsWith(Images.Media.EXTERNAL_CONTENT_URI.toString())) {
+                fetchImages("${Images.Media._ID} = $path").first()
+            } else {
+                fetchVideos("${Videos.Media._ID} = $path").first()
+            }
 
-        override fun fetchOne(path: String): Media = fetch("${Images.Media._ID} = $path").first()
-
-        private fun fetch(selection: String): List<Media> {
+        private fun fetchImages(selection: String): List<Media> {
             val sortOrder = "${Images.Media.DATE_TAKEN} DESC"
 
             val query =
                 context.contentResolver.query(
-                    COLLECTION,
-                    PROJECTION,
+                    Images.Media.EXTERNAL_CONTENT_URI,
+                    arrayOf(
+                        Images.Media._ID,
+                        Images.Media.DATE_ADDED,
+                        Images.Media.DATE_TAKEN,
+                        Images.Media.WIDTH,
+                        Images.Media.HEIGHT,
+                        Images.Media.ORIENTATION,
+                        Images.Media.BUCKET_DISPLAY_NAME,
+                        Images.Media.SIZE,
+                        Images.Media.DATA,
+                    ),
                     selection,
                     arrayOf(),
                     sortOrder,
@@ -68,7 +68,7 @@ class LocalMediaRepository
                     val height: Int = cursor.getInt(heightColumn)
                     val orientation: Int = cursor.getInt(orientationColumn)
 
-                    val uri = ContentUris.withAppendedId(COLLECTION, id)
+                    val uri = ContentUris.withAppendedId(Images.Media.EXTERNAL_CONTENT_URI, id)
                     val datetime =
                         Date(date).toInstant().atZone(ZoneId.systemDefault()).toLocalDateTime()
 
@@ -98,5 +98,70 @@ class LocalMediaRepository
             }
 
             return images
+        }
+
+        private fun fetchVideos(selection: String): List<Media> {
+            val cursor =
+                context.contentResolver.query(
+                    Videos.Media.EXTERNAL_CONTENT_URI,
+                    arrayOf(
+                        Videos.Media._ID,
+                        Videos.Media.DISPLAY_NAME,
+                        Videos.Media.DURATION,
+                        Videos.Media.BUCKET_DISPLAY_NAME,
+                        Videos.Media.SIZE,
+                        Videos.Media.DATA,
+                        Videos.Media.DATE_TAKEN,
+                        Videos.Media.DATE_ADDED,
+                    ),
+                    selection,
+                    null,
+                    "${Videos.Media.DATE_TAKEN} DESC",
+                )
+
+            val videos = ArrayList<Media>()
+            cursor?.use { cursor ->
+                val idColumn = cursor.getColumnIndexOrThrow(Images.Media._ID)
+                val dateAddedColumn = cursor.getColumnIndexOrThrow(Images.Media.DATE_ADDED)
+                val dateTakenColumn = cursor.getColumnIndexOrThrow(Images.Media.DATE_TAKEN)
+                val bucketNameColumn =
+                    cursor.getColumnIndexOrThrow(Images.Media.BUCKET_DISPLAY_NAME)
+                val sizeColumn = cursor.getColumnIndexOrThrow(Images.Media.SIZE)
+                val dataColumn = cursor.getColumnIndexOrThrow(Images.Media.DATA)
+                val durationColumn = cursor.getColumnIndexOrThrow(Images.Media.DURATION)
+
+                while (cursor.moveToNext()) {
+                    val id = cursor.getLong(idColumn)
+                    val dateAdded: Long = cursor.getLong(dateAddedColumn)
+                    val dateTaken: Long = cursor.getLong(dateTakenColumn)
+                    val date = if (dateTaken > 0) dateTaken else (dateAdded * 1000)
+
+                    val uri = ContentUris.withAppendedId(Videos.Media.EXTERNAL_CONTENT_URI, id)
+                    val datetime =
+                        Date(date).toInstant().atZone(ZoneId.systemDefault()).toLocalDateTime()
+
+                    val album: String? = cursor.getStringOrNull(bucketNameColumn)
+                    val size: Long = cursor.getLong(sizeColumn)
+
+                    val data: String = cursor.getString(dataColumn)
+                    val duration: Long = cursor.getLong(durationColumn)
+
+                    val video =
+                        Media(
+                            id = UUID.randomUUID(),
+                            uri = uri,
+                            date = datetime.toLocalDate(),
+                            time = datetime.toLocalTime(),
+                            album = album,
+                            size = size,
+                            filename = data,
+                            video = Video(duration),
+                        )
+
+                    videos.add(video)
+                }
+            }
+
+            return videos
         }
     }
