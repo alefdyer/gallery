@@ -85,7 +85,7 @@ fun PagerView(
             if (null !== item.image) {
                 ImageView(item.uri)
             } else if (null != item.video) {
-                VideoView(item.uri)
+                VideoView(item.uri) { isPlaying -> showControls = !isPlaying }
             } else {
                 DummyView()
             }
