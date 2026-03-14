@@ -3,6 +3,7 @@ package com.asinosoft.gallery
 import android.app.Application
 import coil3.ImageLoader
 import coil3.SingletonImageLoader
+import coil3.gif.GifDecoder
 import coil3.memory.MemoryCache
 import coil3.request.CachePolicy
 import coil3.request.crossfade
@@ -29,7 +30,9 @@ class GalleryApp : Application() {
                         .Builder()
                         .maxSizePercent(this, 0.25)
                         .build(),
-                ).build()
+                ).components {
+                    add(GifDecoder.Factory())
+                }.build()
         }
     }
 }
