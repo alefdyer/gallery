@@ -1,7 +1,6 @@
 package com.asinosoft.gallery.ui.component
 
 import android.graphics.Bitmap.CompressFormat
-import android.util.Log
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.runtime.Composable
@@ -37,11 +36,12 @@ fun ImageThumbnail(
             ImageRequest
                 .Builder(LocalContext.current)
                 .data(media.uri)
-                .listener(onSuccess = { request, result ->
-                    if (media.size / result.image.size >= 4) {
+                .listener(onSuccess = { _, result ->
+                    val imageSize = result.image.size
+                    if (!media.filename.endsWith(".gif", ignoreCase = true) &&
+                        imageSize > 0 && media.size / imageSize >= 4
+                    ) {
                         scope.launch(Dispatchers.IO) {
-                            Log.d("GroupItem", "Cache ${request.data}")
-
                             thumbnail.outputStream().use {
                                 result.image
                                     .toBitmap()
