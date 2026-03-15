@@ -29,11 +29,11 @@ import com.asinosoft.gallery.GalleryApp
 import com.asinosoft.gallery.data.HeaderItem
 import com.asinosoft.gallery.data.Media
 import com.asinosoft.gallery.data.MediaItem
+import com.asinosoft.gallery.data.groupByMonth
 import com.asinosoft.gallery.model.GalleryViewModel
 import com.asinosoft.gallery.ui.component.GroupHeader
 import com.asinosoft.gallery.ui.component.GroupItem
 import com.asinosoft.gallery.ui.component.SelectionInfoBar
-import com.asinosoft.gallery.util.groupByMonth
 
 @Composable
 fun ImageListView(
@@ -44,7 +44,7 @@ fun ImageListView(
     model: GalleryViewModel = hiltViewModel(),
 ) {
     val context = LocalContext.current
-    val items by remember(media) { mutableStateOf(groupByMonth(media)) }
+    val items by remember(media) { mutableStateOf(media.groupByMonth()) }
     var selected by remember { mutableStateOf<Set<Media>>(setOf()) }
     val selectionMode by remember { derivedStateOf { selected.isNotEmpty() } }
     var selectionBarHeight by remember { mutableIntStateOf(0) }
