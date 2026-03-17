@@ -41,6 +41,7 @@ class LocalMediaRepository
                         Images.Media.BUCKET_DISPLAY_NAME,
                         Images.Media.SIZE,
                         Images.Media.DATA,
+                        Images.Media.MIME_TYPE,
                     ),
                     selection,
                     arrayOf(),
@@ -58,6 +59,7 @@ class LocalMediaRepository
                 val bucketNameColumn = cursor.getColumnIndexOrThrow(Images.Media.BUCKET_DISPLAY_NAME)
                 val sizeColumn = cursor.getColumnIndexOrThrow(Images.Media.SIZE)
                 val dataColumn = cursor.getColumnIndexOrThrow(Images.Media.DATA)
+                val mimeTypeColumn = cursor.getColumnIndexOrThrow(Images.Media.MIME_TYPE)
 
                 while (cursor.moveToNext()) {
                     val id = cursor.getLong(idColumn)
@@ -76,6 +78,7 @@ class LocalMediaRepository
                     val size: Long = cursor.getLong(sizeColumn)
 
                     val data: String = cursor.getString(dataColumn)
+                    val mimeType: String = cursor.getString(mimeTypeColumn)
 
                     val image =
                         Media(
@@ -86,6 +89,7 @@ class LocalMediaRepository
                             album = album,
                             size = size,
                             filename = data,
+                            mimeType = mimeType,
                             image =
                                 Image(
                                     width = width,
@@ -113,6 +117,7 @@ class LocalMediaRepository
                         Videos.Media.DATA,
                         Videos.Media.DATE_TAKEN,
                         Videos.Media.DATE_ADDED,
+                        Videos.Media.MIME_TYPE,
                     ),
                     selection,
                     null,
@@ -129,6 +134,7 @@ class LocalMediaRepository
                 val sizeColumn = cursor.getColumnIndexOrThrow(Images.Media.SIZE)
                 val dataColumn = cursor.getColumnIndexOrThrow(Images.Media.DATA)
                 val durationColumn = cursor.getColumnIndexOrThrow(Images.Media.DURATION)
+                val mimeTypeColumn = cursor.getColumnIndexOrThrow(Images.Media.MIME_TYPE)
 
                 while (cursor.moveToNext()) {
                     val id = cursor.getLong(idColumn)
@@ -145,6 +151,7 @@ class LocalMediaRepository
 
                     val data: String = cursor.getString(dataColumn)
                     val duration: Long = cursor.getLong(durationColumn)
+                    val mimeType: String = cursor.getString(mimeTypeColumn)
 
                     val video =
                         Media(
@@ -155,6 +162,7 @@ class LocalMediaRepository
                             album = album,
                             size = size,
                             filename = data,
+                            mimeType = mimeType,
                             video = Video(duration),
                         )
 

@@ -22,6 +22,7 @@ data class Media(
     val album: String?,
     val size: Long,
     val filename: String,
+    val mimeType: String,
     val image: Image? = null,
     val video: Video? = null,
 )
