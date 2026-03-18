@@ -10,10 +10,12 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -23,17 +25,20 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
+import com.asinosoft.gallery.R
 import com.asinosoft.gallery.data.Album
 import com.asinosoft.gallery.ui.theme.Typography
 
 @Composable
 fun AlbumListView(
     albums: List<Album>,
-    onAlbumClick: (Album) -> Unit,
     modifier: Modifier = Modifier,
+    onAlbumClick: (Album) -> Unit = {},
+    onNewAlbumClick: () -> Unit = {},
 ) {
     LazyVerticalGrid(
         columns = GridCells.Fixed(2),
@@ -59,6 +64,29 @@ fun AlbumListView(
                 AlbumImages(album)
 
                 AlbumInfo(album)
+            }
+        }
+
+        if ({} != onNewAlbumClick) {
+            item {
+                Box(
+                    modifier =
+                        Modifier
+                            .aspectRatio(1f)
+                            .padding(1.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .clickable(onClick = onNewAlbumClick),
+                ) {
+                    Icon(
+                        painter = painterResource(R.drawable.add),
+                        contentDescription = "Add",
+                        modifier =
+                            Modifier
+                                .align(Alignment.Center)
+                                .size(64.dp),
+                        tint = Color.White,
+                    )
+                }
             }
         }
     }

@@ -33,6 +33,7 @@ import com.asinosoft.gallery.data.groupByMonth
 import com.asinosoft.gallery.model.GalleryViewModel
 import com.asinosoft.gallery.ui.component.GroupHeader
 import com.asinosoft.gallery.ui.component.GroupItem
+import com.asinosoft.gallery.ui.component.MoveIntoAlbumDialog
 import com.asinosoft.gallery.ui.component.SelectionInfoBar
 
 @Composable
@@ -50,6 +51,7 @@ fun ImageListView(
     var selectionBarHeight by remember { mutableIntStateOf(0) }
     var topPadding by remember { mutableIntStateOf(0) }
     val lazyGridState = rememberLazyGridState()
+    var showMoveDialog by remember { mutableStateOf(false) }
 
     val deleter =
         rememberLauncherForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) {
@@ -120,6 +122,17 @@ fun ImageListView(
                 },
                 onShare = { model.share(it, context) },
                 onDelete = { model.delete(it, context, deleter) },
+                onMove = { showMoveDialog = true }
+            )
+        }
+
+        if (showMoveDialog) {
+            MoveIntoAlbumDialog(
+                onAlbumNameSelect = { albumName ->
+                    model.moveIntoAlbum(selected, albumName, context)
+                    showMoveDialog = false
+                },
+                onDismiss = { showMoveDialog = false },
             )
         }
     }

@@ -128,4 +128,8 @@ class GalleryViewModel
                 mediaDao.deleteAll(media)
                 albumDao.deleteAll(albumDao.getEmptyAlbums())
             }
+
+        fun moveIntoAlbum(selection: Collection<Media>, albumName: String, context: Context) {
+
+        }
     }
