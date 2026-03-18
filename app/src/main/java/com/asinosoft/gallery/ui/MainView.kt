@@ -6,9 +6,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.pager.rememberPagerState
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Photo
-import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
@@ -20,6 +17,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.asinosoft.gallery.R
@@ -83,7 +81,7 @@ fun ViewModeBar(
             onClick = onPhotos,
             icon = {
                 Icon(
-                    imageVector = Icons.Default.Photo,
+                    painter = painterResource(R.drawable.photo),
                     contentDescription = stringResource(id = R.string.photos),
                 )
             },
@@ -94,7 +92,7 @@ fun ViewModeBar(
             onClick = onAlbums,
             icon = {
                 Icon(
-                    imageVector = Icons.Default.PhotoLibrary,
+                    painter = painterResource(R.drawable.album),
                     contentDescription = stringResource(id = R.string.albums),
                 )
             },

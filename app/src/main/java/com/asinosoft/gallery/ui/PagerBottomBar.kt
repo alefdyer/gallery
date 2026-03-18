@@ -1,11 +1,6 @@
 package com.asinosoft.gallery.ui
 
 import androidx.compose.foundation.background
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Brush
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.ImageSearch
-import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -15,6 +10,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import com.asinosoft.gallery.R
 
@@ -43,14 +39,14 @@ fun PagerBottomBar(
         NavigationBarItem(
             selected = false,
             onClick = onShare,
-            icon = { Icon(imageVector = Icons.Filled.Share, stringResource(id = R.string.share)) },
+            icon = { Icon(painterResource(R.drawable.share), stringResource(id = R.string.share)) },
             label = { Text(stringResource(id = R.string.share)) },
             colors = colors,
         )
         NavigationBarItem(
             selected = false,
             onClick = onEdit,
-            icon = { Icon(imageVector = Icons.Filled.Brush, stringResource(id = R.string.edit)) },
+            icon = { Icon(painterResource(R.drawable.brush), stringResource(id = R.string.edit)) },
             label = { Text(stringResource(id = R.string.edit)) },
             colors = colors,
         )
@@ -58,7 +54,7 @@ fun PagerBottomBar(
             selected = false,
             onClick = onSearch,
             icon = {
-                Icon(imageVector = Icons.Filled.ImageSearch, stringResource(id = R.string.search))
+                Icon(painterResource(R.drawable.image_search), stringResource(id = R.string.search))
             },
             label = { Text(stringResource(id = R.string.search)) },
             colors = colors,
@@ -68,7 +64,7 @@ fun PagerBottomBar(
             onClick = onDelete,
             icon = {
                 Icon(
-                    imageVector = Icons.Filled.Delete,
+                    painterResource(R.drawable.delete),
                     stringResource(id = R.string.delete),
                 )
             },
