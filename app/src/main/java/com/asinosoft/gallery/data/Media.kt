@@ -25,4 +25,6 @@ data class Media(
     val mimeType: String,
     val image: Image? = null,
     val video: Video? = null,
-)
+) {
+    fun setAlbum(album: String?): Media = Media(id, uri, date, time, album, size, filename, mimeType, image, video)
+}

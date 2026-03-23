@@ -23,9 +23,9 @@ import com.asinosoft.gallery.ui.AlbumListView
 
 @Composable
 fun MoveIntoAlbumDialog(
-    model: GalleryViewModel = hiltViewModel(),
     onAlbumNameSelect: (String) -> Unit,
     onDismiss: () -> Unit,
+    model: GalleryViewModel = hiltViewModel(),
 ) {
     val albums by model.albums.collectAsState(listOf())
     var newAlbumMode by remember { mutableStateOf(false) }

@@ -73,7 +73,7 @@ class MediaObserver : JobService() {
                 params.triggeredContentUris?.let {
                     it.forEach { uri ->
                         try {
-                            fetcher.fetchOne(uri.toString())
+                            fetcher.fetchOne(uri)
                         } catch (ex: Throwable) {
                             Log.d(GalleryApp.TAG, "Exception: $ex")
                             // ignore

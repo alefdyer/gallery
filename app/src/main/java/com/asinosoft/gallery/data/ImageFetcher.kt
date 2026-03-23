@@ -1,5 +1,6 @@
 package com.asinosoft.gallery.data
 
+import android.net.Uri
 import android.util.Log
 import com.asinosoft.gallery.GalleryApp
 import kotlinx.coroutines.flow.first
@@ -40,9 +41,9 @@ class ImageFetcher
             }
         }
 
-        suspend fun fetchOne(path: String) {
-            Log.d(GalleryApp.TAG, "fetchOne: $path")
+        suspend fun fetchOne(uri: Uri) {
+            Log.d(GalleryApp.TAG, "fetchOne: $uri")
 
-            mediaDao.upsert(repository.fetchOne(path))
+            mediaDao.upsert(repository.fetchOne(uri))
         }
     }

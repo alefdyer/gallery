@@ -2,6 +2,7 @@ package com.asinosoft.gallery.data
 
 import android.content.ContentUris
 import android.content.Context
+import android.net.Uri
 import android.provider.MediaStore.Images
 import androidx.core.database.getStringOrNull
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -18,11 +19,11 @@ class LocalMediaRepository
     ) : MediaRepository {
         override fun fetchAll(): List<Media> = fetchImages("") + fetchVideos("")
 
-        override fun fetchOne(path: String): Media =
-            if (path.startsWith(Images.Media.EXTERNAL_CONTENT_URI.toString())) {
-                fetchImages("${Images.Media._ID} = $path").first()
+        override fun fetchOne(uri: Uri): Media =
+            if (Images.Media.EXTERNAL_CONTENT_URI.equals(uri.authority)) {
+                fetchImages("${Images.Media._ID} = ${uri.lastPathSegment}").first()
             } else {
-                fetchVideos("${Videos.Media._ID} = $path").first()
+                fetchVideos("${Videos.Media._ID} = ${uri.lastPathSegment}").first()
             }
 
         private fun fetchImages(selection: String): List<Media> {
