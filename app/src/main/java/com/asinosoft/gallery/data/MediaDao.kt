@@ -28,7 +28,7 @@ interface MediaDao {
             max(date) as date
         FROM media
         GROUP BY album
-    """,
+    """
     )
     fun getAlbums(): Flow<List<Album>>
 
@@ -39,7 +39,7 @@ interface MediaDao {
         WHERE album=:album
         ORDER BY date DESC
         LIMIT 1
-    """,
+    """
     )
     suspend fun getAlbumLastImage(album: String): Media
 

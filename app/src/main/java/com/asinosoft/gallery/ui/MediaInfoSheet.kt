@@ -21,34 +21,31 @@ import java.time.format.FormatStyle
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun MediaInfoSheet(
-    media: Media,
-    onDismissRequest: () -> Unit,
-) {
+fun MediaInfoSheet(media: Media, onDismissRequest: () -> Unit) {
     val size = Formatter.formatShortFileSize(LocalContext.current, media.size)
     val date = media.date.format(DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM))
     val time = media.time.format(DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT))
 
     ModalBottomSheet(
-        onDismissRequest = onDismissRequest,
+        onDismissRequest = onDismissRequest
     ) {
         Text(
             text = stringResource(R.string.info),
             style = Typography.headlineLarge,
             modifier = Modifier.fillMaxWidth(),
-            textAlign = TextAlign.Center,
+            textAlign = TextAlign.Center
         )
 
         ListItem(
             leadingContent = { Icon(painterResource(R.drawable.folder), null) },
             headlineContent = { Text(stringResource(R.string.path)) },
-            supportingContent = { Text(media.filename) },
+            supportingContent = { Text(media.filename) }
         )
         media.image?.let {
             ListItem(
                 leadingContent = { Icon(painterResource(R.drawable.aspect_ratio), null) },
                 headlineContent = { Text(stringResource(R.string.size)) },
-                supportingContent = { Text("${it.width}×${it.height}, $size") },
+                supportingContent = { Text("${it.width}×${it.height}, $size") }
             )
         }
         ListItem(
@@ -56,7 +53,7 @@ fun MediaInfoSheet(
             headlineContent = { Text(stringResource(R.string.date)) },
             supportingContent = {
                 Text("$date $time")
-            },
+            }
         )
     }
 }

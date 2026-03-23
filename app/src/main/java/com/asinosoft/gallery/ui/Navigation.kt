@@ -15,10 +15,7 @@ import androidx.navigation.compose.composable
 import com.asinosoft.gallery.model.GalleryViewModel
 
 @Composable
-fun Navigation(
-    nav: NavHostController,
-    model: GalleryViewModel = hiltViewModel(),
-) {
+fun Navigation(nav: NavHostController, model: GalleryViewModel = hiltViewModel()) {
     val albums by model.albums.collectAsState(initial = listOf())
     val media by model.images.collectAsState(initial = listOf())
     val albumImages by model.albumImages.collectAsState(listOf())
@@ -28,16 +25,18 @@ fun Navigation(
         navController = nav,
         startDestination = "main",
         enterTransition = { fadeIn(animationSpec = tween(300)) },
-        exitTransition = { fadeOut(animationSpec = tween(300)) },
+        exitTransition = { fadeOut(animationSpec = tween(300)) }
     ) {
         composable("main") {
             MainView(
                 media,
                 albums,
-                onMediaClick = { image -> nav.navigate("pager/" + Uri.encode(image.uri.toString())) },
+                onMediaClick = { image ->
+                    nav.navigate("pager/" + Uri.encode(image.uri.toString()))
+                },
                 onAlbumClick = { album -> nav.navigate("album/" + Uri.encode(album.name)) },
                 isRefreshing = isRefreshing,
-                onRefresh = model::rescan,
+                onRefresh = model::rescan
             )
         }
 
@@ -57,7 +56,7 @@ fun Navigation(
                     val imagePath = Uri.encode(image.uri.toString())
                     nav.navigate("album/$albumName/pager/$imagePath")
                 },
-                onClose = nav::navigateUp,
+                onClose = nav::navigateUp
             )
         }
 

@@ -13,7 +13,7 @@ fun DummyView(modifier: Modifier = Modifier) {
     Box(modifier.fillMaxSize()) {
         Icon(
             painterResource(R.drawable.ic_launcher_background),
-            contentDescription = "Video player",
+            contentDescription = "Video player"
         )
     }
 }

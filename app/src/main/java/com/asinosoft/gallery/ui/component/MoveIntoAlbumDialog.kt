@@ -25,7 +25,7 @@ import com.asinosoft.gallery.ui.AlbumListView
 fun MoveIntoAlbumDialog(
     onAlbumNameSelect: (String) -> Unit,
     onDismiss: () -> Unit,
-    model: GalleryViewModel = hiltViewModel(),
+    model: GalleryViewModel = hiltViewModel()
 ) {
     val albums by model.albums.collectAsState(listOf())
     var newAlbumMode by remember { mutableStateOf(false) }
@@ -48,7 +48,7 @@ fun MoveIntoAlbumDialog(
                 OutlinedTextField(
                     state = newAlbumName,
                     label = { Text("Album Name") },
-                    modifier = Modifier.focusRequester(focus),
+                    modifier = Modifier.focusRequester(focus)
                 )
             } else {
                 AlbumListView(
@@ -58,7 +58,7 @@ fun MoveIntoAlbumDialog(
                         onDismiss()
                     },
                     onNewAlbumClick = { newAlbumMode = true },
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth()
                 )
             }
         },
@@ -68,7 +68,7 @@ fun MoveIntoAlbumDialog(
                     enabled = newAlbumName.text.isNotEmpty(),
                     onClick = {
                         onAlbumNameSelect(newAlbumName.text.toString())
-                    },
+                    }
                 ) {
                     Text("Move")
                 }
@@ -78,6 +78,6 @@ fun MoveIntoAlbumDialog(
             TextButton(onClick = onDismiss) {
                 Text("Cancel")
             }
-        },
+        }
     )
 }

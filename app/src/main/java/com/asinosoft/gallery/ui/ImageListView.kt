@@ -46,7 +46,7 @@ fun ImageListView(
     modifier: Modifier = Modifier,
     onClose: () -> Unit = {},
     onClick: (Media) -> Unit = {},
-    model: GalleryViewModel = hiltViewModel(),
+    model: GalleryViewModel = hiltViewModel()
 ) {
     val context = LocalContext.current
     val items by remember(media) { mutableStateOf(media.groupByMonth()) }
@@ -63,7 +63,7 @@ fun ImageListView(
         rememberLauncherForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) {
             Log.d(GalleryApp.TAG, "Test: ${it.data?.getBooleanExtra("test", false)}")
             if (Activity.RESULT_OK == it.resultCode) {
-                model.deleteAll(selected)
+                model.postDelete(selected)
                 selected = setOf()
             }
         }
@@ -72,7 +72,7 @@ fun ImageListView(
         rememberLauncherForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) {
             Log.d(GalleryApp.TAG, "Move permission: $it")
             if (Activity.RESULT_OK == it.resultCode) {
-                model.retryPendingMove(context)
+                model.postMove(context)
             }
         }
 
@@ -102,7 +102,7 @@ fun ImageListView(
         LazyVerticalGrid(
             state = lazyGridState,
             columns = GridCells.Fixed(3),
-            modifier = Modifier.padding(top = topPadding.pxToDp()),
+            modifier = Modifier.padding(top = topPadding.pxToDp())
         ) {
             items(
                 items,
@@ -111,7 +111,7 @@ fun ImageListView(
                         is HeaderItem -> GridItemSpan(maxLineSpan)
                         else -> GridItemSpan(1)
                     }
-                },
+                }
             ) {
                 when (it) {
                     is HeaderItem -> {
@@ -130,7 +130,7 @@ fun ImageListView(
                                 } else {
                                     selected += image
                                 }
-                            },
+                            }
                         )
                     }
                 }
@@ -146,18 +146,18 @@ fun ImageListView(
                 },
                 onShare = { model.share(it, context) },
                 onDelete = { model.delete(it, context, deleter) },
-                onMove = { showMoveDialog = true },
+                onMove = { showMoveDialog = true }
             )
         }
 
         if (showMoveDialog) {
             MoveIntoAlbumDialog(
                 onAlbumNameSelect = { albumName ->
-                    model.moveIntoAlbum(selected, albumName, context, movePermissionLauncher)
+                    model.move(selected, albumName, context, movePermissionLauncher)
                     showMoveDialog = false
                     selected = setOf()
                 },
-                onDismiss = { showMoveDialog = false },
+                onDismiss = { showMoveDialog = false }
             )
         }
 

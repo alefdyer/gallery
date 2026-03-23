@@ -19,7 +19,7 @@ fun SelectionInfoBar(
     onBack: () -> Unit = {},
     onShare: (media: Set<Media>) -> Unit = {},
     onDelete: (media: Set<Media>) -> Unit = {},
-    onMove: (media: Set<Media>) -> Unit = {},
+    onMove: (media: Set<Media>) -> Unit = {}
 ) {
     TopAppBar(
         modifier = modifier,
@@ -30,7 +30,7 @@ fun SelectionInfoBar(
             IconButton(onClick = onBack) {
                 Icon(
                     painter = painterResource(R.drawable.close),
-                    contentDescription = null,
+                    contentDescription = null
                 )
             }
         },
@@ -38,21 +38,21 @@ fun SelectionInfoBar(
             IconButton(onClick = { onMove(selected) }) {
                 Icon(
                     painter = painterResource(R.drawable.move),
-                    contentDescription = null,
+                    contentDescription = null
                 )
             }
             IconButton(onClick = { onShare(selected) }) {
                 Icon(
                     painter = painterResource(R.drawable.share),
-                    contentDescription = null,
+                    contentDescription = null
                 )
             }
             IconButton(onClick = { onDelete(selected) }) {
                 Icon(
                     painter = painterResource(R.drawable.delete),
-                    contentDescription = null,
+                    contentDescription = null
                 )
             }
-        },
+        }
     )
 }

@@ -34,7 +34,7 @@ fun MainView(
     onAlbumClick: (Album) -> Unit,
     isRefreshing: Boolean,
     onRefresh: () -> Unit,
-    modifier: Modifier = Modifier,
+    modifier: Modifier = Modifier
 ) {
     val pagerState = rememberPagerState { 2 }
     val coroutineScope = rememberCoroutineScope()
@@ -45,14 +45,14 @@ fun MainView(
             ViewModeBar(
                 pagerState = pagerState,
                 onPhotos = { coroutineScope.launch { pagerState.scrollToPage(0) } },
-                onAlbums = { coroutineScope.launch { pagerState.scrollToPage(1) } },
+                onAlbums = { coroutineScope.launch { pagerState.scrollToPage(1) } }
             )
-        },
+        }
     ) { paddingValues ->
         PullToRefreshBox(
             isRefreshing = isRefreshing,
             onRefresh,
-            Modifier.padding(paddingValues),
+            Modifier.padding(paddingValues)
         ) {
             HorizontalPager(state = pagerState) {
                 when (it) {
@@ -69,11 +69,11 @@ fun ViewModeBar(
     pagerState: PagerState,
     onPhotos: () -> Unit,
     onAlbums: () -> Unit,
-    modifier: Modifier = Modifier,
+    modifier: Modifier = Modifier
 ) {
     NavigationBar(
         modifier = modifier,
-        containerColor = Color.White.copy(0.8f),
+        containerColor = Color.White.copy(0.8f)
     ) {
         Spacer(Modifier.width(60.dp))
         NavigationBarItem(
@@ -82,10 +82,10 @@ fun ViewModeBar(
             icon = {
                 Icon(
                     painter = painterResource(R.drawable.photo),
-                    contentDescription = stringResource(id = R.string.photos),
+                    contentDescription = stringResource(id = R.string.photos)
                 )
             },
-            label = { Text(stringResource(id = R.string.photos)) },
+            label = { Text(stringResource(id = R.string.photos)) }
         )
         NavigationBarItem(
             selected = 1 == pagerState.currentPage,
@@ -93,10 +93,10 @@ fun ViewModeBar(
             icon = {
                 Icon(
                     painter = painterResource(R.drawable.album),
-                    contentDescription = stringResource(id = R.string.albums),
+                    contentDescription = stringResource(id = R.string.albums)
                 )
             },
-            label = { Text(stringResource(id = R.string.albums)) },
+            label = { Text(stringResource(id = R.string.albums)) }
         )
         Spacer(Modifier.width(60.dp))
     }

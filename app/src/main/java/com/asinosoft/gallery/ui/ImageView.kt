@@ -32,16 +32,12 @@ import androidx.compose.ui.util.fastAny
 import androidx.compose.ui.util.fastForEach
 import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
-import com.asinosoft.gallery.data.Media
 import com.asinosoft.gallery.ui.util.onDoubleClick
-import kotlinx.coroutines.launch
 import kotlin.math.max
+import kotlinx.coroutines.launch
 
 @Composable
-fun ImageView(
-    uri: Uri,
-    modifier: Modifier = Modifier,
-) {
+fun ImageView(uri: Uri, modifier: Modifier = Modifier) {
     val scope = rememberCoroutineScope()
 
     var viewSize by remember { mutableStateOf(Size.Zero) }
@@ -111,7 +107,7 @@ fun ImageView(
                             }
                         }
                     }
-                },
+                }
     ) {
         AsyncImage(
             model =
@@ -133,19 +129,19 @@ fun ImageView(
                         scaleY = scale
                         translationX = offsetX.value
                         translationY = offsetY.value
-                    },
+                    }
         )
     }
 }
 
-private operator fun Size.minus(another: Size) =
-    Size(
-        width - another.width,
-        height - another.height,
-    )
+private operator fun Size.minus(another: Size) = Size(
+    width - another.width,
+    height - another.height
+)
 
 private fun Size.positive() = Size(max(0f, width), max(0f, height))
 
 private fun Size.scaleInto(box: Size): Float = (box.width / width).coerceAtMost(box.height / height)
 
-private fun Size.scaleUpTo(box: Size): Float = (box.width / width).coerceAtLeast(box.height / height).coerceAtLeast(2f)
+private fun Size.scaleUpTo(box: Size): Float =
+    (box.width / width).coerceAtLeast(box.height / height).coerceAtLeast(2f)

@@ -7,13 +7,10 @@ import androidx.compose.ui.unit.sp
 import com.asinosoft.gallery.data.HeaderItem
 
 @Composable
-fun GroupHeader(
-    header: HeaderItem,
-    modifier: Modifier = Modifier,
-) {
+fun GroupHeader(header: HeaderItem, modifier: Modifier = Modifier) {
     Text(
         text = header.label,
         modifier = modifier,
-        fontSize = 24.sp,
+        fontSize = 24.sp
     )
 }

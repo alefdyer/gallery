@@ -1,248 +1,121 @@
 package com.asinosoft.gallery.model
 
-import android.app.RecoverableSecurityException
-import android.content.ContentValues
 import android.content.Context
-import android.content.Intent
 import android.os.Build
-import android.os.Environment
-import android.provider.MediaStore
-import android.util.Log
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.IntentSenderRequest
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.asinosoft.gallery.GalleryApp
 import com.asinosoft.gallery.data.AlbumDao
-import com.asinosoft.gallery.data.ImageFetcher
 import com.asinosoft.gallery.data.Media
 import com.asinosoft.gallery.data.MediaDao
+import com.asinosoft.gallery.data.MediaService
 import dagger.hilt.android.lifecycle.HiltViewModel
+import javax.inject.Inject
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.filterNotNull
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.launch
-import javax.inject.Inject
 
 @HiltViewModel
-class GalleryViewModel
-    @Inject
-    constructor(
-        private val albumDao: AlbumDao,
-        private val mediaDao: MediaDao,
-        private val fetcher: ImageFetcher,
-    ) : ViewModel() {
-        private val albumName = MutableStateFlow<String?>(null)
-        private val rescanFlow = MutableStateFlow(false)
-        private val messageFlow = MutableStateFlow<String?>(null)
+class GalleryViewModel @Inject constructor(
+    private val service: MediaService,
+    albumDao: AlbumDao,
+    private val mediaDao: MediaDao
+) : ViewModel() {
+    private val albumName = MutableStateFlow<String?>(null)
+    private val rescanFlow = MutableStateFlow(false)
+    private val messageFlow = MutableStateFlow<String?>(null)
 
-        private var pendingMedia = ArrayList<Media>()
-        private var pendingAlbum: String? = null
+    val albums = albumDao.getAlbums()
 
-        val albums = albumDao.getAlbums()
+    val images = mediaDao.getImages()
 
-        val images = mediaDao.getImages()
+    val isRescanning: StateFlow<Boolean> = rescanFlow
 
-        val isRescanning: StateFlow<Boolean> = rescanFlow
+    val message: StateFlow<String?> = messageFlow
 
-        val message: StateFlow<String?> = messageFlow
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val albumImages = albumName.filterNotNull().flatMapLatest { mediaDao.getAlbumImages(it) }
 
-        @OptIn(ExperimentalCoroutinesApi::class)
-        val albumImages = albumName.filterNotNull().flatMapLatest { mediaDao.getAlbumImages(it) }
+    suspend fun clearMessage() {
+        messageFlow.emit(null)
+    }
 
-        suspend fun clearMessage() {
-            messageFlow.emit(null)
+    fun rescan() = viewModelScope.launch {
+        rescanFlow.emit(true)
+        try {
+            service.updateAll()
+        } catch (ex: Throwable) {
+            messageFlow.emit(ex.message)
         }
+        rescanFlow.emit(false)
+    }
 
-        fun rescan() =
-            viewModelScope.launch {
-                rescanFlow.emit(true)
-                fetcher.fetchAll()
-                rescanFlow.emit(false)
-            }
+    fun setAlbumName(name: String) = viewModelScope.launch {
+        albumName.emit(name)
+    }
 
-        fun setAlbumName(name: String) =
-            viewModelScope.launch {
-                albumName.emit(name)
-            }
-
-        fun delete(
-            media: Collection<Media>,
-            context: Context,
-            launcher: ActivityResultLauncher<IntentSenderRequest>,
-        ) {
-            Log.d(GalleryApp.TAG, "Delete ${media.count()} images")
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                val sender =
-                    MediaStore
-                        .createDeleteRequest(
-                            context.contentResolver,
-                            media.map { it.uri },
-                        ).intentSender
-
-                val request =
-                    IntentSenderRequest
-                        .Builder(sender)
-                        .setFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION, 0)
-                        .build()
-
-                launcher.launch(request)
-            } else {
-                throw NotImplementedError()
-            }
-        }
-
-        fun edit(
-            media: Media,
-            context: Context,
-        ) {
-            Log.d(GalleryApp.TAG, "Edit ${media.uri}")
-            val edit =
-                Intent().apply {
-                    action = Intent.ACTION_EDIT
-                    data = media.uri
-                }
-            context.startActivity(edit)
-        }
-
-        fun share(
-            media: Collection<Media>,
-            context: Context,
-        ) {
-            Log.d(GalleryApp.TAG, "Share ${media.count()} images")
-            val send =
-                if (1 == media.size) {
-                    Intent().apply {
-                        action = Intent.ACTION_SEND
-                        type = "image/jpeg"
-                        putExtra(Intent.EXTRA_STREAM, media.first().uri)
-                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                    }
-                } else {
-                    Intent().apply {
-                        action = Intent.ACTION_SEND_MULTIPLE
-                        type = "image/jpeg"
-
-                        putParcelableArrayListExtra(
-                            Intent.EXTRA_STREAM,
-                            media.map { it.uri }.toCollection(ArrayList()),
-                        )
-                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                    }
-                }
-            val chooser = Intent.createChooser(send, null)
-            context.startActivity(chooser)
-        }
-
-        fun deleteAll(media: Collection<Media>) =
-            viewModelScope.launch {
-                mediaDao.deleteAll(media)
-                albumDao.deleteAll(albumDao.getEmptyAlbums())
-            }
-
-        fun moveIntoAlbum(
-            selection: Collection<Media>,
-            albumName: String,
-            context: Context,
-            launcher: ActivityResultLauncher<IntentSenderRequest>,
-        ) {
-            pendingMedia.clear()
-            viewModelScope.launch {
-                moveIntoAlbumInternal(selection, albumName, context, launcher)
-            }
-        }
-
-        fun retryPendingMove(context: Context) {
-            pendingAlbum?.let { albumName ->
-                viewModelScope.launch {
-                    moveIntoAlbumInternal(pendingMedia, albumName, context, null)
-                }
-            }
-        }
-
-        private suspend fun moveIntoAlbumInternal(
-            selection: Collection<Media>,
-            albumName: String,
-            context: Context,
-            launcher: ActivityResultLauncher<IntentSenderRequest>?,
-        ) {
-            val uris = selection.map { it.uri.lastPathSegment }
-            Log.d(GalleryApp.TAG, "Move into $albumName: $uris")
-
-            val targetAlbum = albumName.trim()
-            if (selection.isEmpty() || targetAlbum.isEmpty()) {
-                return
-            }
-
-            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
-                return messageFlow.emit("Move into album is unsupported below Android 10")
-            }
-
-            val moved = HashSet<Media>()
-            val failed = HashSet<Media>()
-            selection.forEach { media ->
-                if (media.album == targetAlbum) {
-                    return@forEach
-                }
-
-                val baseDir =
-                    if (media.mimeType.startsWith("video")) {
-                        Environment.DIRECTORY_MOVIES
-                    } else {
-                        Environment.DIRECTORY_PICTURES
-                    }
-                val relativePath = "$baseDir/$targetAlbum/"
-
-                try {
-                    val values =
-                        ContentValues().apply {
-                            put(MediaStore.MediaColumns.RELATIVE_PATH, relativePath)
-                        }
-                    context.contentResolver.update(media.uri, values, null, null)
-                    moved.add(media.setAlbum(albumName))
-                } catch (ex: RecoverableSecurityException) {
-                    if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.Q && launcher != null) {
-                        pendingAlbum = albumName
-                        pendingMedia.add(media)
-                        val request =
-                            IntentSenderRequest
-                                .Builder(ex.userAction.actionIntent)
-                                .build()
-                        launcher.launch(request)
-                    } else {
-                        failed.add(media)
-                    }
-                } catch (ex: Throwable) {
-                    failed.add(media)
-                    messageFlow.emit("Failed moving ${media.filename} into $targetAlbum: $ex")
-                }
-            }
-
-            pendingMedia.removeAll(moved)
-            mediaDao.upsertAll(moved)
-            albumDao.deleteAll(albumDao.getEmptyAlbums())
-            albumDao.upsertAll(mediaDao.getAlbums().first())
-
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                if (failed.isNotEmpty() && launcher != null) {
-                    pendingAlbum = albumName
-                    pendingMedia.addAll(failed)
-                    val sender =
-                        MediaStore
-                            .createWriteRequest(
-                                context.contentResolver,
-                                failed.map { it.uri },
-                            ).intentSender
-                    val request =
-                        IntentSenderRequest
-                            .Builder(sender)
-                            .setFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION, 0)
-                            .build()
-                    launcher.launch(request)
-                }
-            }
+    fun delete(
+        media: Collection<Media>,
+        context: Context,
+        launcher: ActivityResultLauncher<IntentSenderRequest>
+    ) = viewModelScope.launch {
+        try {
+            service.delete(media, context, launcher)
+        } catch (ex: Throwable) {
+            messageFlow.emit(ex.message)
         }
     }
+
+    fun postDelete(media: Collection<Media>) = viewModelScope.launch {
+        try {
+            service.postDelete(media)
+        } catch (ex: Throwable) {
+            messageFlow.emit(ex.message)
+        }
+    }
+
+    fun edit(media: Media, context: Context) = viewModelScope.launch {
+        try {
+            service.edit(media, context)
+        } catch (ex: Throwable) {
+            messageFlow.emit(ex.message)
+        }
+    }
+
+    fun share(media: Collection<Media>, context: Context) = viewModelScope.launch {
+        try {
+            service.share(media, context)
+        } catch (ex: Throwable) {
+            messageFlow.emit(ex.message)
+        }
+    }
+
+    fun move(
+        media: Collection<Media>,
+        album: String,
+        context: Context,
+        launcher: ActivityResultLauncher<IntentSenderRequest>
+    ) = viewModelScope.launch {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            try {
+                service.move(media, album, context, launcher)
+            } catch (ex: Throwable) {
+                messageFlow.emit(ex.message)
+            }
+        } else {
+            return@launch messageFlow.emit("Move into album is unsupported below Android 10")
+        }
+    }
+
+    fun postMove(context: Context) = viewModelScope.launch {
+        try {
+            service.postMove(context)
+        } catch (ex: Throwable) {
+            messageFlow.emit(ex.message)
+        }
+    }
+}

@@ -24,14 +24,11 @@ import com.google.accompanist.permissions.shouldShowRationale
 
 @Composable
 @OptIn(ExperimentalPermissionsApi::class)
-fun PermissionDisclaimer(
-    permission: PermissionState,
-    modifier: Modifier = Modifier,
-) {
+fun PermissionDisclaimer(permission: PermissionState, modifier: Modifier = Modifier) {
     Column(
         modifier = modifier.fillMaxSize(1f),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center,
+        verticalArrangement = Arrangement.Center
     ) {
         val text =
             if (permission.status.shouldShowRationale) {
@@ -47,7 +44,7 @@ fun PermissionDisclaimer(
             modifier =
                 Modifier
                     .padding(16.dp, 16.dp)
-                    .width(200.dp),
+                    .width(200.dp)
         )
         Button(onClick = { permission.launchPermissionRequest() }) {
             Text(text = stringResource(id = R.string.grant))

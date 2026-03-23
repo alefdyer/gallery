@@ -10,8 +10,8 @@ import java.util.UUID
 
 @Entity(
     indices = [
-        Index(value = ["uri"], unique = true),
-    ],
+        Index(value = ["uri"], unique = true)
+    ]
 )
 data class Media(
     @PrimaryKey
@@ -24,7 +24,8 @@ data class Media(
     val filename: String,
     val mimeType: String,
     val image: Image? = null,
-    val video: Video? = null,
+    val video: Video? = null
 ) {
-    fun setAlbum(album: String?): Media = Media(id, uri, date, time, album, size, filename, mimeType, image, video)
+    fun setAlbum(album: String?): Media =
+        Media(id, uri, date, time, album, size, filename, mimeType, image, video)
 }

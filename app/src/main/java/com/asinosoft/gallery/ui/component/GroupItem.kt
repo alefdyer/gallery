@@ -14,30 +14,30 @@ fun GroupItem(
     selected: Set<Media> = setOf(),
     selectionMode: Boolean = false,
     onClick: (Media) -> Unit = {},
-    onSelect: (Media) -> Unit = {},
+    onSelect: (Media) -> Unit = {}
 ) {
     Box(
         modifier = modifier,
-        contentAlignment = Alignment.BottomEnd,
+        contentAlignment = Alignment.BottomEnd
     ) {
         if (media.image != null) {
             ImageThumbnail(
                 media,
                 onClick = { if (selectionMode) onSelect(media) else onClick(media) },
-                onLongClick = { onSelect(media) },
+                onLongClick = { onSelect(media) }
             )
         } else if (media.video != null) {
             VideoThumbnail(
                 media,
                 onClick = { if (selectionMode) onSelect(media) else onClick(media) },
-                onLongClick = { onSelect(media) },
+                onLongClick = { onSelect(media) }
             )
         }
 
         if (selectionMode) {
             Checkbox(
                 checked = selected.contains(media),
-                onCheckedChange = { onSelect(media) },
+                onCheckedChange = { onSelect(media) }
             )
         }
     }

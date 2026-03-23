@@ -20,12 +20,12 @@ fun PagerBottomBar(
     onEdit: () -> Unit,
     onSearch: () -> Unit,
     onDelete: () -> Unit,
-    modifier: Modifier = Modifier,
+    modifier: Modifier = Modifier
 ) {
     val colors =
         NavigationBarItemDefaults.colors(
             unselectedIconColor = Color.White,
-            unselectedTextColor = Color.White,
+            unselectedTextColor = Color.White
         )
 
     NavigationBar(
@@ -33,22 +33,22 @@ fun PagerBottomBar(
         contentColor = Color.White,
         modifier =
             modifier.background(
-                Brush.verticalGradient(listOf(Color.Transparent, Color.Transparent.copy(0.5f))),
-            ),
+                Brush.verticalGradient(listOf(Color.Transparent, Color.Transparent.copy(0.5f)))
+            )
     ) {
         NavigationBarItem(
             selected = false,
             onClick = onShare,
             icon = { Icon(painterResource(R.drawable.share), stringResource(id = R.string.share)) },
             label = { Text(stringResource(id = R.string.share)) },
-            colors = colors,
+            colors = colors
         )
         NavigationBarItem(
             selected = false,
             onClick = onEdit,
             icon = { Icon(painterResource(R.drawable.brush), stringResource(id = R.string.edit)) },
             label = { Text(stringResource(id = R.string.edit)) },
-            colors = colors,
+            colors = colors
         )
         NavigationBarItem(
             selected = false,
@@ -57,7 +57,7 @@ fun PagerBottomBar(
                 Icon(painterResource(R.drawable.image_search), stringResource(id = R.string.search))
             },
             label = { Text(stringResource(id = R.string.search)) },
-            colors = colors,
+            colors = colors
         )
         NavigationBarItem(
             selected = false,
@@ -65,11 +65,11 @@ fun PagerBottomBar(
             icon = {
                 Icon(
                     painterResource(R.drawable.delete),
-                    stringResource(id = R.string.delete),
+                    stringResource(id = R.string.delete)
                 )
             },
             label = { Text(stringResource(id = R.string.delete)) },
-            colors = colors,
+            colors = colors
         )
     }
 }

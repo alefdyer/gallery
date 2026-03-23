@@ -29,11 +29,7 @@ import androidx.media3.ui.PlayerView
 import com.asinosoft.gallery.R
 
 @Composable
-fun VideoView(
-    uri: Uri,
-    modifier: Modifier = Modifier,
-    onPlaying: (Boolean) -> Unit = {},
-) {
+fun VideoView(uri: Uri, modifier: Modifier = Modifier, onPlaying: (Boolean) -> Unit = {}) {
     val context = LocalContext.current
     var isPlaying by remember { mutableStateOf(false) }
 
@@ -67,7 +63,7 @@ fun VideoView(
         modifier =
             modifier
                 .fillMaxSize()
-                .clickable { if (player.isPlaying) player.pause() else player.play() },
+                .clickable { if (player.isPlaying) player.pause() else player.play() }
     ) {
         AndroidView(
             factory = { ctx ->
@@ -77,20 +73,26 @@ fun VideoView(
                 }
             },
             update = { it.player = player },
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier.fillMaxSize()
         )
 
         AnimatedVisibility(
             visible = !isPlaying,
             modifier = Modifier.align(Alignment.Center),
             enter = fadeIn(),
-            exit = fadeOut(),
+            exit = fadeOut()
         ) {
             Icon(
-                if (isPlaying) painterResource(R.drawable.pause) else painterResource(R.drawable.play),
+                if (isPlaying) {
+                    painterResource(
+                        R.drawable.pause
+                    )
+                } else {
+                    painterResource(R.drawable.play)
+                },
                 contentDescription = if (isPlaying) "Pause" else "Play",
                 modifier = Modifier.size(64.dp),
-                tint = Color.White,
+                tint = Color.White
             )
         }
     }

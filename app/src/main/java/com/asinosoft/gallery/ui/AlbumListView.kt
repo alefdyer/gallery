@@ -38,18 +38,18 @@ fun AlbumListView(
     albums: List<Album>,
     modifier: Modifier = Modifier,
     onAlbumClick: (Album) -> Unit = {},
-    onNewAlbumClick: () -> Unit = {},
+    onNewAlbumClick: () -> Unit = {}
 ) {
     LazyVerticalGrid(
         columns = GridCells.Fixed(2),
-        modifier = modifier,
+        modifier = modifier
     ) {
         items(albums) { album ->
             Box(
                 modifier =
                     Modifier
                         .padding(1.dp)
-                        .clip(RoundedCornerShape(12.dp)),
+                        .clip(RoundedCornerShape(12.dp))
             ) {
                 AsyncImage(
                     model = album.cover,
@@ -58,7 +58,7 @@ fun AlbumListView(
                     modifier =
                         Modifier
                             .aspectRatio(1f)
-                            .clickable { onAlbumClick(album) },
+                            .clickable { onAlbumClick(album) }
                 )
 
                 AlbumImages(album)
@@ -75,7 +75,7 @@ fun AlbumListView(
                             .aspectRatio(1f)
                             .padding(1.dp)
                             .clip(RoundedCornerShape(12.dp))
-                            .clickable(onClick = onNewAlbumClick),
+                            .clickable(onClick = onNewAlbumClick)
                 ) {
                     Icon(
                         painter = painterResource(R.drawable.add),
@@ -84,7 +84,7 @@ fun AlbumListView(
                             Modifier
                                 .align(Alignment.Center)
                                 .size(64.dp),
-                        tint = Color.White,
+                        tint = Color.White
                     )
                 }
             }
@@ -93,10 +93,7 @@ fun AlbumListView(
 }
 
 @Composable
-fun BoxScope.AlbumImages(
-    album: Album,
-    modifier: Modifier = Modifier,
-) {
+fun BoxScope.AlbumImages(album: Album, modifier: Modifier = Modifier) {
     Text(
         text = " ${album.count} ",
         color = Color.White,
@@ -107,25 +104,22 @@ fun BoxScope.AlbumImages(
                     Brush.verticalGradient(
                         listOf(
                             Color.Transparent.copy(0.5f),
-                            Color.Transparent,
-                        ),
-                    ),
-                ),
+                            Color.Transparent
+                        )
+                    )
+                )
     )
 }
 
 @Composable
-fun BoxScope.AlbumInfo(
-    album: Album,
-    modifier: Modifier = Modifier,
-) {
+fun BoxScope.AlbumInfo(album: Album, modifier: Modifier = Modifier) {
     Row(
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
         modifier =
             modifier
                 .background(Color.Black.copy(alpha = 0.4f))
-                .align(Alignment.BottomCenter),
+                .align(Alignment.BottomCenter)
     ) {
         val size = Formatter.formatShortFileSize(LocalContext.current, album.size)
 
@@ -138,7 +132,7 @@ fun BoxScope.AlbumInfo(
                 Modifier
                     .padding(start = 8.dp)
                     .fillMaxWidth()
-                    .weight(1f),
+                    .weight(1f)
         )
 
         Text(
@@ -148,7 +142,7 @@ fun BoxScope.AlbumInfo(
             maxLines = 1,
             modifier =
                 Modifier
-                    .padding(end = 8.dp),
+                    .padding(end = 8.dp)
         )
     }
 }
