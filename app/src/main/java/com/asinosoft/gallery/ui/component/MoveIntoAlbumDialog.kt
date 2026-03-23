@@ -2,6 +2,8 @@ package com.asinosoft.gallery.ui.component
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.input.TextFieldLineLimits
 import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.OutlinedTextField
@@ -17,6 +19,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.asinosoft.gallery.model.GalleryViewModel
 import com.asinosoft.gallery.ui.AlbumListView
@@ -48,6 +52,16 @@ fun MoveIntoAlbumDialog(
                 OutlinedTextField(
                     state = newAlbumName,
                     label = { Text("Album Name") },
+                    lineLimits = TextFieldLineLimits.SingleLine,
+                    keyboardOptions = KeyboardOptions(
+                        keyboardType = KeyboardType.Text,
+                        imeAction = ImeAction.Done
+                    ),
+                    onKeyboardAction = {
+                        if (newAlbumName.text.isNotBlank()) {
+                            onAlbumNameSelect(newAlbumName.text.toString())
+                        }
+                    },
                     modifier = Modifier.focusRequester(focus)
                 )
             } else {
@@ -65,7 +79,7 @@ fun MoveIntoAlbumDialog(
         confirmButton = {
             if (newAlbumMode) {
                 TextButton(
-                    enabled = newAlbumName.text.isNotEmpty(),
+                    enabled = newAlbumName.text.isNotBlank(),
                     onClick = {
                         onAlbumNameSelect(newAlbumName.text.toString())
                     }
