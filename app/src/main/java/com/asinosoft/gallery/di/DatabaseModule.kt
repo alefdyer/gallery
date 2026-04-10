@@ -16,9 +16,8 @@ import javax.inject.Singleton
 object DatabaseModule {
     @Singleton
     @Provides
-    fun provideAppDatabase(
-        @ApplicationContext context: Context,
-    ): AppDatabase = AppDatabase.getInstance(context)
+    fun provideAppDatabase(@ApplicationContext context: Context): AppDatabase =
+        AppDatabase.getInstance(context)
 
     @Provides
     fun provideAlbumDao(appDatabase: AppDatabase): AlbumDao = appDatabase.albumDao()

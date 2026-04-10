@@ -12,16 +12,16 @@ import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
 import coil3.toBitmap
 import com.asinosoft.gallery.data.Media
+import java.io.File
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import java.io.File
 
 @Composable
 fun ImageThumbnail(
     media: Media,
     modifier: Modifier = Modifier,
     onClick: () -> Unit = {},
-    onLongClick: () -> Unit = {},
+    onLongClick: () -> Unit = {}
 ) {
     val scope = rememberCoroutineScope()
     val thumbnail = File(LocalContext.current.cacheDir, media.id.toString())
@@ -62,7 +62,7 @@ fun ImageThumbnail(
                 .aspectRatio(1f)
                 .combinedClickable(
                     onClick = onClick,
-                    onLongClick = onLongClick,
-                ),
+                    onLongClick = onLongClick
+                )
     )
 }

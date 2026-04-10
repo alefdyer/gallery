@@ -38,7 +38,7 @@ fun PagerView(
     modifier: Modifier = Modifier,
     current: Media? = null,
     model: GalleryViewModel = hiltViewModel(),
-    onClose: () -> Unit = {},
+    onClose: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val offset = items.indexOf(current).coerceAtLeast(0)
@@ -48,7 +48,7 @@ fun PagerView(
     val launcher =
         rememberLauncherForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) {
             if (Activity.RESULT_OK == it.resultCode) {
-                model.deleteAll(listOf(currentItem))
+                model.postDelete(listOf(currentItem))
 
                 if (1 == items.count()) {
                     onClose()
@@ -59,7 +59,7 @@ fun PagerView(
     Box(
         modifier =
             modifier
-                .background(Color.Black),
+                .background(Color.Black)
     ) {
         var showControls by remember { mutableStateOf(true) }
         var showInfo by remember { mutableStateOf(false) }
@@ -79,7 +79,7 @@ fun PagerView(
                             if (amount > 10 && !showInfo) onClose()
                             if (amount < -10) showInfo = true
                         }
-                    },
+                    }
         ) { n ->
             val item = items[n]
             if (null !== item.image) {
@@ -94,11 +94,11 @@ fun PagerView(
         AnimatedVisibility(
             visible = showControls,
             enter = slideInVertically(tween(easing = LinearEasing)),
-            exit = slideOutVertically(tween(easing = LinearEasing)),
+            exit = slideOutVertically(tween(easing = LinearEasing))
         ) {
             PagerViewBar(
                 onBack = onClose,
-                onShowInfo = { showInfo = true },
+                onShowInfo = { showInfo = true }
             )
         }
 
@@ -106,13 +106,13 @@ fun PagerView(
             modifier = Modifier.align(Alignment.BottomCenter),
             visible = showControls,
             enter = slideInVertically(tween(easing = LinearEasing)) { it / 2 },
-            exit = slideOutVertically(tween(easing = LinearEasing)) { it / 2 },
+            exit = slideOutVertically(tween(easing = LinearEasing)) { it / 2 }
         ) {
             PagerBottomBar(
                 onShare = { model.share(listOf(currentItem), context) },
                 onEdit = { model.edit(currentItem, context) },
                 onSearch = {},
-                onDelete = { model.delete(listOf(currentItem), context, launcher) },
+                onDelete = { model.delete(listOf(currentItem), context, launcher) }
             )
         }
 

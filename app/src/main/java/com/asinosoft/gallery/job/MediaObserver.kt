@@ -11,17 +11,17 @@ import android.provider.MediaStore
 import android.util.Log
 import androidx.core.net.toUri
 import com.asinosoft.gallery.GalleryApp
-import com.asinosoft.gallery.data.ImageFetcher
+import com.asinosoft.gallery.data.MediaService
 import dagger.hilt.android.AndroidEntryPoint
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.runBlocking
 import javax.inject.Inject
 import kotlin.concurrent.thread
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.runBlocking
 
 @AndroidEntryPoint
 class MediaObserver : JobService() {
     @Inject
-    lateinit var fetcher: ImageFetcher
+    lateinit var service: MediaService
 
     private var job: Thread? = null
 
@@ -40,16 +40,18 @@ class MediaObserver : JobService() {
                         addTriggerContentUri(
                             TriggerContentUri(
                                 MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
-                                TriggerContentUri.FLAG_NOTIFY_FOR_DESCENDANTS,
-                            ),
+                                TriggerContentUri.FLAG_NOTIFY_FOR_DESCENDANTS
+                            )
                         )
                         addTriggerContentUri(TriggerContentUri(MEDIA_URI, 0))
-                    }.build(),
+                    }.build()
             )
         }
 
         fun isScheduled(context: Context): Boolean =
-            context.getSystemService(JobScheduler::class.java).allPendingJobs.any { it.id == JOB_ID }
+            context.getSystemService(JobScheduler::class.java).allPendingJobs.any {
+                it.id == JOB_ID
+            }
     }
 
     override fun onStartJob(params: JobParameters): Boolean {
@@ -67,21 +69,20 @@ class MediaObserver : JobService() {
         return true
     }
 
-    private fun fetchAll(params: JobParameters) =
-        thread {
-            runBlocking(Dispatchers.IO) {
-                params.triggeredContentUris?.let {
-                    it.forEach { uri ->
-                        try {
-                            fetcher.fetchOne(uri.toString())
-                        } catch (ex: Throwable) {
-                            Log.d(GalleryApp.TAG, "Exception: $ex")
-                            // ignore
-                        }
+    private fun fetchAll(params: JobParameters) = thread {
+        runBlocking(Dispatchers.IO) {
+            params.triggeredContentUris?.let {
+                it.forEach { uri ->
+                    try {
+                        service.update(uri)
+                    } catch (ex: Throwable) {
+                        Log.d(GalleryApp.TAG, "Exception: $ex")
+                        // ignore
                     }
-                } ?: fetcher.fetchAll()
+                }
+            } ?: service.updateAll()
 
-                jobFinished(params, false)
-            }
+            jobFinished(params, false)
         }
+    }
 }

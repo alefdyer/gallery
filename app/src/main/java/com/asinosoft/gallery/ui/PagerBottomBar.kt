@@ -1,11 +1,6 @@
 package com.asinosoft.gallery.ui
 
 import androidx.compose.foundation.background
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Brush
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.ImageSearch
-import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -15,6 +10,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import com.asinosoft.gallery.R
 
@@ -24,12 +20,12 @@ fun PagerBottomBar(
     onEdit: () -> Unit,
     onSearch: () -> Unit,
     onDelete: () -> Unit,
-    modifier: Modifier = Modifier,
+    modifier: Modifier = Modifier
 ) {
     val colors =
         NavigationBarItemDefaults.colors(
             unselectedIconColor = Color.White,
-            unselectedTextColor = Color.White,
+            unselectedTextColor = Color.White
         )
 
     NavigationBar(
@@ -37,43 +33,43 @@ fun PagerBottomBar(
         contentColor = Color.White,
         modifier =
             modifier.background(
-                Brush.verticalGradient(listOf(Color.Transparent, Color.Transparent.copy(0.5f))),
-            ),
+                Brush.verticalGradient(listOf(Color.Transparent, Color.Transparent.copy(0.5f)))
+            )
     ) {
         NavigationBarItem(
             selected = false,
             onClick = onShare,
-            icon = { Icon(imageVector = Icons.Filled.Share, stringResource(id = R.string.share)) },
+            icon = { Icon(painterResource(R.drawable.share), stringResource(id = R.string.share)) },
             label = { Text(stringResource(id = R.string.share)) },
-            colors = colors,
+            colors = colors
         )
         NavigationBarItem(
             selected = false,
             onClick = onEdit,
-            icon = { Icon(imageVector = Icons.Filled.Brush, stringResource(id = R.string.edit)) },
+            icon = { Icon(painterResource(R.drawable.brush), stringResource(id = R.string.edit)) },
             label = { Text(stringResource(id = R.string.edit)) },
-            colors = colors,
+            colors = colors
         )
         NavigationBarItem(
             selected = false,
             onClick = onSearch,
             icon = {
-                Icon(imageVector = Icons.Filled.ImageSearch, stringResource(id = R.string.search))
+                Icon(painterResource(R.drawable.image_search), stringResource(id = R.string.search))
             },
             label = { Text(stringResource(id = R.string.search)) },
-            colors = colors,
+            colors = colors
         )
         NavigationBarItem(
             selected = false,
             onClick = onDelete,
             icon = {
                 Icon(
-                    imageVector = Icons.Filled.Delete,
-                    stringResource(id = R.string.delete),
+                    painterResource(R.drawable.delete),
+                    stringResource(id = R.string.delete)
                 )
             },
             label = { Text(stringResource(id = R.string.delete)) },
-            colors = colors,
+            colors = colors
         )
     }
 }

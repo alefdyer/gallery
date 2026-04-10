@@ -29,7 +29,7 @@ class GalleryApp : Application() {
                     MemoryCache
                         .Builder()
                         .maxSizePercent(this, 0.25)
-                        .build(),
+                        .build()
                 ).components {
                     add(GifDecoder.Factory())
                 }.build()

@@ -11,5 +11,5 @@ data class Album(
     val count: Int,
     val size: Long,
     val cover: String,
-    val date: LocalDate,
+    val date: LocalDate
 )

@@ -12,6 +12,8 @@ import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
@@ -33,7 +35,10 @@ import com.asinosoft.gallery.data.groupByMonth
 import com.asinosoft.gallery.model.GalleryViewModel
 import com.asinosoft.gallery.ui.component.GroupHeader
 import com.asinosoft.gallery.ui.component.GroupItem
+import com.asinosoft.gallery.ui.component.MoveIntoAlbumDialog
 import com.asinosoft.gallery.ui.component.SelectionInfoBar
+import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.launch
 
 @Composable
 fun ImageListView(
@@ -41,7 +46,7 @@ fun ImageListView(
     modifier: Modifier = Modifier,
     onClose: () -> Unit = {},
     onClick: (Media) -> Unit = {},
-    model: GalleryViewModel = hiltViewModel(),
+    model: GalleryViewModel = hiltViewModel()
 ) {
     val context = LocalContext.current
     val items by remember(media) { mutableStateOf(media.groupByMonth()) }
@@ -50,20 +55,32 @@ fun ImageListView(
     var selectionBarHeight by remember { mutableIntStateOf(0) }
     var topPadding by remember { mutableIntStateOf(0) }
     val lazyGridState = rememberLazyGridState()
+    var showMoveDialog by remember { mutableStateOf(false) }
+
+    val snackbarHostState = remember { SnackbarHostState() }
 
     val deleter =
         rememberLauncherForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) {
             Log.d(GalleryApp.TAG, "Test: ${it.data?.getBooleanExtra("test", false)}")
             if (Activity.RESULT_OK == it.resultCode) {
-                model.deleteAll(selected)
-
-                if (selected.count() == media.count()) {
-                    onClose()
-                } else {
-                    selected = setOf()
-                }
+                model.postDelete(selected)
+                selected = setOf()
             }
         }
+
+    val movePermissionLauncher =
+        rememberLauncherForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) {
+            Log.d(GalleryApp.TAG, "Move permission: $it")
+            if (Activity.RESULT_OK == it.resultCode) {
+                model.postMove(context)
+            }
+        }
+
+    LaunchedEffect(media, onClose) {
+        if (media.isEmpty()) {
+            onClose()
+        }
+    }
 
     LaunchedEffect(selectionMode) {
         topPadding = if (selectionMode) selectionBarHeight else 0
@@ -72,11 +89,20 @@ fun ImageListView(
         lazyGridState.dispatchRawDelta(offset.toFloat())
     }
 
+    LaunchedEffect(model.message) {
+        launch {
+            model.message.filterNotNull().collect {
+                model.clearMessage()
+                snackbarHostState.showSnackbar(it)
+            }
+        }
+    }
+
     Box(modifier) {
         LazyVerticalGrid(
             state = lazyGridState,
             columns = GridCells.Fixed(3),
-            modifier = Modifier.padding(top = topPadding.pxToDp()),
+            modifier = Modifier.padding(top = topPadding.pxToDp())
         ) {
             items(
                 items,
@@ -85,7 +111,7 @@ fun ImageListView(
                         is HeaderItem -> GridItemSpan(maxLineSpan)
                         else -> GridItemSpan(1)
                     }
-                },
+                }
             ) {
                 when (it) {
                     is HeaderItem -> {
@@ -104,7 +130,7 @@ fun ImageListView(
                                 } else {
                                     selected += image
                                 }
-                            },
+                            }
                         )
                     }
                 }
@@ -120,8 +146,22 @@ fun ImageListView(
                 },
                 onShare = { model.share(it, context) },
                 onDelete = { model.delete(it, context, deleter) },
+                onMove = { showMoveDialog = true }
             )
         }
+
+        if (showMoveDialog) {
+            MoveIntoAlbumDialog(
+                onAlbumNameSelect = { albumName ->
+                    model.move(selected, albumName, context, movePermissionLauncher)
+                    showMoveDialog = false
+                    selected = setOf()
+                },
+                onDismiss = { showMoveDialog = false }
+            )
+        }
+
+        SnackbarHost(snackbarHostState)
     }
 }
 
