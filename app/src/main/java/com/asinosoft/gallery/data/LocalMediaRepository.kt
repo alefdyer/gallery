@@ -126,15 +126,15 @@ class LocalMediaRepository
 
         val videos = ArrayList<Media>()
         cursor?.use { cursor ->
-            val idColumn = cursor.getColumnIndexOrThrow(Images.Media._ID)
-            val dateAddedColumn = cursor.getColumnIndexOrThrow(Images.Media.DATE_ADDED)
-            val dateTakenColumn = cursor.getColumnIndexOrThrow(Images.Media.DATE_TAKEN)
+            val idColumn = cursor.getColumnIndexOrThrow(Videos.Media._ID)
+            val dateAddedColumn = cursor.getColumnIndexOrThrow(Videos.Media.DATE_ADDED)
+            val dateTakenColumn = cursor.getColumnIndexOrThrow(Videos.Media.DATE_TAKEN)
             val bucketNameColumn =
-                cursor.getColumnIndexOrThrow(Images.Media.BUCKET_DISPLAY_NAME)
-            val sizeColumn = cursor.getColumnIndexOrThrow(Images.Media.SIZE)
-            val dataColumn = cursor.getColumnIndexOrThrow(Images.Media.DATA)
-            val durationColumn = cursor.getColumnIndexOrThrow(Images.Media.DURATION)
-            val mimeTypeColumn = cursor.getColumnIndexOrThrow(Images.Media.MIME_TYPE)
+                cursor.getColumnIndexOrThrow(Videos.Media.BUCKET_DISPLAY_NAME)
+            val sizeColumn = cursor.getColumnIndexOrThrow(Videos.Media.SIZE)
+            val dataColumn = cursor.getColumnIndexOrThrow(Videos.Media.DATA)
+            val durationColumn = cursor.getColumnIndexOrThrow(Videos.Media.DURATION)
+            val mimeTypeColumn = cursor.getColumnIndexOrThrow(Videos.Media.MIME_TYPE)
 
             while (cursor.moveToNext()) {
                 val id = cursor.getLong(idColumn)
