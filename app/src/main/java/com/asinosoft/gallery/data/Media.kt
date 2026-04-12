@@ -19,13 +19,10 @@ data class Media(
     val uri: Uri,
     val date: LocalDate,
     val time: LocalTime,
-    val album: String?,
+    val bucket: String?,
     val size: Long,
     val filename: String,
     val mimeType: String,
     val image: Image? = null,
     val video: Video? = null
-) {
-    fun setAlbum(album: String?): Media =
-        Media(id, uri, date, time, album, size, filename, mimeType, image, video)
-}
+)

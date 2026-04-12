@@ -74,7 +74,7 @@ class LocalMediaRepository
                 val datetime =
                     Date(date).toInstant().atZone(ZoneId.systemDefault()).toLocalDateTime()
 
-                val album: String? = cursor.getStringOrNull(bucketNameColumn)
+                val bucket: String? = cursor.getStringOrNull(bucketNameColumn)
                 val size: Long = cursor.getLong(sizeColumn)
 
                 val data: String = cursor.getString(dataColumn)
@@ -82,11 +82,11 @@ class LocalMediaRepository
 
                 val image =
                     Media(
-                        id = UUID.randomUUID(),
+                        id = UUID.nameUUIDFromBytes(uri.toString().toByteArray(Charsets.UTF_8)),
                         uri = uri,
                         date = datetime.toLocalDate(),
                         time = datetime.toLocalTime(),
-                        album = album,
+                        bucket = bucket,
                         size = size,
                         filename = data,
                         mimeType = mimeType,
@@ -146,7 +146,7 @@ class LocalMediaRepository
                 val datetime =
                     Date(date).toInstant().atZone(ZoneId.systemDefault()).toLocalDateTime()
 
-                val album: String? = cursor.getStringOrNull(bucketNameColumn)
+                val bucket: String? = cursor.getStringOrNull(bucketNameColumn)
                 val size: Long = cursor.getLong(sizeColumn)
 
                 val data: String = cursor.getString(dataColumn)
@@ -155,11 +155,11 @@ class LocalMediaRepository
 
                 val video =
                     Media(
-                        id = UUID.randomUUID(),
+                        id = UUID.nameUUIDFromBytes(uri.toString().toByteArray(Charsets.UTF_8)),
                         uri = uri,
                         date = datetime.toLocalDate(),
                         time = datetime.toLocalTime(),
-                        album = album,
+                        bucket = bucket,
                         size = size,
                         filename = data,
                         mimeType = mimeType,

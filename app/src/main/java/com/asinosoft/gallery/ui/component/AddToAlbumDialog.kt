@@ -22,12 +22,14 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import com.asinosoft.gallery.data.Album
 import com.asinosoft.gallery.model.GalleryViewModel
 import com.asinosoft.gallery.ui.AlbumListView
 
 @Composable
-fun MoveIntoAlbumDialog(
-    onAlbumNameSelect: (String) -> Unit,
+fun AddToAlbumDialog(
+    onPickAlbum: (Album) -> Unit,
+    onCreateAlbum: (String) -> Unit,
     onDismiss: () -> Unit,
     model: GalleryViewModel = hiltViewModel()
 ) {
@@ -46,7 +48,7 @@ fun MoveIntoAlbumDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Move to album") },
+        title = { Text("Add to album") },
         text = {
             if (newAlbumMode) {
                 OutlinedTextField(
@@ -59,7 +61,8 @@ fun MoveIntoAlbumDialog(
                     ),
                     onKeyboardAction = {
                         if (newAlbumName.text.isNotBlank()) {
-                            onAlbumNameSelect(newAlbumName.text.toString())
+                            onCreateAlbum(newAlbumName.text.toString())
+                            onDismiss()
                         }
                     },
                     modifier = Modifier.focusRequester(focus)
@@ -68,7 +71,7 @@ fun MoveIntoAlbumDialog(
                 AlbumListView(
                     albums = albums,
                     onAlbumClick = { album ->
-                        onAlbumNameSelect(album.name)
+                        onPickAlbum(album)
                         onDismiss()
                     },
                     onNewAlbumClick = { newAlbumMode = true },
@@ -81,10 +84,11 @@ fun MoveIntoAlbumDialog(
                 TextButton(
                     enabled = newAlbumName.text.isNotBlank(),
                     onClick = {
-                        onAlbumNameSelect(newAlbumName.text.toString())
+                        onCreateAlbum(newAlbumName.text.toString())
+                        onDismiss()
                     }
                 ) {
-                    Text("Move")
+                    Text("Add")
                 }
             }
         },

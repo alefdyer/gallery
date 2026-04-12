@@ -18,14 +18,11 @@ interface MediaService {
 
     suspend fun share(media: Collection<Media>, context: Context)
 
-    suspend fun move(
-        media: Collection<Media>,
-        album: String,
-        context: Context,
-        launcher: ActivityResultLauncher<IntentSenderRequest>
-    )
+    suspend fun addToAlbum(media: Collection<Media>, album: Album)
 
-    suspend fun postMove(context: Context)
+    suspend fun removeFromAlbum(media: Collection<Media>, album: Album)
+
+    suspend fun createAlbum(name: String): Album
 
     suspend fun update(uri: Uri)
 

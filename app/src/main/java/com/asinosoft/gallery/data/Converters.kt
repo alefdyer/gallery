@@ -6,8 +6,15 @@ import androidx.room.TypeConverter
 import com.google.gson.Gson
 import java.time.LocalDate
 import java.time.LocalTime
+import java.util.UUID
 
 class Converters {
+    @TypeConverter
+    fun uuidToString(value: UUID?): String? = value?.toString()
+
+    @TypeConverter
+    fun stringToUuid(value: String?): UUID? = value?.let { UUID.fromString(it) }
+
     @TypeConverter
     fun localDateToLong(date: LocalDate): Long = date.toEpochDay()
 
