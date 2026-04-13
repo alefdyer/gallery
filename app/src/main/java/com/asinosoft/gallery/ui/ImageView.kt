@@ -66,19 +66,29 @@ fun ImageView(uri: Uri, modifier: Modifier = Modifier) {
                     coroutineScope {
                         launch {
                             detectTapGestures(
-                                onDoubleTap = {
-                                    if (scale > minScale * 1.05f) {
-                                        scale = minScale
+                                onDoubleTap = { tapOffset ->
+                                    val oldScale = scale
+                                    scale = if (oldScale > minScale * 1.05f) minScale else maxScale
+
+                                    val bounds = (imageSize * scale - viewSize).positive()
+                                    offsetX.updateBounds(-bounds.width / 2f, bounds.width / 2)
+                                    offsetY.updateBounds(-bounds.height / 2f, bounds.height / 2)
+
+                                    if (scale == minScale) {
                                         scope.launch {
                                             offsetX.snapTo(0f)
                                             offsetY.snapTo(0f)
                                         }
                                     } else {
-                                        scale = maxScale
+                                        val viewCenter = Offset(viewSize.width / 2f, viewSize.height / 2f)
+                                        val newOffsetX = (offsetX.value + viewCenter.x - tapOffset.x) * (scale / oldScale)
+                                        val newOffsetY = (offsetY.value + viewCenter.y - tapOffset.y) * (scale / oldScale)
+
+                                        scope.launch {
+                                            offsetX.snapTo(newOffsetX)
+                                            offsetY.snapTo(newOffsetY)
+                                        }
                                     }
-                                    val bounds = (imageSize * scale - viewSize).positive()
-                                    offsetX.updateBounds(-bounds.width / 2f, bounds.width / 2)
-                                    offsetY.updateBounds(-bounds.height / 2f, bounds.height / 2)
                                 }
                             )
                         }
