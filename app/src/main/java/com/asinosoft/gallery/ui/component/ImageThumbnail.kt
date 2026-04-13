@@ -1,7 +1,6 @@
 package com.asinosoft.gallery.ui.component
 
 import android.graphics.Bitmap.CompressFormat
-import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.rememberCoroutineScope
@@ -12,17 +11,12 @@ import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
 import coil3.toBitmap
 import com.asinosoft.gallery.data.Media
-import java.io.File
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import java.io.File
 
 @Composable
-fun ImageThumbnail(
-    media: Media,
-    modifier: Modifier = Modifier,
-    onClick: () -> Unit = {},
-    onLongClick: () -> Unit = {}
-) {
+fun ImageThumbnail(media: Media, modifier: Modifier = Modifier) {
     val scope = rememberCoroutineScope()
     val thumbnail = File(LocalContext.current.cacheDir, media.id.toString())
 
@@ -57,12 +51,6 @@ fun ImageThumbnail(
         model = request,
         contentDescription = "",
         contentScale = ContentScale.Crop,
-        modifier =
-            modifier
-                .aspectRatio(1f)
-                .combinedClickable(
-                    onClick = onClick,
-                    onLongClick = onLongClick
-                )
+        modifier = modifier.aspectRatio(1f)
     )
 }
