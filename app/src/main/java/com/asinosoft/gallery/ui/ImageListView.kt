@@ -7,11 +7,11 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.GridItemSpan
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.foundation.lazy.grid.rememberLazyGridState
+import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
+import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
+import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridItemSpan
+import androidx.compose.foundation.lazy.staggeredgrid.items
+import androidx.compose.foundation.lazy.staggeredgrid.rememberLazyStaggeredGridState
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.Composable
@@ -22,10 +22,12 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.asinosoft.gallery.GalleryApp
 import com.asinosoft.gallery.data.HeaderItem
@@ -35,6 +37,7 @@ import com.asinosoft.gallery.data.groupByMonth
 import com.asinosoft.gallery.model.GalleryViewModel
 import com.asinosoft.gallery.ui.component.GroupHeader
 import com.asinosoft.gallery.ui.component.GroupItem
+import com.asinosoft.gallery.ui.component.LazyGridVerticalScrollIndicator
 import com.asinosoft.gallery.ui.component.MoveIntoAlbumDialog
 import com.asinosoft.gallery.ui.component.SelectionInfoBar
 import kotlinx.coroutines.flow.filterNotNull
@@ -54,7 +57,7 @@ fun ImageListView(
     val selectionMode by remember { derivedStateOf { selected.isNotEmpty() } }
     var selectionBarHeight by remember { mutableIntStateOf(0) }
     var topPadding by remember { mutableIntStateOf(0) }
-    val lazyGridState = rememberLazyGridState()
+    val lazyGridState = rememberLazyStaggeredGridState()
     var showMoveDialog by remember { mutableStateOf(false) }
 
     val snackbarHostState = remember { SnackbarHostState() }
@@ -99,17 +102,17 @@ fun ImageListView(
     }
 
     Box(modifier) {
-        LazyVerticalGrid(
+        LazyVerticalStaggeredGrid(
             state = lazyGridState,
-            columns = GridCells.Fixed(3),
+            columns = StaggeredGridCells.Fixed(3),
             modifier = Modifier.padding(top = topPadding.pxToDp())
         ) {
             items(
                 items,
                 span = {
                     when (it) {
-                        is HeaderItem -> GridItemSpan(maxLineSpan)
-                        else -> GridItemSpan(1)
+                        is HeaderItem -> StaggeredGridItemSpan.FullLine
+                        else -> StaggeredGridItemSpan.SingleLane
                     }
                 }
             ) {
@@ -136,6 +139,14 @@ fun ImageListView(
                 }
             }
         }
+
+        LazyGridVerticalScrollIndicator(
+            lazyGridState = lazyGridState,
+            listItems = items,
+            modifier = Modifier
+                .align(Alignment.CenterEnd)
+                .padding(top = topPadding.pxToDp(), end = 4.dp)
+        )
 
         AnimatedVisibility(visible = selectionMode) {
             SelectionInfoBar(
