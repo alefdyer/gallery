@@ -139,15 +139,19 @@ constructor(
 
     private suspend fun updateAlbumStats(album: Album) {
         val stats = albumDao.getAlbumStats(album.id, album.cover)
-        albumDao.upsert(
-            Album(
-                id = album.id,
-                name = album.name,
-                size = stats.size,
-                count = stats.count,
-                cover = stats.cover,
-                date = stats.date
+        if (stats.count > 0) {
+            albumDao.upsert(
+                Album(
+                    id = album.id,
+                    name = album.name,
+                    size = stats.size,
+                    count = stats.count,
+                    cover = stats.cover,
+                    date = stats.date
+                )
             )
-        )
+        } else {
+            albumDao.delete(album)
+        }
     }
 }

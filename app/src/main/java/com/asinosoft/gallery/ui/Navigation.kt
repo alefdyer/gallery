@@ -55,8 +55,10 @@ fun Navigation(nav: NavHostController, model: GalleryViewModel = hiltViewModel()
             model.setAlbumId(albumUuid)
 
             val encodedId = Uri.encode(albumIdStr)
+            val album = albums.find { it.id == albumUuid }
             ImageListView(
                 albumImages,
+                album = album,
                 onClick = { image ->
                     val imagePath = Uri.encode(image.uri.toString())
                     nav.navigate("album/$encodedId/pager/$imagePath")

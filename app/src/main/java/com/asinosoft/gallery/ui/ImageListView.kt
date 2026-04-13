@@ -151,8 +151,8 @@ fun ImageListView(
                 },
                 onShare = { model.share(it, context) },
                 onDelete = { model.delete(it, context, deleter) },
-                addTag = { showTagDialog = true },
-                removeTag = { media -> album?.let { model.removeFromAlbum(media, album) } }
+                onAddTag = { showTagDialog = true },
+                onRemoveTag = album?.let { { media -> model.removeFromAlbum(media, it) } }
             )
         }
 
