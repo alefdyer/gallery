@@ -1,5 +1,6 @@
 package com.asinosoft.gallery.ui.component
 
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
@@ -10,7 +11,7 @@ import com.asinosoft.gallery.data.HeaderItem
 fun GroupHeader(header: HeaderItem, modifier: Modifier = Modifier) {
     Text(
         text = header.label,
-        modifier = modifier,
+        modifier = modifier.fillMaxWidth(),
         fontSize = 24.sp
     )
 }

@@ -11,9 +11,9 @@ import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
 import coil3.toBitmap
 import com.asinosoft.gallery.data.Media
+import java.io.File
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import java.io.File
 
 @Composable
 fun ImageThumbnail(media: Media, modifier: Modifier = Modifier) {
