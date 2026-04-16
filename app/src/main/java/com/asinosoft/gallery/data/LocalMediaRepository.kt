@@ -9,7 +9,6 @@ import androidx.core.database.getStringOrNull
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.time.ZoneId
 import java.util.Date
-import java.util.UUID
 import javax.inject.Inject
 
 class LocalMediaRepository
@@ -74,7 +73,7 @@ class LocalMediaRepository
                 val datetime =
                     Date(date).toInstant().atZone(ZoneId.systemDefault()).toLocalDateTime()
 
-                val album: String? = cursor.getStringOrNull(bucketNameColumn)
+                val bucket: String? = cursor.getStringOrNull(bucketNameColumn)
                 val size: Long = cursor.getLong(sizeColumn)
 
                 val data: String = cursor.getString(dataColumn)
@@ -82,11 +81,11 @@ class LocalMediaRepository
 
                 val image =
                     Media(
-                        id = UUID.randomUUID(),
+                        id = 0,
                         uri = uri,
                         date = datetime.toLocalDate(),
                         time = datetime.toLocalTime(),
-                        album = album,
+                        bucket = bucket,
                         size = size,
                         filename = data,
                         mimeType = mimeType,
@@ -146,7 +145,7 @@ class LocalMediaRepository
                 val datetime =
                     Date(date).toInstant().atZone(ZoneId.systemDefault()).toLocalDateTime()
 
-                val album: String? = cursor.getStringOrNull(bucketNameColumn)
+                val bucket: String? = cursor.getStringOrNull(bucketNameColumn)
                 val size: Long = cursor.getLong(sizeColumn)
 
                 val data: String = cursor.getString(dataColumn)
@@ -155,11 +154,11 @@ class LocalMediaRepository
 
                 val video =
                     Media(
-                        id = UUID.randomUUID(),
+                        id = 0,
                         uri = uri,
                         date = datetime.toLocalDate(),
                         time = datetime.toLocalTime(),
-                        album = album,
+                        bucket = bucket,
                         size = size,
                         filename = data,
                         mimeType = mimeType,

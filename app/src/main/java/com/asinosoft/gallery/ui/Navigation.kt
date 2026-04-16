@@ -34,7 +34,9 @@ fun Navigation(nav: NavHostController, model: GalleryViewModel = hiltViewModel()
                 onMediaClick = { image ->
                     nav.navigate("pager/" + Uri.encode(image.uri.toString()))
                 },
-                onAlbumClick = { album -> nav.navigate("album/" + Uri.encode(album.name)) },
+                onAlbumClick = { album ->
+                    nav.navigate("album/" + Uri.encode(album.id.toString()))
+                },
                 isRefreshing = isRefreshing,
                 onRefresh = model::rescan
             )
@@ -46,23 +48,25 @@ fun Navigation(nav: NavHostController, model: GalleryViewModel = hiltViewModel()
             PagerView(media, current = image, onClose = nav::navigateUp)
         }
 
-        composable("album/{albumName}") { route ->
-            val albumName = Uri.decode(route.arguments?.getString("albumName"))
-            model.setAlbumName(albumName)
+        composable("album/{albumId}") { route ->
+            val albumId = route.arguments?.getString("albumId")!!.toLong()
+            model.setAlbumId(albumId)
 
+            val album = albums.find { it.id == albumId }
             ImageListView(
                 albumImages,
+                album = album,
                 onClick = { image ->
                     val imagePath = Uri.encode(image.uri.toString())
-                    nav.navigate("album/$albumName/pager/$imagePath")
+                    nav.navigate("album/$albumId/pager/$imagePath")
                 },
                 onClose = nav::navigateUp
             )
         }
 
-        composable("album/{albumName}/pager/{imagePath}") { route ->
-            val albumName = Uri.decode(route.arguments?.getString("albumName"))
-            model.setAlbumName(albumName)
+        composable("album/{albumId}/pager/{imagePath}") { route ->
+            val albumId = route.arguments?.getString("albumId")!!.toLong()
+            model.setAlbumId(albumId)
 
             val imagePath = Uri.decode(route.arguments?.getString("imagePath")).toUri()
             val image = albumImages.find { it.uri == imagePath }

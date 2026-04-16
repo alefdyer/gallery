@@ -15,34 +15,6 @@ interface MediaDao {
     @Query("SELECT * FROM media WHERE uri=:uri")
     fun getImageByPath(uri: Uri): Flow<Media?>
 
-    @Query("SELECT * FROM media WHERE album=:album ORDER BY date DESC, time DESC")
-    fun getAlbumImages(album: String): Flow<List<Media>>
-
-    @Query(
-        """
-        SELECT
-            album as name,
-            count(*) as count,
-            sum(size) as size,
-            max(uri) as cover,
-            max(date) as date
-        FROM media
-        GROUP BY album
-    """
-    )
-    fun getAlbums(): Flow<List<Album>>
-
-    @Query(
-        """
-        SELECT *
-        FROM media
-        WHERE album=:album
-        ORDER BY date DESC
-        LIMIT 1
-    """
-    )
-    suspend fun getAlbumLastImage(album: String): Media
-
     @Upsert
     suspend fun upsert(media: Media)
 

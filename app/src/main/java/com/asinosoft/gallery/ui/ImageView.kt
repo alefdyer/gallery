@@ -34,15 +34,11 @@ import androidx.compose.ui.util.fastAny
 import androidx.compose.ui.util.fastForEach
 import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
-import kotlinx.coroutines.launch
 import kotlin.math.max
+import kotlinx.coroutines.launch
 
 @Composable
-fun ImageView(
-    uri: Uri,
-    modifier: Modifier = Modifier,
-    onTap: () -> Unit = {},
-) {
+fun ImageView(uri: Uri, modifier: Modifier = Modifier, onTap: () -> Unit = {}) {
     val scope = rememberCoroutineScope()
 
     var viewSize by remember { mutableStateOf(Size.Zero) }
@@ -77,10 +73,10 @@ fun ImageView(
             )
             val newOffsetX =
                 (offsetX.value + viewCenter.x - tapOffset.x) *
-                        (scale / oldScale)
+                    (scale / oldScale)
             val newOffsetY =
                 (offsetY.value + viewCenter.y - tapOffset.y) *
-                        (scale / oldScale)
+                    (scale / oldScale)
 
             scope.launch {
                 offsetX.snapTo(newOffsetX)

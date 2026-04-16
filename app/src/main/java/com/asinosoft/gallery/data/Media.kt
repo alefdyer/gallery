@@ -6,7 +6,6 @@ import androidx.room.Index
 import androidx.room.PrimaryKey
 import java.time.LocalDate
 import java.time.LocalTime
-import java.util.UUID
 
 @Entity(
     indices = [
@@ -14,18 +13,15 @@ import java.util.UUID
     ]
 )
 data class Media(
-    @PrimaryKey
-    val id: UUID,
+    @PrimaryKey(autoGenerate = true)
+    val id: Long,
     val uri: Uri,
     val date: LocalDate,
     val time: LocalTime,
-    val album: String?,
+    val bucket: String?,
     val size: Long,
     val filename: String,
     val mimeType: String,
     val image: Image? = null,
     val video: Video? = null
-) {
-    fun setAlbum(album: String?): Media =
-        Media(id, uri, date, time, album, size, filename, mimeType, image, video)
-}
+)

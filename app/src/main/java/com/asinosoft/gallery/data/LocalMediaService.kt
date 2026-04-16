@@ -1,17 +1,13 @@
 package com.asinosoft.gallery.data
 
-import android.app.RecoverableSecurityException
-import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
-import android.os.Environment
 import android.provider.MediaStore
 import android.util.Log
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.IntentSenderRequest
-import androidx.annotation.RequiresApi
 import com.asinosoft.gallery.GalleryApp
 import javax.inject.Inject
 import kotlin.system.measureTimeMillis
@@ -24,9 +20,6 @@ constructor(
     private val mediaDao: MediaDao,
     private val repository: LocalMediaRepository
 ) : MediaService {
-    private var pendingMedia = ArrayList<Media>()
-    private var pendingAlbum: String? = null
-
     override suspend fun delete(
         media: Collection<Media>,
         context: Context,
@@ -54,8 +47,9 @@ constructor(
     }
 
     override suspend fun postDelete(media: Collection<Media>) {
+        val albums = albumDao.getMediaAlbums(media.map { it.id })
         mediaDao.deleteAll(media)
-        albumDao.deleteAll(albumDao.getEmptyAlbums())
+        albums.forEach { updateAlbumStats(it) }
     }
 
     override suspend fun edit(media: Media, context: Context) {
@@ -94,22 +88,25 @@ constructor(
         context.startActivity(chooser)
     }
 
-    @RequiresApi(Build.VERSION_CODES.Q)
-    override suspend fun move(
-        media: Collection<Media>,
-        album: String,
-        context: Context,
-        launcher: ActivityResultLauncher<IntentSenderRequest>
-    ) {
-        pendingMedia.clear()
-        moveInternal(media, album, context, launcher)
+    override suspend fun addToAlbum(media: Collection<Media>, album: Album) {
+        albumDao.addMediaToAlbum(media.map { it.id }, album.id)
+        updateAlbumStats(album)
     }
 
-    @RequiresApi(Build.VERSION_CODES.Q)
-    override suspend fun postMove(context: Context) {
-        pendingAlbum?.let { albumName ->
-            moveInternal(pendingMedia, albumName, context, null)
+    override suspend fun createAlbum(name: String): Album {
+        val trimmed = name.trim()
+        require(trimmed.isNotEmpty()) { "Album name must not be empty" }
+
+        val id = albumDao.upsert(Album(0, trimmed))
+        return Album(id, trimmed)
+    }
+
+    override suspend fun removeFromAlbum(media: Collection<Media>, album: Album) {
+        if (media.isEmpty()) {
+            return
         }
+        albumDao.removeMediaFromAlbum(media.map { it.id }, album.id)
+        updateAlbumStats(album)
     }
 
     override suspend fun update(uri: Uri) {
@@ -131,94 +128,26 @@ constructor(
 
             mediaDao.deleteAll(deletedImages)
             mediaDao.upsertAll(images)
-
-            val albums = mediaDao.getAlbums().first()
-            val deletedAlbums =
-                albumDao
-                    .getAlbums()
-                    .first()
-                    .filterNot { cached -> albums.any { it.name == cached.name } }
-            albumDao.upsertAll(albums)
-            albumDao.deleteAll(deletedAlbums)
         }.also {
             Log.i(GalleryApp.TAG, "DONE in $it ms")
         }
     }
 
-    @RequiresApi(Build.VERSION_CODES.Q)
-    private suspend fun moveInternal(
-        media: Collection<Media>,
-        album: String,
-        context: Context,
-        launcher: ActivityResultLauncher<IntentSenderRequest>?
-    ) {
-        val uris = media.map { it.uri.lastPathSegment }
-        Log.d(GalleryApp.TAG, "Move into $album: $uris")
-
-        val targetAlbum = album.trim()
-        if (media.isEmpty() || targetAlbum.isEmpty()) {
-            return
-        }
-
-        val moved = HashSet<Media>()
-        val failed = HashSet<Media>()
-        media.forEach { media ->
-            if (media.album == targetAlbum) {
-                return@forEach
-            }
-
-            val baseDir =
-                if (media.mimeType.startsWith("video")) {
-                    Environment.DIRECTORY_MOVIES
-                } else {
-                    Environment.DIRECTORY_PICTURES
-                }
-            val relativePath = "$baseDir/$targetAlbum/"
-
-            try {
-                val values =
-                    ContentValues().apply {
-                        put(MediaStore.MediaColumns.RELATIVE_PATH, relativePath)
-                    }
-                context.contentResolver.update(media.uri, values, null, null)
-                moved.add(media.setAlbum(album))
-            } catch (ex: RecoverableSecurityException) {
-                if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.Q && launcher != null) {
-                    pendingAlbum = album
-                    pendingMedia.add(media)
-                    val request =
-                        IntentSenderRequest
-                            .Builder(ex.userAction.actionIntent)
-                            .build()
-                    launcher.launch(request)
-                } else {
-                    failed.add(media)
-                }
-            }
-        }
-
-        pendingMedia.removeAll(moved)
-        mediaDao.upsertAll(moved)
-        albumDao.deleteAll(albumDao.getEmptyAlbums())
-        albumDao.upsertAll(mediaDao.getAlbums().first())
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            if (failed.isNotEmpty() && launcher != null) {
-                pendingAlbum = album
-                pendingMedia.addAll(failed)
-                val sender =
-                    MediaStore
-                        .createWriteRequest(
-                            context.contentResolver,
-                            failed.map { it.uri }
-                        ).intentSender
-                val request =
-                    IntentSenderRequest
-                        .Builder(sender)
-                        .setFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION, 0)
-                        .build()
-                launcher.launch(request)
-            }
+    private suspend fun updateAlbumStats(album: Album) {
+        val stats = albumDao.getAlbumStats(album.id)
+        if (stats.count > 0) {
+            albumDao.upsert(
+                Album(
+                    id = album.id,
+                    name = album.name,
+                    size = stats.size,
+                    count = stats.count,
+                    cover = stats.cover,
+                    date = stats.date
+                )
+            )
+        } else {
+            albumDao.delete(album)
         }
     }
 }

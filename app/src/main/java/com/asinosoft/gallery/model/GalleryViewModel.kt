@@ -1,11 +1,11 @@
 package com.asinosoft.gallery.model
 
 import android.content.Context
-import android.os.Build
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.IntentSenderRequest
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.asinosoft.gallery.data.Album
 import com.asinosoft.gallery.data.AlbumDao
 import com.asinosoft.gallery.data.Media
 import com.asinosoft.gallery.data.MediaDao
@@ -22,10 +22,10 @@ import kotlinx.coroutines.launch
 @HiltViewModel
 class GalleryViewModel @Inject constructor(
     private val service: MediaService,
-    albumDao: AlbumDao,
-    private val mediaDao: MediaDao
+    private val albumDao: AlbumDao,
+    mediaDao: MediaDao
 ) : ViewModel() {
-    private val albumName = MutableStateFlow<String?>(null)
+    private val albumId = MutableStateFlow<Long?>(null)
     private val rescanFlow = MutableStateFlow(false)
     private val messageFlow = MutableStateFlow<String?>(null)
 
@@ -38,7 +38,7 @@ class GalleryViewModel @Inject constructor(
     val message: StateFlow<String?> = messageFlow
 
     @OptIn(ExperimentalCoroutinesApi::class)
-    val albumImages = albumName.filterNotNull().flatMapLatest { mediaDao.getAlbumImages(it) }
+    val albumImages = albumId.filterNotNull().flatMapLatest { albumDao.getMediaInAlbum(it) }
 
     suspend fun clearMessage() {
         messageFlow.emit(null)
@@ -54,8 +54,8 @@ class GalleryViewModel @Inject constructor(
         rescanFlow.emit(false)
     }
 
-    fun setAlbumName(name: String) = viewModelScope.launch {
-        albumName.emit(name)
+    fun setAlbumId(id: Long) = viewModelScope.launch {
+        albumId.emit(id)
     }
 
     fun delete(
@@ -94,28 +94,24 @@ class GalleryViewModel @Inject constructor(
         }
     }
 
-    fun move(
-        media: Collection<Media>,
-        album: String,
-        context: Context,
-        launcher: ActivityResultLauncher<IntentSenderRequest>
-    ) = viewModelScope.launch {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            try {
-                service.move(media, album, context, launcher)
-            } catch (ex: Throwable) {
-                messageFlow.emit(ex.message)
-            }
-        } else {
-            return@launch messageFlow.emit("Move into album is unsupported below Android 10")
-        }
-    }
-
-    fun postMove(context: Context) = viewModelScope.launch {
+    fun addToAlbum(media: Collection<Media>, album: Album) = viewModelScope.launch {
         try {
-            service.postMove(context)
+            service.addToAlbum(media, album)
         } catch (ex: Throwable) {
             messageFlow.emit(ex.message)
         }
+    }
+
+    fun addToNewAlbum(media: Collection<Media>, name: String) = viewModelScope.launch {
+        try {
+            val album = service.createAlbum(name)
+            service.addToAlbum(media, album)
+        } catch (ex: Throwable) {
+            messageFlow.emit(ex.message)
+        }
+    }
+
+    fun removeFromAlbum(media: Collection<Media>, album: Album) = viewModelScope.launch {
+        service.removeFromAlbum(media, album)
     }
 }

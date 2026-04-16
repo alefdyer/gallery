@@ -30,15 +30,16 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.asinosoft.gallery.GalleryApp
+import com.asinosoft.gallery.data.Album
 import com.asinosoft.gallery.data.HeaderItem
 import com.asinosoft.gallery.data.Media
 import com.asinosoft.gallery.data.MediaItem
 import com.asinosoft.gallery.data.groupByMonth
 import com.asinosoft.gallery.model.GalleryViewModel
+import com.asinosoft.gallery.ui.component.AddToAlbumDialog
 import com.asinosoft.gallery.ui.component.GroupHeader
 import com.asinosoft.gallery.ui.component.GroupItem
 import com.asinosoft.gallery.ui.component.LazyGridVerticalScrollIndicator
-import com.asinosoft.gallery.ui.component.MoveIntoAlbumDialog
 import com.asinosoft.gallery.ui.component.SelectionInfoBar
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.launch
@@ -47,6 +48,7 @@ import kotlinx.coroutines.launch
 fun ImageListView(
     media: List<Media>,
     modifier: Modifier = Modifier,
+    album: Album? = null,
     onClose: () -> Unit = {},
     onClick: (Media) -> Unit = {},
     model: GalleryViewModel = hiltViewModel()
@@ -58,7 +60,7 @@ fun ImageListView(
     var selectionBarHeight by remember { mutableIntStateOf(0) }
     var topPadding by remember { mutableIntStateOf(0) }
     val lazyGridState = rememberLazyStaggeredGridState()
-    var showMoveDialog by remember { mutableStateOf(false) }
+    var showTagDialog by remember { mutableStateOf(false) }
 
     val snackbarHostState = remember { SnackbarHostState() }
 
@@ -68,14 +70,6 @@ fun ImageListView(
             if (Activity.RESULT_OK == it.resultCode) {
                 model.postDelete(selected)
                 selected = setOf()
-            }
-        }
-
-    val movePermissionLauncher =
-        rememberLauncherForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) {
-            Log.d(GalleryApp.TAG, "Move permission: $it")
-            if (Activity.RESULT_OK == it.resultCode) {
-                model.postMove(context)
             }
         }
 
@@ -157,18 +151,24 @@ fun ImageListView(
                 },
                 onShare = { model.share(it, context) },
                 onDelete = { model.delete(it, context, deleter) },
-                onMove = { showMoveDialog = true }
+                onAddTag = { showTagDialog = true },
+                onRemoveTag = album?.let { { media -> model.removeFromAlbum(media, it) } }
             )
         }
 
-        if (showMoveDialog) {
-            MoveIntoAlbumDialog(
-                onAlbumNameSelect = { albumName ->
-                    model.move(selected, albumName, context, movePermissionLauncher)
-                    showMoveDialog = false
+        if (showTagDialog) {
+            AddToAlbumDialog(
+                onPickAlbum = { album ->
+                    model.addToAlbum(selected, album)
+                    showTagDialog = false
                     selected = setOf()
                 },
-                onDismiss = { showMoveDialog = false }
+                onCreateAlbum = { name ->
+                    model.addToNewAlbum(selected, name)
+                    showTagDialog = false
+                    selected = setOf()
+                },
+                onDismiss = { showTagDialog = false }
             )
         }
 
