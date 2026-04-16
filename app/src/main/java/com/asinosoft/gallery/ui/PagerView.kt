@@ -30,7 +30,6 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.asinosoft.gallery.data.Media
 import com.asinosoft.gallery.model.GalleryViewModel
-import com.asinosoft.gallery.ui.util.onSingleClick
 
 @Composable
 fun PagerView(
@@ -73,7 +72,6 @@ fun PagerView(
             pageSpacing = 16.dp,
             modifier =
                 Modifier
-                    .onSingleClick { showControls = !showControls }
                     .pointerInput(Unit) {
                         detectVerticalDragGestures { _, amount ->
                             if (amount > 10 && !showInfo) onClose()
@@ -83,7 +81,7 @@ fun PagerView(
         ) { n ->
             val item = items[n]
             if (null !== item.image) {
-                ImageView(item.uri)
+                ImageView(item.uri) { showControls = !showControls }
             } else if (null != item.video) {
                 VideoView(item.uri) { isPlaying -> showControls = !isPlaying }
             } else {
