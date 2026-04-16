@@ -7,13 +7,12 @@ import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Transaction
 import androidx.room.Upsert
-import java.util.UUID
 import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface AlbumDao {
     @Query("SELECT * FROM album WHERE id = :id")
-    suspend fun getAlbumById(id: UUID): Album?
+    suspend fun getAlbumById(id: Long): Album?
 
     @Query("SELECT * FROM album ORDER BY name")
     fun getAlbums(): Flow<List<Album>>
@@ -29,7 +28,7 @@ interface AlbumDao {
     suspend fun getEmptyAlbums(): List<Album>
 
     @Upsert
-    suspend fun upsert(album: Album)
+    suspend fun upsert(album: Album): Long
 
     @Delete
     suspend fun delete(album: Album)
@@ -51,7 +50,7 @@ interface AlbumDao {
     @Query(
         "DELETE FROM media_album WHERE albumId = :albumId AND mediaId IN (:mediaIds)"
     )
-    suspend fun removeMediaFromAlbum(albumId: UUID, mediaIds: List<UUID>)
+    suspend fun removeMediaFromAlbum(albumId: Long, mediaIds: List<Long>)
 
     @Query(
         """
@@ -62,12 +61,12 @@ interface AlbumDao {
         ORDER BY m.date DESC, m.time DESC
         """
     )
-    fun getMediaInAlbum(albumId: UUID): Flow<List<Media>>
+    fun getMediaInAlbum(albumId: Long): Flow<List<Media>>
 
     @Query(
         "SELECT a.* FROM album a JOIN media_album ma ON ma.albumId = a.id WHERE ma.mediaId IN (:mediaId)"
     )
-    suspend fun getMediaAlbums(mediaId: List<UUID>): List<Album>
+    suspend fun getMediaAlbums(mediaId: List<Long>): List<Album>
 
     @Query(
         """
@@ -100,5 +99,5 @@ interface AlbumDao {
         ORDER BY a.name
         """
     )
-    suspend fun getAlbumStats(albumId: UUID, cover: String?): AlbumStats
+    suspend fun getAlbumStats(albumId: Long, cover: String?): AlbumStats
 }

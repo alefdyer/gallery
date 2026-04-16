@@ -11,7 +11,6 @@ import com.asinosoft.gallery.data.Media
 import com.asinosoft.gallery.data.MediaDao
 import com.asinosoft.gallery.data.MediaService
 import dagger.hilt.android.lifecycle.HiltViewModel
-import java.util.UUID
 import javax.inject.Inject
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -26,7 +25,7 @@ class GalleryViewModel @Inject constructor(
     private val albumDao: AlbumDao,
     mediaDao: MediaDao
 ) : ViewModel() {
-    private val albumId = MutableStateFlow<UUID?>(null)
+    private val albumId = MutableStateFlow<Long?>(null)
     private val rescanFlow = MutableStateFlow(false)
     private val messageFlow = MutableStateFlow<String?>(null)
 
@@ -55,7 +54,7 @@ class GalleryViewModel @Inject constructor(
         rescanFlow.emit(false)
     }
 
-    fun setAlbumId(id: UUID) = viewModelScope.launch {
+    fun setAlbumId(id: Long) = viewModelScope.launch {
         albumId.emit(id)
     }
 

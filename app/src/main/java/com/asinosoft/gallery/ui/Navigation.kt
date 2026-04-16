@@ -13,7 +13,6 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import com.asinosoft.gallery.model.GalleryViewModel
-import java.util.UUID
 
 @Composable
 fun Navigation(nav: NavHostController, model: GalleryViewModel = hiltViewModel()) {
@@ -50,27 +49,24 @@ fun Navigation(nav: NavHostController, model: GalleryViewModel = hiltViewModel()
         }
 
         composable("album/{albumId}") { route ->
-            val albumIdStr = Uri.decode(route.arguments?.getString("albumId"))
-            val albumUuid = UUID.fromString(albumIdStr)
-            model.setAlbumId(albumUuid)
+            val albumId = route.arguments?.getString("albumId")!!.toLong()
+            model.setAlbumId(albumId)
 
-            val encodedId = Uri.encode(albumIdStr)
-            val album = albums.find { it.id == albumUuid }
+            val album = albums.find { it.id == albumId }
             ImageListView(
                 albumImages,
                 album = album,
                 onClick = { image ->
                     val imagePath = Uri.encode(image.uri.toString())
-                    nav.navigate("album/$encodedId/pager/$imagePath")
+                    nav.navigate("album/$albumId/pager/$imagePath")
                 },
                 onClose = nav::navigateUp
             )
         }
 
         composable("album/{albumId}/pager/{imagePath}") { route ->
-            val albumIdStr = Uri.decode(route.arguments?.getString("albumId"))
-            val albumUuid = UUID.fromString(albumIdStr)
-            model.setAlbumId(albumUuid)
+            val albumId = route.arguments?.getString("albumId")!!.toLong()
+            model.setAlbumId(albumId)
 
             val imagePath = Uri.decode(route.arguments?.getString("imagePath")).toUri()
             val image = albumImages.find { it.uri == imagePath }

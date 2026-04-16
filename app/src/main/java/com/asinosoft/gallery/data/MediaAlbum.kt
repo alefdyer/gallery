@@ -3,7 +3,6 @@ package com.asinosoft.gallery.data
 import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.Index
-import java.util.UUID
 
 @Entity(
     tableName = "media_album",
@@ -27,4 +26,4 @@ import java.util.UUID
         Index(value = ["albumId"])
     ]
 )
-data class MediaAlbum(val mediaId: UUID, val albumId: UUID)
+data class MediaAlbum(val mediaId: Long, val albumId: Long)

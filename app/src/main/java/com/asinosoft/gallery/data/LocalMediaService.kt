@@ -9,7 +9,6 @@ import android.util.Log
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.IntentSenderRequest
 import com.asinosoft.gallery.GalleryApp
-import java.util.UUID
 import javax.inject.Inject
 import kotlin.system.measureTimeMillis
 import kotlinx.coroutines.flow.first
@@ -97,12 +96,9 @@ constructor(
     override suspend fun createAlbum(name: String): Album {
         val trimmed = name.trim()
         require(trimmed.isNotEmpty()) { "Album name must not be empty" }
-        val id = UUID.randomUUID()
 
-        return Album(
-            id = id,
-            name = trimmed
-        ).also { albumDao.upsert(it) }
+        val id = albumDao.upsert(Album(0, trimmed))
+        return Album(id, trimmed)
     }
 
     override suspend fun removeFromAlbum(media: Collection<Media>, album: Album) {

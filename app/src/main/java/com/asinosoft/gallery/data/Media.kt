@@ -6,7 +6,6 @@ import androidx.room.Index
 import androidx.room.PrimaryKey
 import java.time.LocalDate
 import java.time.LocalTime
-import java.util.UUID
 
 @Entity(
     indices = [
@@ -14,8 +13,8 @@ import java.util.UUID
     ]
 )
 data class Media(
-    @PrimaryKey
-    val id: UUID,
+    @PrimaryKey(autoGenerate = true)
+    val id: Long,
     val uri: Uri,
     val date: LocalDate,
     val time: LocalTime,

@@ -9,7 +9,6 @@ import androidx.core.database.getStringOrNull
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.time.ZoneId
 import java.util.Date
-import java.util.UUID
 import javax.inject.Inject
 
 class LocalMediaRepository
@@ -82,7 +81,7 @@ class LocalMediaRepository
 
                 val image =
                     Media(
-                        id = UUID.nameUUIDFromBytes(uri.toString().toByteArray(Charsets.UTF_8)),
+                        id = 0,
                         uri = uri,
                         date = datetime.toLocalDate(),
                         time = datetime.toLocalTime(),
@@ -155,7 +154,7 @@ class LocalMediaRepository
 
                 val video =
                     Media(
-                        id = UUID.nameUUIDFromBytes(uri.toString().toByteArray(Charsets.UTF_8)),
+                        id = 0,
                         uri = uri,
                         date = datetime.toLocalDate(),
                         time = datetime.toLocalTime(),
