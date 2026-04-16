@@ -104,8 +104,8 @@ class GalleryViewModel @Inject constructor(
 
     fun addToNewAlbum(media: Collection<Media>, name: String) = viewModelScope.launch {
         try {
-            val id = service.createAlbum(name)
-            service.addToAlbum(media, id)
+            val album = service.createAlbum(name)
+            service.addToAlbum(media, album)
         } catch (ex: Throwable) {
             messageFlow.emit(ex.message)
         }

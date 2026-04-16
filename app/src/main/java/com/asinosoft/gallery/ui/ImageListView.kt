@@ -158,8 +158,8 @@ fun ImageListView(
 
         if (showTagDialog) {
             AddToAlbumDialog(
-                onPickAlbum = { albumId ->
-                    model.addToAlbum(selected, albumId)
+                onPickAlbum = { album ->
+                    model.addToAlbum(selected, album)
                     showTagDialog = false
                     selected = setOf()
                 },

@@ -89,7 +89,7 @@ constructor(
     }
 
     override suspend fun addToAlbum(media: Collection<Media>, album: Album) {
-        albumDao.addMediaToAlbum(media, album)
+        albumDao.addMediaToAlbum(media.map { it.id }, album.id)
         updateAlbumStats(album)
     }
 
@@ -105,7 +105,7 @@ constructor(
         if (media.isEmpty()) {
             return
         }
-        albumDao.removeMediaFromAlbum(album.id, media.map { it.id })
+        albumDao.removeMediaFromAlbum(media.map { it.id }, album.id)
         updateAlbumStats(album)
     }
 
@@ -134,7 +134,7 @@ constructor(
     }
 
     private suspend fun updateAlbumStats(album: Album) {
-        val stats = albumDao.getAlbumStats(album.id, album.cover)
+        val stats = albumDao.getAlbumStats(album.id)
         if (stats.count > 0) {
             albumDao.upsert(
                 Album(

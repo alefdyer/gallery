@@ -40,17 +40,17 @@ interface AlbumDao {
     suspend fun insertMedia(links: List<MediaAlbum>)
 
     @Transaction
-    suspend fun addMediaToAlbum(media: Collection<Media>, album: Album) {
-        if (media.isEmpty()) {
+    suspend fun addMediaToAlbum(mediaIds: Collection<Long>, albumId: Long) {
+        if (mediaIds.isEmpty()) {
             return
         }
-        insertMedia(media.map { MediaAlbum(mediaId = it.id, albumId = album.id) })
+        insertMedia(mediaIds.map { MediaAlbum(mediaId = it, albumId = albumId) })
     }
 
     @Query(
         "DELETE FROM media_album WHERE albumId = :albumId AND mediaId IN (:mediaIds)"
     )
-    suspend fun removeMediaFromAlbum(albumId: Long, mediaIds: List<Long>)
+    suspend fun removeMediaFromAlbum(mediaIds: List<Long>, albumId: Long)
 
     @Query(
         """
@@ -78,7 +78,7 @@ interface AlbumDao {
                     SELECT m2.uri
                     FROM media_album ma2
                     INNER JOIN media m2 ON m2.id = ma2.mediaId
-                    WHERE ma2.albumId = a.id AND m2.uri = :cover
+                    WHERE ma2.albumId = a.id AND m2.uri = a.cover
                     LIMIT 1
                 ),
                 (
@@ -99,5 +99,5 @@ interface AlbumDao {
         ORDER BY a.name
         """
     )
-    suspend fun getAlbumStats(albumId: Long, cover: String?): AlbumStats
+    suspend fun getAlbumStats(albumId: Long): AlbumStats
 }
