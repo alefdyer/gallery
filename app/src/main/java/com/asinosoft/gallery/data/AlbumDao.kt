@@ -30,8 +30,8 @@ interface AlbumDao {
     @Upsert
     suspend fun upsert(album: Album): Long
 
-    @Delete
-    suspend fun delete(album: Album)
+    @Query("DELETE FROM album WHERE id = :albumId")
+    suspend fun delete(albumId: Long)
 
     @Delete
     suspend fun deleteAll(albums: List<Album>)
@@ -50,7 +50,7 @@ interface AlbumDao {
     @Query(
         "DELETE FROM media_album WHERE albumId = :albumId AND mediaId IN (:mediaIds)"
     )
-    suspend fun removeMediaFromAlbum(mediaIds: List<Long>, albumId: Long)
+    suspend fun removeMediaFromAlbum(mediaIds: Collection<Long>, albumId: Long)
 
     @Query(
         """
@@ -64,13 +64,14 @@ interface AlbumDao {
     fun getMediaInAlbum(albumId: Long): Flow<List<Media>>
 
     @Query(
-        "SELECT a.* FROM album a JOIN media_album ma ON ma.albumId = a.id WHERE ma.mediaId IN (:mediaId)"
+        "SELECT DISTINCT albumId FROM media_album WHERE mediaId IN (:mediaIds)"
     )
-    suspend fun getMediaAlbums(mediaId: List<Long>): List<Album>
+    suspend fun getMediaAlbumIds(mediaIds: Collection<Long>): List<Long>
 
     @Query(
         """
         SELECT
+            a.name AS name,
             COUNT(m.id) AS count,
             IFNULL(SUM(m.size), 0) AS size,
             COALESCE(

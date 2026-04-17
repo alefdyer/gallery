@@ -5,9 +5,7 @@ import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.IntentSenderRequest
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.asinosoft.gallery.data.Album
 import com.asinosoft.gallery.data.AlbumDao
-import com.asinosoft.gallery.data.Media
 import com.asinosoft.gallery.data.MediaDao
 import com.asinosoft.gallery.data.MediaService
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -59,59 +57,59 @@ class GalleryViewModel @Inject constructor(
     }
 
     fun delete(
-        media: Collection<Media>,
+        mediaIds: Collection<Long>,
         context: Context,
         launcher: ActivityResultLauncher<IntentSenderRequest>
     ) = viewModelScope.launch {
         try {
-            service.delete(media, context, launcher)
+            service.delete(mediaIds, context, launcher)
         } catch (ex: Throwable) {
             messageFlow.emit(ex.message)
         }
     }
 
-    fun postDelete(media: Collection<Media>) = viewModelScope.launch {
+    fun postDelete(mediaIds: Collection<Long>) = viewModelScope.launch {
         try {
-            service.postDelete(media)
+            service.postDelete(mediaIds)
         } catch (ex: Throwable) {
             messageFlow.emit(ex.message)
         }
     }
 
-    fun edit(media: Media, context: Context) = viewModelScope.launch {
+    fun edit(mediaId: Long, context: Context) = viewModelScope.launch {
         try {
-            service.edit(media, context)
+            service.edit(mediaId, context)
         } catch (ex: Throwable) {
             messageFlow.emit(ex.message)
         }
     }
 
-    fun share(media: Collection<Media>, context: Context) = viewModelScope.launch {
+    fun share(mediaIds: Collection<Long>, context: Context) = viewModelScope.launch {
         try {
-            service.share(media, context)
+            service.share(mediaIds, context)
         } catch (ex: Throwable) {
             messageFlow.emit(ex.message)
         }
     }
 
-    fun addToAlbum(media: Collection<Media>, album: Album) = viewModelScope.launch {
+    fun addToAlbum(mediaIds: Collection<Long>, albumId: Long) = viewModelScope.launch {
         try {
-            service.addToAlbum(media, album)
+            service.addToAlbum(mediaIds, albumId)
         } catch (ex: Throwable) {
             messageFlow.emit(ex.message)
         }
     }
 
-    fun addToNewAlbum(media: Collection<Media>, name: String) = viewModelScope.launch {
+    fun addToNewAlbum(mediaIds: Collection<Long>, name: String) = viewModelScope.launch {
         try {
             val album = service.createAlbum(name)
-            service.addToAlbum(media, album)
+            service.addToAlbum(mediaIds, album.id)
         } catch (ex: Throwable) {
             messageFlow.emit(ex.message)
         }
     }
 
-    fun removeFromAlbum(media: Collection<Media>, album: Album) = viewModelScope.launch {
-        service.removeFromAlbum(media, album)
+    fun removeFromAlbum(mediaIds: Collection<Long>, albumId: Long) = viewModelScope.launch {
+        service.removeFromAlbum(mediaIds, albumId)
     }
 }

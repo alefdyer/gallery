@@ -42,12 +42,12 @@ fun PagerView(
     val context = LocalContext.current
     val offset = items.indexOf(current).coerceAtLeast(0)
     val pagerState: PagerState = rememberPagerState(offset) { items.count() }
-    val currentItem by remember { derivedStateOf { items[pagerState.currentPage] } }
+    val currentItem by remember(items) { derivedStateOf { items[pagerState.currentPage] } }
 
     val launcher =
         rememberLauncherForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) {
             if (Activity.RESULT_OK == it.resultCode) {
-                model.postDelete(listOf(currentItem))
+                model.postDelete(listOf(currentItem.id))
 
                 if (1 == items.count()) {
                     onClose()
@@ -107,10 +107,10 @@ fun PagerView(
             exit = slideOutVertically(tween(easing = LinearEasing)) { it / 2 }
         ) {
             PagerBottomBar(
-                onShare = { model.share(listOf(currentItem), context) },
-                onEdit = { model.edit(currentItem, context) },
+                onShare = { model.share(listOf(currentItem.id), context) },
+                onEdit = { model.edit(currentItem.id, context) },
                 onSearch = {},
-                onDelete = { model.delete(listOf(currentItem), context, launcher) }
+                onDelete = { model.delete(listOf(currentItem.id), context, launcher) }
             )
         }
 

@@ -1,6 +1,6 @@
 package com.asinosoft.gallery.ui.component
 
-import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.material3.Checkbox
 import androidx.compose.runtime.Composable
@@ -12,16 +12,13 @@ import com.asinosoft.gallery.data.Media
 fun GroupItem(
     media: Media,
     modifier: Modifier = Modifier,
-    selected: Set<Media> = setOf(),
+    selected: Set<Long> = setOf(),
     selectionMode: Boolean = false,
     onClick: (Media) -> Unit = {},
     onSelect: (Media) -> Unit = {}
 ) {
     Box(
-        modifier = modifier.combinedClickable(
-            onClick = { if (selectionMode) onSelect(media) else onClick(media) },
-            onLongClick = { onSelect(media) }
-        ),
+        modifier = modifier.clickable { if (selectionMode) onSelect(media) else onClick(media) },
         contentAlignment = Alignment.BottomEnd
     ) {
         if (media.image != null) {
@@ -32,7 +29,7 @@ fun GroupItem(
 
         if (selectionMode) {
             Checkbox(
-                checked = selected.contains(media),
+                checked = selected.contains(media.id),
                 onCheckedChange = { onSelect(media) }
             )
         }

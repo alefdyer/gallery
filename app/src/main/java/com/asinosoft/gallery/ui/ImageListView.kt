@@ -1,7 +1,6 @@
 package com.asinosoft.gallery.ui
 
 import android.app.Activity
-import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
@@ -29,18 +28,18 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
-import com.asinosoft.gallery.GalleryApp
-import com.asinosoft.gallery.data.Album
 import com.asinosoft.gallery.data.HeaderItem
 import com.asinosoft.gallery.data.Media
 import com.asinosoft.gallery.data.MediaItem
 import com.asinosoft.gallery.data.groupByMonth
 import com.asinosoft.gallery.model.GalleryViewModel
 import com.asinosoft.gallery.ui.component.AddToAlbumDialog
+import com.asinosoft.gallery.ui.component.DragSelectionState
 import com.asinosoft.gallery.ui.component.GroupHeader
 import com.asinosoft.gallery.ui.component.GroupItem
 import com.asinosoft.gallery.ui.component.LazyGridVerticalScrollIndicator
 import com.asinosoft.gallery.ui.component.SelectionInfoBar
+import com.asinosoft.gallery.ui.component.dragSelection
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.launch
 
@@ -48,25 +47,24 @@ import kotlinx.coroutines.launch
 fun ImageListView(
     media: List<Media>,
     modifier: Modifier = Modifier,
-    album: Album? = null,
+    albumId: Long? = null,
     onClose: () -> Unit = {},
     onClick: (Media) -> Unit = {},
     model: GalleryViewModel = hiltViewModel()
 ) {
     val context = LocalContext.current
     val items by remember(media) { mutableStateOf(media.groupByMonth()) }
-    var selected by remember { mutableStateOf<Set<Media>>(setOf()) }
+    var selected by remember { mutableStateOf<Set<Long>>(setOf()) }
     val selectionMode by remember { derivedStateOf { selected.isNotEmpty() } }
     var selectionBarHeight by remember { mutableIntStateOf(0) }
     var topPadding by remember { mutableIntStateOf(0) }
     val lazyGridState = rememberLazyStaggeredGridState()
     var showTagDialog by remember { mutableStateOf(false) }
-
+    val dragSelectionState = remember { DragSelectionState() }
     val snackbarHostState = remember { SnackbarHostState() }
 
     val deleter =
         rememberLauncherForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) {
-            Log.d(GalleryApp.TAG, "Test: ${it.data?.getBooleanExtra("test", false)}")
             if (Activity.RESULT_OK == it.resultCode) {
                 model.postDelete(selected)
                 selected = setOf()
@@ -99,7 +97,15 @@ fun ImageListView(
         LazyVerticalStaggeredGrid(
             state = lazyGridState,
             columns = StaggeredGridCells.Fixed(3),
-            modifier = Modifier.padding(top = topPadding.pxToDp())
+            modifier = Modifier
+                .padding(top = topPadding.pxToDp())
+                .dragSelection(
+                    items = items,
+                    state = lazyGridState,
+                    currentSelection = { selected },
+                    dragSelectionState = dragSelectionState,
+                    onSelectedChange = { selected = it }
+                )
         ) {
             items(
                 items,
@@ -112,7 +118,21 @@ fun ImageListView(
             ) {
                 when (it) {
                     is HeaderItem -> {
-                        GroupHeader(it)
+                        val allSelected =
+                            it.mediaIds.isNotEmpty() && selected.containsAll(it.mediaIds)
+
+                        GroupHeader(
+                            header = it,
+                            selectionMode = selectionMode,
+                            allSelected = allSelected,
+                            onSelectGroup = {
+                                selected = if (allSelected) {
+                                    selected - it.mediaIds
+                                } else {
+                                    selected + it.mediaIds
+                                }
+                            }
+                        )
                     }
 
                     is MediaItem -> {
@@ -122,10 +142,12 @@ fun ImageListView(
                             selected = selected,
                             onClick = onClick,
                             onSelect = { image ->
-                                if (selected.contains(image)) {
-                                    selected -= image
-                                } else {
-                                    selected += image
+                                if (!dragSelectionState.active) {
+                                    if (selected.contains(image.id)) {
+                                        selected -= image.id
+                                    } else {
+                                        selected += image.id
+                                    }
                                 }
                             }
                         )
@@ -152,14 +174,14 @@ fun ImageListView(
                 onShare = { model.share(it, context) },
                 onDelete = { model.delete(it, context, deleter) },
                 onAddTag = { showTagDialog = true },
-                onRemoveTag = album?.let { { media -> model.removeFromAlbum(media, it) } }
+                onRemoveTag = albumId?.let { { media -> model.removeFromAlbum(media, it) } }
             )
         }
 
         if (showTagDialog) {
             AddToAlbumDialog(
                 onPickAlbum = { album ->
-                    model.addToAlbum(selected, album)
+                    model.addToAlbum(selected, album.id)
                     showTagDialog = false
                     selected = setOf()
                 },

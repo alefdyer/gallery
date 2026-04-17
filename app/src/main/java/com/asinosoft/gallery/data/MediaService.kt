@@ -7,20 +7,20 @@ import androidx.activity.result.IntentSenderRequest
 
 interface MediaService {
     suspend fun delete(
-        media: Collection<Media>,
+        mediaIds: Collection<Long>,
         context: Context,
         launcher: ActivityResultLauncher<IntentSenderRequest>
     )
 
-    suspend fun postDelete(media: Collection<Media>)
+    suspend fun postDelete(mediaIds: Collection<Long>)
 
-    suspend fun edit(media: Media, context: Context)
+    suspend fun edit(mediaId: Long, context: Context)
 
-    suspend fun share(media: Collection<Media>, context: Context)
+    suspend fun share(mediaIds: Collection<Long>, context: Context)
 
-    suspend fun addToAlbum(media: Collection<Media>, album: Album)
+    suspend fun addToAlbum(mediaIds: Collection<Long>, albumId: Long)
 
-    suspend fun removeFromAlbum(media: Collection<Media>, album: Album)
+    suspend fun removeFromAlbum(mediaIds: Collection<Long>, albumId: Long)
 
     suspend fun createAlbum(name: String): Album
 

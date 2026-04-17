@@ -9,18 +9,17 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import com.asinosoft.gallery.R
-import com.asinosoft.gallery.data.Media
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SelectionInfoBar(
     modifier: Modifier = Modifier,
-    selected: Set<Media> = setOf(),
+    selected: Set<Long> = setOf(),
     onBack: () -> Unit = {},
-    onShare: (media: Set<Media>) -> Unit = {},
-    onDelete: (media: Set<Media>) -> Unit = {},
-    onAddTag: (media: Set<Media>) -> Unit = {},
-    onRemoveTag: ((media: Set<Media>) -> Unit)? = null
+    onShare: (media: Set<Long>) -> Unit = {},
+    onDelete: (media: Set<Long>) -> Unit = {},
+    onAddTag: (media: Set<Long>) -> Unit = {},
+    onRemoveTag: ((media: Set<Long>) -> Unit)? = null
 ) {
     TopAppBar(
         modifier = modifier,

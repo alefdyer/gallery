@@ -1,7 +1,6 @@
 package com.asinosoft.gallery.ui.component
 
 import android.graphics.Bitmap.CompressFormat
-import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
@@ -17,12 +16,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
 @Composable
-fun VideoThumbnail(
-    media: Media,
-    modifier: Modifier = Modifier,
-    onClick: () -> Unit = {},
-    onLongClick: () -> Unit = {}
-) {
+fun VideoThumbnail(media: Media, modifier: Modifier = Modifier) {
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
 
@@ -57,9 +51,5 @@ fun VideoThumbnail(
             modifier
                 .fillMaxSize()
                 .aspectRatio(1f)
-                .combinedClickable(
-                    onClick = onClick,
-                    onLongClick = onLongClick
-                )
     )
 }
