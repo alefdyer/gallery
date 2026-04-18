@@ -10,21 +10,28 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import java.time.ZoneId
 import java.util.Date
 import javax.inject.Inject
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.emitAll
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flow
 
 class LocalMediaRepository
 @Inject constructor(
     @param:ApplicationContext private val context: Context
 ) : MediaRepository {
-    override fun fetchAll(): List<Media> = fetchImages("") + fetchVideos("")
+    override suspend fun fetchAll(): Flow<Media> = flow {
+        emitAll(fetchImages(""))
+        emitAll(fetchVideos(""))
+    }
 
-    override fun fetchOne(uri: Uri): Media =
+    override suspend fun fetchOne(uri: Uri): Media =
         if (Images.Media.EXTERNAL_CONTENT_URI.equals(uri.authority)) {
             fetchImages("${Images.Media._ID} = ${uri.lastPathSegment}").first()
         } else {
             fetchVideos("${Videos.Media._ID} = ${uri.lastPathSegment}").first()
         }
 
-    private fun fetchImages(selection: String): List<Media> {
+    private fun fetchImages(selection: String): Flow<Media> = flow {
         val sortOrder = "${Images.Media.DATE_TAKEN} DESC"
 
         val query =
@@ -47,7 +54,6 @@ class LocalMediaRepository
                 sortOrder
             )
 
-        val images = ArrayList<Media>()
         query?.use { cursor ->
             val idColumn = cursor.getColumnIndexOrThrow(Images.Media._ID)
             val dateAddedColumn = cursor.getColumnIndexOrThrow(Images.Media.DATE_ADDED)
@@ -96,14 +102,12 @@ class LocalMediaRepository
                                 orientation
                             )
                     )
-                images.add(image)
+                emit(image)
             }
         }
-
-        return images
     }
 
-    private fun fetchVideos(selection: String): List<Media> {
+    private fun fetchVideos(selection: String): Flow<Media> = flow {
         val cursor =
             context.contentResolver.query(
                 Videos.Media.EXTERNAL_CONTENT_URI,
@@ -123,7 +127,6 @@ class LocalMediaRepository
                 "${Videos.Media.DATE_TAKEN} DESC"
             )
 
-        val videos = ArrayList<Media>()
         cursor?.use { cursor ->
             val idColumn = cursor.getColumnIndexOrThrow(Videos.Media._ID)
             val dateAddedColumn = cursor.getColumnIndexOrThrow(Videos.Media.DATE_ADDED)
@@ -165,10 +168,8 @@ class LocalMediaRepository
                         video = Video(duration)
                     )
 
-                videos.add(video)
+                emit(video)
             }
         }
-
-        return videos
     }
 }

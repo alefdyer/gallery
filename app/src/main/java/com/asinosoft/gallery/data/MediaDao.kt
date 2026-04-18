@@ -11,6 +11,9 @@ interface MediaDao {
     @Query("SELECT * FROM media ORDER BY date DESC, time DESC")
     fun getImages(): Flow<List<Media>>
 
+    @Query("SELECT id FROM media WHERE uri IN (:uris)")
+    suspend fun getMediaIdsByUris(uris: Collection<Uri>): List<Long>
+
     @Query("SELECT uri FROM media WHERE id = :mediaId")
     fun getUri(mediaId: Long): Uri
 
@@ -21,11 +24,14 @@ interface MediaDao {
     fun getImageByPath(uri: Uri): Flow<Media?>
 
     @Upsert
-    suspend fun upsert(media: Media)
+    suspend fun upsert(media: Media): Long
 
     @Upsert
-    suspend fun upsertAll(media: Collection<Media>)
+    suspend fun upsertAll(media: Collection<Media>): List<Long>
 
     @Query("DELETE FROM media WHERE id IN (:mediaIds)")
     suspend fun deleteAll(mediaIds: Collection<Long>)
+
+    @Query("DELETE FROM media WHERE id NOT IN (:mediaIds)")
+    suspend fun deleteAllExcept(mediaIds: Collection<Long>)
 }

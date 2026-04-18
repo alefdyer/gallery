@@ -1,9 +1,10 @@
 package com.asinosoft.gallery.data
 
 import android.net.Uri
+import kotlinx.coroutines.flow.Flow
 
 interface MediaRepository {
-    fun fetchAll(): List<Media>
+    suspend fun fetchAll(): Flow<Media>
 
-    fun fetchOne(uri: Uri): Media
+    suspend fun fetchOne(uri: Uri): Media
 }

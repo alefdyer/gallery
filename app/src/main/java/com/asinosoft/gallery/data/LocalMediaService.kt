@@ -11,7 +11,8 @@ import androidx.activity.result.IntentSenderRequest
 import com.asinosoft.gallery.GalleryApp
 import javax.inject.Inject
 import kotlin.system.measureTimeMillis
-import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.chunked
 
 class LocalMediaService
 @Inject
@@ -115,20 +116,23 @@ constructor(
         mediaDao.upsert(repository.fetchOne(uri))
     }
 
+    @OptIn(ExperimentalCoroutinesApi::class)
     override suspend fun updateAll() {
         Log.d(GalleryApp.TAG, "rescan")
 
         measureTimeMillis {
-            val images = repository.fetchAll()
-            val deletedImages =
-                mediaDao
-                    .getImages()
-                    .first()
-                    .filterNot { cached -> images.any { it.uri == cached.uri } }
-                    .map { it.id }
+            val updated = mutableSetOf<Long>()
+            repository.fetchAll().chunked(32).collect { images ->
+                var ids = mediaDao.upsertAll(images)
 
-            mediaDao.deleteAll(deletedImages)
-            mediaDao.upsertAll(images)
+                if (ids.contains(-1L)) {
+                    ids = mediaDao.getMediaIdsByUris(images.map { it.uri })
+                }
+
+                updated += ids
+            }
+            mediaDao.deleteAllExcept(updated)
+            albumDao.deleteEmptyAlbums()
         }.also {
             Log.i(GalleryApp.TAG, "DONE in $it ms")
         }

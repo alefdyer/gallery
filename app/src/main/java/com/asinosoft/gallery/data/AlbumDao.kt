@@ -17,16 +17,6 @@ interface AlbumDao {
     @Query("SELECT * FROM album ORDER BY name")
     fun getAlbums(): Flow<List<Album>>
 
-    @Query(
-        """
-        SELECT a.*
-        FROM album a
-        LEFT JOIN media_album ma ON ma.albumId = a.id
-        WHERE ma.mediaId IS NULL
-        """
-    )
-    suspend fun getEmptyAlbums(): List<Album>
-
     @Upsert
     suspend fun upsert(album: Album): Long
 
@@ -35,6 +25,18 @@ interface AlbumDao {
 
     @Delete
     suspend fun deleteAll(albums: List<Album>)
+
+    @Query(
+        """
+        DELETE FROM album WHERE id IN (
+            SELECT a.id
+            FROM album a
+            LEFT JOIN media_album ma ON ma.albumId = a.id
+            WHERE ma.mediaId IS NULL
+        )
+        """
+    )
+    suspend fun deleteEmptyAlbums()
 
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertMedia(links: List<MediaAlbum>)
