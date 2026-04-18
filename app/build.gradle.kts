@@ -33,12 +33,12 @@ ktlint {
 
 android {
     namespace = "com.asinosoft.gallery"
-    compileSdk = 36
+    compileSdk = 37
 
     defaultConfig {
         applicationId = "com.asinosoft.gallery"
         minSdk = 26
-        targetSdk = 36
+        targetSdk = 37
         versionCode = 4
         versionName = "1.0"
 
@@ -59,10 +59,7 @@ android {
         }
     }
 
-//    base {
-//        archivesName =
-//            "gallery@${defaultConfig.versionName}.${defaultConfig.versionCode}"
-//    }
+    base.archivesName = "gallery@${defaultConfig.versionName}.${defaultConfig.versionCode}"
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_21
@@ -79,17 +76,17 @@ android {
 }
 
 dependencies {
-    implementation("com.google.code.gson:gson:2.13.1")
+    implementation("com.google.code.gson:gson:2.13.2")
     implementation("io.coil-kt.coil3:coil-video:3.4.0")
 
     // Media3 (ExoPlayer) for video playback
-    implementation("androidx.media3:media3-exoplayer:1.9.3")
-    implementation("androidx.media3:media3-ui:1.9.3")
+    implementation("androidx.media3:media3-exoplayer:1.10.0")
+    implementation("androidx.media3:media3-ui:1.10.0")
 
     implementation("androidx.core:core-ktx:1.18.0")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.10.0")
     implementation("androidx.activity:activity-compose:1.13.0")
-    implementation(platform("androidx.compose:compose-bom:2026.03.00"))
+    implementation(platform("androidx.compose:compose-bom:2026.03.01"))
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.ui:ui-graphics")
     implementation("androidx.compose.ui:ui-tooling-preview")
@@ -100,9 +97,9 @@ dependencies {
     implementation("com.google.accompanist:accompanist-permissions:0.37.3")
 
     // DI
-    implementation("com.google.dagger:hilt-android:2.59.1")
+    implementation("com.google.dagger:hilt-android:2.59.2")
     implementation("androidx.hilt:hilt-navigation-compose:1.3.0")
-    ksp("com.google.dagger:hilt-android-compiler:2.59.1")
+    ksp("com.google.dagger:hilt-android-compiler:2.59.2")
 
     // Room
     val roomVersion = "2.8.4"
@@ -111,14 +108,14 @@ dependencies {
     ksp("androidx.room:room-compiler:$roomVersion")
 
     // KtLint
-    ktlintRuleset("io.nlopez.compose.rules:ktlint:0.5.6")
+    ktlintRuleset("io.nlopez.compose.rules:ktlint:0.5.7")
 
     // Test
     testImplementation("junit:junit:4.13.2")
     androidTestImplementation("androidx.test.ext:junit:1.3.0")
     androidTestImplementation("androidx.test.espresso:espresso-core:3.7.0")
-    androidTestImplementation(platform("androidx.compose:compose-bom:2026.03.00"))
+    androidTestImplementation(platform("androidx.compose:compose-bom:2026.03.01"))
     androidTestImplementation("androidx.compose.ui:ui-test-junit4")
     debugImplementation("androidx.compose.ui:ui-tooling")
-    debugImplementation("androidx.compose.ui:ui-test-manifest:1.10.5")
+    debugImplementation("androidx.compose.ui:ui-test-manifest:1.10.6")
 }
