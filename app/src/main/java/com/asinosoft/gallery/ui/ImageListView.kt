@@ -1,8 +1,5 @@
 package com.asinosoft.gallery.ui
 
-import android.app.Activity
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.padding
@@ -54,22 +51,14 @@ fun ImageListView(
 ) {
     val context = LocalContext.current
     val items by remember(media) { mutableStateOf(media.groupByMonth()) }
-    var selected by remember { mutableStateOf<Set<Long>>(setOf()) }
-    val selectionMode by remember { derivedStateOf { selected.isNotEmpty() } }
+    var selection by remember { mutableStateOf(setOf<Long>()) }
+    val selectionMode by remember { derivedStateOf { selection.isNotEmpty() } }
     var selectionBarHeight by remember { mutableIntStateOf(0) }
     var topPadding by remember { mutableIntStateOf(0) }
     val lazyGridState = rememberLazyStaggeredGridState()
     var showTagDialog by remember { mutableStateOf(false) }
     val dragSelectionState = remember { DragSelectionState() }
     val snackbarHostState = remember { SnackbarHostState() }
-
-    val deleter =
-        rememberLauncherForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) {
-            if (Activity.RESULT_OK == it.resultCode) {
-                model.postDelete(selected)
-                selected = setOf()
-            }
-        }
 
     LaunchedEffect(media, onClose) {
         if (media.isEmpty()) {
@@ -102,9 +91,9 @@ fun ImageListView(
                 .dragSelection(
                     items = items,
                     state = lazyGridState,
-                    currentSelection = { selected },
+                    currentSelection = { selection },
                     dragSelectionState = dragSelectionState,
-                    onSelectedChange = { selected = it }
+                    onSelectedChange = { selection = it }
                 )
         ) {
             items(
@@ -119,17 +108,17 @@ fun ImageListView(
                 when (it) {
                     is HeaderItem -> {
                         val allSelected =
-                            it.mediaIds.isNotEmpty() && selected.containsAll(it.mediaIds)
+                            it.mediaIds.isNotEmpty() && selection.containsAll(it.mediaIds)
 
                         GroupHeader(
                             header = it,
                             selectionMode = selectionMode,
                             allSelected = allSelected,
                             onSelectGroup = {
-                                selected = if (allSelected) {
-                                    selected - it.mediaIds
+                                selection = if (allSelected) {
+                                    selection - it.mediaIds
                                 } else {
-                                    selected + it.mediaIds
+                                    selection + it.mediaIds
                                 }
                             }
                         )
@@ -139,14 +128,14 @@ fun ImageListView(
                         GroupItem(
                             media = it.media,
                             selectionMode = selectionMode,
-                            selected = selected,
+                            selected = selection,
                             onClick = onClick,
                             onSelect = { image ->
                                 if (!dragSelectionState.active) {
-                                    if (selected.contains(image.id)) {
-                                        selected -= image.id
+                                    selection = if (selection.contains(image.id)) {
+                                        selection - image.id
                                     } else {
-                                        selected += image.id
+                                        selection + image.id
                                     }
                                 }
                             }
@@ -166,29 +155,27 @@ fun ImageListView(
 
         AnimatedVisibility(visible = selectionMode) {
             SelectionInfoBar(
-                selected = selected,
+                selected = selection,
                 modifier = Modifier.onSizeChanged { selectionBarHeight = it.height },
-                onBack = {
-                    selected = setOf()
-                },
-                onShare = { model.share(it, context) },
-                onDelete = { model.delete(it, context, deleter) },
+                onBack = { selection = setOf() },
+                onShare = { model.share(selection, context) },
+                onDelete = { model.delete(selection, context) { selection = setOf() } },
                 onAddTag = { showTagDialog = true },
-                onRemoveTag = albumId?.let { { media -> model.removeFromAlbum(media, it) } }
+                onRemoveTag = albumId?.let { { model.removeFromAlbum(selection, it) } }
             )
         }
 
         if (showTagDialog) {
             AddToAlbumDialog(
                 onPickAlbum = { album ->
-                    model.addToAlbum(selected, album.id)
+                    model.addToAlbum(selection, album.id)
+                    selection = setOf()
                     showTagDialog = false
-                    selected = setOf()
                 },
                 onCreateAlbum = { name ->
-                    model.addToNewAlbum(selected, name)
+                    model.addToNewAlbum(selection, name)
+                    selection = setOf()
                     showTagDialog = false
-                    selected = setOf()
                 },
                 onDismiss = { showTagDialog = false }
             )

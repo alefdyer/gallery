@@ -1,8 +1,6 @@
 package com.asinosoft.gallery.model
 
 import android.content.Context
-import androidx.activity.result.ActivityResultLauncher
-import androidx.activity.result.IntentSenderRequest
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.asinosoft.gallery.data.AlbumDao
@@ -56,25 +54,14 @@ class GalleryViewModel @Inject constructor(
         albumId.emit(id)
     }
 
-    fun delete(
-        mediaIds: Collection<Long>,
-        context: Context,
-        launcher: ActivityResultLauncher<IntentSenderRequest>
-    ) = viewModelScope.launch {
-        try {
-            service.delete(mediaIds, context, launcher)
-        } catch (ex: Throwable) {
-            messageFlow.emit(ex.message)
+    fun delete(mediaIds: Collection<Long>, context: Context, callback: () -> Unit) =
+        viewModelScope.launch {
+            try {
+                service.delete(mediaIds, context, callback)
+            } catch (ex: Throwable) {
+                messageFlow.emit(ex.message)
+            }
         }
-    }
-
-    fun postDelete(mediaIds: Collection<Long>) = viewModelScope.launch {
-        try {
-            service.postDelete(mediaIds)
-        } catch (ex: Throwable) {
-            messageFlow.emit(ex.message)
-        }
-    }
 
     fun edit(mediaId: Long, context: Context) = viewModelScope.launch {
         try {
@@ -110,6 +97,10 @@ class GalleryViewModel @Inject constructor(
     }
 
     fun removeFromAlbum(mediaIds: Collection<Long>, albumId: Long) = viewModelScope.launch {
-        service.removeFromAlbum(mediaIds, albumId)
+        try {
+            service.removeFromAlbum(mediaIds, albumId)
+        } catch (ex: Throwable) {
+            messageFlow.emit(ex.message)
+        }
     }
 }

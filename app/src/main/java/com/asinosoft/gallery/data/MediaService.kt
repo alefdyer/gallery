@@ -2,15 +2,9 @@ package com.asinosoft.gallery.data
 
 import android.content.Context
 import android.net.Uri
-import androidx.activity.result.ActivityResultLauncher
-import androidx.activity.result.IntentSenderRequest
 
 interface MediaService {
-    suspend fun delete(
-        mediaIds: Collection<Long>,
-        context: Context,
-        launcher: ActivityResultLauncher<IntentSenderRequest>
-    )
+    suspend fun delete(mediaIds: Collection<Long>, context: Context, callback: () -> Unit)
 
     suspend fun postDelete(mediaIds: Collection<Long>)
 

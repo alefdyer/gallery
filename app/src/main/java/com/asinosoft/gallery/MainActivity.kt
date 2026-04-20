@@ -9,6 +9,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.viewModels
 import androidx.compose.foundation.layout.Box
 import androidx.navigation.compose.rememberNavController
+import com.asinosoft.gallery.di.IntentHelper
 import com.asinosoft.gallery.job.MediaObserver
 import com.asinosoft.gallery.model.GalleryViewModel
 import com.asinosoft.gallery.ui.Navigation
@@ -22,10 +23,13 @@ import dagger.hilt.android.AndroidEntryPoint
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
     private val model: GalleryViewModel by viewModels()
+    private val intentHelper = IntentHelper
 
     @OptIn(ExperimentalPermissionsApi::class)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        lifecycle.addObserver(intentHelper)
 
         val permission =
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {

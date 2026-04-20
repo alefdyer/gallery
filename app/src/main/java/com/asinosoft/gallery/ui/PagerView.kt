@@ -1,9 +1,6 @@
 package com.asinosoft.gallery.ui
 
-import android.app.Activity
 import androidx.activity.compose.BackHandler
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.tween
@@ -43,17 +40,6 @@ fun PagerView(
     val offset = items.indexOf(current).coerceAtLeast(0)
     val pagerState: PagerState = rememberPagerState(offset) { items.count() }
     val currentItem by remember(items) { derivedStateOf { items[pagerState.currentPage] } }
-
-    val launcher =
-        rememberLauncherForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) {
-            if (Activity.RESULT_OK == it.resultCode) {
-                model.postDelete(listOf(currentItem.id))
-
-                if (1 == items.count()) {
-                    onClose()
-                }
-            }
-        }
 
     Box(
         modifier =
@@ -110,7 +96,13 @@ fun PagerView(
                 onShare = { model.share(listOf(currentItem.id), context) },
                 onEdit = { model.edit(currentItem.id, context) },
                 onSearch = {},
-                onDelete = { model.delete(listOf(currentItem.id), context, launcher) }
+                onDelete = {
+                    model.delete(listOf(currentItem.id), context) {
+                        if (1 == items.count()) {
+                            onClose()
+                        }
+                    }
+                }
             )
         }
 

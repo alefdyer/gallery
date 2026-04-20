@@ -16,10 +16,10 @@ fun SelectionInfoBar(
     modifier: Modifier = Modifier,
     selected: Set<Long> = setOf(),
     onBack: () -> Unit = {},
-    onShare: (media: Set<Long>) -> Unit = {},
-    onDelete: (media: Set<Long>) -> Unit = {},
-    onAddTag: (media: Set<Long>) -> Unit = {},
-    onRemoveTag: ((media: Set<Long>) -> Unit)? = null
+    onShare: () -> Unit = {},
+    onDelete: () -> Unit = {},
+    onAddTag: () -> Unit = {},
+    onRemoveTag: (() -> Unit)? = null
 ) {
     TopAppBar(
         modifier = modifier,
@@ -35,27 +35,27 @@ fun SelectionInfoBar(
             }
         },
         actions = {
-            IconButton(onClick = { onAddTag(selected) }) {
+            IconButton(onClick = { onAddTag() }) {
                 Icon(
                     painter = painterResource(R.drawable.add_tag),
                     contentDescription = null
                 )
             }
             if (onRemoveTag != null) {
-                IconButton(onClick = { onRemoveTag(selected) }) {
+                IconButton(onClick = { onRemoveTag() }) {
                     Icon(
                         painter = painterResource(R.drawable.remove_tag),
                         contentDescription = null
                     )
                 }
             }
-            IconButton(onClick = { onShare(selected) }) {
+            IconButton(onClick = { onShare() }) {
                 Icon(
                     painter = painterResource(R.drawable.share),
                     contentDescription = null
                 )
             }
-            IconButton(onClick = { onDelete(selected) }) {
+            IconButton(onClick = { onDelete() }) {
                 Icon(
                     painter = painterResource(R.drawable.delete),
                     contentDescription = null

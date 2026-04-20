@@ -3,16 +3,15 @@ package com.asinosoft.gallery.data
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
-import android.os.Build
-import android.provider.MediaStore
 import android.util.Log
-import androidx.activity.result.ActivityResultLauncher
-import androidx.activity.result.IntentSenderRequest
 import com.asinosoft.gallery.GalleryApp
+import com.asinosoft.gallery.di.IntentHelper
 import javax.inject.Inject
 import kotlin.system.measureTimeMillis
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.chunked
+import kotlinx.coroutines.withContext
 
 class LocalMediaService
 @Inject
@@ -21,40 +20,30 @@ constructor(
     private val mediaDao: MediaDao,
     private val repository: LocalMediaRepository
 ) : MediaService {
+    private val intentHelper = IntentHelper
+
     override suspend fun delete(
         mediaIds: Collection<Long>,
         context: Context,
-        launcher: ActivityResultLauncher<IntentSenderRequest>
+        callback: () -> Unit
     ) {
-        val uris = mediaDao.getUris(mediaIds)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            val sender =
-                MediaStore
-                    .createDeleteRequest(
-                        context.contentResolver,
-                        uris
-                    ).intentSender
-
-            val request =
-                IntentSenderRequest
-                    .Builder(sender)
-                    .setFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION, 0)
-                    .build()
-
-            launcher.launch(request)
-        } else {
-            throw NotImplementedError()
+        val uris = withContext(Dispatchers.IO) { mediaDao.getUris(mediaIds) }
+        intentHelper.delete(uris, context) {
+            val albums = albumDao.getMediaAlbumIds(mediaIds)
+            mediaDao.deleteAll(mediaIds)
+            albums.forEach { updateAlbumStats(it) }
+            callback()
         }
     }
 
     override suspend fun postDelete(mediaIds: Collection<Long>) {
-        val albums = albumDao.getMediaAlbumIds(mediaIds)
+        val albums = withContext(Dispatchers.IO) { albumDao.getMediaAlbumIds(mediaIds) }
         mediaDao.deleteAll(mediaIds)
         albums.forEach { updateAlbumStats(it) }
     }
 
     override suspend fun edit(mediaId: Long, context: Context) {
-        val uri = mediaDao.getUri(mediaId)
+        val uri = withContext(Dispatchers.IO) { mediaDao.getUri(mediaId) }
         val edit =
             Intent().apply {
                 action = Intent.ACTION_EDIT
@@ -64,7 +53,7 @@ constructor(
     }
 
     override suspend fun share(mediaIds: Collection<Long>, context: Context) {
-        val uris = mediaDao.getUris(mediaIds)
+        val uris = withContext(Dispatchers.IO) { mediaDao.getUris(mediaIds) }
         val send =
             if (1 == uris.size) {
                 Intent().apply {
