@@ -14,6 +14,9 @@ interface AlbumDao {
     @Query("SELECT * FROM album WHERE id = :id")
     suspend fun getAlbumById(id: Long): Album?
 
+    @Query("SELECT * FROM album WHERE name = :name")
+    suspend fun getAlbumByName(name: String): Album?
+
     @Query("SELECT * FROM album ORDER BY name")
     fun getAlbums(): Flow<List<Album>>
 

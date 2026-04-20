@@ -1,7 +1,7 @@
 package com.asinosoft.gallery.di
 
-import com.asinosoft.gallery.data.LocalMediaService
 import com.asinosoft.gallery.data.MediaService
+import com.asinosoft.gallery.data.local.LocalMediaService
 import dagger.Binds
 import dagger.Module
 import dagger.hilt.InstallIn

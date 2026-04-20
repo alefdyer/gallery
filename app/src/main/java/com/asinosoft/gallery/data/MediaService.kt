@@ -6,8 +6,6 @@ import android.net.Uri
 interface MediaService {
     suspend fun delete(mediaIds: Collection<Long>, context: Context, callback: () -> Unit)
 
-    suspend fun postDelete(mediaIds: Collection<Long>)
-
     suspend fun edit(mediaId: Long, context: Context)
 
     suspend fun share(mediaIds: Collection<Long>, context: Context)

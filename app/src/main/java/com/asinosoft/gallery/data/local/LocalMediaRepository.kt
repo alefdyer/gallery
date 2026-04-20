@@ -1,4 +1,4 @@
-package com.asinosoft.gallery.data
+package com.asinosoft.gallery.data.local
 
 import android.content.ContentUris
 import android.content.Context
@@ -6,6 +6,10 @@ import android.net.Uri
 import android.provider.MediaStore.Images
 import android.provider.MediaStore.Video as Videos
 import androidx.core.database.getStringOrNull
+import com.asinosoft.gallery.data.Image
+import com.asinosoft.gallery.data.Media
+import com.asinosoft.gallery.data.MediaRepository
+import com.asinosoft.gallery.data.Video
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.time.ZoneId
 import java.util.Date
