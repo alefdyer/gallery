@@ -8,6 +8,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import coil3.compose.AsyncImage
+import coil3.compose.rememberConstraintsSizeResolver
 import coil3.request.ImageRequest
 import coil3.toBitmap
 import com.asinosoft.gallery.data.Media
@@ -18,6 +19,7 @@ import kotlinx.coroutines.launch
 @Composable
 fun ImageThumbnail(media: Media, modifier: Modifier = Modifier) {
     val scope = rememberCoroutineScope()
+    val size = rememberConstraintsSizeResolver()
     val thumbnail = File(LocalContext.current.cacheDir, media.id.toString())
 
     val request =
@@ -30,16 +32,14 @@ fun ImageThumbnail(media: Media, modifier: Modifier = Modifier) {
             ImageRequest
                 .Builder(LocalContext.current)
                 .data(media.uri)
+                .size(size)
                 .listener(onSuccess = { _, result ->
-                    val imageSize = result.image.size
-                    if (!media.filename.endsWith(".gif", ignoreCase = true) &&
-                        imageSize > 0 && media.size / imageSize >= 4
-                    ) {
+                    if (!media.filename.endsWith(".gif", ignoreCase = true)) {
                         scope.launch(Dispatchers.IO) {
                             thumbnail.outputStream().use {
                                 result.image
                                     .toBitmap()
-                                    .compress(CompressFormat.WEBP, 100, it)
+                                    .compress(CompressFormat.WEBP, 90, it)
                             }
                         }
                     }
@@ -51,6 +51,6 @@ fun ImageThumbnail(media: Media, modifier: Modifier = Modifier) {
         model = request,
         contentDescription = "",
         contentScale = ContentScale.Crop,
-        modifier = modifier.aspectRatio(1f)
+        modifier = modifier.aspectRatio(1f).then(size)
     )
 }
