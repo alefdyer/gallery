@@ -1,4 +1,4 @@
-package com.asinosoft.gallery.data.local
+package com.asinosoft.gallery.data.storage.local
 
 import android.content.ContentUris
 import android.content.Context
@@ -9,7 +9,6 @@ import androidx.core.database.getStringOrNull
 import com.asinosoft.gallery.data.Image
 import com.asinosoft.gallery.data.Media
 import com.asinosoft.gallery.data.Video
-import com.asinosoft.gallery.data.storage.Storage
 import com.asinosoft.gallery.data.storage.StorageProvider
 import com.asinosoft.gallery.data.storage.StorageType
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -21,7 +20,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
 
 class LocalStorageProvider(
-    private val storage: Storage,
+    private val storageId: Long,
     @param:ApplicationContext private val context: Context
 ) : StorageProvider {
     override val type: StorageType = StorageType.LOCAL
@@ -104,7 +103,7 @@ class LocalStorageProvider(
                         size = size,
                         filename = data,
                         mimeType = mimeType,
-                        storageId = storage.id,
+                        storageId = storageId,
                         storageItemId = id.toString(),
                         image =
                             Image(
@@ -176,7 +175,7 @@ class LocalStorageProvider(
                         size = size,
                         filename = data,
                         mimeType = mimeType,
-                        storageId = storage.id,
+                        storageId = storageId,
                         storageItemId = id.toString(),
                         video = Video(duration)
                     )

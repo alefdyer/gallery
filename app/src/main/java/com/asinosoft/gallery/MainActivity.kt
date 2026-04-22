@@ -38,13 +38,13 @@ class MainActivity : ComponentActivity() {
             }
 
         if (PackageManager.PERMISSION_GRANTED == checkSelfPermission(permission)) {
-            model.rescan()
+            model.start()
         }
 
         setContent {
             val storagePermission =
                 rememberPermissionState(permission) { granted ->
-                    if (granted) model.rescan()
+                    if (granted) model.start()
                 }
 
             val navController = rememberNavController()

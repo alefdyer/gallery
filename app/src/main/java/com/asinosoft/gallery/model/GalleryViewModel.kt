@@ -6,11 +6,10 @@ import androidx.lifecycle.viewModelScope
 import com.asinosoft.gallery.data.AlbumDao
 import com.asinosoft.gallery.data.MediaDao
 import com.asinosoft.gallery.data.MediaService
-import com.asinosoft.gallery.data.local.LocalStorageObserver
 import com.asinosoft.gallery.data.storage.Storage
 import com.asinosoft.gallery.data.storage.StorageDao
-import com.asinosoft.gallery.data.storage.StorageProviderRegistry
 import com.asinosoft.gallery.data.storage.StorageType
+import com.asinosoft.gallery.data.storage.local.LocalStorageObserver
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
@@ -23,7 +22,6 @@ import kotlinx.coroutines.launch
 
 @HiltViewModel
 class GalleryViewModel @Inject constructor(
-    private val storageProviderRegistry: StorageProviderRegistry,
     private val service: MediaService,
     private val albumDao: AlbumDao,
     private val storageDao: StorageDao,
@@ -52,11 +50,13 @@ class GalleryViewModel @Inject constructor(
     }
 
     fun start() = viewModelScope.launch {
-        storageProviderRegistry.resolveEnabledProviders().forEach { storage ->
+        storageDao.getStorages().forEach { storage ->
             if (storage.type == StorageType.LOCAL) {
-                LocalStorageObserver.schedule(context)
+                LocalStorageObserver.schedule(context, storage)
             }
         }
+
+        rescan()
     }
 
     fun rescan() = viewModelScope.launch {

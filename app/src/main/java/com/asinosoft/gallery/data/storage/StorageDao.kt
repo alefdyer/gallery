@@ -8,6 +8,9 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface StorageDao {
+    @Query("SELECT * FROM storage WHERE id = :id")
+    suspend fun getStorageById(id: Long): Storage
+
     @Query("SELECT * FROM storage ORDER BY type, name")
     fun getAccounts(): Flow<List<Storage>>
 
