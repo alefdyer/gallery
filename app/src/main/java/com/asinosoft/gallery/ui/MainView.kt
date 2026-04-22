@@ -30,13 +30,16 @@ import kotlinx.coroutines.launch
 fun MainView(
     images: List<Media>,
     albums: List<Album>,
+    storages: List<com.asinosoft.gallery.data.storage.Storage>,
     onMediaClick: (Media) -> Unit,
     onAlbumClick: (Album) -> Unit,
+    onAddStorage: (com.asinosoft.gallery.data.storage.Storage) -> Unit,
+    onDeleteStorage: (com.asinosoft.gallery.data.storage.Storage) -> Unit,
     isRefreshing: Boolean,
     onRefresh: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val pagerState = rememberPagerState { 2 }
+    val pagerState = rememberPagerState { 3 }
     val coroutineScope = rememberCoroutineScope()
 
     Scaffold(
@@ -45,7 +48,8 @@ fun MainView(
             ViewModeBar(
                 pagerState = pagerState,
                 onPhotos = { coroutineScope.launch { pagerState.scrollToPage(0) } },
-                onAlbums = { coroutineScope.launch { pagerState.scrollToPage(1) } }
+                onAlbums = { coroutineScope.launch { pagerState.scrollToPage(1) } },
+                onStorages = { coroutineScope.launch { pagerState.scrollToPage(2) } }
             )
         }
     ) { paddingValues ->
@@ -58,6 +62,7 @@ fun MainView(
                 when (it) {
                     0 -> ImageListView(media = images, onClick = onMediaClick)
                     1 -> AlbumListView(albums = albums, onAlbumClick = onAlbumClick)
+                    2 -> StoragesView(storages, onAddStorage, onDeleteStorage)
                 }
             }
         }
@@ -69,6 +74,7 @@ fun ViewModeBar(
     pagerState: PagerState,
     onPhotos: () -> Unit,
     onAlbums: () -> Unit,
+    onStorages: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     NavigationBar(
@@ -97,6 +103,17 @@ fun ViewModeBar(
                 )
             },
             label = { Text(stringResource(id = R.string.albums)) }
+        )
+        NavigationBarItem(
+            selected = 2 == pagerState.currentPage,
+            onClick = onStorages,
+            icon = {
+                Icon(
+                    painter = painterResource(R.drawable.album),
+                    contentDescription = stringResource(id = R.string.storages)
+                )
+            },
+            label = { Text(stringResource(id = R.string.storages)) }
         )
         Spacer(Modifier.width(60.dp))
     }

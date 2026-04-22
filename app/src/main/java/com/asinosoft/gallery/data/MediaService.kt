@@ -1,9 +1,10 @@
 package com.asinosoft.gallery.data
 
 import android.content.Context
-import android.net.Uri
 
 interface MediaService {
+    suspend fun add(media: Media)
+
     suspend fun delete(mediaIds: Collection<Long>, context: Context, callback: () -> Unit)
 
     suspend fun edit(mediaId: Long, context: Context)
@@ -15,8 +16,6 @@ interface MediaService {
     suspend fun removeFromAlbum(mediaIds: Collection<Long>, albumId: Long)
 
     suspend fun createAlbum(name: String): Album
-
-    suspend fun update(uri: Uri)
 
     suspend fun updateAll()
 }

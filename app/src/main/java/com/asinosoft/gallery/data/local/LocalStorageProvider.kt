@@ -8,31 +8,36 @@ import android.provider.MediaStore.Video as Videos
 import androidx.core.database.getStringOrNull
 import com.asinosoft.gallery.data.Image
 import com.asinosoft.gallery.data.Media
-import com.asinosoft.gallery.data.MediaRepository
 import com.asinosoft.gallery.data.Video
+import com.asinosoft.gallery.data.storage.Storage
+import com.asinosoft.gallery.data.storage.StorageProvider
+import com.asinosoft.gallery.data.storage.StorageType
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.time.ZoneId
 import java.util.Date
-import javax.inject.Inject
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
 
-class LocalMediaRepository
-@Inject constructor(
+class LocalStorageProvider(
+    private val storage: Storage,
     @param:ApplicationContext private val context: Context
-) : MediaRepository {
+) : StorageProvider {
+    override val type: StorageType = StorageType.LOCAL
+
     override suspend fun fetchAll(): Flow<Media> = flow {
         emitAll(fetchImages(""))
         emitAll(fetchVideos(""))
     }
 
-    override suspend fun fetchOne(uri: Uri): Media =
-        if (Images.Media.EXTERNAL_CONTENT_URI.equals(uri.authority)) {
+    override suspend fun fetchOne(uri: Uri): Media? =
+        if (uri.toString().startsWith(Images.Media.EXTERNAL_CONTENT_URI.toString())) {
             fetchImages("${Images.Media._ID} = ${uri.lastPathSegment}").first()
-        } else {
+        } else if (uri.toString().startsWith(Videos.Media.EXTERNAL_CONTENT_URI.toString())) {
             fetchVideos("${Videos.Media._ID} = ${uri.lastPathSegment}").first()
+        } else {
+            null
         }
 
     private fun fetchImages(selection: String): Flow<Media> = flow {
@@ -99,6 +104,8 @@ class LocalMediaRepository
                         size = size,
                         filename = data,
                         mimeType = mimeType,
+                        storageId = storage.id,
+                        storageItemId = id.toString(),
                         image =
                             Image(
                                 width = width,
@@ -169,6 +176,8 @@ class LocalMediaRepository
                         size = size,
                         filename = data,
                         mimeType = mimeType,
+                        storageId = storage.id,
+                        storageItemId = id.toString(),
                         video = Video(duration)
                     )
 

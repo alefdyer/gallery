@@ -6,7 +6,13 @@ import androidx.lifecycle.viewModelScope
 import com.asinosoft.gallery.data.AlbumDao
 import com.asinosoft.gallery.data.MediaDao
 import com.asinosoft.gallery.data.MediaService
+import com.asinosoft.gallery.data.local.LocalStorageObserver
+import com.asinosoft.gallery.data.storage.Storage
+import com.asinosoft.gallery.data.storage.StorageDao
+import com.asinosoft.gallery.data.storage.StorageProviderRegistry
+import com.asinosoft.gallery.data.storage.StorageType
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -17,8 +23,11 @@ import kotlinx.coroutines.launch
 
 @HiltViewModel
 class GalleryViewModel @Inject constructor(
+    private val storageProviderRegistry: StorageProviderRegistry,
     private val service: MediaService,
     private val albumDao: AlbumDao,
+    private val storageDao: StorageDao,
+    @param:ApplicationContext private val context: Context,
     mediaDao: MediaDao
 ) : ViewModel() {
     private val albumId = MutableStateFlow<Long?>(null)
@@ -29,6 +38,8 @@ class GalleryViewModel @Inject constructor(
 
     val images = mediaDao.getImages()
 
+    val storages = storageDao.getAccounts()
+
     val isRescanning: StateFlow<Boolean> = rescanFlow
 
     val message: StateFlow<String?> = messageFlow
@@ -38,6 +49,14 @@ class GalleryViewModel @Inject constructor(
 
     suspend fun clearMessage() {
         messageFlow.emit(null)
+    }
+
+    fun start() = viewModelScope.launch {
+        storageProviderRegistry.resolveEnabledProviders().forEach { storage ->
+            if (storage.type == StorageType.LOCAL) {
+                LocalStorageObserver.schedule(context)
+            }
+        }
     }
 
     fun rescan() = viewModelScope.launch {
@@ -99,6 +118,22 @@ class GalleryViewModel @Inject constructor(
     fun removeFromAlbum(mediaIds: Collection<Long>, albumId: Long) = viewModelScope.launch {
         try {
             service.removeFromAlbum(mediaIds, albumId)
+        } catch (ex: Throwable) {
+            messageFlow.emit(ex.message)
+        }
+    }
+
+    fun addStorage(account: Storage) = viewModelScope.launch {
+        try {
+            storageDao.upsert(account)
+        } catch (ex: Throwable) {
+            messageFlow.emit(ex.message)
+        }
+    }
+
+    fun deleteStorage(account: Storage) = viewModelScope.launch {
+        try {
+            storageDao.delete(account)
         } catch (ex: Throwable) {
             messageFlow.emit(ex.message)
         }

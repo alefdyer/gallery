@@ -3,18 +3,12 @@ package com.asinosoft.gallery.data
 import android.net.Uri
 import androidx.core.net.toUri
 import androidx.room.TypeConverter
+import com.asinosoft.gallery.data.storage.StorageType
 import com.google.gson.Gson
 import java.time.LocalDate
 import java.time.LocalTime
-import java.util.UUID
 
 class Converters {
-    @TypeConverter
-    fun uuidToString(value: UUID?): String? = value?.toString()
-
-    @TypeConverter
-    fun stringToUuid(value: String?): UUID? = value?.let { UUID.fromString(it) }
-
     @TypeConverter
     fun localDateToLong(date: LocalDate): Long = date.toEpochDay()
 
@@ -44,4 +38,10 @@ class Converters {
 
     @TypeConverter
     fun stringToVideo(value: String): Video = Gson().fromJson(value, Video::class.java)
+
+    @TypeConverter
+    fun storageTypeToString(value: StorageType): String = value.name
+
+    @TypeConverter
+    fun stringToStorageType(value: String): StorageType = StorageType.valueOf(value)
 }

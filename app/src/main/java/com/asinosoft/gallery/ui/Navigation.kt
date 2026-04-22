@@ -18,6 +18,7 @@ import com.asinosoft.gallery.model.GalleryViewModel
 fun Navigation(nav: NavHostController, model: GalleryViewModel = hiltViewModel()) {
     val albums by model.albums.collectAsState(initial = listOf())
     val media by model.images.collectAsState(initial = listOf())
+    val storageAccounts by model.storages.collectAsState(initial = listOf())
     val albumImages by model.albumImages.collectAsState(listOf())
     val isRefreshing by model.isRescanning.collectAsState()
 
@@ -31,12 +32,15 @@ fun Navigation(nav: NavHostController, model: GalleryViewModel = hiltViewModel()
             MainView(
                 media,
                 albums,
+                storageAccounts,
                 onMediaClick = { image ->
                     nav.navigate("pager/" + Uri.encode(image.uri.toString()))
                 },
                 onAlbumClick = { album ->
                     nav.navigate("album/" + Uri.encode(album.id.toString()))
                 },
+                onAddStorage = model::addStorage,
+                onDeleteStorage = model::deleteStorage,
                 isRefreshing = isRefreshing,
                 onRefresh = model::rescan
             )

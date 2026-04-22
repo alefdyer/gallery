@@ -1,7 +1,6 @@
-package com.asinosoft.gallery.job
+package com.asinosoft.gallery.data.local
 
 import android.app.job.JobInfo
-import android.app.job.JobInfo.TriggerContentUri
 import android.app.job.JobParameters
 import android.app.job.JobScheduler
 import android.app.job.JobService
@@ -12,71 +11,65 @@ import android.util.Log
 import androidx.core.net.toUri
 import com.asinosoft.gallery.GalleryApp
 import com.asinosoft.gallery.data.MediaService
-import dagger.hilt.android.AndroidEntryPoint
-import javax.inject.Inject
 import kotlin.concurrent.thread
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 
-@AndroidEntryPoint
-class MediaObserver : JobService() {
-    @Inject
-    lateinit var service: MediaService
+class LocalStorageObserver(
+    private var localStorage: LocalStorageProvider,
+    private var service: MediaService
+) : JobService() {
 
     private var job: Thread? = null
-
-    private var isInterrupted = false
 
     companion object {
         private const val JOB_ID = 1
         private val MEDIA_URI = "content://${MediaStore.AUTHORITY}/".toUri()
 
         fun schedule(context: Context) {
-            val componentName = ComponentName(context, MediaObserver::class.java)
+            val isScheduled =
+                context.getSystemService(JobScheduler::class.java)
+                    .allPendingJobs.any { it.id == JOB_ID }
+
+            if (isScheduled) {
+                return
+            }
+
+            val componentName = ComponentName(context, LocalStorageObserver::class.java)
             context.getSystemService(JobScheduler::class.java).schedule(
-                JobInfo
-                    .Builder(JOB_ID, componentName)
-                    .apply {
-                        addTriggerContentUri(
-                            TriggerContentUri(
-                                MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
-                                TriggerContentUri.FLAG_NOTIFY_FOR_DESCENDANTS
-                            )
+                JobInfo.Builder(JOB_ID, componentName).apply {
+                    addTriggerContentUri(
+                        JobInfo.TriggerContentUri(
+                            MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+                            JobInfo.TriggerContentUri.FLAG_NOTIFY_FOR_DESCENDANTS
                         )
-                        addTriggerContentUri(TriggerContentUri(MEDIA_URI, 0))
-                    }.build()
+                    )
+                    addTriggerContentUri(JobInfo.TriggerContentUri(MEDIA_URI, 0))
+                }.build()
             )
         }
-
-        fun isScheduled(context: Context): Boolean =
-            context.getSystemService(JobScheduler::class.java).allPendingJobs.any {
-                it.id == JOB_ID
-            }
     }
 
     override fun onStartJob(params: JobParameters): Boolean {
-        Log.d(GalleryApp.TAG, "onStartJob")
-
-        isInterrupted = false
         job = thread { fetchAll(params) }
         return true
     }
 
     override fun onStopJob(params: JobParameters): Boolean {
-        Log.d(GalleryApp.TAG, "onStopJob")
-
         job?.join()
         return true
     }
 
-    private fun fetchAll(params: JobParameters) = thread {
+    private fun fetchAll(params: JobParameters) {
         runBlocking(Dispatchers.IO) {
             params.triggeredContentUris?.let {
                 it.forEach { uri ->
                     try {
-                        service.update(uri)
+                        localStorage.fetchOne(uri)?.let { media ->
+                            service.add(media)
+                        }
                     } catch (ex: Throwable) {
-                        Log.d(GalleryApp.TAG, "Exception: $ex")
+                        Log.d(GalleryApp.Companion.TAG, "Exception: $ex")
                         // ignore
                     }
                 }

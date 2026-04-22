@@ -5,10 +5,12 @@ import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
+import com.asinosoft.gallery.data.storage.Storage
+import com.asinosoft.gallery.data.storage.StorageDao
 
 @Database(
-    entities = [Album::class, Media::class, MediaAlbum::class],
-    version = 2,
+    entities = [Album::class, Media::class, MediaAlbum::class, Storage::class],
+    version = 3,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -16,6 +18,8 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun albumDao(): AlbumDao
 
     abstract fun imageDao(): MediaDao
+
+    abstract fun storageDao(): StorageDao
 
     companion object {
         @Volatile
@@ -27,7 +31,7 @@ abstract class AppDatabase : RoomDatabase() {
 
         private fun buildDatabase(context: Context): AppDatabase = Room
             .databaseBuilder(context, AppDatabase::class.java, "media.db")
-            .fallbackToDestructiveMigration(true)
+            .addCallback(AppDatabaseInitializer())
             .build()
     }
 }

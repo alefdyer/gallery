@@ -2,13 +2,16 @@ package com.asinosoft.gallery.data.local
 
 import android.content.Context
 import android.content.Intent
-import android.net.Uri
 import android.util.Log
 import com.asinosoft.gallery.GalleryApp
 import com.asinosoft.gallery.data.Album
 import com.asinosoft.gallery.data.AlbumDao
+import com.asinosoft.gallery.data.Media
 import com.asinosoft.gallery.data.MediaDao
+import com.asinosoft.gallery.data.MediaRepository
 import com.asinosoft.gallery.data.MediaService
+import com.asinosoft.gallery.data.storage.StorageProvider
+import com.asinosoft.gallery.data.storage.StorageProviderRegistry
 import com.asinosoft.gallery.di.IntentHelper
 import javax.inject.Inject
 import kotlin.system.measureTimeMillis
@@ -22,9 +25,17 @@ class LocalMediaService
 constructor(
     private val albumDao: AlbumDao,
     private val mediaDao: MediaDao,
-    private val repository: LocalMediaRepository
+    private val storageProviderRegistry: StorageProviderRegistry
 ) : MediaService {
     private val intentHelper = IntentHelper
+
+    override suspend fun add(media: Media) {
+        val mediaId = mediaDao.insert(media)
+        media.bucket?.let { name ->
+            val albumId = albumDao.upsert(Album(name = name))
+            addToAlbum(listOf(mediaId), albumId)
+        }
+    }
 
     override suspend fun delete(
         mediaIds: Collection<Long>,
@@ -97,61 +108,49 @@ constructor(
         updateAlbumStats(albumId)
     }
 
-    override suspend fun update(uri: Uri): Unit = withContext(Dispatchers.IO) {
-        Log.d(GalleryApp.TAG, "fetchOne: $uri")
-
-        val fetched = repository.fetchOne(uri)
-        val media = mediaDao.getImageByUri(fetched.uri)
-        if (null == media) {
-            val mediaId = mediaDao.insert(fetched)
-
-            fetched.bucket?.let { name ->
-                val albumId = albumDao.upsert(Album(name = name))
-                addToAlbum(listOf(mediaId), albumId)
+    override suspend fun updateAll(): Unit = withContext(Dispatchers.IO) {
+        Log.d(GalleryApp.TAG, "rescan")
+        measureTimeMillis {
+            storageProviderRegistry.resolveEnabledProviders().forEach { storage ->
+                updateStorageMedia(storage)
             }
-        } else {
-            mediaDao.upsert(media)
+        }.also {
+            Log.i(GalleryApp.TAG, "DONE in $it ms")
         }
     }
 
     @OptIn(ExperimentalCoroutinesApi::class)
-    override suspend fun updateAll(): Unit = withContext(Dispatchers.IO) {
-        Log.d(GalleryApp.TAG, "rescan")
+    private suspend fun updateStorageMedia(storage: StorageProvider) {
+        val updated = mutableSetOf<Long>()
+        val albums = HashMap<String, MutableSet<Long>>()
+        storage.fetchAll().chunked(100).collect { fetched ->
+            val media = mediaDao.getImagesByUris(fetched.map { it.uri })
+            updated += media.map { it.id }
 
-        measureTimeMillis {
-            val updated = mutableSetOf<Long>()
-            val albums = HashMap<String, MutableSet<Long>>()
-            repository.fetchAll().chunked(100).collect { fetched ->
-                val media = mediaDao.getImagesByUris(fetched.map { it.uri })
-                updated += media.map { it.id }
+            val uris = media.map { it.uri }.toSet()
+            val toInsert = fetched.filterNot { uris.contains(it.uri) }
 
-                val uris = media.map { it.uri }.toSet()
-                val toInsert = fetched.filterNot { uris.contains(it.uri) }
-
-                if (toInsert.isNotEmpty()) {
-                    val mediaIds = mediaDao.insertAll(toInsert)
-                    toInsert.forEachIndexed { index, media ->
-                        media.bucket?.let { name ->
-                            val mediaId = mediaIds[index]
-                            val album = albums.getOrPut(name, { mutableSetOf() })
-                            album += mediaId
-                        }
+            if (toInsert.isNotEmpty()) {
+                val mediaIds = mediaDao.insertAll(toInsert)
+                toInsert.forEachIndexed { index, media ->
+                    media.bucket?.let { name ->
+                        val mediaId = mediaIds[index]
+                        val album = albums.getOrPut(name, { mutableSetOf() })
+                        album += mediaId
                     }
-
-                    updated += mediaIds
                 }
-            }
 
-            albums.forEach { (name, mediaIds) ->
-                val albumId =
-                    albumDao.getAlbumByName(name)?.id ?: albumDao.upsert(Album(name = name))
-                addToAlbum(mediaIds, albumId)
+                updated += mediaIds
             }
-            mediaDao.deleteAllExcept(updated)
-            albumDao.deleteEmptyAlbums()
-        }.also {
-            Log.i(GalleryApp.TAG, "DONE in $it ms")
         }
+
+        albums.forEach { (name, mediaIds) ->
+            val albumId =
+                albumDao.getAlbumByName(name)?.id ?: albumDao.upsert(Album(name = name))
+            addToAlbum(mediaIds, albumId)
+        }
+        mediaDao.deleteAllExcept(updated)
+        albumDao.deleteEmptyAlbums()
     }
 
     private suspend fun updateAlbumStats(albumId: Long) {

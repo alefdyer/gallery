@@ -10,7 +10,6 @@ import androidx.activity.viewModels
 import androidx.compose.foundation.layout.Box
 import androidx.navigation.compose.rememberNavController
 import com.asinosoft.gallery.di.IntentHelper
-import com.asinosoft.gallery.job.MediaObserver
 import com.asinosoft.gallery.model.GalleryViewModel
 import com.asinosoft.gallery.ui.Navigation
 import com.asinosoft.gallery.ui.PermissionDisclaimer
@@ -63,10 +62,6 @@ class MainActivity : ComponentActivity() {
                     }
                 }
             }
-        }
-
-        if (!MediaObserver.isScheduled(this)) {
-            MediaObserver.schedule(this)
         }
     }
 }
