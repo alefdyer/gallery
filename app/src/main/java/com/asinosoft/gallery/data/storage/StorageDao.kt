@@ -18,8 +18,8 @@ interface StorageDao {
     suspend fun getStorages(): List<Storage>
 
     @Upsert
-    suspend fun upsert(account: Storage): Long
+    suspend fun upsert(storage: Storage): Long
 
     @Delete
-    suspend fun delete(account: Storage)
+    suspend fun delete(storage: Storage)
 }

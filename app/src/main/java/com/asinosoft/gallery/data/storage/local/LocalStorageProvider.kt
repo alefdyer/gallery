@@ -9,8 +9,8 @@ import androidx.core.database.getStringOrNull
 import com.asinosoft.gallery.data.Image
 import com.asinosoft.gallery.data.Media
 import com.asinosoft.gallery.data.Video
+import com.asinosoft.gallery.data.storage.Storage
 import com.asinosoft.gallery.data.storage.StorageProvider
-import com.asinosoft.gallery.data.storage.StorageType
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.time.ZoneId
 import java.util.Date
@@ -20,11 +20,9 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
 
 class LocalStorageProvider(
-    private val storageId: Long,
+    override val storage: Storage,
     @param:ApplicationContext private val context: Context
 ) : StorageProvider {
-    override val type: StorageType = StorageType.LOCAL
-
     override suspend fun fetchAll(): Flow<Media> = flow {
         emitAll(fetchImages(""))
         emitAll(fetchVideos(""))
@@ -103,7 +101,7 @@ class LocalStorageProvider(
                         size = size,
                         filename = data,
                         mimeType = mimeType,
-                        storageId = storageId,
+                        storageId = storage.id,
                         storageItemId = id.toString(),
                         image =
                             Image(
@@ -175,7 +173,7 @@ class LocalStorageProvider(
                         size = size,
                         filename = data,
                         mimeType = mimeType,
-                        storageId = storageId,
+                        storageId = storage.id,
                         storageItemId = id.toString(),
                         video = Video(duration)
                     )

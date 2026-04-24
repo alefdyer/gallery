@@ -8,6 +8,10 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
 import androidx.compose.foundation.layout.Box
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
 import androidx.navigation.compose.rememberNavController
 import com.asinosoft.gallery.di.IntentHelper
 import com.asinosoft.gallery.model.GalleryViewModel
@@ -18,6 +22,8 @@ import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.isGranted
 import com.google.accompanist.permissions.rememberPermissionState
 import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.launch
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
@@ -49,10 +55,21 @@ class MainActivity : ComponentActivity() {
 
             val navController = rememberNavController()
 
+            val snackbarHostState = remember { SnackbarHostState() }
+
+            LaunchedEffect(model.message) {
+                launch {
+                    model.message.filterNotNull().collect {
+                        model.clearMessage()
+                        snackbarHostState.showSnackbar(it)
+                    }
+                }
+            }
+
             GalleryTheme {
                 when (storagePermission.status.isGranted) {
                     true -> {
-                        Navigation(navController)
+                        Navigation(navController, model)
                     }
 
                     else -> {
@@ -61,6 +78,8 @@ class MainActivity : ComponentActivity() {
                         }
                     }
                 }
+
+                SnackbarHost(snackbarHostState)
             }
         }
     }

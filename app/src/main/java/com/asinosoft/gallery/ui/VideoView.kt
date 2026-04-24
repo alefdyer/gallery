@@ -1,6 +1,6 @@
 package com.asinosoft.gallery.ui
 
-import android.net.Uri
+import androidx.annotation.OptIn
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -24,22 +24,36 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
+import androidx.media3.common.util.UnstableApi
+import androidx.media3.datasource.okhttp.OkHttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.ui.PlayerView
+import com.asinosoft.gallery.GalleryApp
 import com.asinosoft.gallery.R
+import com.asinosoft.gallery.data.Media
 
+@OptIn(UnstableApi::class)
 @Composable
-fun VideoView(uri: Uri, modifier: Modifier = Modifier, onPlaying: (Boolean) -> Unit = {}) {
+fun VideoView(media: Media, modifier: Modifier = Modifier, onPlaying: (Boolean) -> Unit = {}) {
     val context = LocalContext.current
+    val app = context.applicationContext as GalleryApp
     var isPlaying by remember { mutableStateOf(false) }
 
     val player =
-        remember(uri) {
-            ExoPlayer.Builder(context.applicationContext).build().apply {
-                setMediaItem(MediaItem.fromUri(uri))
-                repeatMode = Player.REPEAT_MODE_ONE
-                prepare()
-            }
+        remember(media.uri) {
+            val mediaSourceFactory =
+                DefaultMediaSourceFactory(
+                    OkHttpDataSource.Factory(app.httpClient)
+                )
+            ExoPlayer.Builder(context.applicationContext)
+                .setMediaSourceFactory(mediaSourceFactory)
+                .build()
+                .apply {
+                    setMediaItem(MediaItem.fromUri(media.uri))
+                    repeatMode = Player.REPEAT_MODE_ONE
+                    prepare()
+                }
         }
 
     DisposableEffect(player, onPlaying) {
@@ -92,7 +106,7 @@ fun VideoView(uri: Uri, modifier: Modifier = Modifier, onPlaying: (Boolean) -> U
                 },
                 contentDescription = if (isPlaying) "Pause" else "Play",
                 modifier = Modifier.size(64.dp),
-                tint = Color.White
+                tint = Color.Unspecified
             )
         }
     }

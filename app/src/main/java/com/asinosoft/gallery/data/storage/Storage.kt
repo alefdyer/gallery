@@ -7,10 +7,10 @@ import androidx.room.PrimaryKey
 data class Storage(
     @PrimaryKey(autoGenerate = true)
     val id: Long = 0,
-    val type: StorageType,
-    val name: String,
-    val url: String?,
-    val username: String?,
-    val secret: String?,
-    val rootPath: String?
+    val type: StorageType = StorageType.LOCAL,
+    val name: String = "",
+    val url: String? = null,
+    val username: String? = null,
+    val secret: String? = null,
+    val rootPath: String? = null
 )

@@ -7,7 +7,9 @@ import com.asinosoft.gallery.data.AlbumDao
 import com.asinosoft.gallery.data.MediaDao
 import com.asinosoft.gallery.data.MediaService
 import com.asinosoft.gallery.data.storage.Storage
+import com.asinosoft.gallery.data.storage.StorageAuthProvider
 import com.asinosoft.gallery.data.storage.StorageDao
+import com.asinosoft.gallery.data.storage.StorageProviderRegistry
 import com.asinosoft.gallery.data.storage.StorageType
 import com.asinosoft.gallery.data.storage.local.LocalStorageObserver
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -17,6 +19,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.launch
 
@@ -26,6 +29,8 @@ class GalleryViewModel @Inject constructor(
     private val albumDao: AlbumDao,
     private val storageDao: StorageDao,
     @param:ApplicationContext private val context: Context,
+    private val storageProviderRegistry: StorageProviderRegistry,
+    private val storageAuthProvider: StorageAuthProvider,
     mediaDao: MediaDao
 ) : ViewModel() {
     private val albumId = MutableStateFlow<Long?>(null)
@@ -62,7 +67,10 @@ class GalleryViewModel @Inject constructor(
     fun rescan() = viewModelScope.launch {
         rescanFlow.emit(true)
         try {
-            service.updateAll()
+            storages.first().forEach { storage ->
+                val provider = storageProviderRegistry.getStorageProvider(storage)
+                service.update(provider)
+            }
         } catch (ex: Throwable) {
             messageFlow.emit(ex.message)
         }
@@ -123,17 +131,21 @@ class GalleryViewModel @Inject constructor(
         }
     }
 
-    fun addStorage(account: Storage) = viewModelScope.launch {
+    fun addStorage(storage: Storage) = viewModelScope.launch {
         try {
-            storageDao.upsert(account)
+            storageDao.upsert(storage)
+            storageAuthProvider.refresh()
+            val provider = storageProviderRegistry.getStorageProvider(storage)
+            service.update(provider)
         } catch (ex: Throwable) {
             messageFlow.emit(ex.message)
         }
     }
 
-    fun deleteStorage(account: Storage) = viewModelScope.launch {
+    fun deleteStorage(storage: Storage) = viewModelScope.launch {
         try {
-            storageDao.delete(account)
+            storageDao.delete(storage)
+            storageAuthProvider.refresh()
         } catch (ex: Throwable) {
             messageFlow.emit(ex.message)
         }

@@ -73,8 +73,8 @@ class LocalStorageObserver : JobService() {
 
     private fun fetchAll(params: JobParameters) {
         runBlocking(Dispatchers.IO) {
-            val storageId = params.extras.getLong("id")
-            val localStorage = LocalStorageProvider(storageId, baseContext)
+            val storage = Storage(params.extras.getLong("id"))
+            val localStorage = LocalStorageProvider(storage, baseContext)
 
             params.triggeredContentUris?.let {
                 it.forEach { uri ->
@@ -87,7 +87,7 @@ class LocalStorageObserver : JobService() {
                         // ignore
                     }
                 }
-            } ?: service.updateAll()
+            } ?: service.updateAll(listOf(localStorage))
 
             jobFinished(params, false)
         }

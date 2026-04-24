@@ -4,9 +4,7 @@ import android.content.Context
 import android.content.Intent
 import android.util.Log
 import com.asinosoft.gallery.GalleryApp
-import com.asinosoft.gallery.data.storage.StorageDao
 import com.asinosoft.gallery.data.storage.StorageProvider
-import com.asinosoft.gallery.data.storage.StorageProviderRegistry
 import com.asinosoft.gallery.di.IntentHelper
 import javax.inject.Inject
 import kotlin.system.measureTimeMillis
@@ -17,14 +15,12 @@ import kotlinx.coroutines.withContext
 
 class MediaService @Inject constructor(
     private val albumDao: AlbumDao,
-    private val mediaDao: MediaDao,
-    private val storageDao: StorageDao,
-    private val storageProviderRegistry: StorageProviderRegistry
+    private val mediaDao: MediaDao
 ) {
     private val intentHelper = IntentHelper
 
     suspend fun add(media: Media) {
-        val mediaId = mediaDao.insert(media)
+        val mediaId = mediaDao.upsert(media)
         media.bucket?.let { name ->
             val albumId = albumDao.upsert(Album(name = name))
             addToAlbum(listOf(mediaId), albumId)
@@ -98,31 +94,35 @@ class MediaService @Inject constructor(
         updateAlbumStats(albumId)
     }
 
-    suspend fun updateAll(): Unit = withContext(Dispatchers.IO) {
-        Log.d(GalleryApp.TAG, "rescan")
-        measureTimeMillis {
-            storageDao.getStorages().forEach { storage ->
-                val provider = storageProviderRegistry.getStorageProvider(storage)
-                updateStorageMedia(provider)
+    suspend fun updateAll(providers: Collection<StorageProvider>): Unit =
+        withContext(Dispatchers.IO) {
+            Log.d(GalleryApp.TAG, "rescan")
+            measureTimeMillis {
+                providers.forEach { update(it) }
+            }.also {
+                Log.i(GalleryApp.TAG, "DONE in $it ms")
             }
-        }.also {
-            Log.i(GalleryApp.TAG, "DONE in $it ms")
         }
-    }
 
     @OptIn(ExperimentalCoroutinesApi::class)
-    private suspend fun updateStorageMedia(provider: StorageProvider) {
+    suspend fun update(provider: StorageProvider) = withContext(Dispatchers.IO) {
+        Log.i("MediaService", "update: ${provider.storage}")
         val updated = mutableSetOf<Long>()
         val albums = HashMap<String, MutableSet<Long>>()
         provider.fetchAll().chunked(100).collect { fetched ->
-            val media = mediaDao.getImagesByUris(fetched.map { it.uri })
+            val media = mediaDao.getMediaByStorageItemIds(
+                provider.storage.id,
+                fetched.map {
+                    it.storageItemId
+                }
+            )
             updated += media.map { it.id }
 
             val uris = media.map { it.uri }.toSet()
             val toInsert = fetched.filterNot { uris.contains(it.uri) }
 
             if (toInsert.isNotEmpty()) {
-                val mediaIds = mediaDao.insertAll(toInsert)
+                val mediaIds = mediaDao.upsertAll(toInsert)
                 toInsert.forEachIndexed { index, media ->
                     media.bucket?.let { name ->
                         val mediaId = mediaIds[index]
@@ -140,7 +140,7 @@ class MediaService @Inject constructor(
                 albumDao.getAlbumByName(name)?.id ?: albumDao.upsert(Album(name = name))
             addToAlbum(mediaIds, albumId)
         }
-        mediaDao.deleteAllExcept(updated)
+        mediaDao.deleteAllExcept(provider.storage.id, updated)
         albumDao.deleteEmptyAlbums()
     }
 

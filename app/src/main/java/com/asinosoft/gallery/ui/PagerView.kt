@@ -22,21 +22,19 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.asinosoft.gallery.data.Media
-import com.asinosoft.gallery.model.GalleryViewModel
 
 @Composable
 fun PagerView(
     items: List<Media>,
+    onShare: (Set<Long>) -> Unit,
+    onEdit: (Long) -> Unit,
+    onDelete: (Set<Long>, () -> Unit) -> Unit,
+    onClose: () -> Unit,
     modifier: Modifier = Modifier,
-    current: Media? = null,
-    model: GalleryViewModel = hiltViewModel(),
-    onClose: () -> Unit = {}
+    current: Media? = null
 ) {
-    val context = LocalContext.current
     val offset = items.indexOf(current).coerceAtLeast(0)
     val pagerState: PagerState = rememberPagerState(offset) { items.count() }
     val currentItem by remember(items) { derivedStateOf { items[pagerState.currentPage] } }
@@ -67,9 +65,9 @@ fun PagerView(
         ) { n ->
             val item = items[n]
             if (null !== item.image) {
-                ImageView(item.uri) { showControls = !showControls }
+                ImageView(item) { showControls = !showControls }
             } else if (null != item.video) {
-                VideoView(item.uri) { isPlaying -> showControls = !isPlaying }
+                VideoView(item) { isPlaying -> showControls = !isPlaying }
             } else {
                 DummyView()
             }
@@ -93,11 +91,11 @@ fun PagerView(
             exit = slideOutVertically(tween(easing = LinearEasing)) { it / 2 }
         ) {
             PagerBottomBar(
-                onShare = { model.share(listOf(currentItem.id), context) },
-                onEdit = { model.edit(currentItem.id, context) },
+                onShare = { onShare(setOf(currentItem.id)) },
+                onEdit = { onEdit(currentItem.id) },
                 onSearch = {},
                 onDelete = {
-                    model.delete(listOf(currentItem.id), context) {
+                    onDelete(setOf(currentItem.id)) {
                         if (1 == items.count()) {
                             onClose()
                         }

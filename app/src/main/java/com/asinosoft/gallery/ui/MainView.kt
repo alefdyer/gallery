@@ -23,6 +23,7 @@ import androidx.compose.ui.unit.dp
 import com.asinosoft.gallery.R
 import com.asinosoft.gallery.data.Album
 import com.asinosoft.gallery.data.Media
+import com.asinosoft.gallery.data.storage.Storage
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -30,11 +31,16 @@ import kotlinx.coroutines.launch
 fun MainView(
     images: List<Media>,
     albums: List<Album>,
-    storages: List<com.asinosoft.gallery.data.storage.Storage>,
+    storages: List<Storage>,
     onMediaClick: (Media) -> Unit,
     onAlbumClick: (Album) -> Unit,
-    onAddStorage: (com.asinosoft.gallery.data.storage.Storage) -> Unit,
-    onDeleteStorage: (com.asinosoft.gallery.data.storage.Storage) -> Unit,
+    onShare: (Set<Long>) -> Unit,
+    onDelete: (Set<Long>, () -> Unit) -> Unit,
+    onAddTag: (Set<Long>, Long) -> Unit,
+    onCreateTag: (Set<Long>, String) -> Unit,
+    onRemoveTag: (Set<Long>, Long) -> Unit,
+    onAddStorage: (Storage) -> Unit,
+    onDeleteStorage: (Storage) -> Unit,
     isRefreshing: Boolean,
     onRefresh: () -> Unit,
     modifier: Modifier = Modifier
@@ -60,9 +66,28 @@ fun MainView(
         ) {
             HorizontalPager(state = pagerState) {
                 when (it) {
-                    0 -> ImageListView(media = images, onClick = onMediaClick)
-                    1 -> AlbumListView(albums = albums, onAlbumClick = onAlbumClick)
-                    2 -> StoragesView(storages, onAddStorage, onDeleteStorage)
+                    0 -> ImageListView(
+                        albums = albums,
+                        media = images,
+                        onClick = onMediaClick,
+                        onClose = {},
+                        onShare = onShare,
+                        onDelete = onDelete,
+                        onAddTag = onAddTag,
+                        onCreateTag = onCreateTag,
+                        onRemoveTag = onRemoveTag
+                    )
+
+                    1 -> AlbumListView(
+                        albums = albums,
+                        onAlbumClick = onAlbumClick
+                    )
+
+                    2 -> StoragesView(
+                        storages = storages,
+                        onAddStorage = onAddStorage,
+                        onDeleteStorage = onDeleteStorage
+                    )
                 }
             }
         }
