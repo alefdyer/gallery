@@ -5,7 +5,6 @@ import android.content.Context
 import android.net.Uri
 import android.provider.MediaStore.Images
 import android.provider.MediaStore.Video as Videos
-import androidx.core.database.getStringOrNull
 import com.asinosoft.gallery.data.Image
 import com.asinosoft.gallery.data.Media
 import com.asinosoft.gallery.data.Video
@@ -50,7 +49,7 @@ class LocalStorageProvider(
                     Images.Media.WIDTH,
                     Images.Media.HEIGHT,
                     Images.Media.ORIENTATION,
-                    Images.Media.BUCKET_DISPLAY_NAME,
+                    Images.Media.RELATIVE_PATH,
                     Images.Media.SIZE,
                     Images.Media.DATA,
                     Images.Media.MIME_TYPE
@@ -67,7 +66,7 @@ class LocalStorageProvider(
             val widthColumn = cursor.getColumnIndexOrThrow(Images.Media.WIDTH)
             val heightColumn = cursor.getColumnIndexOrThrow(Images.Media.HEIGHT)
             val orientationColumn = cursor.getColumnIndexOrThrow(Images.Media.ORIENTATION)
-            val bucketNameColumn = cursor.getColumnIndexOrThrow(Images.Media.BUCKET_DISPLAY_NAME)
+            val pathColumn = cursor.getColumnIndexOrThrow(Images.Media.RELATIVE_PATH)
             val sizeColumn = cursor.getColumnIndexOrThrow(Images.Media.SIZE)
             val dataColumn = cursor.getColumnIndexOrThrow(Images.Media.DATA)
             val mimeTypeColumn = cursor.getColumnIndexOrThrow(Images.Media.MIME_TYPE)
@@ -85,7 +84,7 @@ class LocalStorageProvider(
                 val datetime =
                     Date(date).toInstant().atZone(ZoneId.systemDefault()).toLocalDateTime()
 
-                val bucket: String? = cursor.getStringOrNull(bucketNameColumn)
+                val path: String = cursor.getString(pathColumn)
                 val size: Long = cursor.getLong(sizeColumn)
 
                 val data: String = cursor.getString(dataColumn)
@@ -97,7 +96,7 @@ class LocalStorageProvider(
                         uri = uri,
                         date = datetime.toLocalDate(),
                         time = datetime.toLocalTime(),
-                        bucket = bucket,
+                        path = path,
                         size = size,
                         filename = data,
                         mimeType = mimeType,
@@ -123,7 +122,7 @@ class LocalStorageProvider(
                     Videos.Media._ID,
                     Videos.Media.DISPLAY_NAME,
                     Videos.Media.DURATION,
-                    Videos.Media.BUCKET_DISPLAY_NAME,
+                    Videos.Media.RELATIVE_PATH,
                     Videos.Media.SIZE,
                     Videos.Media.DATA,
                     Videos.Media.DATE_TAKEN,
@@ -139,8 +138,8 @@ class LocalStorageProvider(
             val idColumn = cursor.getColumnIndexOrThrow(Videos.Media._ID)
             val dateAddedColumn = cursor.getColumnIndexOrThrow(Videos.Media.DATE_ADDED)
             val dateTakenColumn = cursor.getColumnIndexOrThrow(Videos.Media.DATE_TAKEN)
-            val bucketNameColumn =
-                cursor.getColumnIndexOrThrow(Videos.Media.BUCKET_DISPLAY_NAME)
+            val pathColumn =
+                cursor.getColumnIndexOrThrow(Videos.Media.RELATIVE_PATH)
             val sizeColumn = cursor.getColumnIndexOrThrow(Videos.Media.SIZE)
             val dataColumn = cursor.getColumnIndexOrThrow(Videos.Media.DATA)
             val durationColumn = cursor.getColumnIndexOrThrow(Videos.Media.DURATION)
@@ -156,7 +155,7 @@ class LocalStorageProvider(
                 val datetime =
                     Date(date).toInstant().atZone(ZoneId.systemDefault()).toLocalDateTime()
 
-                val bucket: String? = cursor.getStringOrNull(bucketNameColumn)
+                val path: String = cursor.getString(pathColumn)
                 val size: Long = cursor.getLong(sizeColumn)
 
                 val data: String = cursor.getString(dataColumn)
@@ -169,7 +168,7 @@ class LocalStorageProvider(
                         uri = uri,
                         date = datetime.toLocalDate(),
                         time = datetime.toLocalTime(),
-                        bucket = bucket,
+                        path = path,
                         size = size,
                         filename = data,
                         mimeType = mimeType,

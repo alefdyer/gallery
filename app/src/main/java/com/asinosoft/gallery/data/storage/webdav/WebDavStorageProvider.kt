@@ -58,7 +58,7 @@ class WebDavStorageProvider(override val storage: Storage) : StorageProvider {
                         uri = buildAbsoluteDavUrl(it.href.toString()).toUri(),
                         date = datetime.toLocalDate(),
                         time = datetime.toLocalTime(),
-                        bucket = it.path.substringAfterLast('/'),
+                        path = it.path,
                         size = it.contentLength,
                         filename = it.name,
                         mimeType = it.contentType,

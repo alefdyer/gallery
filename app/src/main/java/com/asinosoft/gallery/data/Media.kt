@@ -18,7 +18,7 @@ data class Media(
     val uri: Uri,
     val date: LocalDate,
     val time: LocalTime,
-    val bucket: String?,
+    val path: String,
     val size: Long,
     val filename: String,
     val mimeType: String,

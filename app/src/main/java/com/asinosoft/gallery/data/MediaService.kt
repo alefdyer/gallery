@@ -21,10 +21,9 @@ class MediaService @Inject constructor(
 
     suspend fun add(media: Media) {
         val mediaId = mediaDao.upsert(media)
-        media.bucket?.let { name ->
-            val albumId = albumDao.upsert(Album(name = name))
-            addToAlbum(listOf(mediaId), albumId)
-        }
+        val album = media.path.split('/').last { it.isNotEmpty() }
+        val albumId = albumDao.upsert(Album(name = album))
+        addToAlbum(listOf(mediaId), albumId)
     }
 
     suspend fun delete(mediaIds: Collection<Long>, context: Context, callback: () -> Unit) {
@@ -124,11 +123,9 @@ class MediaService @Inject constructor(
             if (toInsert.isNotEmpty()) {
                 val mediaIds = mediaDao.upsertAll(toInsert)
                 toInsert.forEachIndexed { index, media ->
-                    media.bucket?.let { name ->
-                        val mediaId = mediaIds[index]
-                        val album = albums.getOrPut(name, { mutableSetOf() })
-                        album += mediaId
-                    }
+                    val album = media.path.split('/').last { it.isNotEmpty() }
+                    val mediaId = mediaIds[index]
+                    albums.getOrPut(album, { mutableSetOf() }) += mediaId
                 }
 
                 updated += mediaIds
