@@ -28,9 +28,8 @@ class StorageAuthProvider @Inject constructor(
     }
 
     fun authorize(request: Request): Request {
-        val url = request.url.toString()
         providers.forEach { provider ->
-            if (true == provider.storage.url?.let { url.startsWith(it) }) {
+            if (request.url.host == provider.storage.url?.host) {
                 return provider.authorize(request)
             }
         }

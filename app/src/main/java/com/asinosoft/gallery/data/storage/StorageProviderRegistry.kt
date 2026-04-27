@@ -2,6 +2,7 @@ package com.asinosoft.gallery.data.storage
 
 import android.content.Context
 import com.asinosoft.gallery.data.storage.local.LocalStorageProvider
+import com.asinosoft.gallery.data.storage.nextcloud.NextCloudStorageProvider
 import com.asinosoft.gallery.data.storage.webdav.WebDavStorageProvider
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject

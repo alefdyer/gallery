@@ -1,4 +1,4 @@
-package com.asinosoft.gallery.data.storage.webdav
+package com.asinosoft.gallery.data.storage.nextcloud
 
 import android.net.Uri
 import android.util.Log
@@ -17,8 +17,8 @@ import kotlinx.coroutines.flow.flow
 import okhttp3.Credentials
 import okhttp3.Request
 
-class WebDavStorageProvider(override val storage: Storage) : StorageProvider {
-    private val webdav = OkHttpSardine().apply {
+class NextCloudStorageProvider(override val storage: Storage) : StorageProvider {
+    private val connection = OkHttpSardine().apply {
         setCredentials(storage.username, storage.secret)
     }
 
@@ -31,8 +31,8 @@ class WebDavStorageProvider(override val storage: Storage) : StorageProvider {
     }
 
     override suspend fun fetchAll(): Flow<Media> = flow {
-        Log.i("webdav", "fetchAll")
-        emitAll(fetch(buildAbsoluteDavUrl(storage.rootPath ?: "/")))
+        Log.i("nextcloud", "fetchAll")
+        emitAll(fetch(buildUrl("/remote.php/dav/files/${storage.username}/")))
     }
 
     override suspend fun fetchOne(uri: Uri): Media? {
@@ -40,22 +40,22 @@ class WebDavStorageProvider(override val storage: Storage) : StorageProvider {
     }
 
     private fun fetch(path: String): Flow<Media> = flow {
-        Log.d("webdav", "Fetch: $path")
-        webdav.list(path).forEach {
-            Log.d("webdav", "Found: $it|${it.path}")
+        Log.d("nextcloud", "Fetch: $path")
+        connection.list(path).forEach {
+            Log.d("nextcloud", "Found: $it|${it.path}")
             if (path.endsWith(it.path)) return@forEach
 
             if (it.isDirectory) {
-                emitAll(fetch(buildAbsoluteDavUrl(it.path)))
+                emitAll(fetch(buildUrl(it.path)))
             } else if (it.contentType.startsWith("image/") || it.contentType.startsWith("video/")) {
-                Log.d("webdav", "Add: [${storage.id}, ${it.path}]")
+                Log.d("nextcloud", "Add: [${storage.id}, ${it.path}]")
                 val datetime =
                     it.modified?.toInstant()?.atZone(ZoneId.systemDefault()) ?: ZonedDateTime.now()
                 val isImage = it.contentType.startsWith("image/")
                 emit(
                     Media(
                         id = 0,
-                        uri = buildAbsoluteDavUrl(it.href.toString()).toUri(),
+                        uri = buildUrl(it.href.toString()).toUri(),
                         date = datetime.toLocalDate(),
                         time = datetime.toLocalTime(),
                         path = it.path,
@@ -76,7 +76,7 @@ class WebDavStorageProvider(override val storage: Storage) : StorageProvider {
         }
     }
 
-    private fun buildAbsoluteDavUrl(path: String): String {
+    private fun buildUrl(path: String): String {
         if (path.startsWith("http://") || path.startsWith("https://")) {
             return path
         }

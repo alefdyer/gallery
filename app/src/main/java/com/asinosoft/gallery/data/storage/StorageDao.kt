@@ -11,7 +11,7 @@ interface StorageDao {
     @Query("SELECT * FROM storage WHERE id = :id")
     suspend fun getStorageById(id: Long): Storage
 
-    @Query("SELECT * FROM storage ORDER BY type, name")
+    @Query("SELECT * FROM storage ORDER BY type, url")
     fun getAccounts(): Flow<List<Storage>>
 
     @Query("SELECT * FROM storage")

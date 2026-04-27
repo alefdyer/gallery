@@ -35,6 +35,9 @@ interface MediaDao {
     @Query("DELETE FROM media WHERE id IN (:mediaIds)")
     suspend fun deleteAll(mediaIds: Collection<Long>)
 
+    @Query("DELETE FROM media WHERE storageId = :storageId")
+    suspend fun deleteStorage(storageId: Long)
+
     @Query("DELETE FROM media WHERE storageId=:storageId AND id NOT IN (:mediaIds)")
     suspend fun deleteAllExcept(storageId: Long, mediaIds: Collection<Long>)
 }
