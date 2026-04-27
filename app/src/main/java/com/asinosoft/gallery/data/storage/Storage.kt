@@ -9,9 +9,15 @@ data class Storage(
     @PrimaryKey(autoGenerate = true)
     val id: Long = 0,
     val type: StorageType = StorageType.LOCAL,
-    val name: String = "",
     val url: Uri? = null,
-    val username: String? = null,
-    val secret: String? = null,
-    val rootPath: String? = null
-)
+    val login: String? = null,
+    val password: String? = null
+) {
+    fun withId(id: Long) = Storage(
+        id = id,
+        type = type,
+        url = url,
+        login = login,
+        password = password
+    )
+}

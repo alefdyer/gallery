@@ -8,6 +8,7 @@ import java.time.LocalDate
 import java.time.LocalTime
 
 @Entity(
+    tableName = "media",
     indices = [
         Index(value = ["storageId", "storageItemId"], unique = true)
     ]

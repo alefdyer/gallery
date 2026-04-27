@@ -9,6 +9,7 @@ import com.asinosoft.gallery.data.Image
 import com.asinosoft.gallery.data.Media
 import com.asinosoft.gallery.data.Video
 import com.asinosoft.gallery.data.storage.Storage
+import com.asinosoft.gallery.data.storage.StorageCheckResult
 import com.asinosoft.gallery.data.storage.StorageProvider
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.time.ZoneId
@@ -26,6 +27,8 @@ class LocalStorageProvider(
         emitAll(fetchImages(""))
         emitAll(fetchVideos(""))
     }
+
+    override suspend fun checkConnection() = StorageCheckResult.Success
 
     override suspend fun fetchOne(uri: Uri): Media? =
         if (uri.toString().startsWith(Images.Media.EXTERNAL_CONTENT_URI.toString())) {

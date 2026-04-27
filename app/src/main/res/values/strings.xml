@@ -14,4 +14,22 @@
     <string name="path">Путь к файлу</string>
     <string name="size">Размер</string>
     <string name="date">Дата</string>
+    <string name="storage_action_add">Добавить</string>
+    <string name="save">Сохранить</string>
+    <string name="storage_not_implemented">Не реализовано</string>
+    <string name="storage_add_account">Добавить хранилище</string>
+    <string name="storage_type_dropbox">Dropbox</string>
+    <string name="storage_type_nextcloud">NextCloud</string>
+    <string name="storage_type_webdav">WebDAV</string>
+    <string name="storage_type_yandex_disk">Yandex Disk</string>
+    <string name="storage_webdav_connect">Подключить WebDAV</string>
+    <string name="storage_webdav_edit">Изменить WebDAV хранилище</string>
+    <string name="storage_nextcloud_connect">Подключить NextCloud</string>
+    <string name="storage_nextcloud_edit">Изменить подключение NextCloud</string>
+    <string name="storage_field_host">Сервер</string>
+    <string name="storage_field_login">Логин</string>
+    <string name="storage_field_password">Пароль</string>
+    <string name="storage_check_server_not_found">Сервер не найден</string>
+    <string name="storage_check_authorization_failed">Ошибка авторизации</string>
+    <string name="storage_check_unknown_error">Ошибка: %1$s</string>
 </resources>

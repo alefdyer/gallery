@@ -6,9 +6,12 @@ import kotlinx.coroutines.flow.Flow
 import okhttp3.Request
 
 interface StorageProvider {
+
     val storage: Storage
 
     fun authorize(request: Request): Request = request
+
+    suspend fun checkConnection(): StorageCheckResult
 
     suspend fun fetchAll(): Flow<Media>
 

@@ -3,6 +3,7 @@ package com.asinosoft.gallery.ui
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.IntrinsicSize
@@ -16,22 +17,30 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
@@ -39,12 +48,15 @@ import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
 import com.asinosoft.gallery.R
 import com.asinosoft.gallery.data.storage.Storage
+import com.asinosoft.gallery.data.storage.StorageCheckResult
 import com.asinosoft.gallery.data.storage.StorageType
 import com.asinosoft.gallery.ui.component.StorageTypeIcon
+import kotlinx.coroutines.launch
 
 @Composable
 fun StoragesView(
     storages: List<Storage>,
+    onCheckStorageConnection: suspend (Storage) -> StorageCheckResult,
     onAddStorage: (Storage) -> Unit,
     onDeleteStorage: (Storage) -> Unit,
     modifier: Modifier = Modifier
@@ -52,9 +64,15 @@ fun StoragesView(
     val showStorageEditor = remember { mutableStateOf(false) }
     val account = remember { mutableStateOf<Storage?>(null) }
 
+    val showEditor = {
+        account.value = null
+        showStorageEditor.value = true
+    }
+
     if (showStorageEditor.value) {
         StorageEditor(
             storage = account.value,
+            onCheckStorageConnection = onCheckStorageConnection,
             onSave = { storage ->
                 onAddStorage(storage)
                 showStorageEditor.value = false
@@ -63,10 +81,11 @@ fun StoragesView(
         )
     } else {
         LazyColumn(
-            modifier = modifier,
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+            modifier = modifier.fillMaxSize().padding(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            items(storages, key = { it.id }) { storage ->
+            items(storages.filterNot { it.type == StorageType.LOCAL }, key = { it.id }) { storage ->
                 Card {
                     Column(
                         modifier = Modifier
@@ -105,11 +124,14 @@ fun StoragesView(
             }
 
             item {
-                IconButton(onClick = {
-                    account.value = null
-                    showStorageEditor.value = true
-                }) {
-                    Icon(painterResource(R.drawable.add), contentDescription = null)
+                Box(
+                    modifier = Modifier.fillParentMaxHeight(1f),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Button(onClick = showEditor) {
+                        Icon(painterResource(R.drawable.add), contentDescription = null)
+                        Text(stringResource(R.string.storage_add_account))
+                    }
                 }
             }
         }
@@ -119,20 +141,64 @@ fun StoragesView(
 @Composable
 private fun StorageEditor(
     storage: Storage?,
+    onCheckStorageConnection: suspend (Storage) -> StorageCheckResult,
     onSave: (Storage) -> Unit,
     onCancel: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     var type by remember(storage) { mutableStateOf(storage?.type) }
+    var checkError by remember(storage) { mutableStateOf<String?>(null) }
+    var isChecking by remember(storage) { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+    val serverNotFoundText = stringResource(R.string.storage_check_server_not_found)
+    val authorizationFailedText = stringResource(R.string.storage_check_authorization_failed)
+    val unknownErrorTemplate = stringResource(R.string.storage_check_unknown_error)
 
     BackHandler { onCancel() }
+
+    fun clearCheckError() {
+        checkError = null
+    }
+
+    fun submitStorage(nextStorage: Storage) = scope.launch {
+        isChecking = true
+        checkError = when (val error = onCheckStorageConnection(nextStorage)) {
+            StorageCheckResult.Success -> {
+                onSave(nextStorage)
+                null
+            }
+
+            StorageCheckResult.ServerNotFound -> serverNotFoundText
+
+            StorageCheckResult.AuthorizationFailed -> authorizationFailedText
+
+            is StorageCheckResult.UnknownError ->
+                unknownErrorTemplate.format(error.message ?: "")
+        }
+        isChecking = false
+    }
 
     Card(modifier.fillMaxSize()) {
         when (type) {
             null -> StorageTypeSelector { type = it }
-            StorageType.NEXTCLOUD -> NextCloudStorageForm(storage, onSave)
-            StorageType.WEBDAV -> WebDavStorageForm(storage, onSave)
-            else -> Text("Not realized")
+
+            StorageType.NEXTCLOUD -> NextCloudStorageForm(
+                storage = storage,
+                onSave = ::submitStorage,
+                checkError = checkError,
+                isChecking = isChecking,
+                onInputChange = ::clearCheckError
+            )
+
+            StorageType.WEBDAV -> WebDavStorageForm(
+                storage = storage,
+                onSave = ::submitStorage,
+                checkError = checkError,
+                isChecking = isChecking,
+                onInputChange = ::clearCheckError
+            )
+
+            else -> Text(stringResource(R.string.storage_not_implemented))
         }
     }
 }
@@ -140,7 +206,7 @@ private fun StorageEditor(
 @Composable
 private fun ColumnScope.StorageTypeSelector(onSelect: (StorageType) -> Unit) {
     Text(
-        text = "Add storage account",
+        text = stringResource(R.string.storage_add_account),
         modifier = Modifier
             .padding(top = 100.dp)
             .align(Alignment.CenterHorizontally),
@@ -162,7 +228,7 @@ private fun ColumnScope.StorageTypeSelector(onSelect: (StorageType) -> Unit) {
                 modifier = Modifier.size(16.dp)
             )
             Spacer(Modifier.width(8.dp))
-            Text("Dropbox")
+            Text(stringResource(R.string.storage_type_dropbox))
         }
         Button({ onSelect(StorageType.NEXTCLOUD) }, Modifier.fillMaxWidth()) {
             Image(
@@ -171,7 +237,7 @@ private fun ColumnScope.StorageTypeSelector(onSelect: (StorageType) -> Unit) {
                 modifier = Modifier.size(16.dp)
             )
             Spacer(Modifier.width(8.dp))
-            Text("NextCloud")
+            Text(stringResource(R.string.storage_type_nextcloud))
         }
         Button({ onSelect(StorageType.WEBDAV) }, Modifier.fillMaxWidth()) {
             Image(
@@ -180,7 +246,7 @@ private fun ColumnScope.StorageTypeSelector(onSelect: (StorageType) -> Unit) {
                 modifier = Modifier.size(16.dp)
             )
             Spacer(Modifier.width(8.dp))
-            Text("WebDAV")
+            Text(stringResource(R.string.storage_type_webdav))
         }
         Button({ onSelect(StorageType.YANDEX) }, Modifier.fillMaxWidth()) {
             Image(
@@ -189,7 +255,7 @@ private fun ColumnScope.StorageTypeSelector(onSelect: (StorageType) -> Unit) {
                 modifier = Modifier.size(16.dp)
             )
             Spacer(Modifier.width(8.dp))
-            Text("Yandex Disk", softWrap = false)
+            Text(stringResource(R.string.storage_type_yandex_disk), softWrap = false)
         }
     }
 }
@@ -198,12 +264,21 @@ private fun ColumnScope.StorageTypeSelector(onSelect: (StorageType) -> Unit) {
 private fun WebDavStorageForm(
     storage: Storage?,
     onSave: (Storage) -> Unit,
+    checkError: String?,
+    isChecking: Boolean,
+    onInputChange: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     var url by remember(storage) { mutableStateOf(storage?.url?.toString() ?: "") }
-    var username by remember(storage) { mutableStateOf(storage?.username ?: "") }
-    var secret by remember(storage) { mutableStateOf(storage?.secret ?: "") }
-    var rootPath by remember(storage) { mutableStateOf(storage?.rootPath ?: "") }
+    var login by remember(storage) { mutableStateOf(storage?.login ?: "") }
+    var password by remember(storage) { mutableStateOf(storage?.password ?: "") }
+
+    val focus = remember { FocusRequester() }
+    LaunchedEffect(storage) {
+        if (storage == null) {
+            focus.requestFocus()
+        }
+    }
 
     Column(
         modifier = modifier
@@ -211,7 +286,16 @@ private fun WebDavStorageForm(
             .padding(12.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        Text(if (storage == null) "Add storage account" else "Edit storage account")
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            StorageTypeIcon(StorageType.WEBDAV)
+            Text(
+                if (storage == null) {
+                    stringResource(R.string.storage_webdav_connect)
+                } else {
+                    stringResource(R.string.storage_webdav_edit)
+                }
+            )
+        }
         OutlinedTextField(
             value = url,
             singleLine = true,
@@ -219,39 +303,47 @@ private fun WebDavStorageForm(
                 imeAction = ImeAction.Next,
                 keyboardType = KeyboardType.Uri
             ),
-            onValueChange = { url = it },
-            label = { Text("Base URL") },
-            modifier = Modifier.fillMaxWidth()
+            onValueChange = {
+                url = it
+                onInputChange()
+            },
+            label = { Text(stringResource(R.string.storage_field_host)) },
+            modifier = Modifier.fillMaxWidth().focusRequester(focus)
         )
         OutlinedTextField(
-            value = username,
+            value = login,
             singleLine = true,
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
-            onValueChange = { username = it },
-            label = { Text("Username") },
+            onValueChange = {
+                login = it
+                onInputChange()
+            },
+            label = { Text(stringResource(R.string.storage_field_login)) },
             modifier = Modifier.fillMaxWidth()
         )
         OutlinedTextField(
-            value = secret,
+            value = password,
             singleLine = true,
             keyboardOptions = KeyboardOptions(
                 imeAction = ImeAction.Next,
                 keyboardType = KeyboardType.Password
             ),
-            onValueChange = { secret = it },
-            label = { Text("Password") },
+            onValueChange = {
+                password = it
+                onInputChange()
+            },
+            label = { Text(stringResource(R.string.storage_field_password)) },
             modifier = Modifier.fillMaxWidth()
         )
-        OutlinedTextField(
-            value = rootPath,
-            singleLine = true,
-            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-            onValueChange = { rootPath = it },
-            label = { Text("Root path") },
-            modifier = Modifier.fillMaxWidth()
-        )
+        if (checkError != null) {
+            Text(
+                text = checkError,
+                color = Color.Red
+            )
+        }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Button(
+                enabled = !isChecking,
                 onClick = {
                     if (url.isBlank()) {
                         return@Button
@@ -261,13 +353,24 @@ private fun WebDavStorageForm(
                             id = storage?.id ?: 0,
                             type = StorageType.WEBDAV,
                             url = url.toUri(),
-                            username = username.trim().ifBlank { null },
-                            secret = secret.ifBlank { null },
-                            rootPath = rootPath.trim().ifBlank { null }
+                            login = login.trim().ifBlank { null },
+                            password = password.ifBlank { null }
                         )
                     )
                 }
-            ) { Text(if (storage == null) "Add" else "Save") }
+            ) {
+                if (isChecking) {
+                    CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                } else {
+                    Text(
+                        if (storage == null) {
+                            stringResource(R.string.storage_action_add)
+                        } else {
+                            stringResource(R.string.save)
+                        }
+                    )
+                }
+            }
         }
     }
 }
@@ -276,11 +379,43 @@ private fun WebDavStorageForm(
 private fun NextCloudStorageForm(
     storage: Storage?,
     onSave: (Storage) -> Unit,
+    checkError: String?,
+    isChecking: Boolean,
+    onInputChange: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    var url by remember(storage) { mutableStateOf(storage?.url?.toString() ?: "") }
-    var username by remember(storage) { mutableStateOf(storage?.username ?: "") }
-    var secret by remember(storage) { mutableStateOf(storage?.secret ?: "") }
+    var host by remember(storage) { mutableStateOf(storage?.url?.toString() ?: "") }
+    var login by remember(storage) { mutableStateOf(storage?.login ?: "") }
+    var password by remember(storage) { mutableStateOf(storage?.password ?: "") }
+
+    val focus = remember { FocusRequester() }
+    LaunchedEffect(storage) {
+        if (storage == null) {
+            focus.requestFocus()
+        }
+    }
+
+    val save = {
+        if (host.isNotEmpty() && login.isNotEmpty() && password.isNotEmpty()) {
+            val url = if (host.startsWith("http://") or host.startsWith("https://")) {
+                host.toUri()
+            } else {
+                "https://$host".toUri()
+            }
+            val login = login.trim().ifBlank { null }
+            val password = password.trim().ifBlank { null }
+
+            onSave(
+                Storage(
+                    id = storage?.id ?: 0,
+                    type = StorageType.NEXTCLOUD,
+                    url = url,
+                    login = login,
+                    password = password
+                )
+            )
+        }
+    }
 
     Column(
         modifier = modifier
@@ -288,54 +423,78 @@ private fun NextCloudStorageForm(
             .padding(12.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        Text(if (storage == null) "Add storage account" else "Edit storage account")
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            StorageTypeIcon(StorageType.NEXTCLOUD)
+            Text(
+                if (storage == null) {
+                    stringResource(R.string.storage_nextcloud_connect)
+                } else {
+                    stringResource(R.string.storage_nextcloud_edit)
+                }
+            )
+        }
         OutlinedTextField(
-            value = url,
+            value = host,
             singleLine = true,
             keyboardOptions = KeyboardOptions(
                 imeAction = ImeAction.Next,
                 keyboardType = KeyboardType.Uri
             ),
-            onValueChange = { url = it },
-            label = { Text("Base URL") },
-            modifier = Modifier.fillMaxWidth()
+            onValueChange = {
+                host = it
+                onInputChange()
+            },
+            label = { Text(stringResource(R.string.storage_field_host)) },
+            modifier = Modifier.fillMaxWidth().focusRequester(focus)
         )
         OutlinedTextField(
-            value = username,
+            value = login,
             singleLine = true,
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
-            onValueChange = { username = it },
-            label = { Text("Username") },
+            onValueChange = {
+                login = it
+                onInputChange()
+            },
+            label = { Text(stringResource(R.string.storage_field_login)) },
             modifier = Modifier.fillMaxWidth()
         )
         OutlinedTextField(
-            value = secret,
+            value = password,
             singleLine = true,
             keyboardOptions = KeyboardOptions(
                 imeAction = ImeAction.Done,
                 keyboardType = KeyboardType.Password
             ),
-            onValueChange = { secret = it },
-            label = { Text("Password") },
+            keyboardActions = KeyboardActions(onDone = { save() }),
+            onValueChange = {
+                password = it
+                onInputChange()
+            },
+            label = { Text(stringResource(R.string.storage_field_password)) },
             modifier = Modifier.fillMaxWidth()
         )
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+
+        Row(horizontalArrangement = Arrangement.End) {
             Button(
-                onClick = {
-                    if (url.isBlank()) {
-                        return@Button
-                    }
-                    onSave(
-                        Storage(
-                            id = storage?.id ?: 0,
-                            type = StorageType.NEXTCLOUD,
-                            url = url.toUri(),
-                            username = username.trim().ifBlank { null },
-                            secret = secret.ifBlank { null }
-                        )
+                enabled = !isChecking,
+                onClick = save
+            ) {
+                if (isChecking) {
+                    CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                } else {
+                    Text(
+                        if (storage == null) {
+                            stringResource(R.string.storage_action_add)
+                        } else {
+                            stringResource(R.string.save)
+                        }
                     )
                 }
-            ) { Text(if (storage == null) "Add" else "Save") }
+            }
+        }
+
+        if (null != checkError) {
+            Text(text = checkError, color = Color.Red)
         }
     }
 }

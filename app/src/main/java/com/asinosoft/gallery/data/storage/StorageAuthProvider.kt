@@ -3,9 +3,11 @@ package com.asinosoft.gallery.data.storage
 import android.content.Context
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
+import javax.inject.Singleton
 import kotlinx.coroutines.runBlocking
 import okhttp3.Request
 
+@Singleton
 class StorageAuthProvider @Inject constructor(
     @param:ApplicationContext val context: Context,
     val storageDao: StorageDao,
@@ -14,17 +16,15 @@ class StorageAuthProvider @Inject constructor(
     private var providers = listOf<StorageProvider>()
 
     init {
-        refresh()
+        runBlocking {
+            refresh()
+        }
     }
 
-    fun refresh() {
-        synchronized(this) {
-            runBlocking {
-                providers = storageDao.getStorages().map { storage ->
-                    storageProviderRegistry.getStorageProvider(storage)
-                }
-            }
-        }
+    suspend fun refresh() {
+        providers = storageDao.getStorages()
+            .filterNot { it.type == StorageType.LOCAL }
+            .map { storage -> storageProviderRegistry.getStorageProvider(storage) }
     }
 
     fun authorize(request: Request): Request {

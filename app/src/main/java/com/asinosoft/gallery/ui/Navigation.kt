@@ -43,6 +43,7 @@ fun Navigation(nav: NavHostController, model: GalleryViewModel, modifier: Modifi
                 onAddTag = model::addToAlbum,
                 onCreateTag = model::addToNewAlbum,
                 onRemoveTag = model::removeFromAlbum,
+                onCheckStorage = model::checkStorage,
                 onAddStorage = model::addStorage,
                 onDeleteStorage = model::deleteStorage,
                 isRefreshing = isRefreshing,

@@ -24,6 +24,7 @@ import com.asinosoft.gallery.R
 import com.asinosoft.gallery.data.Album
 import com.asinosoft.gallery.data.Media
 import com.asinosoft.gallery.data.storage.Storage
+import com.asinosoft.gallery.data.storage.StorageCheckResult
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -39,6 +40,7 @@ fun MainView(
     onAddTag: (Set<Long>, Long) -> Unit,
     onCreateTag: (Set<Long>, String) -> Unit,
     onRemoveTag: (Set<Long>, Long) -> Unit,
+    onCheckStorage: suspend (Storage) -> StorageCheckResult,
     onAddStorage: (Storage) -> Unit,
     onDeleteStorage: (Storage) -> Unit,
     isRefreshing: Boolean,
@@ -85,6 +87,7 @@ fun MainView(
 
                     2 -> StoragesView(
                         storages = storages,
+                        onCheckStorageConnection = onCheckStorage,
                         onAddStorage = onAddStorage,
                         onDeleteStorage = onDeleteStorage
                     )

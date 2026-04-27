@@ -7,6 +7,6 @@ class AppDatabaseInitializer : RoomDatabase.Callback() {
     override fun onCreate(db: SupportSQLiteDatabase) {
         super.onCreate(db)
 
-        db.execSQL("INSERT INTO storage (type, name) VALUES ('LOCAL', 'Телефон')")
+        db.execSQL("INSERT INTO storage (id, type) VALUES (1, 'LOCAL')")
     }
 }

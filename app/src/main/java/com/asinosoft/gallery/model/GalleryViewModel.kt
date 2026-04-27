@@ -7,6 +7,7 @@ import com.asinosoft.gallery.data.AlbumDao
 import com.asinosoft.gallery.data.MediaDao
 import com.asinosoft.gallery.data.MediaService
 import com.asinosoft.gallery.data.storage.Storage
+import com.asinosoft.gallery.data.storage.StorageCheckResult
 import com.asinosoft.gallery.data.storage.StorageDao
 import com.asinosoft.gallery.data.storage.StorageProviderRegistry
 import com.asinosoft.gallery.data.storage.StorageService
@@ -138,6 +139,9 @@ class GalleryViewModel @Inject constructor(
             messageFlow.emit(ex.message)
         }
     }
+
+    suspend fun checkStorage(storage: Storage): StorageCheckResult =
+        storageService.checkStorage(storage)
 
     fun deleteStorage(storage: Storage) = viewModelScope.launch {
         try {

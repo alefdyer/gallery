@@ -4,6 +4,8 @@ import com.asinosoft.gallery.data.AlbumDao
 import com.asinosoft.gallery.data.MediaDao
 import com.asinosoft.gallery.data.MediaService
 import javax.inject.Inject
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 class StorageService @Inject constructor(
     private val albumDao: AlbumDao,
@@ -13,8 +15,14 @@ class StorageService @Inject constructor(
     private val storageAuthProvider: StorageAuthProvider,
     private val mediaService: MediaService
 ) {
+    suspend fun checkStorage(storage: Storage): StorageCheckResult =
+        withContext(Dispatchers.IO) {
+            val provider = storageProviderRegistry.createStorageProvider(storage)
+            provider.checkConnection()
+        }
+
     suspend fun addStorage(storage: Storage) {
-        storageDao.upsert(storage)
+        val storage = storage.withId(storageDao.upsert(storage))
         storageAuthProvider.refresh()
         val provider = storageProviderRegistry.getStorageProvider(storage)
         mediaService.update(provider)

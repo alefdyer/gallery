@@ -18,7 +18,7 @@ class StorageProviderRegistry
     fun getStorageProvider(storage: Storage): StorageProvider =
         cache.getOrPut(storage.id) { createStorageProvider(storage) }
 
-    private fun createStorageProvider(storage: Storage): StorageProvider = when (storage.type) {
+    fun createStorageProvider(storage: Storage): StorageProvider = when (storage.type) {
         StorageType.LOCAL -> LocalStorageProvider(storage, context)
         StorageType.DROPBOX -> DropboxStorageProvider(storage)
         StorageType.NEXTCLOUD -> NextCloudStorageProvider(storage)
