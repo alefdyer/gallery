@@ -25,6 +25,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
+import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.datasource.okhttp.OkHttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
@@ -42,10 +43,13 @@ fun VideoView(media: Media, modifier: Modifier = Modifier, onPlaying: (Boolean) 
 
     val player =
         remember(media.uri) {
-            val mediaSourceFactory =
-                DefaultMediaSourceFactory(
+            val mediaSourceFactory = DefaultMediaSourceFactory(
+                if (1L == media.storageId) {
+                    DefaultDataSource.Factory(context)
+                } else {
                     OkHttpDataSource.Factory(app.httpClient)
-                )
+                }
+            )
             ExoPlayer.Builder(context.applicationContext)
                 .setMediaSourceFactory(mediaSourceFactory)
                 .build()

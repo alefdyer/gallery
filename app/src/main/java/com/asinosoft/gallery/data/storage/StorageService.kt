@@ -15,11 +15,10 @@ class StorageService @Inject constructor(
     private val storageAuthProvider: StorageAuthProvider,
     private val mediaService: MediaService
 ) {
-    suspend fun checkStorage(storage: Storage): StorageCheckResult =
-        withContext(Dispatchers.IO) {
-            val provider = storageProviderRegistry.createStorageProvider(storage)
-            provider.checkConnection()
-        }
+    suspend fun checkStorage(storage: Storage): StorageCheckResult = withContext(Dispatchers.IO) {
+        val provider = storageProviderRegistry.createStorageProvider(storage)
+        provider.checkConnection()
+    }
 
     suspend fun addStorage(storage: Storage) {
         val storage = storage.withId(storageDao.upsert(storage))
