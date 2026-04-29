@@ -26,6 +26,10 @@ class YandexStorageProvider(override val storage: Storage) : StorageProvider {
             "https://oauth.yandex.ru/authorize?response_type=token&client_id=b9d5243b463f443ab96529bd0ae607d4"
     }
 
+    override fun authorize(request: Request): Request = request.newBuilder()
+        .header("Authorization", "OAuth ${storage.password}")
+        .build()
+
     override suspend fun checkConnection(): StorageCheckResult {
         val token = storage.password
         if (token.isNullOrBlank()) return StorageCheckResult.AuthorizationFailed
@@ -91,6 +95,7 @@ class YandexStorageProvider(override val storage: Storage) : StorageProvider {
                                 mimeType = item.mimeType,
                                 storageId = storage.id,
                                 storageItemId = item.path,
+                                thumbnail = item.sizes.firstOrNull { it.name == "M" }?.url?.toUri(),
                                 image = Image()
                             )
                         )

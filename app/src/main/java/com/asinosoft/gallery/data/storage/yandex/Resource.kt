@@ -22,6 +22,8 @@ data class Resource(
     val created: Date,
     @SerializedName("modifier")
     val modified: Date,
+    @SerializedName("sizes")
+    val sizes: List<Thumbnail>,
     @SerializedName("exif")
     val exif: Exif?
 )

@@ -26,12 +26,14 @@ fun ImageThumbnail(media: Media, modifier: Modifier = Modifier) {
         if (thumbnail.exists()) {
             ImageRequest
                 .Builder(LocalContext.current)
+                .coroutineContext(Dispatchers.IO)
                 .data(thumbnail)
                 .build()
         } else {
             ImageRequest
                 .Builder(LocalContext.current)
-                .data(media.uri)
+                .coroutineContext(Dispatchers.IO)
+                .data(media.thumbnail ?: media.uri)
                 .size(size)
                 .listener(onSuccess = { _, result ->
                     if (!media.filename.endsWith(".gif", ignoreCase = true)) {

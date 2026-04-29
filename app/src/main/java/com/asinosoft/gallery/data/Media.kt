@@ -25,6 +25,7 @@ data class Media(
     val mimeType: String,
     val storageId: Long,
     val storageItemId: String,
+    val thumbnail: Uri? = null,
     val image: Image? = null,
     val video: Video? = null
 )

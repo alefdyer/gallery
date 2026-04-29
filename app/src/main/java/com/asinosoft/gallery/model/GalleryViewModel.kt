@@ -60,10 +60,10 @@ class GalleryViewModel @Inject constructor(
         storages.forEach { storage ->
             if (storage.type == StorageType.LOCAL) {
                 LocalStorageObserver.schedule(context, storage)
+
+                rescan(listOf(storage))
             }
         }
-
-        rescan(storages)
     }
 
     fun rescan(storages: List<Storage>) = viewModelScope.launch {
