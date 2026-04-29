@@ -99,6 +99,7 @@ dependencies {
 
     // WebDAV
     implementation("com.github.thegrizzlylabs:sardine-android:0.9")
+    implementation("com.yandex.android:disk-restapi-sdk:1.03")
 
     // Coil
     implementation("io.coil-kt.coil3:coil-compose:3.4.0")

@@ -1,5 +1,9 @@
 package com.asinosoft.gallery.ui
 
+import android.util.Log
+import android.webkit.WebResourceRequest
+import android.webkit.WebView
+import android.webkit.WebViewClient
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
@@ -12,6 +16,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -26,13 +31,16 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -45,12 +53,18 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.viewinterop.AndroidView
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.core.net.toUri
 import com.asinosoft.gallery.R
 import com.asinosoft.gallery.data.storage.Storage
 import com.asinosoft.gallery.data.storage.StorageCheckResult
 import com.asinosoft.gallery.data.storage.StorageType
+import com.asinosoft.gallery.data.storage.yandex.YandexStorageProvider
 import com.asinosoft.gallery.ui.component.StorageTypeIcon
+import java.util.concurrent.atomic.AtomicBoolean
+import java.util.regex.Pattern
 import kotlinx.coroutines.launch
 
 @Composable
@@ -85,7 +99,7 @@ fun StoragesView(
             verticalArrangement = Arrangement.spacedBy(8.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            items(storages.filterNot { it.type == StorageType.LOCAL }, key = { it.id }) { storage ->
+            items(storages, key = { it.id }) { storage ->
                 Card {
                     Column(
                         modifier = Modifier
@@ -106,17 +120,27 @@ fun StoragesView(
                                 modifier = Modifier.weight(2f)
                             )
 
-                            IconButton(onClick = {
-                                account.value = storage
-                                showStorageEditor.value = true
-                            }) {
-                                Icon(painterResource(R.drawable.edit), contentDescription = null)
+                            if (storage.type.isEditable) {
+                                IconButton(onClick = {
+                                    account.value = storage
+                                    showStorageEditor.value = true
+                                }) {
+                                    Icon(
+                                        painterResource(R.drawable.edit),
+                                        contentDescription = null
+                                    )
+                                }
                             }
 
-                            IconButton(onClick = {
-                                onDeleteStorage(storage)
-                            }) {
-                                Icon(painterResource(R.drawable.delete), contentDescription = null)
+                            if (storage.type.isDeletable) {
+                                IconButton(onClick = {
+                                    onDeleteStorage(storage)
+                                }) {
+                                    Icon(
+                                        painterResource(R.drawable.delete),
+                                        contentDescription = null
+                                    )
+                                }
                             }
                         }
                     }
@@ -196,6 +220,11 @@ private fun StorageEditor(
                 checkError = checkError,
                 isChecking = isChecking,
                 onInputChange = ::clearCheckError
+            )
+
+            StorageType.YANDEX -> YandexStorageForm(
+                onSave = ::submitStorage,
+                onCancel = { onCancel() }
             )
 
             else -> Text(stringResource(R.string.storage_not_implemented))
@@ -495,6 +524,96 @@ private fun NextCloudStorageForm(
 
         if (null != checkError) {
             Text(text = checkError, color = Color.Red)
+        }
+    }
+}
+
+@Composable
+private fun YandexStorageForm(
+    onSave: (Storage) -> Unit,
+    onCancel: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val onSave by rememberUpdatedState(onSave)
+    val delivered = remember { AtomicBoolean(false) }
+    val pattern = Pattern.compile("access_token=(\\w+)")
+
+    fun tryDeliver(url: String) {
+        Log.d("yandex", "Url: $url")
+        if (!url.contains("verification_code", ignoreCase = true)) return
+        val matcher = pattern.matcher(url)
+        if (!matcher.find()) return
+
+        val token: String = matcher.group(1) ?: return
+        if (delivered.compareAndSet(false, true)) {
+            onSave(
+                Storage(
+                    type = StorageType.YANDEX,
+                    password = token
+                )
+            )
+        }
+    }
+
+    Dialog(
+        onDismissRequest = onCancel,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Surface(modifier.fillMaxSize().padding(8.dp)) {
+            Column(Modifier.fillMaxSize()) {
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = stringResource(R.string.storage_yandex_auth_title),
+                        style = MaterialTheme.typography.titleMedium
+                    )
+                    TextButton(onClick = onCancel) {
+                        Text(stringResource(android.R.string.cancel))
+                    }
+                }
+                AndroidView(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f)
+                        .heightIn(min = 320.dp),
+                    factory = { context ->
+                        WebView(context).apply {
+                            @SuppressWarnings
+                            settings.javaScriptEnabled = true
+                            settings.domStorageEnabled = true
+                            webViewClient = object : WebViewClient() {
+                                override fun shouldOverrideUrlLoading(
+                                    view: WebView,
+                                    request: WebResourceRequest
+                                ): Boolean {
+                                    tryDeliver(request.url.toString())
+                                    return false
+                                }
+
+                                @Deprecated("Deprecated in Java")
+                                override fun shouldOverrideUrlLoading(
+                                    view: WebView,
+                                    url: String
+                                ): Boolean {
+                                    tryDeliver(url)
+                                    return false
+                                }
+
+                                override fun onPageFinished(view: WebView?, url: String?) {
+                                    super.onPageFinished(view, url)
+                                    view?.url?.let { tryDeliver(it) }
+                                }
+                            }
+                            loadUrl(YandexStorageProvider.AUTHORIZATION_URL)
+                        }
+                    }
+                )
+            }
         }
     }
 }

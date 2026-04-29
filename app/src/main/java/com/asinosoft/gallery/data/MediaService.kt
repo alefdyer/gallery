@@ -117,8 +117,8 @@ class MediaService @Inject constructor(
             )
             updated += media.map { it.id }
 
-            val uris = media.map { it.uri }.toSet()
-            val toInsert = fetched.filterNot { uris.contains(it.uri) }
+            val current = media.map { it.storageItemId }.toSet()
+            val toInsert = fetched.filterNot { current.contains(it.storageItemId) }
 
             if (toInsert.isNotEmpty()) {
                 val mediaIds = mediaDao.upsertAll(toInsert)

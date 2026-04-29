@@ -47,7 +47,7 @@ fun Navigation(nav: NavHostController, model: GalleryViewModel, modifier: Modifi
                 onAddStorage = model::addStorage,
                 onDeleteStorage = model::deleteStorage,
                 isRefreshing = isRefreshing,
-                onRefresh = model::rescan
+                onRefresh = { model.rescan(storages) }
             )
         }
 

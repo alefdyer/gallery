@@ -20,7 +20,6 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.filterNotNull
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.launch
 
@@ -56,19 +55,21 @@ class GalleryViewModel @Inject constructor(
     }
 
     fun start() = viewModelScope.launch {
-        storageDao.getStorages().forEach { storage ->
+        val storages = storageDao.getStorages()
+
+        storages.forEach { storage ->
             if (storage.type == StorageType.LOCAL) {
                 LocalStorageObserver.schedule(context, storage)
             }
         }
 
-        rescan()
+        rescan(storages)
     }
 
-    fun rescan() = viewModelScope.launch {
+    fun rescan(storages: List<Storage>) = viewModelScope.launch {
         rescanFlow.emit(true)
         try {
-            storages.first().forEach { storage ->
+            storages.forEach { storage ->
                 val provider = storageProviderRegistry.getStorageProvider(storage)
                 mediaService.update(provider)
             }
@@ -134,7 +135,8 @@ class GalleryViewModel @Inject constructor(
 
     fun addStorage(storage: Storage) = viewModelScope.launch {
         try {
-            storageService.addStorage(storage)
+            val storage = storageService.addStorage(storage)
+            rescan(listOf(storage))
         } catch (ex: Throwable) {
             messageFlow.emit(ex.message)
         }
