@@ -63,7 +63,7 @@ class YandexStorageProvider(override val storage: Storage) : StorageProvider {
         var offset = 0
         while (true) {
             val request = Request.Builder()
-                .url(BASE_URL + "resources/files?offset=$offset")
+                .url(BASE_URL + "resources/files?limit=100&offset=$offset")
                 .header("Authorization", "OAuth ${storage.password}")
                 .build()
 

@@ -39,8 +39,8 @@ android {
         applicationId = "com.asinosoft.gallery"
         minSdk = 26
         targetSdk = 37
-        versionCode = 4
-        versionName = "1.0"
+        versionCode = 5
+        versionName = "0.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -76,7 +76,7 @@ android {
 }
 
 dependencies {
-    implementation("com.google.code.gson:gson:2.13.2")
+    implementation("com.google.code.gson:gson:2.14.0")
 
     // Core
     implementation("androidx.core:core-ktx:1.18.0")
@@ -99,7 +99,6 @@ dependencies {
 
     // WebDAV
     implementation("com.github.thegrizzlylabs:sardine-android:0.9")
-    implementation("com.yandex.android:disk-restapi-sdk:1.03")
 
     // Coil
     implementation("io.coil-kt.coil3:coil-compose:3.4.0")
@@ -119,7 +118,7 @@ dependencies {
     ksp("androidx.room:room-compiler:$roomVersion")
 
     // KtLint
-    ktlintRuleset("io.nlopez.compose.rules:ktlint:0.5.7")
+    ktlintRuleset("io.nlopez.compose.rules:ktlint:0.5.8")
 
     // Test
     testImplementation("junit:junit:4.13.2")
