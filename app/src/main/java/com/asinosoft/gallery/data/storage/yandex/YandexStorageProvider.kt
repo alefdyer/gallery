@@ -63,7 +63,7 @@ class YandexStorageProvider(override val storage: Storage) : StorageProvider {
         var offset = 0
         while (true) {
             val request = Request.Builder()
-                .url(BASE_URL + "resources/files?limit=100&offset=$offset")
+                .url(BASE_URL + "resources/files?limit=100&preview_size=M&offset=$offset")
                 .header("Authorization", "OAuth ${storage.password}")
                 .build()
 
@@ -85,8 +85,6 @@ class YandexStorageProvider(override val storage: Storage) : StorageProvider {
 
                         emit(
                             Media(
-                                id = 0,
-                                uri = item.file.toUri(),
                                 date = datetime.toLocalDate(),
                                 time = datetime.toLocalTime(),
                                 path = item.path.dropLastWhile { it != '/' },

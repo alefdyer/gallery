@@ -63,7 +63,7 @@ class WebDavStorageProvider(override val storage: Storage) : StorageProvider {
         TODO("Not yet implemented")
     }
 
-    override suspend fun getMediaUri(media: Media): Uri = media.uri
+    override suspend fun getMediaUri(media: Media): Uri = media.uri!!
 
     private fun fetch(path: String): Flow<Media> = flow {
         Log.d("webdav", "Fetch: $path")
@@ -80,7 +80,6 @@ class WebDavStorageProvider(override val storage: Storage) : StorageProvider {
                 val isImage = it.contentType.startsWith("image/")
                 emit(
                     Media(
-                        id = 0,
                         uri = buildAbsoluteDavUrl(it.href.toString()).toUri(),
                         date = datetime.toLocalDate(),
                         time = datetime.toLocalTime(),
@@ -90,12 +89,8 @@ class WebDavStorageProvider(override val storage: Storage) : StorageProvider {
                         mimeType = it.contentType,
                         storageId = storage.id,
                         storageItemId = it.path,
-                        image = Image(
-                            width = 0,
-                            height = 0,
-                            orientation = 0
-                        ).takeIf { isImage },
-                        video = Video(duration = 0).takeIf { !isImage }
+                        image = Image().takeIf { isImage },
+                        video = Video().takeIf { !isImage }
                     )
                 )
             }

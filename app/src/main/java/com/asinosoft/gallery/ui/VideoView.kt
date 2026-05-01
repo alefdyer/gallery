@@ -11,9 +11,11 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -22,6 +24,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
@@ -33,16 +36,24 @@ import androidx.media3.ui.PlayerView
 import com.asinosoft.gallery.GalleryApp
 import com.asinosoft.gallery.R
 import com.asinosoft.gallery.data.Media
+import com.asinosoft.gallery.model.GalleryViewModel
+import kotlinx.coroutines.launch
 
 @OptIn(UnstableApi::class)
 @Composable
-fun VideoView(media: Media, modifier: Modifier = Modifier, onPlaying: (Boolean) -> Unit = {}) {
+fun VideoView(
+    media: Media,
+    modifier: Modifier = Modifier,
+    model: GalleryViewModel = hiltViewModel(),
+    onPlaying: (Boolean) -> Unit = {}
+) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     val app = context.applicationContext as GalleryApp
     var isPlaying by remember { mutableStateOf(false) }
 
     val player =
-        remember(media.uri) {
+        remember(media) {
             val mediaSourceFactory = DefaultMediaSourceFactory(
                 if (1L == media.storageId) {
                     DefaultDataSource.Factory(context)
@@ -54,11 +65,17 @@ fun VideoView(media: Media, modifier: Modifier = Modifier, onPlaying: (Boolean) 
                 .setMediaSourceFactory(mediaSourceFactory)
                 .build()
                 .apply {
-                    setMediaItem(MediaItem.fromUri(media.uri))
                     repeatMode = Player.REPEAT_MODE_ONE
                     prepare()
                 }
         }
+
+    LaunchedEffect(media) {
+        scope.launch {
+            val uri = model.getMediaUri(media)
+            player.setMediaItem(MediaItem.fromUri(uri))
+        }
+    }
 
     DisposableEffect(player, onPlaying) {
         val listener =

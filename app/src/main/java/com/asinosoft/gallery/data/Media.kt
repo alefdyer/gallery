@@ -15,16 +15,16 @@ import java.time.LocalTime
 )
 data class Media(
     @PrimaryKey(autoGenerate = true)
-    val id: Long,
-    val uri: Uri,
-    val date: LocalDate,
-    val time: LocalTime,
-    val path: String,
-    val size: Long,
-    val filename: String,
-    val mimeType: String,
-    val storageId: Long,
-    val storageItemId: String,
+    val id: Long = 0,
+    val uri: Uri? = null,
+    val date: LocalDate = LocalDate.now(),
+    val time: LocalTime = LocalTime.now(),
+    val path: String = "",
+    val size: Long = -1,
+    val filename: String = "",
+    val mimeType: String = "",
+    val storageId: Long = 0,
+    val storageItemId: String = "",
     val thumbnail: Uri? = null,
     val image: Image? = null,
     val video: Video? = null

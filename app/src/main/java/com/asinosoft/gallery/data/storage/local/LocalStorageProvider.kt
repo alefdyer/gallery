@@ -39,8 +39,16 @@ class LocalStorageProvider(
             null
         }
 
-    override suspend fun getMediaUri(media: Media): Uri =
-        ContentUris.withAppendedId(Images.Media.EXTERNAL_CONTENT_URI, media.storageItemId.toLong())
+    override suspend fun getMediaUri(media: Media): Uri = ContentUris.withAppendedId(
+        if (media.image !=
+            null
+        ) {
+            Images.Media.EXTERNAL_CONTENT_URI
+        } else {
+            Videos.Media.EXTERNAL_CONTENT_URI
+        },
+        media.storageItemId.toLong()
+    )
 
     private fun fetchImages(selection: String): Flow<Media> = flow {
         val sortOrder = "${Images.Media.DATE_TAKEN} DESC"
