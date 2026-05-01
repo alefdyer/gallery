@@ -24,7 +24,7 @@ class StorageAuthProvider @Inject constructor(
     suspend fun refresh() {
         providers = storageDao.getStorages()
             .filterNot { it.type == StorageType.LOCAL }
-            .map { storage -> storageProviderRegistry.getStorageProvider(storage) }
+            .map { storage -> storageProviderRegistry.getStorageProvider(storage.id) }
     }
 
     fun authorize(request: Request): Request {

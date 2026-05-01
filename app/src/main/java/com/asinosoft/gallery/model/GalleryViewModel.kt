@@ -1,9 +1,11 @@
 package com.asinosoft.gallery.model
 
 import android.content.Context
+import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.asinosoft.gallery.data.AlbumDao
+import com.asinosoft.gallery.data.Media
 import com.asinosoft.gallery.data.MediaDao
 import com.asinosoft.gallery.data.MediaService
 import com.asinosoft.gallery.data.storage.Storage
@@ -70,7 +72,7 @@ class GalleryViewModel @Inject constructor(
         rescanFlow.emit(true)
         try {
             storages.forEach { storage ->
-                val provider = storageProviderRegistry.getStorageProvider(storage)
+                val provider = storageProviderRegistry.getStorageProvider(storage.id)
                 mediaService.update(provider)
             }
         } catch (ex: Throwable) {
@@ -152,4 +154,8 @@ class GalleryViewModel @Inject constructor(
             messageFlow.emit(ex.message)
         }
     }
+
+    suspend fun getMediaUri(media: Media): Uri =
+        storageProviderRegistry.getStorageProvider(media.storageId)
+            .getMediaUri(media)
 }

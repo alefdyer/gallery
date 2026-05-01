@@ -109,4 +109,19 @@ class YandexStorageProvider(override val storage: Storage) : StorageProvider {
     override suspend fun fetchOne(uri: Uri): Media? {
         TODO("Not yet implemented")
     }
+
+    override suspend fun getMediaUri(media: Media): Uri = withContext(Dispatchers.IO) {
+        val request = Request.Builder()
+            .url(BASE_URL + "resources/download?path=${media.storageItemId}")
+            .header("Authorization", "OAuth ${storage.password}")
+            .build()
+
+        OkHttpClient().newCall(request).execute().use { response ->
+            val resource: Download = response.body!!.use { body ->
+                Gson().fromJson(body.string(), Download::class.java)
+            }
+
+            resource.href.toUri()
+        }
+    }
 }

@@ -16,4 +16,6 @@ interface StorageProvider {
     suspend fun fetchAll(): Flow<Media>
 
     suspend fun fetchOne(uri: Uri): Media?
+
+    suspend fun getMediaUri(media: Media): Uri
 }

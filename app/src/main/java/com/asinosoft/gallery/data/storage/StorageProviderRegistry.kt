@@ -12,12 +12,15 @@ import javax.inject.Singleton
 @Singleton
 class StorageProviderRegistry
 @Inject constructor(
+    val storageDao: StorageDao,
     @param:ApplicationContext private val context: Context
 ) {
     private val cache = mutableMapOf<Long, StorageProvider>()
 
-    fun getStorageProvider(storage: Storage): StorageProvider =
-        cache.getOrPut(storage.id) { createStorageProvider(storage) }
+    suspend fun getStorageProvider(storageId: Long): StorageProvider = cache.getOrPut(storageId) {
+        val storage = storageDao.getStorageById(storageId)
+        createStorageProvider(storage)
+    }
 
     fun createStorageProvider(storage: Storage): StorageProvider = when (storage.type) {
         StorageType.LOCAL -> LocalStorageProvider(storage, context)

@@ -12,4 +12,6 @@ abstract class NoopRemoteStorageProvider : StorageProvider {
     final override suspend fun fetchAll(): Flow<Media> = emptyFlow()
 
     final override suspend fun fetchOne(uri: Uri): Media? = null
+
+    final override suspend fun getMediaUri(media: Media): Uri = media.uri
 }

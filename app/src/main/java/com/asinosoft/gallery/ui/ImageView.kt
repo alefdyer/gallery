@@ -1,5 +1,7 @@
 package com.asinosoft.gallery.ui
 
+import android.graphics.Bitmap
+import android.util.Log
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.exponentialDecay
 import androidx.compose.foundation.gestures.awaitEachGesture
@@ -8,6 +10,8 @@ import androidx.compose.foundation.gestures.calculateZoom
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
@@ -17,9 +21,11 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.PointerId
 import androidx.compose.ui.input.pointer.pointerInput
@@ -31,14 +37,25 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.toSize
 import androidx.compose.ui.util.fastAny
 import androidx.compose.ui.util.fastForEach
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import coil3.ImageLoader
 import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
+import coil3.toBitmap
 import com.asinosoft.gallery.data.Media
+import com.asinosoft.gallery.model.GalleryViewModel
 import kotlin.math.max
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
 @Composable
-fun ImageView(media: Media, modifier: Modifier = Modifier, onTap: () -> Unit = {}) {
+fun ImageView(
+    media: Media,
+    modifier: Modifier = Modifier,
+    onTap: () -> Unit = {},
+    model: GalleryViewModel = hiltViewModel()
+) {
+    val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
     var viewSize by remember { mutableStateOf(Size.Zero) }
@@ -50,8 +67,46 @@ fun ImageView(media: Media, modifier: Modifier = Modifier, onTap: () -> Unit = {
 
     val offsetX = remember { Animatable(0f) }
     val offsetY = remember { Animatable(0f) }
+    var isLoading by remember { mutableStateOf(false) }
+
+    var bitmap by remember { mutableStateOf<Bitmap?>(null) }
+    var error by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(minScale) { scale = minScale }
+
+    LaunchedEffect(media) {
+        scope.launch(Dispatchers.IO) {
+            try {
+                Log.i("image", "Fetch $media")
+                isLoading = true
+                val uri = model.getMediaUri(media)
+                Log.d("image", "Uri $uri")
+
+                val request = ImageRequest.Builder(context)
+                    .data(uri)
+                    .size(2000)
+                    .listener(
+                        onError = { _, result ->
+                            Log.e("image", "Error ${result.throwable}")
+                            error = result.throwable.message
+                            isLoading = false
+                        },
+                        onSuccess = { _, _ -> isLoading = false }
+                    )
+                    .target { data ->
+                        Log.i("image", "Success [${data.width}x${data.height}]")
+                        bitmap = data.toBitmap()
+                        imageSize = Size(data.width.toFloat(), data.height.toFloat())
+                    }
+                    .build()
+
+                ImageLoader(context).execute(request)
+            } catch (ex: Throwable) {
+                error = ex.message
+                isLoading = false
+            }
+        }
+    }
 
     val toggleScale: (Offset) -> Unit = { tapOffset ->
         val oldScale = scale
@@ -142,28 +197,40 @@ fun ImageView(media: Media, modifier: Modifier = Modifier, onTap: () -> Unit = {
                     }
                 }
     ) {
-        AsyncImage(
-            model =
-                ImageRequest
-                    .Builder(LocalContext.current)
-                    .data(media.uri)
-                    .size(2000)
-                    .build(),
-            clipToBounds = false,
-            contentDescription = "",
-            contentScale = ContentScale.None,
-            onState = { state -> state.painter?.let { imageSize = it.intrinsicSize } },
-            modifier =
-                Modifier
-                    .fillMaxSize()
-                    .onSizeChanged { viewSize = it.toSize() }
-                    .graphicsLayer {
-                        scaleX = scale
-                        scaleY = scale
-                        translationX = offsetX.value
-                        translationY = offsetY.value
-                    }
-        )
+        bitmap?.let { bitmap ->
+            AsyncImage(
+                model = bitmap,
+                clipToBounds = false,
+                contentDescription = "",
+                contentScale = ContentScale.None,
+                onState = { state -> state.painter?.let { imageSize = it.intrinsicSize } },
+                modifier =
+                    Modifier
+                        .fillMaxSize()
+                        .onSizeChanged { viewSize = it.toSize() }
+                        .graphicsLayer {
+                            scaleX = scale
+                            scaleY = scale
+                            translationX = offsetX.value
+                            translationY = offsetY.value
+                        }
+            )
+        }
+
+        error?.let { error ->
+            Text(
+                text = error,
+                color = Color.Red,
+                modifier = Modifier.align(Alignment.Center)
+            )
+        }
+
+        if (isLoading) {
+            CircularProgressIndicator(
+                color = Color.White,
+                modifier = Modifier.align(Alignment.Center)
+            )
+        }
     }
 }
 

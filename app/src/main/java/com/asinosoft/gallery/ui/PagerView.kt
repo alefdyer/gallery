@@ -65,7 +65,7 @@ fun PagerView(
         ) { n ->
             val item = items[n]
             if (null !== item.image) {
-                ImageView(item) { showControls = !showControls }
+                ImageView(item, onTap = { showControls = !showControls })
             } else if (null != item.video) {
                 VideoView(item) { isPlaying -> showControls = !isPlaying }
             } else {
