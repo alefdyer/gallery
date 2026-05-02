@@ -8,6 +8,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.size
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -50,6 +51,7 @@ fun VideoView(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val app = context.applicationContext as GalleryApp
+    var isLoading by remember { mutableStateOf(false) }
     var isPlaying by remember { mutableStateOf(false) }
 
     val player =
@@ -65,12 +67,14 @@ fun VideoView(
                 .setMediaSourceFactory(mediaSourceFactory)
                 .build()
                 .apply {
+                    playWhenReady = true
                     repeatMode = Player.REPEAT_MODE_ONE
                     prepare()
                 }
         }
 
     LaunchedEffect(media) {
+        isLoading = true
         scope.launch {
             val uri = model.getMediaUri(media)
             player.setMediaItem(MediaItem.fromUri(uri))
@@ -80,6 +84,9 @@ fun VideoView(
     DisposableEffect(player, onPlaying) {
         val listener =
             object : Player.Listener {
+                override fun onIsLoadingChanged(loading: Boolean) {
+                    isLoading = isLoading and loading
+                }
                 override fun onIsPlayingChanged(playing: Boolean) {
                     isPlaying = playing
                     onPlaying(isPlaying)
@@ -95,6 +102,7 @@ fun VideoView(
     }
 
     Box(
+        contentAlignment = Alignment.Center,
         modifier =
             modifier
                 .fillMaxSize()
@@ -113,22 +121,23 @@ fun VideoView(
 
         AnimatedVisibility(
             visible = !isPlaying,
-            modifier = Modifier.align(Alignment.Center),
             enter = fadeIn(),
             exit = fadeOut()
         ) {
-            Icon(
-                if (isPlaying) {
-                    painterResource(
-                        R.drawable.pause
-                    )
-                } else {
-                    painterResource(R.drawable.play)
-                },
-                contentDescription = if (isPlaying) "Pause" else "Play",
-                modifier = Modifier.size(64.dp),
-                tint = Color.Unspecified
-            )
+            if (isLoading) {
+                CircularProgressIndicator(color = Color.White)
+            } else {
+                Icon(
+                    if (isPlaying) {
+                        painterResource(R.drawable.pause)
+                    } else {
+                        painterResource(R.drawable.play)
+                    },
+                    contentDescription = if (isPlaying) "Pause" else "Play",
+                    modifier = Modifier.size(64.dp),
+                    tint = Color.Unspecified
+                )
+            }
         }
     }
 }
