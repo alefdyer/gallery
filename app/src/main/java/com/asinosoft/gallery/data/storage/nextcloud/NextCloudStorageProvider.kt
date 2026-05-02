@@ -69,29 +69,32 @@ class NextCloudStorageProvider(override val storage: Storage) : StorageProvider 
 
     private fun fetch(path: String): Flow<Media> = flow {
         Log.d("nextcloud", "Fetch: $path")
-        connection.list(path).forEach {
-            Log.d("nextcloud", "Found: $it|${it.path}")
-            if (path.endsWith(it.path)) return@forEach
+        connection.list(path).forEach { item ->
+            Log.d("nextcloud", "Found: $item|${item.path}")
+            if (path.endsWith(item.path)) return@forEach
 
-            if (it.isDirectory) {
-                emitAll(fetch(buildUrl(it.path)))
-            } else if (it.contentType.startsWith("image/") || it.contentType.startsWith("video/")) {
-                Log.d("nextcloud", "Add: [${storage.id}, ${it.path}]")
+            if (item.isDirectory) {
+                emitAll(fetch(buildUrl(item.path)))
+            } else if (item.contentType.startsWith("image/") ||
+                item.contentType.startsWith("video/")
+            ) {
+                Log.d("nextcloud", "Add: [${storage.id}, ${item.path}]")
                 val datetime =
-                    it.modified?.toInstant()?.atZone(ZoneId.systemDefault()) ?: ZonedDateTime.now()
-                val isImage = it.contentType.startsWith("image/")
+                    item.modified?.toInstant()?.atZone(ZoneId.systemDefault())
+                        ?: ZonedDateTime.now()
+                val isImage = item.contentType.startsWith("image/")
                 emit(
                     Media(
                         id = 0,
-                        uri = buildUrl(it.href.toString()).toUri(),
+                        uri = buildUrl(item.href.toString()).toUri(),
                         date = datetime.toLocalDate(),
                         time = datetime.toLocalTime(),
-                        path = it.path,
-                        size = it.contentLength,
-                        filename = it.name,
-                        mimeType = it.contentType,
+                        path = item.path.dropLastWhile { it != '/' },
+                        size = item.contentLength,
+                        filename = item.name,
+                        mimeType = item.contentType,
                         storageId = storage.id,
-                        storageItemId = it.path,
+                        storageItemId = item.path,
                         image = Image(
                             width = 0,
                             height = 0,

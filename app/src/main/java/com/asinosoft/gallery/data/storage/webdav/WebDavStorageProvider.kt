@@ -67,28 +67,31 @@ class WebDavStorageProvider(override val storage: Storage) : StorageProvider {
 
     private fun fetch(path: String): Flow<Media> = flow {
         Log.d("webdav", "Fetch: $path")
-        webdav.list(path).forEach {
-            Log.d("webdav", "Found: $it|${it.path}")
-            if (path.endsWith(it.path)) return@forEach
+        webdav.list(path).forEach { item ->
+            Log.d("webdav", "Found: $item|${item.path}")
+            if (path.endsWith(item.path)) return@forEach
 
-            if (it.isDirectory) {
-                emitAll(fetch(buildAbsoluteDavUrl(it.path)))
-            } else if (it.contentType.startsWith("image/") || it.contentType.startsWith("video/")) {
-                Log.d("webdav", "Add: [${storage.id}, ${it.path}]")
+            if (item.isDirectory) {
+                emitAll(fetch(buildAbsoluteDavUrl(item.path)))
+            } else if (item.contentType.startsWith("image/") ||
+                item.contentType.startsWith("video/")
+            ) {
+                Log.d("webdav", "Add: [${storage.id}, ${item.path}]")
                 val datetime =
-                    it.modified?.toInstant()?.atZone(ZoneId.systemDefault()) ?: ZonedDateTime.now()
-                val isImage = it.contentType.startsWith("image/")
+                    item.modified?.toInstant()?.atZone(ZoneId.systemDefault())
+                        ?: ZonedDateTime.now()
+                val isImage = item.contentType.startsWith("image/")
                 emit(
                     Media(
-                        uri = buildAbsoluteDavUrl(it.href.toString()).toUri(),
+                        uri = buildAbsoluteDavUrl(item.href.toString()).toUri(),
                         date = datetime.toLocalDate(),
                         time = datetime.toLocalTime(),
-                        path = it.path,
-                        size = it.contentLength,
-                        filename = it.name,
-                        mimeType = it.contentType,
+                        path = item.path.dropLastWhile { it != '/' },
+                        size = item.contentLength,
+                        filename = item.name,
+                        mimeType = item.contentType,
                         storageId = storage.id,
-                        storageItemId = it.path,
+                        storageItemId = item.path,
                         image = Image().takeIf { isImage },
                         video = Video().takeIf { !isImage }
                     )
