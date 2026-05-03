@@ -26,6 +26,7 @@
     <string name="storage_yandex_edit">Изменить Яндекс.Диск</string>
     <string name="storage_yandex_sign_in">Войти через Яндекс</string>
     <string name="storage_yandex_auth_title">Авторизация Яндекс</string>
+    <string name="storage_yandex_oauth_hint">Откроется браузер. После входа приложение получит доступ к Яндекс.Диску.</string>
     <string name="storage_yandex_signed_in">Аккаунт авторизован</string>
     <string name="storage_webdav_connect">Подключить WebDAV</string>
     <string name="storage_webdav_edit">Изменить WebDAV хранилище</string>

@@ -1,9 +1,11 @@
 package com.asinosoft.gallery
 
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
+import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
@@ -12,7 +14,11 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
+import androidx.lifecycle.lifecycleScope
 import androidx.navigation.compose.rememberNavController
+import com.asinosoft.gallery.data.storage.yandex.YandexOAuth
+import com.asinosoft.gallery.data.storage.yandex.YandexOAuthBus
+import com.asinosoft.gallery.data.storage.yandex.YandexOAuthEvent
 import com.asinosoft.gallery.di.IntentHelper
 import com.asinosoft.gallery.model.GalleryViewModel
 import com.asinosoft.gallery.ui.Navigation
@@ -46,6 +52,8 @@ class MainActivity : ComponentActivity() {
         if (PackageManager.PERMISSION_GRANTED == checkSelfPermission(permission)) {
             model.start()
         }
+
+        handleYandexOAuthRedirect(intent)
 
         setContent {
             val storagePermission =
@@ -81,6 +89,32 @@ class MainActivity : ComponentActivity() {
 
                 SnackbarHost(snackbarHostState)
             }
+        }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleYandexOAuthRedirect(intent)
+    }
+
+    private fun handleYandexOAuthRedirect(intent: Intent?) {
+        Log.d("activity", "Url = ${intent?.data}")
+        val uri = intent?.data ?: return
+        if (!YandexOAuth.isRedirect(uri)) return
+        lifecycleScope.launch {
+            val result = YandexOAuth.completeAuthorization(uri)
+            Log.d("activity", "Result: $result")
+            result.fold(
+                onSuccess = { token ->
+                    YandexOAuthBus.emit(YandexOAuthEvent.Success(token))
+                },
+                onFailure = { e ->
+                    YandexOAuthBus.emit(
+                        YandexOAuthEvent.Failure(e.message ?: e.toString())
+                    )
+                }
+            )
         }
     }
 }

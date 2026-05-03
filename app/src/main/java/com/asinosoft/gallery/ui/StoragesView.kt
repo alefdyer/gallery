@@ -1,10 +1,7 @@
 package com.asinosoft.gallery.ui
 
-import android.util.Log
-import android.webkit.WebResourceRequest
-import android.webkit.WebView
-import android.webkit.WebViewClient
 import androidx.activity.compose.BackHandler
+import androidx.browser.customtabs.CustomTabsIntent
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -16,7 +13,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -35,6 +31,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -47,13 +44,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.core.net.toUri
@@ -61,10 +58,11 @@ import com.asinosoft.gallery.R
 import com.asinosoft.gallery.data.storage.Storage
 import com.asinosoft.gallery.data.storage.StorageCheckResult
 import com.asinosoft.gallery.data.storage.StorageType
-import com.asinosoft.gallery.data.storage.yandex.YandexStorageProvider
+import com.asinosoft.gallery.data.storage.yandex.YandexOAuth
+import com.asinosoft.gallery.data.storage.yandex.YandexOAuthBus
+import com.asinosoft.gallery.data.storage.yandex.YandexOAuthEvent
 import com.asinosoft.gallery.ui.component.StorageTypeIcon
 import java.util.concurrent.atomic.AtomicBoolean
-import java.util.regex.Pattern
 import kotlinx.coroutines.launch
 
 @Composable
@@ -534,24 +532,33 @@ private fun YandexStorageForm(
     onCancel: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val onSave by rememberUpdatedState(onSave)
+    val context = LocalContext.current
+    val onSaveUpdated by rememberUpdatedState(onSave)
     val delivered = remember { AtomicBoolean(false) }
-    val pattern = Pattern.compile("access_token=(\\w+)")
+    var authError by remember { mutableStateOf<String?>(null) }
 
-    fun tryDeliver(url: String) {
-        Log.d("yandex", "Url: $url")
-        if (!url.contains("verification_code", ignoreCase = true)) return
-        val matcher = pattern.matcher(url)
-        if (!matcher.find()) return
+    DisposableEffect(Unit) {
+        onDispose { YandexOAuth.cancelPending() }
+    }
 
-        val token: String = matcher.group(1) ?: return
-        if (delivered.compareAndSet(false, true)) {
-            onSave(
-                Storage(
-                    type = StorageType.YANDEX,
-                    password = token
-                )
-            )
+    LaunchedEffect(Unit) {
+        YandexOAuthBus.events.collect { event ->
+            when (event) {
+                is YandexOAuthEvent.Success -> {
+                    if (delivered.compareAndSet(false, true)) {
+                        onSaveUpdated(
+                            Storage(
+                                type = StorageType.YANDEX,
+                                password = event.accessToken
+                            )
+                        )
+                    }
+                }
+
+                is YandexOAuthEvent.Failure -> {
+                    authError = event.message
+                }
+            }
         }
     }
 
@@ -560,11 +567,14 @@ private fun YandexStorageForm(
         properties = DialogProperties(usePlatformDefaultWidth = false)
     ) {
         Surface(modifier.fillMaxSize().padding(8.dp)) {
-            Column(Modifier.fillMaxSize()) {
+            Column(
+                Modifier
+                    .fillMaxSize()
+                    .padding(12.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
                 Row(
-                    Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                    Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -576,43 +586,27 @@ private fun YandexStorageForm(
                         Text(stringResource(android.R.string.cancel))
                     }
                 }
-                AndroidView(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .weight(1f)
-                        .heightIn(min = 320.dp),
-                    factory = { context ->
-                        WebView(context).apply {
-                            @SuppressWarnings
-                            settings.javaScriptEnabled = true
-                            settings.domStorageEnabled = true
-                            webViewClient = object : WebViewClient() {
-                                override fun shouldOverrideUrlLoading(
-                                    view: WebView,
-                                    request: WebResourceRequest
-                                ): Boolean {
-                                    tryDeliver(request.url.toString())
-                                    return false
-                                }
-
-                                @Deprecated("Deprecated in Java")
-                                override fun shouldOverrideUrlLoading(
-                                    view: WebView,
-                                    url: String
-                                ): Boolean {
-                                    tryDeliver(url)
-                                    return false
-                                }
-
-                                override fun onPageFinished(view: WebView?, url: String?) {
-                                    super.onPageFinished(view, url)
-                                    view?.url?.let { tryDeliver(it) }
-                                }
-                            }
-                            loadUrl(YandexStorageProvider.AUTHORIZATION_URL)
-                        }
-                    }
+                Text(
+                    text = stringResource(R.string.storage_yandex_oauth_hint),
+                    style = MaterialTheme.typography.bodyMedium
                 )
+                Button(
+                    onClick = {
+                        authError = null
+                        runCatching {
+                            val uri = YandexOAuth.startAuthorization()
+                            CustomTabsIntent.Builder().build().launchUrl(context, uri)
+                        }.onFailure { e ->
+                            authError = e.message ?: e.toString()
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(stringResource(R.string.storage_yandex_sign_in))
+                }
+                authError?.let { err ->
+                    Text(text = err, color = Color.Red, style = MaterialTheme.typography.bodySmall)
+                }
             }
         }
     }
