@@ -46,6 +46,8 @@ android {
         vectorDrawables {
             useSupportLibrary = true
         }
+
+        manifestPlaceholders["YANDEX_CLIENT_ID"] = "a4d15c7dab2741ccadadfd950838f18f"
     }
 
     buildTypes {
@@ -99,6 +101,9 @@ dependencies {
 
     // WebDAV
     implementation("com.github.thegrizzlylabs:sardine-android:0.9")
+
+    // Yandex
+    implementation("com.yandex.android:authsdk:3.2.0")
 
     // Coil
     implementation("io.coil-kt.coil3:coil-compose:3.4.0")
