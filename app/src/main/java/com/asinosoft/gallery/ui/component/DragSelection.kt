@@ -2,7 +2,7 @@ package com.asinosoft.gallery.ui.component
 
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.gestures.scrollBy
-import androidx.compose.foundation.lazy.staggeredgrid.LazyStaggeredGridState
+import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -10,9 +10,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.pointer.pointerInput
-import com.asinosoft.gallery.data.ListItem
 import com.asinosoft.gallery.data.Media
-import com.asinosoft.gallery.data.MediaItem
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -31,12 +29,7 @@ class DragSelectionState {
     private var startSelection by mutableStateOf<Set<Long>>(setOf())
     private var mode by mutableStateOf<Mode?>(null)
 
-    fun onDragStart(
-        items: List<ListItem>,
-        selected: Set<Long>,
-        index: Int,
-        mediaId: Long
-    ): Set<Long> {
+    fun onDragStart(items: List<Media>, selected: Set<Long>, index: Int, mediaId: Long): Set<Long> {
         active = true
         startIndex = index
         mode = if (selected.contains(mediaId)) Mode.Remove else Mode.Add
@@ -50,7 +43,7 @@ class DragSelectionState {
         )
     }
 
-    fun onDrag(items: List<ListItem>, index: Int): Set<Long> =
+    fun onDrag(items: List<Media>, index: Int): Set<Long> =
         applyDragSelection(items, startSelection, startIndex, index, mode)
 
     fun onDragEnd() {
@@ -61,8 +54,8 @@ class DragSelectionState {
 }
 
 fun Modifier.dragSelection(
-    items: List<ListItem>,
-    state: LazyStaggeredGridState,
+    items: List<Media>,
+    state: LazyGridState,
     currentSelection: () -> Set<Long>,
     dragSelectionState: DragSelectionState,
     onSelectedChange: (Set<Long>) -> Unit
@@ -121,7 +114,7 @@ fun Modifier.dragSelection(
     )
 }
 
-private fun calculateAutoScrollDelta(offset: Float, state: LazyStaggeredGridState): Float {
+private fun calculateAutoScrollDelta(offset: Float, state: LazyGridState): Float {
     val viewportStart = state.layoutInfo.viewportStartOffset.toFloat()
     val viewportEnd = state.layoutInfo.viewportEndOffset.toFloat()
     val topDistance = offset - viewportStart
@@ -144,8 +137,8 @@ private fun calculateAutoScrollDelta(offset: Float, state: LazyStaggeredGridStat
 
 private fun getMediaAtPosition(
     offset: Offset,
-    state: LazyStaggeredGridState,
-    items: List<ListItem>
+    state: LazyGridState,
+    items: List<Media>
 ): Pair<Int, Media>? {
     val index = state.layoutInfo.visibleItemsInfo.firstOrNull { info ->
         offset.x >= info.offset.x &&
@@ -154,14 +147,11 @@ private fun getMediaAtPosition(
             offset.y <= info.offset.y + info.size.height
     }?.index ?: return null
 
-    return when (val item = items[index]) {
-        is MediaItem -> Pair(index, item.media)
-        else -> null
-    }
+    return Pair(index, items[index])
 }
 
 private fun applyDragSelection(
-    items: List<ListItem>,
+    items: List<Media>,
     selected: Set<Long>,
     start: Int,
     end: Int,
@@ -172,12 +162,9 @@ private fun applyDragSelection(
     null -> selected
 }
 
-private fun List<ListItem>.mediaIds(start: Int, end: Int): Set<Long> = subList(
+private fun List<Media>.mediaIds(start: Int, end: Int): Set<Long> = subList(
     start.coerceAtMost(end),
     end.coerceAtLeast(start) + 1
-).mapNotNull {
-    when (it) {
-        is MediaItem -> it.media.id
-        else -> null
-    }
+).map {
+    it.id
 }.toSet()

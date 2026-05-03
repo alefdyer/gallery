@@ -76,7 +76,7 @@ fun Navigation(nav: NavHostController, model: GalleryViewModel, modifier: Modifi
 
             ImageListView(
                 albums = albums,
-                media = albumImages,
+                images = albumImages,
                 albumId = albumId,
                 onClick = { image -> nav.navigate("album/$albumId/pager/${image.id}") },
                 onClose = nav::navigateUp,

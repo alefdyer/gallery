@@ -10,7 +10,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.lazy.staggeredgrid.LazyStaggeredGridState
+import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
@@ -32,8 +32,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import com.asinosoft.gallery.R
-import com.asinosoft.gallery.data.ListItem
-import com.asinosoft.gallery.data.MediaItem
+import com.asinosoft.gallery.data.Media
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
@@ -41,18 +40,9 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
-private fun firstVisibleMediaDate(
-    listItems: List<ListItem>,
-    lazyGridState: LazyStaggeredGridState
-): LocalDate? {
-    var i = lazyGridState.firstVisibleItemIndex
-    while (i < listItems.size) {
-        when (val entry = listItems[i]) {
-            is MediaItem -> return entry.media.date
-            else -> i++
-        }
-    }
-    return null
+private fun firstVisibleMediaDate(listItems: List<Media>, lazyGridState: LazyGridState): LocalDate {
+    val i = lazyGridState.firstVisibleItemIndex
+    return listItems[i].date
 }
 
 private val shortDateFormatter: DateTimeFormatter =
@@ -60,8 +50,8 @@ private val shortDateFormatter: DateTimeFormatter =
 
 @Composable
 fun LazyGridVerticalScrollIndicator(
-    lazyGridState: LazyStaggeredGridState,
-    listItems: List<ListItem>,
+    lazyGridState: LazyGridState,
+    listItems: List<Media>,
     modifier: Modifier = Modifier
 ) {
     val indicator = lazyGridState.scrollIndicatorState ?: return
@@ -89,7 +79,7 @@ fun LazyGridVerticalScrollIndicator(
     val scope = rememberCoroutineScope()
     val dateLabel by remember(listItems) {
         derivedStateOf {
-            firstVisibleMediaDate(listItems, lazyGridState)?.format(shortDateFormatter)
+            firstVisibleMediaDate(listItems, lazyGridState).format(shortDateFormatter)
         }
     }
 

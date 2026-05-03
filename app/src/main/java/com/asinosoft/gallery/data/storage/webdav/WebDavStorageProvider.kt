@@ -91,6 +91,7 @@ class WebDavStorageProvider(override val storage: Storage) : StorageProvider {
                         filename = item.name,
                         mimeType = item.contentType,
                         storageId = storage.id,
+                        storageType = storage.type,
                         storageItemId = item.path,
                         image = Image().takeIf { isImage },
                         video = Video().takeIf { !isImage }

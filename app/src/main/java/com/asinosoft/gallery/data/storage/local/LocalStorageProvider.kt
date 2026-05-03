@@ -115,6 +115,7 @@ class LocalStorageProvider(
                         filename = data,
                         mimeType = mimeType,
                         storageId = storage.id,
+                        storageType = storage.type,
                         storageItemId = id.toString(),
                         image =
                             Image(
@@ -187,6 +188,7 @@ class LocalStorageProvider(
                         filename = data,
                         mimeType = mimeType,
                         storageId = storage.id,
+                        storageType = storage.type,
                         storageItemId = id.toString(),
                         video = Video(duration)
                     )

@@ -70,7 +70,7 @@ fun MainView(
                 when (it) {
                     0 -> ImageListView(
                         albums = albums,
-                        media = images,
+                        images = images,
                         onClick = onMediaClick,
                         onClose = {},
                         onShare = onShare,

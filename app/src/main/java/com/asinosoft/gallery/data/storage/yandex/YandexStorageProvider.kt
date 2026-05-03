@@ -92,6 +92,7 @@ class YandexStorageProvider(override val storage: Storage) : StorageProvider {
                                 filename = item.name,
                                 mimeType = item.mimeType,
                                 storageId = storage.id,
+                                storageType = storage.type,
                                 storageItemId = item.path,
                                 thumbnail = item.sizes.firstOrNull { it.name == "M" }?.url?.toUri(),
                                 image = Image()

@@ -94,6 +94,7 @@ class NextCloudStorageProvider(override val storage: Storage) : StorageProvider 
                         filename = item.name,
                         mimeType = item.contentType,
                         storageId = storage.id,
+                        storageType = storage.type,
                         storageItemId = item.path,
                         image = Image(
                             width = 0,

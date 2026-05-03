@@ -4,6 +4,7 @@ import android.net.Uri
 import androidx.room.Entity
 import androidx.room.Index
 import androidx.room.PrimaryKey
+import com.asinosoft.gallery.data.storage.StorageType
 import java.time.LocalDate
 import java.time.LocalTime
 
@@ -24,6 +25,7 @@ data class Media(
     val filename: String = "",
     val mimeType: String = "",
     val storageId: Long = 0,
+    val storageType: StorageType = StorageType.LOCAL,
     val storageItemId: String = "",
     val thumbnail: Uri? = null,
     val image: Image? = null,
