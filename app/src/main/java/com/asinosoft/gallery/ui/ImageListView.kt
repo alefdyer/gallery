@@ -50,6 +50,7 @@ fun ImageListView(
     albumId: Long? = null,
     onClose: () -> Unit = {}
 ) {
+    var closeOnEmptyList by remember { mutableStateOf(false) }
     var selection by remember { mutableStateOf(setOf<Long>()) }
     val selectionMode by remember { derivedStateOf { selection.isNotEmpty() } }
     var selectionBarHeight by remember { mutableIntStateOf(0) }
@@ -59,9 +60,11 @@ fun ImageListView(
     val dragSelectionState = remember { DragSelectionState() }
     var date by remember { mutableStateOf<String?>(null) }
 
-    LaunchedEffect(images, onClose) {
-        if (images.isEmpty()) {
+    LaunchedEffect(albumId, images, onClose) {
+        if (closeOnEmptyList && images.isEmpty()) {
             onClose()
+        } else {
+            closeOnEmptyList = null != albumId
         }
     }
 

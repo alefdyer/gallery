@@ -38,7 +38,7 @@ fun AlbumListView(
     albums: List<Album>,
     modifier: Modifier = Modifier,
     onAlbumClick: (Album) -> Unit = {},
-    onNewAlbumClick: () -> Unit = {}
+    onNewAlbumClick: (() -> Unit)? = null
 ) {
     LazyVerticalGrid(
         columns = GridCells.Fixed(2),
@@ -50,15 +50,14 @@ fun AlbumListView(
                     Modifier
                         .padding(1.dp)
                         .clip(RoundedCornerShape(12.dp))
+                        .clickable { onAlbumClick(album) }
             ) {
                 AsyncImage(
                     model = album.cover,
                     contentDescription = "",
                     contentScale = ContentScale.Crop,
-                    modifier =
-                        Modifier
-                            .aspectRatio(1f)
-                            .clickable { onAlbumClick(album) }
+                    modifier = Modifier.aspectRatio(1f)
+
                 )
 
                 AlbumImages(album)
@@ -67,7 +66,7 @@ fun AlbumListView(
             }
         }
 
-        if ({} != onNewAlbumClick) {
+        onNewAlbumClick?.let {
             item {
                 Box(
                     modifier =
