@@ -133,6 +133,7 @@ fun LazyGridVerticalScrollIndicator(
                         draggableState,
                         Orientation.Vertical,
                         onDragStarted = {
+                            dragOffset = scrollOffset.toFloat() * constraints.maxHeight / contentSize
                             isDragged = true
                             showLabel = true
                         },
