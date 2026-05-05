@@ -536,7 +536,7 @@ private fun YandexStorageForm(
 ) {
     val onSave by rememberUpdatedState(onSave)
     val delivered = remember { AtomicBoolean(false) }
-    val pattern = Pattern.compile("access_token=(\\w+)")
+    val pattern = Pattern.compile("access_token=([-_a-zA-Z0-9]+)")
 
     fun tryDeliver(url: String) {
         Log.d("yandex", "Url: $url")
@@ -583,7 +583,7 @@ private fun YandexStorageForm(
                         .heightIn(min = 320.dp),
                     factory = { context ->
                         WebView(context).apply {
-                            @SuppressWarnings
+                            @SuppressWarnings("SetJavaScriptEnabled")
                             settings.javaScriptEnabled = true
                             settings.domStorageEnabled = true
                             webViewClient = object : WebViewClient() {
