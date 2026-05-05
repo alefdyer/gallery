@@ -58,7 +58,13 @@ fun ImageListView(
     val lazyGridState = rememberLazyGridState()
     var showTagDialog by remember { mutableStateOf(false) }
     val dragSelectionState = remember { DragSelectionState() }
-    var date by remember { mutableStateOf<String?>(null) }
+    val date by remember(images, lazyGridState) {
+        derivedStateOf {
+            images.getOrNull(lazyGridState.firstVisibleItemIndex)?.date?.let {
+                "${months[it.monthValue - 1]} ${it.year}"
+            }
+        }
+    }
 
     LaunchedEffect(albumId, images, onClose) {
         if (closeOnEmptyList && images.isEmpty()) {
@@ -75,12 +81,6 @@ fun ImageListView(
         lazyGridState.dispatchRawDelta(offset.toFloat())
     }
 
-    LaunchedEffect(images, lazyGridState.firstVisibleItemIndex) {
-        date = images.getOrNull(lazyGridState.firstVisibleItemIndex)?.date?.let {
-            "${months[it.monthValue - 1]} ${it.year}"
-        }
-    }
-
     Box(modifier) {
         LazyVerticalGrid(
             state = lazyGridState,
@@ -95,7 +95,7 @@ fun ImageListView(
                     onSelectedChange = { selection = it }
                 )
         ) {
-            items(images) { media ->
+            items(images, key = { it.id }) { media ->
                 MediaThumbnail(
                     media = media,
                     selectionMode = selectionMode,

@@ -38,6 +38,7 @@ import androidx.compose.ui.util.fastForEach
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
+import coil3.request.allowHardware
 import com.asinosoft.gallery.data.Media
 import com.asinosoft.gallery.model.GalleryViewModel
 import kotlin.math.max
@@ -71,6 +72,7 @@ fun ImageView(
 
     LaunchedEffect(media) {
         scope.launch {
+            val key = "media#${media.id}"
             try {
                 isLoading = true
                 val uri = model.getMediaUri(media)
@@ -78,6 +80,9 @@ fun ImageView(
                 request = ImageRequest.Builder(context)
                     .data(uri)
                     .size(2000)
+                    .memoryCacheKey(key)
+                    .diskCacheKey(key)
+                    .allowHardware(true)
                     .listener(
                         onError = { _, result ->
                             error = result.throwable.message

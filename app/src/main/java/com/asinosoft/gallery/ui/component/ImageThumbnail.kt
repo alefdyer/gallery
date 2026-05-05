@@ -10,6 +10,7 @@ import androidx.compose.ui.platform.LocalContext
 import coil3.compose.AsyncImage
 import coil3.compose.rememberConstraintsSizeResolver
 import coil3.request.ImageRequest
+import coil3.request.allowHardware
 import coil3.toBitmap
 import com.asinosoft.gallery.data.Media
 import java.io.File
@@ -24,17 +25,18 @@ fun ImageThumbnail(media: Media, modifier: Modifier = Modifier) {
 
     val request =
         if (thumbnail.exists()) {
+            val key = "thumbnail-${media.id}"
             ImageRequest
                 .Builder(LocalContext.current)
-                .coroutineContext(Dispatchers.IO)
+                .memoryCacheKey(key)
                 .data(thumbnail)
                 .build()
         } else {
             ImageRequest
                 .Builder(LocalContext.current)
-                .coroutineContext(Dispatchers.IO)
                 .data(media.thumbnail ?: media.uri)
                 .size(size)
+                .allowHardware(true)
                 .listener(onSuccess = { _, result ->
                     if (!media.filename.endsWith(".gif", ignoreCase = true)) {
                         scope.launch(Dispatchers.IO) {

@@ -7,11 +7,9 @@ import coil3.gif.GifDecoder
 import coil3.memory.MemoryCache
 import coil3.network.okhttp.OkHttpNetworkFetcherFactory
 import coil3.request.CachePolicy
-import coil3.request.crossfade
 import com.asinosoft.gallery.data.storage.StorageAuthProvider
 import dagger.hilt.android.HiltAndroidApp
 import javax.inject.Inject
-import kotlinx.coroutines.Dispatchers
 import okhttp3.OkHttpClient
 
 @HiltAndroidApp
@@ -37,8 +35,6 @@ class GalleryApp : Application() {
         SingletonImageLoader.setSafe {
             ImageLoader
                 .Builder(baseContext)
-                .crossfade(true)
-                .coroutineContext(Dispatchers.IO)
                 .memoryCachePolicy(CachePolicy.ENABLED)
                 .memoryCache(
                     MemoryCache
