@@ -134,7 +134,9 @@ fun ImageView(
         modifier =
             modifier
                 .fillMaxSize()
-                .pointerInput(Unit) {
+                .pointerInput(imageSize, viewSize) {
+                    if (imageSize.isEmpty() or viewSize.isEmpty()) return@pointerInput
+
                     detectTapGestures(
                         onTap = { onTap() },
                         onDoubleTap = toggleScale
