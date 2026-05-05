@@ -81,14 +81,14 @@ interface AlbumDao {
             IFNULL(SUM(m.size), 0) AS size,
             COALESCE(
                 (
-                    SELECT m2.uri
+                    SELECT COALESCE(m2.uri, m2.thumbnail)
                     FROM media_album ma2
                     INNER JOIN media m2 ON m2.id = ma2.mediaId
                     WHERE ma2.albumId = a.id AND m2.uri = a.cover
                     LIMIT 1
                 ),
                 (
-                    SELECT m2.uri
+                    SELECT COALESCE(m2.uri, m2.thumbnail)
                     FROM media_album ma2
                     INNER JOIN media m2 ON m2.id = ma2.mediaId
                     WHERE ma2.albumId = a.id
