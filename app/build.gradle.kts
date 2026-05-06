@@ -1,5 +1,6 @@
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import org.jlleitschuh.gradle.ktlint.reporter.ReporterType
+import java.util.Properties
 
 plugins {
     id("com.android.application")
@@ -46,6 +47,26 @@ android {
         vectorDrawables {
             useSupportLibrary = true
         }
+
+        val localProperties = Properties()
+        val localPropertiesFile = rootProject.file("local.properties")
+        if (localPropertiesFile.exists()) {
+            localPropertiesFile.inputStream().use(localProperties::load)
+        }
+
+        val dropboxAppKey =
+            providers
+                .gradleProperty("dropboxAppKey")
+                .orElse(localProperties.getProperty("dropbox.appKey"))
+                .get()
+        val dropboxRedirectUri =
+            providers
+                .gradleProperty("dropboxRedirectUri")
+                .orElse(localProperties.getProperty("dropbox.redirectUri"))
+                .get()
+
+        buildConfigField("String", "DROPBOX_APP_KEY", "\"$dropboxAppKey\"")
+        buildConfigField("String", "DROPBOX_REDIRECT_URI", "\"$dropboxRedirectUri\"")
     }
 
     buildTypes {
@@ -67,6 +88,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
     packaging {
         resources {

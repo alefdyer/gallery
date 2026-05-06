@@ -1,5 +1,6 @@
 package com.asinosoft.gallery.ui
 
+import android.util.Base64
 import android.util.Log
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
@@ -57,12 +58,17 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.core.net.toUri
+import com.asinosoft.gallery.BuildConfig
 import com.asinosoft.gallery.R
 import com.asinosoft.gallery.data.storage.Storage
 import com.asinosoft.gallery.data.storage.StorageCheckResult
 import com.asinosoft.gallery.data.storage.StorageType
+import com.asinosoft.gallery.data.storage.dropbox.DropboxApi
 import com.asinosoft.gallery.data.storage.yandex.YandexStorageProvider
 import com.asinosoft.gallery.ui.component.StorageTypeIcon
+import java.security.MessageDigest
+import java.security.SecureRandom
+import java.util.UUID
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.regex.Pattern
 import kotlinx.coroutines.launch
@@ -220,6 +226,11 @@ private fun StorageEditor(
                 checkError = checkError,
                 isChecking = isChecking,
                 onInputChange = ::clearCheckError
+            )
+
+            StorageType.DROPBOX -> DropboxStorageForm(
+                onSave = ::submitStorage,
+                onCancel = onCancel
             )
 
             StorageType.YANDEX -> YandexStorageForm(
@@ -526,6 +537,180 @@ private fun NextCloudStorageForm(
             Text(text = checkError, color = Color.Red)
         }
     }
+}
+
+@Composable
+private fun DropboxStorageForm(
+    onSave: (Storage) -> Unit,
+    onCancel: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val onSave by rememberUpdatedState(onSave)
+    val delivered = remember { AtomicBoolean(false) }
+    val scope = rememberCoroutineScope()
+    val appKey = BuildConfig.DROPBOX_APP_KEY
+    val redirectUri = BuildConfig.DROPBOX_REDIRECT_URI
+    val codeVerifier = remember { generateCodeVerifier() }
+    val codeChallenge = remember(codeVerifier) { codeChallengeS256(codeVerifier) }
+    val state = remember { UUID.randomUUID().toString() }
+    val authorizationUrl = remember(appKey, redirectUri, codeChallenge, state) {
+        DropboxApi.buildAuthorizationUrl(
+            appKey = appKey,
+            redirectUri = redirectUri,
+            codeChallenge = codeChallenge,
+            state = state
+        )
+    }
+
+    var authError by remember { mutableStateOf<String?>(null) }
+    var isAuthorizing by remember { mutableStateOf(false) }
+
+    fun handleRedirect(url: String): Boolean {
+        Log.i("dropbox", "Handle $url")
+        if (!url.startsWith(redirectUri)) return false
+
+        val uri = runCatching { url.toUri() }.getOrNull() ?: return false
+        val stateValue = uri.getQueryParameter("state")
+        if (stateValue != state) {
+            authError = "Invalid OAuth state"
+            return true
+        }
+
+        val code = uri.getQueryParameter("code")
+        if (code.isNullOrBlank()) {
+            authError = uri.getQueryParameter("error_description")
+                ?: uri.getQueryParameter("error")
+                ?: "Authorization failed"
+            return true
+        }
+
+        if (delivered.compareAndSet(false, true)) {
+            isAuthorizing = true
+            scope.launch {
+                DropboxApi.exchangeCodeForToken(
+                    appKey = appKey,
+                    redirectUri = redirectUri,
+                    code = code,
+                    codeVerifier = codeVerifier
+                ).onSuccess { token ->
+                    onSave(
+                        Storage(
+                            type = StorageType.DROPBOX,
+                            url = DropboxApi.BASE_URL.toUri(),
+                            login = token.accountId ?: token.uid,
+                            password = token.accessToken
+                        )
+                    )
+                }.onFailure { error ->
+                    authError = error.message ?: "Authorization failed"
+                    delivered.set(false)
+                }
+                isAuthorizing = false
+            }
+        }
+
+        return true
+    }
+
+    Dialog(
+        onDismissRequest = onCancel,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Surface(modifier.fillMaxSize().padding(8.dp)) {
+            Column(Modifier.fillMaxSize()) {
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = stringResource(R.string.storage_type_dropbox),
+                        style = MaterialTheme.typography.titleMedium
+                    )
+                    TextButton(onClick = onCancel) {
+                        Text(stringResource(android.R.string.cancel))
+                    }
+                }
+                if (appKey.isBlank()) {
+                    Text(
+                        text = stringResource(R.string.storage_dropbox_config_missing),
+                        color = Color.Red,
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
+                    )
+                    return@Surface
+                }
+
+                AndroidView(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f)
+                        .heightIn(min = 320.dp),
+                    factory = { context ->
+                        WebView(context).apply {
+                            @SuppressWarnings("SetJavaScriptEnabled")
+                            settings.javaScriptEnabled = true
+                            settings.domStorageEnabled = true
+                            webViewClient = object : WebViewClient() {
+                                override fun shouldOverrideUrlLoading(
+                                    view: WebView,
+                                    request: WebResourceRequest
+                                ): Boolean = handleRedirect(request.url.toString())
+
+                                @Deprecated("Deprecated in Java")
+                                override fun shouldOverrideUrlLoading(
+                                    view: WebView,
+                                    url: String
+                                ): Boolean = handleRedirect(url)
+
+                                override fun onPageFinished(view: WebView?, url: String?) {
+                                    super.onPageFinished(view, url)
+                                    view?.url?.let(::handleRedirect)
+                                }
+                            }
+                            Log.i("dropbox", "Open: $authorizationUrl")
+                            loadUrl(authorizationUrl)
+                        }
+                    }
+                )
+
+                if (isAuthorizing) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(12.dp),
+                        horizontalArrangement = Arrangement.Center
+                    ) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(20.dp),
+                            strokeWidth = 2.dp
+                        )
+                    }
+                }
+
+                authError?.let {
+                    Text(
+                        text = it,
+                        color = Color.Red,
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
+                    )
+                }
+            }
+        }
+    }
+}
+
+private fun generateCodeVerifier(): String {
+    val bytes = ByteArray(64)
+    SecureRandom().nextBytes(bytes)
+    return Base64.encodeToString(bytes, Base64.NO_WRAP or Base64.NO_PADDING or Base64.URL_SAFE)
+}
+
+private fun codeChallengeS256(codeVerifier: String): String {
+    val digest = MessageDigest.getInstance("SHA-256")
+    val challenge = digest.digest(codeVerifier.toByteArray(Charsets.US_ASCII))
+    return Base64.encodeToString(challenge, Base64.NO_WRAP or Base64.NO_PADDING or Base64.URL_SAFE)
 }
 
 @Composable

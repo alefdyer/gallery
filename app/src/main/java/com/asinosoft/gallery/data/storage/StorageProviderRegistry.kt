@@ -1,6 +1,7 @@
 package com.asinosoft.gallery.data.storage
 
 import android.content.Context
+import com.asinosoft.gallery.data.storage.dropbox.DropboxStorageProvider
 import com.asinosoft.gallery.data.storage.local.LocalStorageProvider
 import com.asinosoft.gallery.data.storage.nextcloud.NextCloudStorageProvider
 import com.asinosoft.gallery.data.storage.webdav.WebDavStorageProvider

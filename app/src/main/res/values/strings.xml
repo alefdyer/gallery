@@ -19,6 +19,7 @@
     <string name="storage_not_implemented">Не реализовано</string>
     <string name="storage_add_account">Добавить хранилище</string>
     <string name="storage_type_dropbox">Dropbox</string>
+    <string name="storage_dropbox_config_missing">Dropbox OAuth is not configured. Set dropbox.appKey in local.properties or -PdropboxAppKey.</string>
     <string name="storage_type_nextcloud">NextCloud</string>
     <string name="storage_type_webdav">WebDAV</string>
     <string name="storage_type_yandex_disk">Yandex Disk</string>

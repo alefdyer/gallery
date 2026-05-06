@@ -32,9 +32,20 @@ class StorageAuthProvider @Inject constructor(
             if (request.url.host == provider.storage.url?.host) {
                 return provider.authorize(request)
             }
-            if (provider.storage.type == StorageType.YANDEX && (
+            if (
+                provider.storage.type == StorageType.YANDEX &&
+                (
                     request.url.host == "downloader.disk.yandex.ru" ||
                         request.url.host == "cloud-api.yandex.net"
+                    )
+            ) {
+                return provider.authorize(request)
+            }
+            if (
+                provider.storage.type == StorageType.DROPBOX &&
+                (
+                    request.url.host == "api.dropboxapi.com" ||
+                        request.url.host == "content.dropboxapi.com"
                     )
             ) {
                 return provider.authorize(request)
