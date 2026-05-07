@@ -158,4 +158,8 @@ class GalleryViewModel @Inject constructor(
     suspend fun getMediaUri(media: Media): Uri =
         storageProviderRegistry.getStorageProvider(media.storageId)
             .getMediaUri(media)
+
+    suspend fun getThumbnailUri(media: Media): Uri =
+        storageProviderRegistry.getStorageProvider(media.storageId)
+            .getThumbnailUri(media)
 }

@@ -65,6 +65,8 @@ class LocalStorageProvider(
         media.storageItemId.toLong()
     )
 
+    override suspend fun getThumbnailUri(media: Media): Uri = getMediaUri(media)
+
     private fun fetchImages(selection: String): Flow<Media> = flow {
         val sortOrder = "${Images.Media.DATE_TAKEN} DESC"
 

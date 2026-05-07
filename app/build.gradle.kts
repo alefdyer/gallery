@@ -54,19 +54,42 @@ android {
             localPropertiesFile.inputStream().use(localProperties::load)
         }
 
-        val dropboxAppKey =
-            providers
-                .gradleProperty("dropboxAppKey")
-                .orElse(localProperties.getProperty("dropbox.appKey"))
-                .get()
-        val dropboxRedirectUri =
-            providers
-                .gradleProperty("dropboxRedirectUri")
-                .orElse(localProperties.getProperty("dropbox.redirectUri"))
-                .get()
-
-        buildConfigField("String", "DROPBOX_APP_KEY", "\"$dropboxAppKey\"")
-        buildConfigField("String", "DROPBOX_REDIRECT_URI", "\"$dropboxRedirectUri\"")
+        buildConfigField(
+            "String",
+            "DROPBOX_APP_KEY",
+            buildString {
+                append('"')
+                append(localProperties.getProperty("dropbox.appKey"))
+                append('"')
+            },
+        )
+        buildConfigField(
+            "String",
+            "DROPBOX_REDIRECT_URI",
+            buildString {
+                append('"')
+                append(localProperties.getProperty("dropbox.redirectUri"))
+                append('"')
+            },
+        )
+        buildConfigField(
+            "String",
+            "YANDEX_APP_KEY",
+            buildString {
+                append('"')
+                append(localProperties.getProperty("yandex.appKey"))
+                append('"')
+            },
+        )
+        buildConfigField(
+            "String",
+            "YANDEX_REDIRECT_URI",
+            buildString {
+                append('"')
+                append(localProperties.getProperty("yandex.redirectUri"))
+                append('"')
+            },
+        )
     }
 
     buildTypes {
@@ -104,6 +127,7 @@ dependencies {
     implementation("androidx.core:core-ktx:1.18.0")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.10.0")
     implementation("androidx.activity:activity-compose:1.13.0")
+    implementation("androidx.browser:browser:1.10.0")
 
     // Compose
     implementation(platform("androidx.compose:compose-bom:2026.04.01"))

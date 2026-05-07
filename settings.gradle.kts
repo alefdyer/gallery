@@ -16,4 +16,3 @@ dependencyResolutionManagement {
 
 rootProject.name = "Gallery"
 include(":app")
-include(":dropbox")

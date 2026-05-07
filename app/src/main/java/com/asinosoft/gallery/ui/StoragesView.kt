@@ -1,11 +1,8 @@
 package com.asinosoft.gallery.ui
 
-import android.util.Base64
-import android.util.Log
-import android.webkit.WebResourceRequest
-import android.webkit.WebView
-import android.webkit.WebViewClient
+import android.content.Intent
 import androidx.activity.compose.BackHandler
+import androidx.browser.customtabs.CustomTabsIntent
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -48,17 +45,18 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.core.net.toUri
 import com.asinosoft.gallery.BuildConfig
+import com.asinosoft.gallery.OAuthRedirectBus
 import com.asinosoft.gallery.R
 import com.asinosoft.gallery.data.storage.Storage
 import com.asinosoft.gallery.data.storage.StorageCheckResult
@@ -66,9 +64,6 @@ import com.asinosoft.gallery.data.storage.StorageType
 import com.asinosoft.gallery.data.storage.dropbox.DropboxApi
 import com.asinosoft.gallery.data.storage.yandex.YandexStorageProvider
 import com.asinosoft.gallery.ui.component.StorageTypeIcon
-import java.security.MessageDigest
-import java.security.SecureRandom
-import java.util.UUID
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.regex.Pattern
 import kotlinx.coroutines.launch
@@ -101,7 +96,9 @@ fun StoragesView(
         )
     } else {
         LazyColumn(
-            modifier = modifier.fillMaxSize().padding(8.dp),
+            modifier = modifier
+                .fillMaxSize()
+                .padding(8.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
@@ -235,7 +232,7 @@ private fun StorageEditor(
 
             StorageType.YANDEX -> YandexStorageForm(
                 onSave = ::submitStorage,
-                onCancel = { onCancel() }
+                onCancel = onCancel
             )
 
             else -> Text(stringResource(R.string.storage_not_implemented))
@@ -348,7 +345,9 @@ private fun WebDavStorageForm(
                 onInputChange()
             },
             label = { Text(stringResource(R.string.storage_field_host)) },
-            modifier = Modifier.fillMaxWidth().focusRequester(focus)
+            modifier = Modifier
+                .fillMaxWidth()
+                .focusRequester(focus)
         )
         OutlinedTextField(
             value = login,
@@ -485,7 +484,9 @@ private fun NextCloudStorageForm(
                 onInputChange()
             },
             label = { Text(stringResource(R.string.storage_field_host)) },
-            modifier = Modifier.fillMaxWidth().focusRequester(focus)
+            modifier = Modifier
+                .fillMaxWidth()
+                .focusRequester(focus)
         )
         OutlinedTextField(
             value = login,
@@ -540,177 +541,44 @@ private fun NextCloudStorageForm(
 }
 
 @Composable
-private fun DropboxStorageForm(
-    onSave: (Storage) -> Unit,
-    onCancel: () -> Unit,
-    modifier: Modifier = Modifier
-) {
+private fun DropboxStorageForm(onSave: (Storage) -> Unit, onCancel: () -> Unit) {
     val onSave by rememberUpdatedState(onSave)
-    val delivered = remember { AtomicBoolean(false) }
-    val scope = rememberCoroutineScope()
-    val appKey = BuildConfig.DROPBOX_APP_KEY
-    val redirectUri = BuildConfig.DROPBOX_REDIRECT_URI
-    val codeVerifier = remember { generateCodeVerifier() }
-    val codeChallenge = remember(codeVerifier) { codeChallengeS256(codeVerifier) }
-    val state = remember { UUID.randomUUID().toString() }
-    val authorizationUrl = remember(appKey, redirectUri, codeChallenge, state) {
-        DropboxApi.buildAuthorizationUrl(
-            appKey = appKey,
-            redirectUri = redirectUri,
-            codeChallenge = codeChallenge,
-            state = state
-        )
-    }
+    val context = LocalContext.current
+    var error by remember { mutableStateOf<String?>(null) }
 
-    var authError by remember { mutableStateOf<String?>(null) }
-    var isAuthorizing by remember { mutableStateOf(false) }
-
-    fun handleRedirect(url: String): Boolean {
-        Log.i("dropbox", "Handle $url")
-        if (!url.startsWith(redirectUri)) return false
-
-        val uri = runCatching { url.toUri() }.getOrNull() ?: return false
-        val stateValue = uri.getQueryParameter("state")
-        if (stateValue != state) {
-            authError = "Invalid OAuth state"
-            return true
-        }
-
-        val code = uri.getQueryParameter("code")
-        if (code.isNullOrBlank()) {
-            authError = uri.getQueryParameter("error_description")
-                ?: uri.getQueryParameter("error")
-                ?: "Authorization failed"
-            return true
-        }
-
-        if (delivered.compareAndSet(false, true)) {
-            isAuthorizing = true
-            scope.launch {
-                DropboxApi.exchangeCodeForToken(
-                    appKey = appKey,
-                    redirectUri = redirectUri,
-                    code = code,
-                    codeVerifier = codeVerifier
-                ).onSuccess { token ->
+    LaunchedEffect(Unit) {
+        OAuthRedirectBus.events.collect { uri ->
+            DropboxApi.getTokenFromUrl(uri)
+                .onSuccess {
                     onSave(
                         Storage(
                             type = StorageType.DROPBOX,
                             url = DropboxApi.BASE_URL.toUri(),
-                            login = token.accountId ?: token.uid,
-                            password = token.accessToken
+                            password = it
                         )
                     )
-                }.onFailure { error ->
-                    authError = error.message ?: "Authorization failed"
-                    delivered.set(false)
                 }
-                isAuthorizing = false
-            }
+                .onFailure { error = it.message ?: "Can't get token" }
         }
-
-        return true
     }
 
-    Dialog(
-        onDismissRequest = onCancel,
-        properties = DialogProperties(usePlatformDefaultWidth = false)
-    ) {
-        Surface(modifier.fillMaxSize().padding(8.dp)) {
-            Column(Modifier.fillMaxSize()) {
-                Row(
-                    Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 8.dp, vertical = 4.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = stringResource(R.string.storage_type_dropbox),
-                        style = MaterialTheme.typography.titleMedium
-                    )
-                    TextButton(onClick = onCancel) {
-                        Text(stringResource(android.R.string.cancel))
-                    }
-                }
-                if (appKey.isBlank()) {
-                    Text(
-                        text = stringResource(R.string.storage_dropbox_config_missing),
-                        color = Color.Red,
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
-                    )
-                    return@Surface
-                }
+    LaunchedEffect(Unit) {
+        runCatching {
+            val intent = CustomTabsIntent.Builder().build()
+            intent.intent.addFlags(Intent.FLAG_ACTIVITY_NO_HISTORY)
+            intent.launchUrl(context, DropboxApi.startAuthorization())
+        }.onFailure { error = it.message ?: "Authorization failed" }
+    }
 
-                AndroidView(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .weight(1f)
-                        .heightIn(min = 320.dp),
-                    factory = { context ->
-                        WebView(context).apply {
-                            @SuppressWarnings("SetJavaScriptEnabled")
-                            settings.javaScriptEnabled = true
-                            settings.domStorageEnabled = true
-                            webViewClient = object : WebViewClient() {
-                                override fun shouldOverrideUrlLoading(
-                                    view: WebView,
-                                    request: WebResourceRequest
-                                ): Boolean = handleRedirect(request.url.toString())
+    error?.let { error ->
+        Column {
+            Text(error, color = Color.Red, style = MaterialTheme.typography.headlineMedium)
 
-                                @Deprecated("Deprecated in Java")
-                                override fun shouldOverrideUrlLoading(
-                                    view: WebView,
-                                    url: String
-                                ): Boolean = handleRedirect(url)
-
-                                override fun onPageFinished(view: WebView?, url: String?) {
-                                    super.onPageFinished(view, url)
-                                    view?.url?.let(::handleRedirect)
-                                }
-                            }
-                            Log.i("dropbox", "Open: $authorizationUrl")
-                            loadUrl(authorizationUrl)
-                        }
-                    }
-                )
-
-                if (isAuthorizing) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(12.dp),
-                        horizontalArrangement = Arrangement.Center
-                    ) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(20.dp),
-                            strokeWidth = 2.dp
-                        )
-                    }
-                }
-
-                authError?.let {
-                    Text(
-                        text = it,
-                        color = Color.Red,
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
-                    )
-                }
+            Button(onClick = onCancel) {
+                Text(stringResource(android.R.string.cancel))
             }
         }
     }
-}
-
-private fun generateCodeVerifier(): String {
-    val bytes = ByteArray(64)
-    SecureRandom().nextBytes(bytes)
-    return Base64.encodeToString(bytes, Base64.NO_WRAP or Base64.NO_PADDING or Base64.URL_SAFE)
-}
-
-private fun codeChallengeS256(codeVerifier: String): String {
-    val digest = MessageDigest.getInstance("SHA-256")
-    val challenge = digest.digest(codeVerifier.toByteArray(Charsets.US_ASCII))
-    return Base64.encodeToString(challenge, Base64.NO_WRAP or Base64.NO_PADDING or Base64.URL_SAFE)
 }
 
 @Composable
@@ -722,21 +590,24 @@ private fun YandexStorageForm(
     val onSave by rememberUpdatedState(onSave)
     val delivered = remember { AtomicBoolean(false) }
     val pattern = Pattern.compile("access_token=([-_a-zA-Z0-9]+)")
+    val context = LocalContext.current
 
-    fun tryDeliver(url: String) {
-        Log.d("yandex", "Url: $url")
-        if (!url.contains("verification_code", ignoreCase = true)) return
-        val matcher = pattern.matcher(url)
-        if (!matcher.find()) return
+    LaunchedEffect(Unit) {
+        OAuthRedirectBus.events.collect { uri ->
+            if (!uri.toString().startsWith(BuildConfig.YANDEX_REDIRECT_URI)) return@collect
+            val url = uri.toString()
+            val matcher = pattern.matcher(url)
+            if (!matcher.find()) return@collect
 
-        val token: String = matcher.group(1) ?: return
-        if (delivered.compareAndSet(false, true)) {
-            onSave(
-                Storage(
-                    type = StorageType.YANDEX,
-                    password = token
+            val token: String = matcher.group(1) ?: return@collect
+            if (delivered.compareAndSet(false, true)) {
+                onSave(
+                    Storage(
+                        type = StorageType.YANDEX,
+                        password = token
+                    )
                 )
-            )
+            }
         }
     }
 
@@ -744,7 +615,11 @@ private fun YandexStorageForm(
         onDismissRequest = onCancel,
         properties = DialogProperties(usePlatformDefaultWidth = false)
     ) {
-        Surface(modifier.fillMaxSize().padding(8.dp)) {
+        Surface(
+            modifier
+                .fillMaxSize()
+                .padding(8.dp)
+        ) {
             Column(Modifier.fillMaxSize()) {
                 Row(
                     Modifier
@@ -761,43 +636,19 @@ private fun YandexStorageForm(
                         Text(stringResource(android.R.string.cancel))
                     }
                 }
-                AndroidView(
+                Spacer(Modifier.heightIn(min = 16.dp))
+                Button(
+                    onClick = {
+                        val intent = CustomTabsIntent.Builder().build()
+                        intent.intent.addFlags(Intent.FLAG_ACTIVITY_NO_HISTORY)
+                        intent.launchUrl(context, YandexStorageProvider.AUTHORIZATION_URL.toUri())
+                    },
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .weight(1f)
-                        .heightIn(min = 320.dp),
-                    factory = { context ->
-                        WebView(context).apply {
-                            @SuppressWarnings("SetJavaScriptEnabled")
-                            settings.javaScriptEnabled = true
-                            settings.domStorageEnabled = true
-                            webViewClient = object : WebViewClient() {
-                                override fun shouldOverrideUrlLoading(
-                                    view: WebView,
-                                    request: WebResourceRequest
-                                ): Boolean {
-                                    tryDeliver(request.url.toString())
-                                    return false
-                                }
-
-                                @Deprecated("Deprecated in Java")
-                                override fun shouldOverrideUrlLoading(
-                                    view: WebView,
-                                    url: String
-                                ): Boolean {
-                                    tryDeliver(url)
-                                    return false
-                                }
-
-                                override fun onPageFinished(view: WebView?, url: String?) {
-                                    super.onPageFinished(view, url)
-                                    view?.url?.let { tryDeliver(it) }
-                                }
-                            }
-                            loadUrl(YandexStorageProvider.AUTHORIZATION_URL)
-                        }
-                    }
-                )
+                        .align(Alignment.CenterHorizontally)
+                        .padding(8.dp)
+                ) {
+                    Text(text = stringResource(R.string.storage_yandex_sign_in))
+                }
             }
         }
     }

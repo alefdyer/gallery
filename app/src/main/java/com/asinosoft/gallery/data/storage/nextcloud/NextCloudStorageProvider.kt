@@ -67,6 +67,8 @@ class NextCloudStorageProvider(override val storage: Storage) : StorageProvider 
 
     override suspend fun getMediaUri(media: Media): Uri = media.uri!!
 
+    override suspend fun getThumbnailUri(media: Media): Uri = media.uri!!
+
     private fun fetch(path: String): Flow<Media> = flow {
         Log.d("nextcloud", "Fetch: $path")
         connection.list(path).forEach { item ->

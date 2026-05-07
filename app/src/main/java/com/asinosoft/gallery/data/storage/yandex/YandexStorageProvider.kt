@@ -23,7 +23,10 @@ class YandexStorageProvider(override val storage: Storage) : StorageProvider {
     companion object {
         const val BASE_URL = "https://cloud-api.yandex.net/v1/disk/"
         const val AUTHORIZATION_URL =
-            "https://oauth.yandex.ru/authorize?response_type=token&client_id=b9d5243b463f443ab96529bd0ae607d4"
+            "https://oauth.yandex.ru/authorize" +
+                "?response_type=token" +
+                "&client_id=b9d5243b463f443ab96529bd0ae607d4" +
+                "&redirect_uri=com.asinosoft.gallery://yandex-auth"
     }
 
     override fun authorize(request: Request): Request = request.newBuilder()
@@ -123,4 +126,6 @@ class YandexStorageProvider(override val storage: Storage) : StorageProvider {
             resource.href.toUri()
         }
     }
+
+    override suspend fun getThumbnailUri(media: Media): Uri = media.thumbnail!!
 }

@@ -43,10 +43,7 @@ class DropboxStorageProvider(override val storage: Storage) : StorageProvider {
 
         return withContext(Dispatchers.IO) {
             try {
-                val response = apiPost(
-                    path = "users/get_current_account",
-                    payload = "{}"
-                )
+                val response = apiPost("check/user")
                 if (response != null) {
                     StorageCheckResult.Success
                 } else {
@@ -120,7 +117,9 @@ class DropboxStorageProvider(override val storage: Storage) : StorageProvider {
         link.toUri()
     }
 
-    private fun apiPost(path: String, payload: String): String? {
+    override suspend fun getThumbnailUri(media: Media): Uri = getMediaUri(media)
+
+    private fun apiPost(path: String, payload: String = "{}"): String? {
         val request = Request.Builder()
             .url(DropboxApi.BASE_URL + path)
             .post(payload.toRequestBody("application/json".toMediaType()))

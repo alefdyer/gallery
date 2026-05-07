@@ -18,4 +18,6 @@ interface StorageProvider {
     suspend fun fetchOne(uri: Uri): Media?
 
     suspend fun getMediaUri(media: Media): Uri
+
+    suspend fun getThumbnailUri(media: Media): Uri
 }

@@ -6,7 +6,7 @@ enum class StorageType {
         override val isDeletable = false
     },
     DROPBOX {
-        override val isEditable = true
+        override val isEditable = false
         override val isDeletable = true
     },
     WEBDAV {
