@@ -40,7 +40,7 @@ android {
         applicationId = "com.asinosoft.gallery"
         minSdk = 26
         targetSdk = 37
-        versionCode = 5
+        versionCode = 6
         versionName = "0.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
@@ -128,6 +128,7 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.10.0")
     implementation("androidx.activity:activity-compose:1.13.0")
     implementation("androidx.browser:browser:1.10.0")
+    implementation("androidx.work:work-runtime-ktx:2.11.2")
 
     // Compose
     implementation(platform("androidx.compose:compose-bom:2026.04.01"))

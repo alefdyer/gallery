@@ -26,6 +26,9 @@ interface MediaDao {
     @Query("SELECT * FROM media WHERE uri=:uri")
     fun getImageByPath(uri: Uri): Flow<Media?>
 
+    @Query("SELECT * FROM media WHERE id IN (:mediaIds)")
+    suspend fun getByIds(mediaIds: Collection<Long>): List<Media>
+
     @Upsert
     suspend fun upsert(media: Media): Long
 
