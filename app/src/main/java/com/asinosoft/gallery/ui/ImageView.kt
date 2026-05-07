@@ -163,7 +163,7 @@ fun ImageView(
                                 offsetY.snapTo(offsetY.value * zoom + pan.y)
                             }
 
-                            if (scale != minScale) {
+                            if (scale != minScale || event.changes.size > 1) {
                                 event.changes.fastForEach {
                                     if (it.positionChanged()) {
                                         it.consume()
