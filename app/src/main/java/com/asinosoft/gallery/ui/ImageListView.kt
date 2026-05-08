@@ -27,7 +27,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
-import com.asinosoft.gallery.data.Album
+import com.asinosoft.gallery.data.AlbumWithCover
 import com.asinosoft.gallery.data.Media
 import com.asinosoft.gallery.ui.component.AddToAlbumDialog
 import com.asinosoft.gallery.ui.component.DragSelectionState
@@ -38,7 +38,7 @@ import com.asinosoft.gallery.ui.component.dragSelection
 
 @Composable
 fun ImageListView(
-    albums: List<Album>,
+    albums: List<AlbumWithCover>,
     images: List<Media>,
     onClick: (Media) -> Unit,
     onShare: (Set<Long>) -> Unit,

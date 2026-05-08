@@ -22,6 +22,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.asinosoft.gallery.R
 import com.asinosoft.gallery.data.Album
+import com.asinosoft.gallery.data.AlbumWithCover
 import com.asinosoft.gallery.data.Media
 import com.asinosoft.gallery.data.storage.Storage
 import com.asinosoft.gallery.data.storage.StorageCheckResult
@@ -31,7 +32,7 @@ import kotlinx.coroutines.launch
 @Composable
 fun MainView(
     images: List<Media>,
-    albums: List<Album>,
+    albums: List<AlbumWithCover>,
     storages: List<Storage>,
     onMediaClick: (Media) -> Unit,
     onAlbumClick: (Album) -> Unit,

@@ -173,7 +173,7 @@ class MediaService @Inject constructor(
                     name = stats.name,
                     size = stats.size,
                     count = stats.count,
-                    cover = stats.cover,
+                    coverId = stats.coverId,
                     date = stats.date
                 )
             )

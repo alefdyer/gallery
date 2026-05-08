@@ -6,6 +6,6 @@ data class AlbumStats(
     val name: String,
     val count: Int,
     val size: Long,
-    val cover: String?,
+    val coverId: Long?,
     val date: LocalDate
 )

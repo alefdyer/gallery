@@ -23,19 +23,19 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import coil3.compose.AsyncImage
 import com.asinosoft.gallery.R
 import com.asinosoft.gallery.data.Album
+import com.asinosoft.gallery.data.AlbumWithCover
+import com.asinosoft.gallery.ui.component.AlbumCover
 import com.asinosoft.gallery.ui.theme.Typography
 
 @Composable
 fun AlbumListView(
-    albums: List<Album>,
+    albums: List<AlbumWithCover>,
     modifier: Modifier = Modifier,
     onAlbumClick: (Album) -> Unit = {},
     onNewAlbumClick: (() -> Unit)? = null
@@ -50,19 +50,13 @@ fun AlbumListView(
                     Modifier
                         .padding(1.dp)
                         .clip(RoundedCornerShape(12.dp))
-                        .clickable { onAlbumClick(album) }
+                        .clickable { onAlbumClick(album.album) }
             ) {
-                AsyncImage(
-                    model = album.cover,
-                    contentDescription = "",
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.aspectRatio(1f)
+                AlbumCover(album.cover)
 
-                )
+                AlbumImages(album.album)
 
-                AlbumImages(album)
-
-                AlbumInfo(album)
+                AlbumInfo(album.album)
             }
         }
 

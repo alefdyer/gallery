@@ -17,8 +17,9 @@ interface AlbumDao {
     @Query("SELECT * FROM album WHERE name = :name")
     suspend fun getAlbumByName(name: String): Album?
 
+    @Transaction
     @Query("SELECT * FROM album ORDER BY name")
-    fun getAlbums(): Flow<List<Album>>
+    fun getAlbums(): Flow<List<AlbumWithCover>>
 
     @Upsert
     suspend fun upsert(album: Album): Long
@@ -84,18 +85,18 @@ interface AlbumDao {
                     SELECT COALESCE(m2.uri, m2.thumbnail)
                     FROM media_album ma2
                     INNER JOIN media m2 ON m2.id = ma2.mediaId
-                    WHERE ma2.albumId = a.id AND m2.uri = a.cover
+                    WHERE ma2.albumId = a.id AND m2.id = a.coverId
                     LIMIT 1
                 ),
                 (
-                    SELECT COALESCE(m2.uri, m2.thumbnail)
+                    SELECT m2.id
                     FROM media_album ma2
                     INNER JOIN media m2 ON m2.id = ma2.mediaId
                     WHERE ma2.albumId = a.id
                     ORDER BY m2.date DESC, m2.time DESC
                     LIMIT 1
                 )
-            ) AS cover,
+            ) AS coverId,
             IFNULL(MAX(m.date), a.date) AS date
         FROM album a
         LEFT JOIN media_album ma ON ma.albumId = a.id
