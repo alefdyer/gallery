@@ -26,6 +26,7 @@ class ThumbnailPrefetchWorker(appContext: Context, params: WorkerParameters) :
         val mediaDao = db.imageDao()
         val storageProviderRegistry = StorageProviderRegistry(db.storageDao(), applicationContext)
         val imageLoader = SingletonImageLoader.get(applicationContext)
+        val size = applicationContext.resources.displayMetrics.widthPixels
 
         mediaDao.getByIds(mediaIds).forEach { media ->
             if (media.filename.endsWith(".gif", ignoreCase = true)) {
@@ -44,7 +45,7 @@ class ThumbnailPrefetchWorker(appContext: Context, params: WorkerParameters) :
 
                 val request = ImageRequest.Builder(applicationContext)
                     .data(thumbnailUri)
-                    .size(300)
+                    .size(size)
                     .memoryCacheKey("media#${media.id}")
                     .diskCacheKey("media#${media.id}")
                     .allowHardware(false)

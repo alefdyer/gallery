@@ -7,7 +7,6 @@ import androidx.work.Data
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import com.asinosoft.gallery.GalleryApp
-import com.asinosoft.gallery.data.ThumbnailPrefetchWorker.Companion.KEY_MEDIA_IDS
 import com.asinosoft.gallery.data.storage.StorageProvider
 import com.asinosoft.gallery.di.IntentHelper
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -156,7 +155,7 @@ class MediaService @Inject constructor(
         val request = OneTimeWorkRequestBuilder<ThumbnailPrefetchWorker>()
             .setInputData(
                 Data.Builder()
-                    .putLongArray(KEY_MEDIA_IDS, mediaIds.toLongArray())
+                    .putLongArray(ThumbnailPrefetchWorker.KEY_MEDIA_IDS, mediaIds.toLongArray())
                     .build()
             )
             .build()
