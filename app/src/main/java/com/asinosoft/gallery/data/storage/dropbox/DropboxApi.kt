@@ -69,12 +69,7 @@ object DropboxApi {
             throw Exception("Token already delivered")
         }
 
-        return exchangeCodeForToken(
-            appKey = BuildConfig.DROPBOX_APP_KEY,
-            redirectUri = BuildConfig.DROPBOX_REDIRECT_URI,
-            code = code,
-            codeVerifier = codeVerifier
-        )
+        return exchangeCodeForToken(code)
     }
 
     private fun generateCodeVerifier(): String {
@@ -93,18 +88,15 @@ object DropboxApi {
     }
 
     private suspend fun exchangeCodeForToken(
-        appKey: String,
-        redirectUri: String,
         code: String,
-        codeVerifier: String,
         client: OkHttpClient = OkHttpClient()
     ): Result<String> = withContext(Dispatchers.IO) {
         runCatching {
             val body = FormBody.Builder()
                 .add("code", code)
                 .add("grant_type", "authorization_code")
-                .add("client_id", appKey)
-                .add("redirect_uri", redirectUri)
+                .add("client_id", BuildConfig.DROPBOX_APP_KEY)
+                .add("redirect_uri", BuildConfig.DROPBOX_REDIRECT_URI)
                 .add("code_verifier", codeVerifier)
                 .build()
             val request = Request.Builder()
