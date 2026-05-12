@@ -54,17 +54,8 @@ fun Navigation(nav: NavHostController, model: GalleryViewModel, modifier: Modifi
         composable(
             "pager/{imageId}",
             arguments = listOf(navArgument("imageId") { type = NavType.LongType })
-        ) { route ->
-            val imageId = route.arguments?.getLong("imageId")!!
-            val image = media.find { it.id == imageId }
-            PagerView(
-                items = media,
-                current = image,
-                onEdit = { mediaId -> model.edit(mediaId, context) },
-                onShare = { selection -> model.share(selection, context) },
-                onDelete = { selection, callback -> model.delete(selection, context, callback) },
-                onClose = nav::navigateUp
-            )
+        ) {
+            PagerView(onClose = nav::navigateUp)
         }
 
         composable(
@@ -94,21 +85,8 @@ fun Navigation(nav: NavHostController, model: GalleryViewModel, modifier: Modifi
                 navArgument("albumId") { type = NavType.LongType },
                 navArgument("imageId") { type = NavType.LongType }
             )
-        ) { route ->
-            val albumId = route.arguments?.getLong("albumId")!!
-            model.setAlbumId(albumId)
-
-            val imageId = route.arguments?.getLong("imageId")
-            val image = albumImages.find { it.id == imageId }
-
-            PagerView(
-                items = albumImages,
-                current = image,
-                onEdit = { mediaId -> model.edit(mediaId, context) },
-                onShare = { selection -> model.share(selection, context) },
-                onDelete = { selection, callback -> model.delete(selection, context, callback) },
-                onClose = nav::navigateUp
-            )
+        ) {
+            PagerView(onClose = nav::navigateUp)
         }
     }
 }
