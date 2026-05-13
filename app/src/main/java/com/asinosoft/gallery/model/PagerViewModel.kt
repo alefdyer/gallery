@@ -13,7 +13,10 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 
 @HiltViewModel
 class PagerViewModel @Inject constructor(
@@ -26,12 +29,14 @@ class PagerViewModel @Inject constructor(
     private val albumId: Long? = state["albumId"]
     private val imageId: Long = state["imageId"]!!
 
-    val images: Flow<List<Media>> =
-        if (null == albumId) {
-            mediaDao.getImages()
-        } else {
-            albumDao.getMediaInAlbum(albumId)
-        }
+    val images: StateFlow<List<Media>> = (
+        albumId?.let { albumDao.getMediaInAlbum(albumId) }
+            ?: mediaDao.getImages()
+        ).stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.Eagerly,
+        initialValue = emptyList()
+    )
 
     val offset: Flow<Int> = images.map { it.indexOfFirst { image -> image.id == imageId } }
 

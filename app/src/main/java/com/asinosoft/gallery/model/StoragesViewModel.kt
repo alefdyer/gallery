@@ -9,13 +9,20 @@ import com.asinosoft.gallery.data.storage.StorageDao
 import com.asinosoft.gallery.data.storage.StorageService
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.stateIn
 
 @HiltViewModel
 class StoragesViewModel @Inject constructor(
     storageDao: StorageDao,
     private val storageService: StorageService
 ) : ViewModel() {
-    val storages = storageDao.getAccounts()
+    val storages: StateFlow<List<Storage>> = storageDao.getAccounts().stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.Eagerly,
+        initialValue = emptyList()
+    )
 
     fun addStorage(storage: Storage) = viewModelScope.launchAndCatch {
         storageService.addStorage(storage)

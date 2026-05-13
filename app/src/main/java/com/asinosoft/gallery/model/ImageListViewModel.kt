@@ -12,7 +12,9 @@ import com.asinosoft.gallery.data.launchAndCatch
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
-import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.stateIn
 
 @HiltViewModel
 class ImageListViewModel @Inject constructor(
@@ -24,12 +26,14 @@ class ImageListViewModel @Inject constructor(
 ) : ViewModel() {
     val albumId: Long? = state["albumId"]
 
-    val images: Flow<List<Media>> =
-        if (null == albumId) {
-            mediaDao.getImages()
-        } else {
-            albumDao.getMediaInAlbum(albumId)
-        }
+    val images: StateFlow<List<Media>> = (
+        albumId?.let { albumDao.getMediaInAlbum(albumId) }
+            ?: mediaDao.getImages()
+        ).stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.Eagerly,
+        initialValue = emptyList()
+    )
 
     fun share(mediaIds: Collection<Long>) = viewModelScope.launchAndCatch {
         mediaService.share(mediaIds, context)
