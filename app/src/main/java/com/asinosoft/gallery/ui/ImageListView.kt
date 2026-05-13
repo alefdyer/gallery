@@ -14,6 +14,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -27,8 +28,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
-import com.asinosoft.gallery.data.AlbumWithCover
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.asinosoft.gallery.data.Media
+import com.asinosoft.gallery.model.ImageListViewModel
 import com.asinosoft.gallery.ui.component.AddToAlbumDialog
 import com.asinosoft.gallery.ui.component.DragSelectionState
 import com.asinosoft.gallery.ui.component.LazyGridVerticalScrollIndicator
@@ -38,18 +40,12 @@ import com.asinosoft.gallery.ui.component.dragSelection
 
 @Composable
 fun ImageListView(
-    albums: List<AlbumWithCover>,
-    images: List<Media>,
-    onClick: (Media) -> Unit,
-    onShare: (Set<Long>) -> Unit,
-    onDelete: (Set<Long>, () -> Unit) -> Unit,
-    onAddTag: (Set<Long>, Long) -> Unit,
-    onCreateTag: (Set<Long>, String) -> Unit,
-    onRemoveTag: (Set<Long>, Long) -> Unit,
+    onMediaClick: (Media) -> Unit,
+    onClose: () -> Unit,
     modifier: Modifier = Modifier,
-    albumId: Long? = null,
-    onClose: () -> Unit = {}
+    model: ImageListViewModel = hiltViewModel()
 ) {
+    val images by model.images.collectAsState(listOf())
     var closeOnEmptyList by remember { mutableStateOf(false) }
     var selection by remember { mutableStateOf(setOf<Long>()) }
     val selectionMode by remember { derivedStateOf { selection.isNotEmpty() } }
@@ -66,11 +62,11 @@ fun ImageListView(
         }
     }
 
-    LaunchedEffect(albumId, images, onClose) {
+    LaunchedEffect(model.albumId, images, onClose) {
         if (closeOnEmptyList && images.isEmpty()) {
             onClose()
         } else {
-            closeOnEmptyList = null != albumId
+            closeOnEmptyList = null != model.albumId
         }
     }
 
@@ -100,7 +96,7 @@ fun ImageListView(
                     media = media,
                     selectionMode = selectionMode,
                     selected = selection,
-                    onClick = onClick,
+                    onClick = onMediaClick,
                     onSelect = { image ->
                         if (!dragSelectionState.active) {
                             selection = if (selection.contains(image.id)) {
@@ -146,23 +142,22 @@ fun ImageListView(
                 selected = selection,
                 modifier = Modifier.onSizeChanged { selectionBarHeight = it.height },
                 onBack = { selection = setOf() },
-                onShare = { onShare(selection) },
-                onDelete = { onDelete(selection) { selection = setOf() } },
+                onShare = { model.share(selection) },
+                onDelete = { model.delete(selection) { selection = setOf() } },
                 onAddTag = { showTagDialog = true },
-                onRemoveTag = albumId?.let { { onRemoveTag(selection, it) } }
+                onRemoveTag = model.albumId?.let { { model.removeFromAlbum(selection, it) } }
             )
         }
 
         if (showTagDialog) {
             AddToAlbumDialog(
-                albums = albums,
                 onPickAlbum = { album ->
-                    onAddTag(selection, album.id)
+                    model.addToAlbum(selection, album.id)
                     selection = setOf()
                     showTagDialog = false
                 },
                 onCreateAlbum = { name ->
-                    onCreateTag(selection, name)
+                    model.addToNewAlbum(selection, name)
                     selection = setOf()
                     showTagDialog = false
                 },

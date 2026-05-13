@@ -1,7 +1,5 @@
 package com.asinosoft.gallery.data.storage
 
-import android.content.Context
-import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.runBlocking
@@ -9,7 +7,6 @@ import okhttp3.Request
 
 @Singleton
 class StorageAuthProvider @Inject constructor(
-    @param:ApplicationContext val context: Context,
     val storageDao: StorageDao,
     val storageProviderRegistry: StorageProviderRegistry
 ) {

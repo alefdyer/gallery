@@ -18,6 +18,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -27,19 +29,22 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.asinosoft.gallery.R
 import com.asinosoft.gallery.data.Album
-import com.asinosoft.gallery.data.AlbumWithCover
+import com.asinosoft.gallery.model.AlbumsViewModel
 import com.asinosoft.gallery.ui.component.AlbumCover
 import com.asinosoft.gallery.ui.theme.Typography
 
 @Composable
 fun AlbumListView(
-    albums: List<AlbumWithCover>,
     modifier: Modifier = Modifier,
     onAlbumClick: (Album) -> Unit = {},
-    onNewAlbumClick: (() -> Unit)? = null
+    onNewAlbumClick: (() -> Unit)? = null,
+    model: AlbumsViewModel = hiltViewModel()
 ) {
+    val albums by model.albums.collectAsState(initial = listOf())
+
     LazyVerticalGrid(
         columns = GridCells.Fixed(2),
         modifier = modifier

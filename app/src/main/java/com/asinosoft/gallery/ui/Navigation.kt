@@ -4,25 +4,22 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
-import com.asinosoft.gallery.model.GalleryViewModel
+import com.asinosoft.gallery.data.Album
+import com.asinosoft.gallery.data.Media
 
 @Composable
-fun Navigation(nav: NavHostController, model: GalleryViewModel, modifier: Modifier = Modifier) {
-    val context = LocalContext.current
-    val albums by model.albums.collectAsState(initial = listOf())
-    val media by model.images.collectAsState(initial = listOf())
-    val storages by model.storages.collectAsState(initial = listOf())
-    val albumImages by model.albumImages.collectAsState(listOf())
-    val isRefreshing by model.isRescanning.collectAsState()
+fun Navigation(nav: NavHostController, modifier: Modifier = Modifier) {
+    val navigateToMedia = { media: Media -> nav.navigate("pager/${media.id}") }
+    val navigateToAlbum = { album: Album -> nav.navigate("album/${album.id}") }
+    val navigateToAlbumMedia = { albumId: Long, media: Media ->
+        nav.navigate("album/$albumId/pager/${media.id}")
+    }
 
     NavHost(
         modifier = modifier,
@@ -33,17 +30,8 @@ fun Navigation(nav: NavHostController, model: GalleryViewModel, modifier: Modifi
     ) {
         composable("main") {
             MainView(
-                images = media,
-                albums = albums,
-                onMediaClick = { image -> nav.navigate("pager/${image.id}") },
-                onAlbumClick = { album -> nav.navigate("album/${album.id}") },
-                onShare = { selection -> model.share(selection, context) },
-                onDelete = { selection, callback -> model.delete(selection, context, callback) },
-                onAddTag = model::addToAlbum,
-                onCreateTag = model::addToNewAlbum,
-                onRemoveTag = model::removeFromAlbum,
-                isRefreshing = isRefreshing,
-                onRefresh = { model.rescan(storages) }
+                onMediaClick = navigateToMedia,
+                onAlbumClick = navigateToAlbum
             )
         }
 
@@ -59,19 +47,10 @@ fun Navigation(nav: NavHostController, model: GalleryViewModel, modifier: Modifi
             arguments = listOf(navArgument("albumId") { type = NavType.LongType })
         ) { route ->
             val albumId = route.arguments?.getLong("albumId")!!
-            model.setAlbumId(albumId)
 
             ImageListView(
-                albums = albums,
-                images = albumImages,
-                albumId = albumId,
-                onClick = { image -> nav.navigate("album/$albumId/pager/${image.id}") },
-                onClose = nav::navigateUp,
-                onShare = { selection -> model.share(selection, context) },
-                onDelete = { selection, callback -> model.delete(selection, context, callback) },
-                onAddTag = { selection, albumId -> model.addToAlbum(selection, albumId) },
-                onCreateTag = { selection, albumName -> model.addToNewAlbum(selection, albumName) },
-                onRemoveTag = { selection, albumId -> model.removeFromAlbum(selection, albumId) }
+                onMediaClick = { media -> navigateToAlbumMedia(albumId, media) },
+                onClose = nav::navigateUp
             )
         }
 

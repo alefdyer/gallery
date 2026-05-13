@@ -14,7 +14,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.navigation.compose.rememberNavController
 import com.asinosoft.gallery.di.IntentHelper
-import com.asinosoft.gallery.model.GalleryViewModel
+import com.asinosoft.gallery.model.MainViewModel
 import com.asinosoft.gallery.ui.Navigation
 import com.asinosoft.gallery.ui.PermissionDisclaimer
 import com.asinosoft.gallery.ui.theme.GalleryTheme
@@ -22,12 +22,10 @@ import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.isGranted
 import com.google.accompanist.permissions.rememberPermissionState
 import dagger.hilt.android.AndroidEntryPoint
-import kotlinx.coroutines.flow.filterNotNull
-import kotlinx.coroutines.launch
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
-    private val model: GalleryViewModel by viewModels()
+    private val model: MainViewModel by viewModels()
     private val intentHelper = IntentHelper
 
     @OptIn(ExperimentalPermissionsApi::class)
@@ -57,19 +55,14 @@ class MainActivity : ComponentActivity() {
 
             val snackbarHostState = remember { SnackbarHostState() }
 
-            LaunchedEffect(model.message) {
-                launch {
-                    model.message.filterNotNull().collect {
-                        model.clearMessage()
-                        snackbarHostState.showSnackbar(it)
-                    }
-                }
+            LaunchedEffect(model.messages) {
+                model.messages.collect(snackbarHostState::showSnackbar)
             }
 
             GalleryTheme {
                 when (storagePermission.status.isGranted) {
                     true -> {
-                        Navigation(navController, model)
+                        Navigation(navController)
                     }
 
                     else -> {

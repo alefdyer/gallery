@@ -14,34 +14,30 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.asinosoft.gallery.R
 import com.asinosoft.gallery.data.Album
-import com.asinosoft.gallery.data.AlbumWithCover
 import com.asinosoft.gallery.data.Media
+import com.asinosoft.gallery.model.MainViewModel
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MainView(
-    images: List<Media>,
-    albums: List<AlbumWithCover>,
     onMediaClick: (Media) -> Unit,
     onAlbumClick: (Album) -> Unit,
-    onShare: (Set<Long>) -> Unit,
-    onDelete: (Set<Long>, () -> Unit) -> Unit,
-    onAddTag: (Set<Long>, Long) -> Unit,
-    onCreateTag: (Set<Long>, String) -> Unit,
-    onRemoveTag: (Set<Long>, Long) -> Unit,
-    isRefreshing: Boolean,
-    onRefresh: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    model: MainViewModel = hiltViewModel()
 ) {
+    val isFetching by model.isFetching.collectAsState(false)
     val pagerState = rememberPagerState { 3 }
     val coroutineScope = rememberCoroutineScope()
 
@@ -57,28 +53,18 @@ fun MainView(
         }
     ) { paddingValues ->
         PullToRefreshBox(
-            isRefreshing = isRefreshing,
-            onRefresh,
+            isRefreshing = isFetching,
+            onRefresh = model::fetch,
             Modifier.padding(paddingValues)
         ) {
             HorizontalPager(state = pagerState) {
                 when (it) {
                     0 -> ImageListView(
-                        albums = albums,
-                        images = images,
-                        onClick = onMediaClick,
-                        onClose = {},
-                        onShare = onShare,
-                        onDelete = onDelete,
-                        onAddTag = onAddTag,
-                        onCreateTag = onCreateTag,
-                        onRemoveTag = onRemoveTag
+                        onMediaClick = onMediaClick,
+                        onClose = {}
                     )
 
-                    1 -> AlbumListView(
-                        albums = albums,
-                        onAlbumClick = onAlbumClick
-                    )
+                    1 -> AlbumListView(onAlbumClick = onAlbumClick)
 
                     2 -> StoragesView()
                 }

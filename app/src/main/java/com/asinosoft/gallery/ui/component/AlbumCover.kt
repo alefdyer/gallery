@@ -22,7 +22,7 @@ import coil3.request.allowHardware
 import coil3.toBitmap
 import com.asinosoft.gallery.R
 import com.asinosoft.gallery.data.Media
-import com.asinosoft.gallery.model.GalleryViewModel
+import com.asinosoft.gallery.model.MediaViewModel
 import java.io.File
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -31,7 +31,7 @@ import kotlinx.coroutines.launch
 fun AlbumCover(
     cover: Media?,
     modifier: Modifier = Modifier,
-    model: GalleryViewModel = hiltViewModel()
+    model: MediaViewModel = hiltViewModel()
 ) {
     if (null == cover) {
         Image(
