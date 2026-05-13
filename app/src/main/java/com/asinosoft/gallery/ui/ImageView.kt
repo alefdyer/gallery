@@ -40,7 +40,7 @@ import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
 import coil3.request.allowHardware
 import com.asinosoft.gallery.data.Media
-import com.asinosoft.gallery.model.GalleryViewModel
+import com.asinosoft.gallery.model.MediaViewModel
 import kotlin.math.max
 import kotlinx.coroutines.launch
 
@@ -48,7 +48,7 @@ import kotlinx.coroutines.launch
 fun ImageView(
     media: Media,
     modifier: Modifier = Modifier,
-    model: GalleryViewModel = hiltViewModel(),
+    model: MediaViewModel = hiltViewModel(),
     onTap: () -> Unit = {}
 ) {
     val context = LocalContext.current

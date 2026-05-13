@@ -21,12 +21,10 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import com.asinosoft.gallery.data.Album
-import com.asinosoft.gallery.data.AlbumWithCover
 import com.asinosoft.gallery.ui.AlbumListView
 
 @Composable
 fun AddToAlbumDialog(
-    albums: List<AlbumWithCover>,
     onPickAlbum: (Album) -> Unit,
     onCreateAlbum: (String) -> Unit,
     onDismiss: () -> Unit
@@ -66,7 +64,6 @@ fun AddToAlbumDialog(
                 )
             } else {
                 AlbumListView(
-                    albums = albums,
                     onAlbumClick = { album ->
                         onPickAlbum(album)
                         onDismiss()

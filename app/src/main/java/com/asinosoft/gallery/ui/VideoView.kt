@@ -37,7 +37,7 @@ import androidx.media3.ui.PlayerView
 import com.asinosoft.gallery.GalleryApp
 import com.asinosoft.gallery.R
 import com.asinosoft.gallery.data.Media
-import com.asinosoft.gallery.model.GalleryViewModel
+import com.asinosoft.gallery.model.MediaViewModel
 import kotlinx.coroutines.launch
 
 @OptIn(UnstableApi::class)
@@ -45,7 +45,7 @@ import kotlinx.coroutines.launch
 fun VideoView(
     media: Media,
     modifier: Modifier = Modifier,
-    model: GalleryViewModel = hiltViewModel(),
+    model: MediaViewModel = hiltViewModel(),
     onPlaying: (Boolean) -> Unit = {}
 ) {
     val context = LocalContext.current

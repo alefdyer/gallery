@@ -31,7 +31,7 @@ import coil3.toBitmap
 import com.asinosoft.gallery.R
 import com.asinosoft.gallery.data.Media
 import com.asinosoft.gallery.data.storage.StorageType
-import com.asinosoft.gallery.model.GalleryViewModel
+import com.asinosoft.gallery.model.MediaViewModel
 import java.io.File
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -44,7 +44,7 @@ fun MediaThumbnail(
     selectionMode: Boolean = false,
     onClick: (Media) -> Unit = {},
     onSelect: (Media) -> Unit = {},
-    model: GalleryViewModel = hiltViewModel()
+    model: MediaViewModel = hiltViewModel()
 ) {
     Box(
         modifier = modifier.clickable { if (selectionMode) onSelect(media) else onClick(media) }
