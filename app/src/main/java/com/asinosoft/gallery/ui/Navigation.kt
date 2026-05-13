@@ -35,7 +35,6 @@ fun Navigation(nav: NavHostController, model: GalleryViewModel, modifier: Modifi
             MainView(
                 images = media,
                 albums = albums,
-                storages = storages,
                 onMediaClick = { image -> nav.navigate("pager/${image.id}") },
                 onAlbumClick = { album -> nav.navigate("album/${album.id}") },
                 onShare = { selection -> model.share(selection, context) },
@@ -43,9 +42,6 @@ fun Navigation(nav: NavHostController, model: GalleryViewModel, modifier: Modifi
                 onAddTag = model::addToAlbum,
                 onCreateTag = model::addToNewAlbum,
                 onRemoveTag = model::removeFromAlbum,
-                onCheckStorage = model::checkStorage,
-                onAddStorage = model::addStorage,
-                onDeleteStorage = model::deleteStorage,
                 isRefreshing = isRefreshing,
                 onRefresh = { model.rescan(storages) }
             )

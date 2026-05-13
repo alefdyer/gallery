@@ -34,6 +34,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -55,6 +56,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.core.net.toUri
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.asinosoft.gallery.BuildConfig
 import com.asinosoft.gallery.OAuthRedirectBus
 import com.asinosoft.gallery.R
@@ -63,19 +65,16 @@ import com.asinosoft.gallery.data.storage.StorageCheckResult
 import com.asinosoft.gallery.data.storage.StorageType
 import com.asinosoft.gallery.data.storage.dropbox.DropboxApi
 import com.asinosoft.gallery.data.storage.yandex.YandexStorageProvider
+import com.asinosoft.gallery.model.StoragesViewModel
 import com.asinosoft.gallery.ui.component.StorageTypeIcon
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.regex.Pattern
 import kotlinx.coroutines.launch
 
 @Composable
-fun StoragesView(
-    storages: List<Storage>,
-    onCheckStorageConnection: suspend (Storage) -> StorageCheckResult,
-    onAddStorage: (Storage) -> Unit,
-    onDeleteStorage: (Storage) -> Unit,
-    modifier: Modifier = Modifier
-) {
+fun StoragesView(modifier: Modifier = Modifier, model: StoragesViewModel = hiltViewModel()) {
+    val storages by model.storages.collectAsState(initial = listOf())
+
     val showStorageEditor = remember { mutableStateOf(false) }
     val account = remember { mutableStateOf<Storage?>(null) }
 
@@ -87,9 +86,9 @@ fun StoragesView(
     if (showStorageEditor.value) {
         StorageEditor(
             storage = account.value,
-            onCheckStorageConnection = onCheckStorageConnection,
+            onCheckStorageConnection = model::checkStorage,
             onSave = { storage ->
-                onAddStorage(storage)
+                model.addStorage(storage)
                 showStorageEditor.value = false
             },
             onCancel = { showStorageEditor.value = false }
@@ -137,7 +136,7 @@ fun StoragesView(
 
                             if (storage.type.isDeletable) {
                                 IconButton(onClick = {
-                                    onDeleteStorage(storage)
+                                    model.deleteStorage(storage)
                                 }) {
                                     Icon(
                                         painterResource(R.drawable.delete),

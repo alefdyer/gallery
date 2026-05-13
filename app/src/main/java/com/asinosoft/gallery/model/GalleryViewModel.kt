@@ -9,7 +9,6 @@ import com.asinosoft.gallery.data.Media
 import com.asinosoft.gallery.data.MediaDao
 import com.asinosoft.gallery.data.MediaService
 import com.asinosoft.gallery.data.storage.Storage
-import com.asinosoft.gallery.data.storage.StorageCheckResult
 import com.asinosoft.gallery.data.storage.StorageDao
 import com.asinosoft.gallery.data.storage.StorageProviderRegistry
 import com.asinosoft.gallery.data.storage.StorageService
@@ -36,7 +35,6 @@ class GalleryViewModel @Inject constructor(
     mediaDao: MediaDao
 ) : ViewModel() {
     private val albumId = MutableStateFlow<Long?>(null)
-    private val rescanFlow = MutableStateFlow(false)
     private val messageFlow = MutableStateFlow<String?>(null)
 
     val albums = albumDao.getAlbums()
@@ -45,7 +43,7 @@ class GalleryViewModel @Inject constructor(
 
     val storages = storageDao.getAccounts()
 
-    val isRescanning: StateFlow<Boolean> = rescanFlow
+    val isRescanning: StateFlow<Boolean> = storageService.isFetching
 
     val message: StateFlow<String?> = messageFlow
 
@@ -63,22 +61,17 @@ class GalleryViewModel @Inject constructor(
             if (storage.type == StorageType.LOCAL) {
                 LocalStorageObserver.schedule(context, storage)
 
-                rescan(listOf(storage))
+                storageService.fetch(storage)
             }
         }
     }
 
     fun rescan(storages: List<Storage>) = viewModelScope.launch {
-        rescanFlow.emit(true)
         try {
-            storages.forEach { storage ->
-                val provider = storageProviderRegistry.getStorageProvider(storage.id)
-                mediaService.update(provider)
-            }
+            storages.forEach { storageService.fetch(it) }
         } catch (ex: Throwable) {
             messageFlow.emit(ex.message)
         }
-        rescanFlow.emit(false)
     }
 
     fun setAlbumId(id: Long) = viewModelScope.launch {
@@ -93,14 +86,6 @@ class GalleryViewModel @Inject constructor(
                 messageFlow.emit(ex.message)
             }
         }
-
-    fun edit(mediaId: Long, context: Context) = viewModelScope.launch {
-        try {
-            mediaService.edit(mediaId, context)
-        } catch (ex: Throwable) {
-            messageFlow.emit(ex.message)
-        }
-    }
 
     fun share(mediaIds: Collection<Long>, context: Context) = viewModelScope.launch {
         try {
@@ -130,26 +115,6 @@ class GalleryViewModel @Inject constructor(
     fun removeFromAlbum(mediaIds: Collection<Long>, albumId: Long) = viewModelScope.launch {
         try {
             mediaService.removeFromAlbum(mediaIds, albumId)
-        } catch (ex: Throwable) {
-            messageFlow.emit(ex.message)
-        }
-    }
-
-    fun addStorage(storage: Storage) = viewModelScope.launch {
-        try {
-            val storage = storageService.addStorage(storage)
-            rescan(listOf(storage))
-        } catch (ex: Throwable) {
-            messageFlow.emit(ex.message)
-        }
-    }
-
-    suspend fun checkStorage(storage: Storage): StorageCheckResult =
-        storageService.checkStorage(storage)
-
-    fun deleteStorage(storage: Storage) = viewModelScope.launch {
-        try {
-            storageService.deleteStorage(storage)
         } catch (ex: Throwable) {
             messageFlow.emit(ex.message)
         }
