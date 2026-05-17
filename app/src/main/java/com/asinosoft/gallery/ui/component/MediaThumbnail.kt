@@ -56,38 +56,36 @@ fun MediaThumbnail(
         var request by remember { mutableStateOf<ImageRequest?>(null) }
 
         LaunchedEffect(media) {
-            scope.launch {
-                val thumbnail = File(context.cacheDir, media.id.toString())
-                request = if (thumbnail.exists()) {
-                    val key = "thumbnail-${media.id}"
-                    ImageRequest
-                        .Builder(context)
-                        .memoryCacheKey(key)
-                        .data(thumbnail)
-                        .build()
-                } else {
-                    val uri = model.getThumbnailUri(media)
-                    val key = "media-${media.id}"
-                    ImageRequest
-                        .Builder(context)
-                        .data(uri)
-                        .diskCacheKey(key)
-                        .memoryCacheKey(key)
-                        .size(size)
-                        .allowHardware(true)
-                        .listener(onSuccess = { _, result ->
-                            if (!media.filename.endsWith(".gif", ignoreCase = true)) {
-                                scope.launch(Dispatchers.IO) {
-                                    thumbnail.outputStream().use {
-                                        result.image
-                                            .toBitmap()
-                                            .compress(CompressFormat.WEBP, 90, it)
-                                    }
+            val thumbnail = File(context.cacheDir, media.id.toString())
+            request = if (thumbnail.exists()) {
+                val key = "thumbnail-${media.id}"
+                ImageRequest
+                    .Builder(context)
+                    .memoryCacheKey(key)
+                    .data(thumbnail)
+                    .build()
+            } else {
+                val uri = model.getThumbnailUri(media)
+                val key = "media-${media.id}"
+                ImageRequest
+                    .Builder(context)
+                    .data(uri)
+                    .diskCacheKey(key)
+                    .memoryCacheKey(key)
+                    .size(size)
+                    .allowHardware(true)
+                    .listener(onSuccess = { _, result ->
+                        if (!media.filename.endsWith(".gif", ignoreCase = true)) {
+                            scope.launch(Dispatchers.IO) {
+                                thumbnail.outputStream().use {
+                                    result.image
+                                        .toBitmap()
+                                        .compress(CompressFormat.WEBP, 90, it)
                                 }
                             }
-                        })
-                        .build()
-                }
+                        }
+                    })
+                    .build()
             }
         }
 

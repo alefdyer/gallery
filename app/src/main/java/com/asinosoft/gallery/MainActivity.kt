@@ -22,7 +22,6 @@ import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.isGranted
 import com.google.accompanist.permissions.rememberPermissionState
 import dagger.hilt.android.AndroidEntryPoint
-import kotlinx.coroutines.launch
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
@@ -57,9 +56,7 @@ class MainActivity : ComponentActivity() {
             val snackbarHostState = remember { SnackbarHostState() }
 
             LaunchedEffect(model.messages) {
-                launch {
-                    model.messages.collect(snackbarHostState::showSnackbar)
-                }
+                model.messages.collect(snackbarHostState::showSnackbar)
             }
 
             GalleryTheme {

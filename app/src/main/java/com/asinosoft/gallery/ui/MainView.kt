@@ -61,7 +61,7 @@ fun MainView(
                 when (it) {
                     0 -> ImageListView(
                         onMediaClick = onMediaClick,
-                        onClose = {},
+                        onClose = {}
                     )
 
                     1 -> AlbumListView(onAlbumClick = onAlbumClick)

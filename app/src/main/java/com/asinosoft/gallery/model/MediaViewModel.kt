@@ -9,7 +9,7 @@ import javax.inject.Inject
 
 @HiltViewModel
 class MediaViewModel @Inject constructor(
-    private val storageProviderRegistry: StorageProviderRegistry,
+    private val storageProviderRegistry: StorageProviderRegistry
 ) : ViewModel() {
     suspend fun getMediaUri(media: Media): Uri =
         storageProviderRegistry.getStorageProvider(media.storageId)

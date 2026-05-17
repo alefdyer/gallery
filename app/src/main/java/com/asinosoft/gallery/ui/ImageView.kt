@@ -3,9 +3,9 @@ package com.asinosoft.gallery.ui
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.exponentialDecay
 import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.calculatePan
 import androidx.compose.foundation.gestures.calculateZoom
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.CircularProgressIndicator
@@ -25,7 +25,10 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.AwaitPointerEventScope
 import androidx.compose.ui.input.pointer.PointerId
+import androidx.compose.ui.input.pointer.PointerInputChange
+import androidx.compose.ui.input.pointer.changedToUp
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChanged
 import androidx.compose.ui.input.pointer.util.VelocityTracker
@@ -33,6 +36,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.toSize
+import androidx.compose.ui.util.fastAll
 import androidx.compose.ui.util.fastAny
 import androidx.compose.ui.util.fastForEach
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -43,6 +47,7 @@ import com.asinosoft.gallery.data.Media
 import com.asinosoft.gallery.model.MediaViewModel
 import kotlin.math.max
 import kotlinx.coroutines.launch
+import kotlin.math.abs
 
 @Composable
 fun ImageView(
@@ -71,30 +76,28 @@ fun ImageView(
     LaunchedEffect(minScale) { scale = minScale }
 
     LaunchedEffect(media) {
-        scope.launch {
-            val key = "media#${media.id}"
-            try {
-                isLoading = true
-                val uri = model.getMediaUri(media)
+        val key = "media#${media.id}"
+        try {
+            isLoading = true
+            val uri = model.getMediaUri(media)
 
-                request = ImageRequest.Builder(context)
-                    .data(uri)
-                    .size(2000)
-                    .memoryCacheKey(key)
-                    .diskCacheKey(key)
-                    .allowHardware(true)
-                    .listener(
-                        onError = { _, result ->
-                            error = result.throwable.message
-                            isLoading = false
-                        },
-                        onSuccess = { _, _ -> isLoading = false }
-                    )
-                    .build()
-            } catch (ex: Throwable) {
-                error = ex.message
-                isLoading = false
-            }
+            request = ImageRequest.Builder(context)
+                .data(uri)
+                .size(2000)
+                .memoryCacheKey(key)
+                .diskCacheKey(key)
+                .allowHardware(true)
+                .listener(
+                    onError = { _, result ->
+                        error = result.throwable.message
+                        isLoading = false
+                    },
+                    onSuccess = { _, _ -> isLoading = false }
+                )
+                .build()
+        } catch (ex: Throwable) {
+            error = ex.message
+            isLoading = false
         }
     }
 
@@ -134,14 +137,10 @@ fun ImageView(
         modifier =
             modifier
                 .fillMaxSize()
-                .pointerInput(imageSize, viewSize) {
-                    if (imageSize.isEmpty() or viewSize.isEmpty()) return@pointerInput
-
-                    detectTapGestures(
-                        onTap = { onTap() },
-                        onDoubleTap = toggleScale
-                    )
-                }
+                .detectTapAndDoubleTap(
+                    onTap = onTap,
+                    onDoubleTap = toggleScale
+                )
                 .pointerInput(imageSize, viewSize) {
                     if (imageSize.isEmpty()) return@pointerInput
 
@@ -235,3 +234,35 @@ private fun Size.scaleInto(box: Size): Float = (box.width / width).coerceAtMost(
 
 private fun Size.scaleUpTo(box: Size): Float =
     (box.width / width).coerceAtLeast(box.height / height).coerceAtLeast(2f)
+
+/**
+ * Enhanced double tap detector: doesn't cancel gesture when the pointer position changes
+ */
+private fun Modifier.detectTapAndDoubleTap(
+    onTap: () -> Unit,
+    onDoubleTap: (Offset) -> Unit
+): Modifier = this then Modifier.pointerInput(Unit) {
+    awaitEachGesture {
+        val down = awaitFirstDown()
+        withTimeoutOrNull(300) { waitForUp() }?.let { up ->
+            val second = withTimeoutOrNull(300) { awaitFirstDown() }
+            if (second != null) {
+                onDoubleTap(down.position)
+            } else {
+                val distance = down.position - up.position
+                if (abs(distance.x) + abs(distance.y) < 100) {
+                    onTap()
+                }
+            }
+        }
+    }
+}
+
+private suspend fun AwaitPointerEventScope.waitForUp(): PointerInputChange {
+    while (true) {
+        val event = awaitPointerEvent()
+        if (event.changes.fastAll { it.changedToUp() }) {
+            return event.changes[0]
+        }
+    }
+}

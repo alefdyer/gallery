@@ -15,10 +15,11 @@ import com.asinosoft.gallery.data.Media
 
 @Composable
 fun Navigation(nav: NavHostController, modifier: Modifier = Modifier) {
-
     val navigateToMedia = { media: Media -> nav.navigate("pager/${media.id}") }
     val navigateToAlbum = { album: Album -> nav.navigate("album/${album.id}") }
-    val navigateToAlbumMedia = { albumId: Long, media: Media -> nav.navigate("album/$albumId/pager/${media.id}") }
+    val navigateToAlbumMedia = { albumId: Long, media: Media ->
+        nav.navigate("album/$albumId/pager/${media.id}")
+    }
 
     NavHost(
         modifier = modifier,
