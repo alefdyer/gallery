@@ -9,7 +9,12 @@ import com.asinosoft.gallery.data.storage.Storage
 import com.asinosoft.gallery.data.storage.StorageDao
 
 @Database(
-    entities = [Album::class, Media::class, MediaAlbum::class, Storage::class],
+    entities = [
+        Album::class,
+        AlbumCategory::class,
+        Media::class,
+        MediaAlbum::class,
+        Storage::class],
     version = 3,
     exportSchema = false
 )

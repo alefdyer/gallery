@@ -8,5 +8,7 @@ class AppDatabaseInitializer : RoomDatabase.Callback() {
         super.onCreate(db)
 
         db.execSQL("INSERT INTO storage (id, type) VALUES (1, 'LOCAL')")
+
+        db.execSQL("INSERT INTO album_category (id, name) VALUES (1, ':other')")
     }
 }

@@ -8,6 +8,7 @@ import androidx.room.Query
 import androidx.room.Transaction
 import androidx.room.Upsert
 import kotlinx.coroutines.flow.Flow
+import java.time.LocalDate
 
 @Dao
 interface AlbumDao {
@@ -77,7 +78,6 @@ interface AlbumDao {
     @Query(
         """
         SELECT
-            a.name AS name,
             COUNT(m.id) AS count,
             IFNULL(SUM(m.size), 0) AS size,
             COALESCE(
@@ -102,9 +102,10 @@ interface AlbumDao {
         LEFT JOIN media_album ma ON ma.albumId = a.id
         LEFT JOIN media m ON m.id = ma.mediaId
         WHERE a.id = :albumId
-        GROUP BY a.id, a.name, a.date
-        ORDER BY a.name
         """
     )
     suspend fun getAlbumStats(albumId: Long): AlbumStats
+
+    @Query("UPDATE album SET count = :count, size = :size, coverId = :coverId, date = :date WHERE id = :albumId")
+    suspend fun updateAlbumStats(albumId: Long, count: Int, size: Long, coverId: Long, date: LocalDate)
 }

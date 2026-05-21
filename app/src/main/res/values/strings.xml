@@ -35,4 +35,5 @@
     <string name="storage_check_server_not_found">Сервер не найден</string>
     <string name="storage_check_authorization_failed">Ошибка авторизации</string>
     <string name="storage_check_unknown_error">Ошибка: %1$s</string>
+    <string name="other">Прочее</string>
 </resources>

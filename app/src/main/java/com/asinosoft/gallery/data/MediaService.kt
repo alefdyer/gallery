@@ -86,8 +86,9 @@ class MediaService @Inject constructor(
         val trimmed = name.trim()
         require(trimmed.isNotEmpty()) { "Album name must not be empty" }
 
-        val id = albumDao.upsert(Album(0, trimmed))
-        return Album(id, trimmed)
+        val album = Album(name = trimmed)
+        val id = albumDao.upsert(album)
+        return album.copy(id = id)
     }
 
     suspend fun removeFromAlbum(mediaIds: Collection<Long>, albumId: Long) {
@@ -166,16 +167,7 @@ class MediaService @Inject constructor(
     private suspend fun updateAlbumStats(albumId: Long) {
         val stats = albumDao.getAlbumStats(albumId)
         if (stats.count > 0) {
-            albumDao.upsert(
-                Album(
-                    id = albumId,
-                    name = stats.name,
-                    size = stats.size,
-                    count = stats.count,
-                    coverId = stats.coverId,
-                    date = stats.date
-                )
-            )
+            albumDao.updateAlbumStats(albumId, stats.count, stats.size, stats.coverId, stats.date)
         } else {
             albumDao.delete(albumId)
         }

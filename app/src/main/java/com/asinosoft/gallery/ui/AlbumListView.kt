@@ -6,16 +6,19 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -26,7 +29,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -43,25 +48,39 @@ fun AlbumListView(
     onNewAlbumClick: (() -> Unit)? = null,
     model: AlbumsViewModel = hiltViewModel()
 ) {
-    val albums by model.albums.collectAsState(initial = listOf())
+    val categories by model.albums.collectAsState(initial = listOf())
+    val size = LocalWindowInfo.current.containerDpSize.width / 2
 
-    LazyVerticalGrid(
-        columns = GridCells.Fixed(2),
-        modifier = modifier
+    LazyColumn(
+        modifier = modifier.fillMaxSize()
     ) {
-        items(albums) { album ->
-            Box(
-                modifier =
-                    Modifier
-                        .padding(1.dp)
-                        .clip(RoundedCornerShape(12.dp))
-                        .clickable { onAlbumClick(album.album) }
-            ) {
-                AlbumCover(album.cover)
+        items(categories, { it.category.id } ) { category ->
+            Column {
+                val categoryName = if (category.category.name.equals(":other"))
+                        stringResource(R.string.other)
+                    else
+                        category.category.name
 
-                AlbumImages(album.album)
+                Text(categoryName, style = MaterialTheme.typography.headlineMedium)
 
-                AlbumInfo(album.album)
+                LazyRow {
+                    items(category.albums, { it.album.id }) { album ->
+                        Box(
+                            modifier =
+                                Modifier
+                                    .size(size)
+                                    .padding(1.dp)
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .clickable { onAlbumClick(album.album) }
+                        ) {
+                            AlbumCover(album.cover)
+
+                            AlbumImages(album.album)
+
+                            AlbumInfo(album.album)
+                        }
+                    }
+                }
             }
         }
 
