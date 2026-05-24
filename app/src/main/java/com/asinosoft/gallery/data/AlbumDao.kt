@@ -108,4 +108,7 @@ interface AlbumDao {
 
     @Query("UPDATE album SET count = :count, size = :size, coverId = :coverId, date = :date WHERE id = :albumId")
     suspend fun updateAlbumStats(albumId: Long, count: Int, size: Long, coverId: Long, date: LocalDate)
+
+    @Insert
+    suspend fun createCategory(albumCategory: AlbumCategory): Long
 }
