@@ -131,7 +131,7 @@ dependencies {
     implementation("androidx.work:work-runtime-ktx:2.11.2")
 
     // Compose
-    implementation(platform("androidx.compose:compose-bom:2026.05.00"))
+    implementation(platform("androidx.compose:compose-bom:2026.05.01"))
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.ui:ui-graphics")
     implementation("androidx.compose.ui:ui-tooling-preview")
@@ -140,9 +140,9 @@ dependencies {
     implementation("com.google.accompanist:accompanist-permissions:0.37.3")
 
     // ExoPlayer
-    implementation("androidx.media3:media3-exoplayer:1.10.0")
-    implementation("androidx.media3:media3-ui:1.10.0")
-    implementation("androidx.media3:media3-datasource-okhttp:1.10.0")
+    implementation("androidx.media3:media3-exoplayer:1.10.1")
+    implementation("androidx.media3:media3-ui:1.10.1")
+    implementation("androidx.media3:media3-datasource-okhttp:1.10.1")
 
     // WebDAV
     implementation("com.github.thegrizzlylabs:sardine-android:0.9")
@@ -166,17 +166,17 @@ dependencies {
     ksp("androidx.room:room-compiler:$roomVersion")
 
     // KtLint
-    ktlintRuleset("io.nlopez.compose.rules:ktlint:0.5.8")
+    ktlintRuleset("io.nlopez.compose.rules:ktlint:0.5.9")
 
     // Test
     testImplementation("junit:junit:4.13.2")
-    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.10.2")
+    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.11.0")
     testImplementation("io.mockk:mockk-android:1.14.9")
     androidTestImplementation("androidx.test.ext:junit:1.3.0")
     androidTestImplementation("androidx.test.espresso:espresso-core:3.7.0")
     androidTestImplementation("androidx.room:room-testing:$roomVersion")
-    androidTestImplementation(platform("androidx.compose:compose-bom:2026.05.00"))
+    androidTestImplementation(platform("androidx.compose:compose-bom:2026.05.01"))
     androidTestImplementation("androidx.compose.ui:ui-test-junit4")
     debugImplementation("androidx.compose.ui:ui-tooling")
-    debugImplementation("androidx.compose.ui:ui-test-manifest:1.11.1")
+    debugImplementation("androidx.compose.ui:ui-test-manifest:1.11.2")
 }
