@@ -1,5 +1,6 @@
 package com.asinosoft.gallery.data.storage
 
+import android.util.Log
 import com.asinosoft.gallery.data.AlbumDao
 import com.asinosoft.gallery.data.MediaDao
 import com.asinosoft.gallery.data.MediaService
@@ -8,6 +9,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.withContext
+import kotlin.system.measureTimeMillis
 
 class StorageService @Inject constructor(
     private val albumDao: AlbumDao,
@@ -42,7 +44,12 @@ class StorageService @Inject constructor(
         fetchingFlow.emit(true)
         try {
             val provider = storageProviderRegistry.getStorageProvider(storage.id)
-            mediaService.update(provider)
+            measureTimeMillis {
+                Log.i("data", "Update storage: $storage")
+                mediaService.update(provider)
+            }.also {
+                Log.i("data", "Updated in $it ms")
+            }
         } finally {
             fetchingFlow.emit(false)
         }

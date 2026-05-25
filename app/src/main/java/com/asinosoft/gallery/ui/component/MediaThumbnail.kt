@@ -57,7 +57,7 @@ fun MediaThumbnail(
 
         LaunchedEffect(media) {
             val thumbnail = File(context.cacheDir, media.id.toString())
-            request = if (thumbnail.exists()) {
+            request = if (thumbnail.exists() && thumbnail.length() > 0) {
                 val key = "thumbnail-${media.id}"
                 ImageRequest
                     .Builder(context)
