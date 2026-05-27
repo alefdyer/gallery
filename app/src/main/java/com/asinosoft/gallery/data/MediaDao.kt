@@ -1,6 +1,7 @@
 package com.asinosoft.gallery.data
 
 import android.net.Uri
+import androidx.paging.PagingSource
 import androidx.room.Dao
 import androidx.room.Query
 import androidx.room.Upsert
@@ -9,7 +10,7 @@ import kotlinx.coroutines.flow.Flow
 @Dao
 interface MediaDao {
     @Query("SELECT * FROM media ORDER BY date DESC, time DESC")
-    fun getImages(): Flow<List<Media>>
+    fun getImages(): PagingSource<Int, Media>
 
     @Query("SELECT * FROM media WHERE storageId=:storageId AND storageItemId IN (:storageItemIds)")
     suspend fun getMediaByStorageItemIds(

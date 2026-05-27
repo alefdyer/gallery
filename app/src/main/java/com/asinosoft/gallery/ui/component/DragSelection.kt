@@ -10,6 +10,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.paging.compose.LazyPagingItems
 import com.asinosoft.gallery.data.Media
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -29,7 +30,7 @@ class DragSelectionState {
     private var startSelection by mutableStateOf<Set<Long>>(setOf())
     private var mode by mutableStateOf<Mode?>(null)
 
-    fun onDragStart(items: List<Media>, selected: Set<Long>, index: Int, mediaId: Long): Set<Long> {
+    fun onDragStart(items: LazyPagingItems<Media>, selected: Set<Long>, index: Int, mediaId: Long): Set<Long> {
         active = true
         startIndex = index
         mode = if (selected.contains(mediaId)) Mode.Remove else Mode.Add
@@ -43,7 +44,7 @@ class DragSelectionState {
         )
     }
 
-    fun onDrag(items: List<Media>, index: Int): Set<Long> =
+    fun onDrag(items: LazyPagingItems<Media>, index: Int): Set<Long> =
         applyDragSelection(items, startSelection, startIndex, index, mode)
 
     fun onDragEnd() {
@@ -54,7 +55,7 @@ class DragSelectionState {
 }
 
 fun Modifier.dragSelection(
-    items: List<Media>,
+    items: LazyPagingItems<Media>,
     state: LazyGridState,
     currentSelection: () -> Set<Long>,
     dragSelectionState: DragSelectionState,
@@ -138,7 +139,7 @@ private fun calculateAutoScrollDelta(offset: Float, state: LazyGridState): Float
 private fun getMediaAtPosition(
     offset: Offset,
     state: LazyGridState,
-    items: List<Media>
+    items: LazyPagingItems<Media>
 ): Pair<Int, Media>? {
     val index = state.layoutInfo.visibleItemsInfo.firstOrNull { info ->
         offset.x >= info.offset.x &&
@@ -147,11 +148,11 @@ private fun getMediaAtPosition(
             offset.y <= info.offset.y + info.size.height
     }?.index ?: return null
 
-    return Pair(index, items[index])
+    return items[index]?.let {  Pair(index, it) }
 }
 
 private fun applyDragSelection(
-    items: List<Media>,
+    items: LazyPagingItems<Media>,
     selected: Set<Long>,
     start: Int,
     end: Int,
@@ -162,9 +163,12 @@ private fun applyDragSelection(
     null -> selected
 }
 
-private fun List<Media>.mediaIds(start: Int, end: Int): Set<Long> = subList(
-    start.coerceAtMost(end),
-    end.coerceAtLeast(start) + 1
-).map {
-    it.id
-}.toSet()
+private fun LazyPagingItems<Media>.mediaIds(start: Int, end: Int): Set<Long> {
+    val result = mutableSetOf<Long>()
+    for(i in start.coerceAtMost(end) .. end.coerceAtLeast(start) + 1) {
+        get(i)?.let {
+            result.add(it.id)
+        }
+    }
+    return result
+}

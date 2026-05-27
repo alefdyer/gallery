@@ -1,5 +1,6 @@
 package com.asinosoft.gallery.data
 
+import androidx.paging.PagingSource
 import androidx.room.Dao
 import androidx.room.Delete
 import androidx.room.Insert
@@ -68,7 +69,7 @@ interface AlbumDao {
         ORDER BY m.date DESC, m.time DESC
         """
     )
-    fun getMediaInAlbum(albumId: Long): Flow<List<Media>>
+    fun getMediaInAlbum(albumId: Long): PagingSource<Int, Media>
 
     @Query(
         "SELECT DISTINCT albumId FROM media_album WHERE mediaId IN (:mediaIds)"

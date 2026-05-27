@@ -31,6 +31,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
+import androidx.paging.compose.LazyPagingItems
 import com.asinosoft.gallery.R
 import com.asinosoft.gallery.data.Media
 import java.time.LocalDate
@@ -40,9 +41,9 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
-private fun firstVisibleMediaDate(listItems: List<Media>, lazyGridState: LazyGridState): LocalDate {
+private fun firstVisibleMediaDate(listItems: LazyPagingItems<Media>, lazyGridState: LazyGridState): LocalDate? {
     val i = lazyGridState.firstVisibleItemIndex
-    return listItems[i].date
+    return listItems[i]?.date
 }
 
 private val shortDateFormatter: DateTimeFormatter =
@@ -51,7 +52,7 @@ private val shortDateFormatter: DateTimeFormatter =
 @Composable
 fun LazyGridVerticalScrollIndicator(
     lazyGridState: LazyGridState,
-    listItems: List<Media>,
+    listItems: LazyPagingItems<Media>,
     modifier: Modifier = Modifier
 ) {
     val indicator = lazyGridState.scrollIndicatorState ?: return
@@ -79,7 +80,7 @@ fun LazyGridVerticalScrollIndicator(
     val scope = rememberCoroutineScope()
     val dateLabel by remember(listItems) {
         derivedStateOf {
-            firstVisibleMediaDate(listItems, lazyGridState).format(shortDateFormatter)
+            firstVisibleMediaDate(listItems, lazyGridState)?.format(shortDateFormatter)
         }
     }
 

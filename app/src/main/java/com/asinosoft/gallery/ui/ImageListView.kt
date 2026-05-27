@@ -2,19 +2,18 @@ package com.asinosoft.gallery.ui
 
 import android.icu.text.DateFormatSymbols
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -27,8 +26,12 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.paging.compose.collectAsLazyPagingItems
+import androidx.paging.compose.itemKey
+import com.asinosoft.gallery.R
 import com.asinosoft.gallery.data.Media
 import com.asinosoft.gallery.model.ImageListViewModel
 import com.asinosoft.gallery.ui.component.AddToAlbumDialog
@@ -45,7 +48,7 @@ fun ImageListView(
     modifier: Modifier = Modifier,
     model: ImageListViewModel = hiltViewModel()
 ) {
-    val images by model.images.collectAsState(listOf())
+    val images = model.images.collectAsLazyPagingItems()
     var closeOnEmptyList by remember { mutableStateOf(false) }
     var selection by remember { mutableStateOf(setOf<Long>()) }
     val selectionMode by remember { derivedStateOf { selection.isNotEmpty() } }
@@ -56,14 +59,18 @@ fun ImageListView(
     val dragSelectionState = remember { DragSelectionState() }
     val date by remember(images, lazyGridState) {
         derivedStateOf {
-            images.getOrNull(lazyGridState.firstVisibleItemIndex)?.date?.let {
-                "${months[it.monthValue - 1]} ${it.year}"
+            if (lazyGridState.firstVisibleItemIndex < images.itemCount) {
+                images[lazyGridState.firstVisibleItemIndex]?.date?.let {
+                    "${months[it.monthValue - 1]} ${it.year}"
+                }
+            } else {
+                null
             }
         }
     }
 
     LaunchedEffect(model.albumId, images, onClose) {
-        if (closeOnEmptyList && images.isEmpty()) {
+        if (closeOnEmptyList && images.itemCount == 0) {
             onClose()
         } else {
             closeOnEmptyList = null != model.albumId
@@ -91,22 +98,30 @@ fun ImageListView(
                     onSelectedChange = { selection = it }
                 )
         ) {
-            items(images, key = { it.id }) { media ->
-                MediaThumbnail(
-                    media = media,
-                    selectionMode = selectionMode,
-                    selected = selection,
-                    onClick = onMediaClick,
-                    onSelect = { image ->
-                        if (!dragSelectionState.active) {
-                            selection = if (selection.contains(image.id)) {
-                                selection - image.id
-                            } else {
-                                selection + image.id
+            items(images.itemCount, images.itemKey { it.id }) { index ->
+                val media = images[index]
+                if (media != null) {
+                    MediaThumbnail(
+                        media = media,
+                        selectionMode = selectionMode,
+                        selected = selection,
+                        onClick = onMediaClick,
+                        onSelect = { image ->
+                            if (!dragSelectionState.active) {
+                                selection = if (selection.contains(image.id)) {
+                                    selection - image.id
+                                } else {
+                                    selection + image.id
+                                }
                             }
                         }
-                    }
-                )
+                    )
+                } else {
+                    Image(
+                        painterResource(R.drawable.photo),
+                        contentDescription = null
+                    )
+                }
             }
         }
 

@@ -163,7 +163,14 @@ dependencies {
     val roomVersion = "2.8.4"
     implementation("androidx.room:room-runtime:$roomVersion")
     implementation("androidx.room:room-ktx:$roomVersion")
+    implementation("androidx.room:room-paging:$roomVersion")
     ksp("androidx.room:room-compiler:$roomVersion")
+
+    // Paging
+    val pagingVersion = "3.5.0"
+    implementation("androidx.paging:paging-common:$pagingVersion")
+    implementation("androidx.paging:paging-common-android:$pagingVersion")
+    implementation("androidx.paging:paging-compose:$pagingVersion")
 
     // KtLint
     ktlintRuleset("io.nlopez.compose.rules:ktlint:0.5.9")

@@ -26,6 +26,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.paging.compose.collectAsLazyPagingItems
 import com.asinosoft.gallery.model.PagerViewModel
 
 @Composable
@@ -34,10 +35,10 @@ fun PagerView(
     modifier: Modifier = Modifier,
     model: PagerViewModel = hiltViewModel()
 ) {
-    val items by model.images.collectAsState(listOf())
+    val items = model.images.collectAsLazyPagingItems()
     val offset by model.offset.collectAsState(0)
     val pagerState: PagerState = key(items, offset) {
-        rememberPagerState(offset) { items.size }
+        rememberPagerState(offset) { items.itemCount }
     }
     val currentItem by remember(items) { derivedStateOf { items[pagerState.currentPage] } }
 
@@ -49,8 +50,8 @@ fun PagerView(
         var showControls by remember { mutableStateOf(true) }
         var showInfo by remember { mutableStateOf(false) }
 
-        if (showInfo) {
-            MediaInfoSheet(currentItem) { showInfo = false }
+        if (showInfo) currentItem?.let {
+            MediaInfoSheet(it) { showInfo = false }
         }
 
         HorizontalPager(
@@ -66,9 +67,9 @@ fun PagerView(
                     }
         ) { n ->
             val item = items[n]
-            if (null !== item.image) {
+            if (null !== item?.image) {
                 ImageView(item) { showControls = !showControls }
-            } else if (null != item.video) {
+            } else if (null != item?.video) {
                 VideoView(item) { isPlaying -> showControls = !isPlaying }
             } else {
                 DummyView()
@@ -93,13 +94,15 @@ fun PagerView(
             exit = slideOutVertically(tween(easing = LinearEasing)) { it / 2 }
         ) {
             PagerBottomBar(
-                onShare = { model.share(currentItem) },
-                onEdit = { model.edit(currentItem) },
+                onShare = { currentItem?.let { model.share(it) } },
+                onEdit = { currentItem?.let { model.edit(it) } },
                 onSearch = {},
                 onDelete = {
-                    model.delete(currentItem) {
-                        if (1 == items.count()) {
-                            onClose()
+                    currentItem?.let {
+                        model.delete(it) {
+                            if (1 == items.itemCount) {
+                                onClose()
+                            }
                         }
                     }
                 }
