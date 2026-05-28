@@ -9,8 +9,18 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface MediaDao {
-    @Query("SELECT * FROM media ORDER BY date DESC, time DESC")
+    @Query("SELECT * FROM media ORDER BY date DESC, time DESC, id DESC")
     fun getImages(): PagingSource<Int, Media>
+
+    @Query("""
+        SELECT count(*)
+        FROM media m
+        JOIN media x ON x.date > m.date
+        OR (x.date = m.date AND x.time > m.time)
+        OR (x.date = m.date AND x.time = m.time AND x.id > m.id)
+        WHERE m.id = :mediaId 
+    """)
+    suspend fun getImageIndex(mediaId: Long): Int
 
     @Query("SELECT * FROM media WHERE storageId=:storageId AND storageItemId IN (:storageItemIds)")
     suspend fun getMediaByStorageItemIds(

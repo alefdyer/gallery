@@ -12,7 +12,9 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
@@ -40,7 +42,14 @@ fun PagerView(
     val pagerState: PagerState = key(items, offset) {
         rememberPagerState(offset) { items.itemCount }
     }
-    val currentItem by remember(items) { derivedStateOf { items[pagerState.currentPage] } }
+    val currentItem by remember(items, pagerState.currentPage) { derivedStateOf {
+        if (pagerState.currentPage < items.itemCount) items[pagerState.currentPage]
+        else null
+    } }
+
+    LaunchedEffect(offset) {
+        pagerState.scrollToPage(offset)
+    }
 
     Box(
         modifier =
@@ -75,6 +84,8 @@ fun PagerView(
                 DummyView()
             }
         }
+
+        Text("[$offset][${pagerState.currentPage}] id = ${currentItem?.id}", Modifier.align(Alignment.Center))
 
         AnimatedVisibility(
             visible = showControls,

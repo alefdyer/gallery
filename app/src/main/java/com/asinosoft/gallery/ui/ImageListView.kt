@@ -2,12 +2,12 @@ package com.asinosoft.gallery.ui
 
 import android.icu.text.DateFormatSymbols
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.material3.MaterialTheme
@@ -26,17 +26,17 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.paging.compose.LazyPagingItems
 import androidx.paging.compose.collectAsLazyPagingItems
 import androidx.paging.compose.itemKey
-import com.asinosoft.gallery.R
 import com.asinosoft.gallery.data.Media
 import com.asinosoft.gallery.model.ImageListViewModel
 import com.asinosoft.gallery.ui.component.AddToAlbumDialog
 import com.asinosoft.gallery.ui.component.DragSelectionState
 import com.asinosoft.gallery.ui.component.LazyGridVerticalScrollIndicator
+import com.asinosoft.gallery.ui.component.MediaPlaceholder
 import com.asinosoft.gallery.ui.component.MediaThumbnail
 import com.asinosoft.gallery.ui.component.SelectionInfoBar
 import com.asinosoft.gallery.ui.component.dragSelection
@@ -57,17 +57,6 @@ fun ImageListView(
     val lazyGridState = rememberLazyGridState()
     var showTagDialog by remember { mutableStateOf(false) }
     val dragSelectionState = remember { DragSelectionState() }
-    val date by remember(images, lazyGridState) {
-        derivedStateOf {
-            if (lazyGridState.firstVisibleItemIndex < images.itemCount) {
-                images[lazyGridState.firstVisibleItemIndex]?.date?.let {
-                    "${months[it.monthValue - 1]} ${it.year}"
-                }
-            } else {
-                null
-            }
-        }
-    }
 
     LaunchedEffect(model.albumId, images, onClose) {
         if (closeOnEmptyList && images.itemCount == 0) {
@@ -117,32 +106,12 @@ fun ImageListView(
                         }
                     )
                 } else {
-                    Image(
-                        painterResource(R.drawable.photo),
-                        contentDescription = null
-                    )
+                    MediaPlaceholder()
                 }
             }
         }
 
-        date?.let { date ->
-            Box(
-                Modifier
-                    .fillMaxWidth()
-                    .background(
-                        Brush.verticalGradient(
-                            listOf(Color.Transparent.copy(0.5f), Color.Transparent)
-                        )
-                    )
-            ) {
-                Text(
-                    text = date,
-                    style = MaterialTheme.typography.titleLarge,
-                    color = Color.White,
-                    modifier = Modifier.padding(4.dp)
-                )
-            }
-        }
+        ImageDateBar(images, lazyGridState)
 
         LazyGridVerticalScrollIndicator(
             lazyGridState = lazyGridState,
@@ -188,3 +157,40 @@ fun Int.pxToDp() = with(LocalDensity.current) { this@pxToDp.toDp() }
 private val months = DateFormatSymbols
     .getInstance()
     .getMonths(DateFormatSymbols.STANDALONE, DateFormatSymbols.WIDE)
+
+@Composable
+private fun ImageDateBar(
+    images: LazyPagingItems<Media>,
+    lazyGridState: LazyGridState,
+) {
+    val date by remember(images, lazyGridState) {
+        derivedStateOf {
+            if (lazyGridState.firstVisibleItemIndex < images.itemCount) {
+                images[lazyGridState.firstVisibleItemIndex]?.date?.let {
+                    "${months[it.monthValue - 1]} ${it.year}"
+                }
+            } else {
+                null
+            }
+        }
+    }
+
+    date?.let { date ->
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .background(
+                    Brush.verticalGradient(
+                        listOf(Color.Transparent.copy(0.5f), Color.Transparent)
+                    )
+                )
+        ) {
+            Text(
+                text = date,
+                style = MaterialTheme.typography.titleLarge,
+                color = Color.White,
+                modifier = Modifier.padding(4.dp)
+            )
+        }
+    }
+}

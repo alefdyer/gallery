@@ -66,10 +66,21 @@ interface AlbumDao {
         FROM media m
         INNER JOIN media_album ma ON ma.mediaId = m.id
         WHERE ma.albumId = :albumId
-        ORDER BY m.date DESC, m.time DESC
+        ORDER BY m.date DESC, m.time DESC, m.id DESC
         """
     )
     fun getMediaInAlbum(albumId: Long): PagingSource<Int, Media>
+
+    @Query("""
+        SELECT count(*)
+        FROM media m
+        JOIN media x ON x.date > m.date
+        OR (x.date = m.date AND x.time > m.time)
+        OR (x.date = m.date AND x.time = m.time AND x.id > m.id)
+        JOIN media_album ma ON ma.mediaId = x.id
+        WHERE ma.albumId = :albumId AND m.id = :mediaId
+    """)
+    suspend fun getImageIndex(albumId: Long, mediaId: Long): Int
 
     @Query(
         "SELECT DISTINCT albumId FROM media_album WHERE mediaId IN (:mediaIds)"
