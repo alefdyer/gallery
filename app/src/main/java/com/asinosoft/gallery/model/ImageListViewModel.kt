@@ -48,8 +48,7 @@ class ImageListViewModel @Inject constructor(
     }
 
     fun addToNewAlbum(mediaIds: Collection<Long>, name: String) = viewModelScope.launchAndCatch {
-        val album = mediaService.createAlbum(name)
-        mediaService.addToAlbum(mediaIds, album.id)
+        mediaService.addToNewAlbum(mediaIds, name)
     }
 
     fun removeFromAlbum(mediaIds: Collection<Long>, albumId: Long) = viewModelScope.launchAndCatch {

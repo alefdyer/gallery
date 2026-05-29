@@ -26,9 +26,9 @@ class MediaService @Inject constructor(
 
     suspend fun add(media: Media) {
         val mediaId = mediaDao.upsert(media)
-        val album = media.path.split('/').last { it.isNotEmpty() }
-        val albumId = albumDao.upsert(Album(name = album))
-        addToAlbum(listOf(mediaId), albumId)
+        val albumName = media.path.split('/').last { it.isNotEmpty() }
+        val album = albumDao.getOrCreateAlbum(albumName)
+        addToAlbum(listOf(mediaId), album.id)
     }
 
     suspend fun delete(mediaIds: Collection<Long>, context: Context, callback: () -> Unit) {
@@ -82,13 +82,12 @@ class MediaService @Inject constructor(
         updateAlbumStats(albumId)
     }
 
-    suspend fun createAlbum(name: String): Album {
-        val trimmed = name.trim()
-        require(trimmed.isNotEmpty()) { "Album name must not be empty" }
+    suspend fun addToNewAlbum(mediaIds: Collection<Long>, albumName: String) {
+        val albumName = albumName.trim()
+        require(albumName.isNotEmpty()) { "Album name must not be empty" }
 
-        val album = Album(name = trimmed)
-        val id = albumDao.upsert(album)
-        return album.copy(id = id)
+        val albumId = albumDao.upsert(Album(name = albumName))
+        addToAlbum(mediaIds, albumId)
     }
 
     suspend fun removeFromAlbum(mediaIds: Collection<Long>, albumId: Long) {
@@ -140,9 +139,8 @@ class MediaService @Inject constructor(
         }
 
         albums.forEach { (name, mediaIds) ->
-            val albumId =
-                albumDao.getAlbumByName(name)?.id ?: albumDao.upsert(Album(name = name))
-            addToAlbum(mediaIds, albumId)
+            val album = albumDao.getOrCreateAlbum(name)
+            addToAlbum(mediaIds, album.id)
         }
         mediaDao.deleteAllExcept(provider.storage.id, updated)
         albumDao.deleteEmptyAlbums()

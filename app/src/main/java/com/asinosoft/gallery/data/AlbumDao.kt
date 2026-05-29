@@ -18,6 +18,10 @@ interface AlbumDao {
     @Query("SELECT * FROM album WHERE name = :name")
     suspend fun getAlbumByName(name: String): Album?
 
+    suspend fun getOrCreateAlbum(name: String): Album =
+        getAlbumByName(name)
+            ?: Album(name = name).let { it.copy(id = upsert(it)) }
+
     @Transaction
     @Query("SELECT * FROM album ORDER BY name")
     fun getAlbums(): Flow<List<AlbumWithCover>>
