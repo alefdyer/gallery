@@ -1,6 +1,7 @@
 package com.asinosoft.gallery.ui
 
 import android.icu.text.DateFormatSymbols
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -75,6 +76,10 @@ fun ImageListView(
 
         val offset = if (selectionMode) selectionBarHeight else -selectionBarHeight
         lazyGridState.dispatchRawDelta(offset.toFloat())
+    }
+
+    BackHandler(selection.isNotEmpty()) {
+        selection = setOf()
     }
 
     Box(modifier) {
