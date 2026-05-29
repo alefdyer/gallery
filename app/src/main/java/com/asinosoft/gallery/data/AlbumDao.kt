@@ -109,6 +109,26 @@ interface AlbumDao {
     @Query("UPDATE album SET count = :count, size = :size, coverId = :coverId, date = :date WHERE id = :albumId")
     suspend fun updateAlbumStats(albumId: Long, count: Int, size: Long, coverId: Long, date: LocalDate)
 
+    @Query("SELECT * FROM album_category WHERE name = :name")
+    suspend fun findCategoryByName(name: String): AlbumCategory?
+
     @Insert
     suspend fun createCategory(albumCategory: AlbumCategory): Long
+
+    suspend fun moveAlbumIntoCategory(album: Album, category: AlbumCategory) {
+        upsert(album.copy(categoryId = category.id))
+        deleteEmptyCategories()
+    }
+
+    suspend fun moveAlbumIntoNewCategory(album: Album, categoryName: String) {
+        val categoryId =
+            findCategoryByName(categoryName)?.id
+                ?: createCategory(AlbumCategory(name = categoryName))
+
+        upsert(album.copy(categoryId = categoryId))
+        deleteEmptyCategories()
+    }
+
+    @Query("DELETE FROM album_category WHERE name NOT LIKE ':%' AND id IN (SELECT c.id FROM album_category c LEFT JOIN album a ON a.categoryId = c.id GROUP BY c.id HAVING count(a.id) = 0)")
+    suspend fun deleteEmptyCategories()
 }

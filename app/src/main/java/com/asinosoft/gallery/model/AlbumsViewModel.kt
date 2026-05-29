@@ -35,11 +35,10 @@ class AlbumsViewModel @Inject constructor(
     }
 
     fun moveAlbumIntoCategory(album: Album, category: AlbumCategory) = viewModelScope.launch {
-        albumDao.upsert(album.copy(categoryId = category.id))
+        albumDao.moveAlbumIntoCategory(album, category)
     }
 
     fun moveAlbumIntoNewCategory(album: Album, categoryName: String) = viewModelScope.launch {
-        val categoryId = albumDao.createCategory(AlbumCategory(name = categoryName))
-        albumDao.upsert(album.copy(categoryId = categoryId))
+        albumDao.moveAlbumIntoNewCategory(album, categoryName)
     }
 }
