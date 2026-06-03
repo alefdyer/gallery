@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.asinosoft.gallery.data.Album
 import com.asinosoft.gallery.data.AlbumDao
 import com.asinosoft.gallery.data.Media
 import com.asinosoft.gallery.data.MediaDao
@@ -11,10 +12,12 @@ import com.asinosoft.gallery.data.MediaService
 import com.asinosoft.gallery.data.launchAndCatch
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.flow.MutableStateFlow
 import javax.inject.Inject
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
 
 @HiltViewModel
 class ImageListViewModel @Inject constructor(
@@ -26,6 +29,8 @@ class ImageListViewModel @Inject constructor(
 ) : ViewModel() {
     val albumId: Long? = state["albumId"]
 
+    val album = MutableStateFlow<Album?>(null)
+
     val images: StateFlow<List<Media>> = (
         albumId?.let { albumDao.getMediaInAlbum(albumId) }
             ?: mediaDao.getImages()
@@ -34,6 +39,15 @@ class ImageListViewModel @Inject constructor(
         started = SharingStarted.Eagerly,
         initialValue = emptyList()
     )
+
+    init {
+        viewModelScope.launch {
+            albumId?.let { albumId ->
+                val value = albumDao.getAlbumById(albumId)
+                album.emit(value)
+            }
+        }
+    }
 
     fun share(mediaIds: Collection<Long>) = viewModelScope.launchAndCatch {
         mediaService.share(mediaIds, context)

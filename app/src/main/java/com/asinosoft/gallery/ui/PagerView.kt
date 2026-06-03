@@ -14,7 +14,6 @@ import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
@@ -26,10 +25,12 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import com.asinosoft.gallery.data.Album
 import com.asinosoft.gallery.model.PagerViewModel
 
 @Composable
 fun PagerView(
+    onAlbumClick: (Album) -> Unit,
     onClose: () -> Unit,
     modifier: Modifier = Modifier,
     model: PagerViewModel = hiltViewModel()
@@ -39,7 +40,6 @@ fun PagerView(
     val pagerState: PagerState = key(items, offset) {
         rememberPagerState(offset) { items.size }
     }
-    val currentItem by remember(items) { derivedStateOf { items[pagerState.currentPage] } }
 
     Box(
         modifier =
@@ -50,7 +50,11 @@ fun PagerView(
         var showInfo by remember { mutableStateOf(false) }
 
         if (showInfo) {
-            MediaInfoSheet(currentItem) { showInfo = false }
+            MediaInfoSheet(
+                media = items[pagerState.currentPage],
+                onAlbumClick = onAlbumClick,
+                onDismissRequest = { showInfo = false }
+            )
         }
 
         HorizontalPager(
@@ -93,11 +97,11 @@ fun PagerView(
             exit = slideOutVertically(tween(easing = LinearEasing)) { it / 2 }
         ) {
             PagerBottomBar(
-                onShare = { model.share(currentItem) },
-                onEdit = { model.edit(currentItem) },
+                onShare = { model.share(items[pagerState.currentPage]) },
+                onEdit = { model.edit(items[pagerState.currentPage]) },
                 onSearch = {},
                 onDelete = {
-                    model.delete(currentItem) {
+                    model.delete(items[pagerState.currentPage]) {
                         if (1 == items.count()) {
                             onClose()
                         }

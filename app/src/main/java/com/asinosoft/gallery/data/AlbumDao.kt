@@ -13,7 +13,7 @@ import java.time.LocalDate
 @Dao
 interface AlbumDao {
     @Query("SELECT * FROM album WHERE id = :id")
-    suspend fun getAlbumById(id: Long): Album?
+    suspend fun getAlbumById(id: Long): Album
 
     @Query("SELECT * FROM album WHERE name = :name")
     suspend fun getAlbumByName(name: String): Album?
@@ -25,6 +25,10 @@ interface AlbumDao {
     @Transaction
     @Query("SELECT * FROM album ORDER BY name")
     fun getAlbums(): Flow<List<AlbumWithCover>>
+
+    @Transaction
+    @Query("SELECT * FROM album WHERE id IN (SELECT albumId FROM media_album WHERE mediaId = :mediaId) ORDER BY name")
+    fun getMediaAlbums(mediaId: Long): Flow<List<AlbumWithCover>>
 
     @Upsert
     suspend fun upsert(album: Album): Long

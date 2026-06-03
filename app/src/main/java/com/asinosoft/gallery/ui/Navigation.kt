@@ -39,7 +39,10 @@ fun Navigation(nav: NavHostController, modifier: Modifier = Modifier) {
             "pager/{imageId}",
             arguments = listOf(navArgument("imageId") { type = NavType.LongType })
         ) {
-            PagerView(onClose = nav::navigateUp)
+            PagerView(
+                onAlbumClick = navigateToAlbum,
+                onClose = nav::navigateUp
+            )
         }
 
         composable(
@@ -48,7 +51,7 @@ fun Navigation(nav: NavHostController, modifier: Modifier = Modifier) {
         ) { route ->
             val albumId = route.arguments?.getLong("albumId")!!
 
-            ImageListView(
+            AlbumView(
                 onMediaClick = { media -> navigateToAlbumMedia(albumId, media) },
                 onClose = nav::navigateUp
             )
@@ -61,7 +64,10 @@ fun Navigation(nav: NavHostController, modifier: Modifier = Modifier) {
                 navArgument("imageId") { type = NavType.LongType }
             )
         ) {
-            PagerView(onClose = nav::navigateUp)
+            PagerView(
+                onAlbumClick = navigateToAlbum,
+                onClose = nav::navigateUp
+            )
         }
     }
 }
