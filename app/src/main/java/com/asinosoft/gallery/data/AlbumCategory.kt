@@ -1,10 +1,13 @@
 package com.asinosoft.gallery.data
 
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.res.stringResource
 import androidx.room.Embedded
 import androidx.room.Entity
 import androidx.room.Index
 import androidx.room.PrimaryKey
 import androidx.room.Relation
+import com.asinosoft.gallery.R
 
 @Entity(
     tableName = "album_category",
@@ -16,7 +19,7 @@ data class AlbumCategory(
     val name: String
 ) {
     companion object {
-        const val OTHER = 1L
+        val OTHER = AlbumCategory(1, ":other")
     }
 }
 
@@ -28,3 +31,10 @@ data class CategoryWithAlbums(
     )
     val albums: List<AlbumWithCover>
 )
+
+@Composable
+fun AlbumCategory.name(): String =
+    if (":other" == name)
+        stringResource(R.string.other)
+    else
+        name

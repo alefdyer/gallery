@@ -3,16 +3,12 @@ package com.asinosoft.gallery.ui
 import android.icu.text.DateFormatSymbols
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -24,8 +20,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
@@ -37,6 +31,7 @@ import com.asinosoft.gallery.ui.component.DragSelectionState
 import com.asinosoft.gallery.ui.component.LazyGridVerticalScrollIndicator
 import com.asinosoft.gallery.ui.component.MediaThumbnail
 import com.asinosoft.gallery.ui.component.SelectionInfoBar
+import com.asinosoft.gallery.ui.component.ShadowedHeader
 import com.asinosoft.gallery.ui.component.dragSelection
 
 @Composable
@@ -115,24 +110,7 @@ fun ImageListView(
             }
         }
 
-        date?.let { date ->
-            Box(
-                Modifier
-                    .fillMaxWidth()
-                    .background(
-                        Brush.verticalGradient(
-                            listOf(Color.Transparent.copy(0.5f), Color.Transparent)
-                        )
-                    )
-            ) {
-                Text(
-                    text = date,
-                    style = MaterialTheme.typography.titleLarge,
-                    color = Color.White,
-                    modifier = Modifier.padding(4.dp)
-                )
-            }
-        }
+        date?.let { ShadowedHeader(it) }
 
         LazyGridVerticalScrollIndicator(
             lazyGridState = lazyGridState,
@@ -161,8 +139,8 @@ fun ImageListView(
                     selection = setOf()
                     showTagDialog = false
                 },
-                onCreateAlbum = { name ->
-                    model.addToNewAlbum(selection, name)
+                onCreateAlbum = { name, category ->
+                    model.addToNewAlbum(selection, name, category)
                     selection = setOf()
                     showTagDialog = false
                 },

@@ -39,12 +39,12 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.asinosoft.gallery.R
 import com.asinosoft.gallery.data.Album
 import com.asinosoft.gallery.data.CategoryWithAlbums
+import com.asinosoft.gallery.data.name
 import com.asinosoft.gallery.model.AlbumsViewModel
 import com.asinosoft.gallery.ui.component.AlbumCover
 import com.asinosoft.gallery.ui.component.NewAlbumCategoryDialog
@@ -171,12 +171,7 @@ private fun AlbumCategoriesRow(
     modifier: Modifier = Modifier,
 ) {
     Column(modifier.fillMaxWidth()) {
-        val categoryName = if (":other" == category.category.name)
-            stringResource(R.string.other)
-        else
-            category.category.name
-
-        Text(categoryName, style = MaterialTheme.typography.headlineMedium)
+        Text(category.category.name(), style = MaterialTheme.typography.headlineMedium)
 
         LazyRow {
             items(category.albums, { it.album.id }) { album ->

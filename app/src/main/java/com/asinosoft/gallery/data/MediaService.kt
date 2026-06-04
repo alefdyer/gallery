@@ -82,11 +82,11 @@ class MediaService @Inject constructor(
         updateAlbumStats(albumId)
     }
 
-    suspend fun addToNewAlbum(mediaIds: Collection<Long>, albumName: String) {
+    suspend fun addToNewAlbum(mediaIds: Collection<Long>, albumName: String, albumCategory: AlbumCategory) {
         val albumName = albumName.trim()
         require(albumName.isNotEmpty()) { "Album name must not be empty" }
 
-        val albumId = albumDao.upsert(Album(name = albumName))
+        val albumId = albumDao.upsert(Album(name = albumName, categoryId = albumCategory.id))
         addToAlbum(mediaIds, albumId)
     }
 

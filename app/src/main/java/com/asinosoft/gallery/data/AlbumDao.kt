@@ -117,6 +117,9 @@ interface AlbumDao {
     @Query("UPDATE album SET count = :count, size = :size, coverId = :coverId, date = :date WHERE id = :albumId")
     suspend fun updateAlbumStats(albumId: Long, count: Int, size: Long, coverId: Long, date: LocalDate)
 
+    @Query("SELECT * FROM album_category ORDER BY name")
+    fun getAlbumCategories(): Flow<List<AlbumCategory>>
+
     @Query("SELECT * FROM album_category WHERE name = :name")
     suspend fun findCategoryByName(name: String): AlbumCategory?
 

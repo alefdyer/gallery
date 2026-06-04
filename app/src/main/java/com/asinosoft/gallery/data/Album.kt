@@ -27,7 +27,7 @@ data class Album(
     @PrimaryKey(autoGenerate = true)
     val id: Long = 0,
     val name: String,
-    val categoryId: Long = AlbumCategory.OTHER,
+    val categoryId: Long = AlbumCategory.OTHER.id,
     val count: Int = 0,
     val size: Long = 0,
     val coverId: Long? = null,

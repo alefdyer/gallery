@@ -5,6 +5,7 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.asinosoft.gallery.data.Album
+import com.asinosoft.gallery.data.AlbumCategory
 import com.asinosoft.gallery.data.AlbumDao
 import com.asinosoft.gallery.data.Media
 import com.asinosoft.gallery.data.MediaDao
@@ -30,6 +31,12 @@ class ImageListViewModel @Inject constructor(
     val albumId: Long? = state["albumId"]
 
     val album = MutableStateFlow<Album?>(null)
+
+    val categories = albumDao.getAlbumCategories().stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.Lazily,
+        initialValue = emptyList()
+    )
 
     val images: StateFlow<List<Media>> = (
         albumId?.let { albumDao.getMediaInAlbum(albumId) }
@@ -61,8 +68,8 @@ class ImageListViewModel @Inject constructor(
         mediaService.addToAlbum(mediaIds, albumId)
     }
 
-    fun addToNewAlbum(mediaIds: Collection<Long>, name: String) = viewModelScope.launchAndCatch {
-        mediaService.addToNewAlbum(mediaIds, name)
+    fun addToNewAlbum(mediaIds: Collection<Long>, name: String, category: AlbumCategory) = viewModelScope.launchAndCatch {
+        mediaService.addToNewAlbum(mediaIds, name, category)
     }
 
     fun removeFromAlbum(mediaIds: Collection<Long>, albumId: Long) = viewModelScope.launchAndCatch {
