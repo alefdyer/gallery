@@ -1,16 +1,21 @@
 package com.asinosoft.gallery.ui.component
 
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalWindowInfo
+import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.asinosoft.gallery.data.Album
 import com.asinosoft.gallery.data.AlbumCategory
@@ -27,29 +32,30 @@ fun AlbumSelector(
     val size = LocalWindowInfo.current.containerDpSize.width / 3
     val categories by model.albums.collectAsState(initial = listOf())
 
-    LazyVerticalGrid(
-        columns = GridCells.Fixed(2),
-        modifier = modifier.fillMaxSize()
-    ) {
+    Column(modifier.verticalScroll(rememberScrollState())) {
         categories.forEach { category ->
-            stickyHeader {
-                ShadowedHeader(category.category.name())
-            }
-
-            items (category.albums) { album ->
-                AlbumCover(
-                    album,
-                    Modifier
-                        .size(size)
-                        .clickable { onAlbumClick(album.album) }
+            Column(modifier.horizontalScroll(rememberScrollState())) {
+                Text(
+                    text = category.category.name(),
+                    style = MaterialTheme.typography.headlineMedium,
+                    modifier = Modifier.padding(4.dp)
                 )
-            }
 
-            item {
-                NewAlbumPlaceholder(
-                    Modifier.size(size)
-                        .clickable { onNewAlbumClick(category.category) }
-                )
+                Row {
+                    category.albums.forEach { album ->
+                        AlbumCover(
+                            album,
+                            Modifier
+                                .size(size)
+                                .clickable { onAlbumClick(album.album) }
+                        )
+                    }
+
+                    NewAlbumPlaceholder(
+                        Modifier.size(size)
+                            .clickable { onNewAlbumClick(category.category) }
+                    )
+                }
             }
         }
     }
