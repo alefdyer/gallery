@@ -29,19 +29,19 @@ fun AlbumSelector(
     onNewAlbumClick: (AlbumCategory) -> Unit,
     model: AlbumsViewModel = hiltViewModel()
 ) {
-    val size = LocalWindowInfo.current.containerDpSize.width / 3
+    val size = LocalWindowInfo.current.containerDpSize.width / 3.5f
     val categories by model.albums.collectAsState(initial = listOf())
 
     Column(modifier.verticalScroll(rememberScrollState())) {
         categories.forEach { category ->
-            Column(modifier.horizontalScroll(rememberScrollState())) {
+            Column {
                 Text(
                     text = category.category.name(),
                     style = MaterialTheme.typography.headlineMedium,
                     modifier = Modifier.padding(4.dp)
                 )
 
-                Row {
+                Row(modifier.horizontalScroll(rememberScrollState())) {
                     category.albums.forEach { album ->
                         AlbumCover(
                             album,
