@@ -31,10 +31,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import com.asinosoft.gallery.R
 import com.asinosoft.gallery.data.Album
 import com.asinosoft.gallery.data.AlbumCategory
 import com.asinosoft.gallery.data.name
@@ -55,7 +57,7 @@ fun AddToAlbumDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Add to album") },
+        title = { Text(stringResource(R.string.add_to_album)) },
         text = {
             if (newAlbumMode) {
                 NewAlbumDialog(
@@ -89,13 +91,13 @@ fun AddToAlbumDialog(
                         onDismiss()
                     }
                 ) {
-                    Text("Add")
+                    Text(stringResource(R.string.add))
                 }
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("Cancel")
+                Text(stringResource(R.string.cancel))
             }
         }
     )
@@ -119,7 +121,7 @@ fun NewAlbumDialog(
 
     Column {
         OutlinedTextField(
-            label = { Text("Name") },
+            label = { Text(stringResource(R.string.name)) },
             state = newAlbumName,
             lineLimits = TextFieldLineLimits.SingleLine,
             keyboardOptions = KeyboardOptions(
@@ -137,7 +139,7 @@ fun NewAlbumDialog(
         Spacer(Modifier.height(4.dp))
 
         OutlinedTextField(
-            label = { Text("Category") },
+            label = { Text(stringResource(R.string.category)) },
             value = newAlbumCategory.value.name(),
             onValueChange = { },
             readOnly = true,

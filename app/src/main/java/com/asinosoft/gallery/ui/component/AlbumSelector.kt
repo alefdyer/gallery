@@ -37,8 +37,8 @@ fun AlbumSelector(
             Column {
                 Text(
                     text = category.category.name(),
-                    style = MaterialTheme.typography.headlineMedium,
-                    modifier = Modifier.padding(4.dp)
+                    style = MaterialTheme.typography.titleSmall,
+                    modifier = Modifier.padding(8.dp)
                 )
 
                 Row(modifier.horizontalScroll(rememberScrollState())) {

@@ -13,8 +13,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
+import com.asinosoft.gallery.R
 
 @Composable
 fun NewAlbumCategoryDialog(
@@ -30,11 +32,11 @@ fun NewAlbumCategoryDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Create category") },
+        title = { Text(stringResource(R.string.new_category)) },
         text = {
             OutlinedTextField(
                 state = newCategoryName,
-                label = { Text("Category Name") },
+                label = { Text(stringResource(R.string.name)) },
                 lineLimits = TextFieldLineLimits.SingleLine,
                 keyboardOptions = KeyboardOptions(
                     keyboardType = KeyboardType.Text,
@@ -57,12 +59,12 @@ fun NewAlbumCategoryDialog(
                     onDismiss()
                 }
             ) {
-                Text("Add")
+                Text(stringResource(R.string.add))
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("Cancel")
+                Text(stringResource(R.string.cancel))
             }
         }
     )
