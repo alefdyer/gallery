@@ -11,7 +11,7 @@ import java.time.LocalDate
 @Entity(
     tableName = "album",
     indices = [
-        Index(value = ["name"], unique = true),
+        Index(value = ["categoryId", "name"], unique = true),
         Index(value = ["categoryId"])
     ],
     foreignKeys = [

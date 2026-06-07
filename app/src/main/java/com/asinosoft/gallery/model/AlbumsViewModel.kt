@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.asinosoft.gallery.data.Album
 import com.asinosoft.gallery.data.AlbumCategory
 import com.asinosoft.gallery.data.AlbumDao
+import com.asinosoft.gallery.data.AlbumService
 import com.asinosoft.gallery.data.CategoryWithAlbums
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -14,6 +15,7 @@ import kotlinx.coroutines.launch
 
 @HiltViewModel
 class AlbumsViewModel @Inject constructor(
+    private val albumService: AlbumService,
     private val albumDao: AlbumDao
 ) : ViewModel() {
     val albumsFlow = MutableStateFlow<List<CategoryWithAlbums>>(listOf())
@@ -35,10 +37,10 @@ class AlbumsViewModel @Inject constructor(
     }
 
     fun moveAlbumIntoCategory(album: Album, category: AlbumCategory) = viewModelScope.launch {
-        albumDao.moveAlbumIntoCategory(album, category)
+        albumService.moveAlbumIntoCategory(album, category)
     }
 
     fun moveAlbumIntoNewCategory(album: Album, categoryName: String) = viewModelScope.launch {
-        albumDao.moveAlbumIntoNewCategory(album, categoryName)
+        albumService.moveAlbumIntoNewCategory(album, categoryName)
     }
 }

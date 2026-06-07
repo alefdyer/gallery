@@ -27,7 +27,7 @@ class MediaService @Inject constructor(
     suspend fun add(media: Media) {
         val mediaId = mediaDao.upsert(media)
         val albumName = media.path.split('/').last { it.isNotEmpty() }
-        val album = albumDao.getOrCreateAlbum(albumName)
+        val album = albumDao.getOrCreateAlbum(albumName, AlbumCategory.OTHER.id)
         addToAlbum(listOf(mediaId), album.id)
     }
 
@@ -36,7 +36,8 @@ class MediaService @Inject constructor(
         intentHelper.delete(uris, context) {
             val albums = albumDao.getMediaAlbumIds(mediaIds)
             mediaDao.deleteAll(mediaIds)
-            albums.forEach { updateAlbumStats(it) }
+            albums.forEach {
+                albumDao.updateAlbumStats(it) }
             callback()
         }
     }
@@ -79,7 +80,7 @@ class MediaService @Inject constructor(
 
     suspend fun addToAlbum(mediaIds: Collection<Long>, albumId: Long) {
         albumDao.addMediaToAlbum(mediaIds, albumId)
-        updateAlbumStats(albumId)
+        albumDao.updateAlbumStats(albumId)
     }
 
     suspend fun addToNewAlbum(mediaIds: Collection<Long>, albumName: String, albumCategory: AlbumCategory) {
@@ -95,7 +96,7 @@ class MediaService @Inject constructor(
             return
         }
         albumDao.removeMediaFromAlbum(mediaIds, albumId)
-        updateAlbumStats(albumId)
+        albumDao.updateAlbumStats(albumId)
     }
 
     suspend fun updateAll(providers: Collection<StorageProvider>): Unit =
@@ -139,7 +140,7 @@ class MediaService @Inject constructor(
         }
 
         albums.forEach { (name, mediaIds) ->
-            val album = albumDao.getOrCreateAlbum(name)
+            val album = albumDao.getOrCreateAlbum(name, AlbumCategory.OTHER.id)
             addToAlbum(mediaIds, album.id)
         }
         mediaDao.deleteAllExcept(provider.storage.id, updated)
@@ -160,14 +161,5 @@ class MediaService @Inject constructor(
             .build()
 
         WorkManager.getInstance(context).enqueue(request)
-    }
-
-    private suspend fun updateAlbumStats(albumId: Long) {
-        val stats = albumDao.getAlbumStats(albumId)
-        if (stats.count > 0) {
-            albumDao.updateAlbumStats(albumId, stats.count, stats.size, stats.coverId, stats.date)
-        } else {
-            albumDao.delete(albumId)
-        }
     }
 }

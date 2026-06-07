@@ -15,12 +15,12 @@ interface AlbumDao {
     @Query("SELECT * FROM album WHERE id = :id")
     suspend fun getAlbumById(id: Long): Album
 
-    @Query("SELECT * FROM album WHERE name = :name")
-    suspend fun getAlbumByName(name: String): Album?
+    @Query("SELECT * FROM album WHERE name = :name AND categoryId = :categoryId")
+    suspend fun getAlbumByName(name: String, categoryId: Long): Album?
 
-    suspend fun getOrCreateAlbum(name: String): Album =
-        getAlbumByName(name)
-            ?: Album(name = name).let { it.copy(id = upsert(it)) }
+    suspend fun getOrCreateAlbum(name: String, categoryId: Long): Album =
+        getAlbumByName(name, categoryId)
+            ?: Album(name = name, categoryId = categoryId).let { it.copy(id = upsert(it)) }
 
     @Transaction
     @Query("SELECT * FROM album ORDER BY name")
@@ -115,7 +115,16 @@ interface AlbumDao {
     suspend fun getAlbumStats(albumId: Long): AlbumStats
 
     @Query("UPDATE album SET count = :count, size = :size, coverId = :coverId, date = :date WHERE id = :albumId")
-    suspend fun updateAlbumStats(albumId: Long, count: Int, size: Long, coverId: Long, date: LocalDate)
+    suspend fun setAlbumStats(albumId: Long, count: Int, size: Long, coverId: Long, date: LocalDate)
+
+    suspend fun updateAlbumStats(albumId: Long) {
+        val stats = getAlbumStats(albumId)
+        if (stats.count > 0) {
+            setAlbumStats(albumId, stats.count, stats.size, stats.coverId, stats.date)
+        } else {
+            delete(albumId)
+        }
+    }
 
     @Query("SELECT * FROM album_category ORDER BY name")
     fun getAlbumCategories(): Flow<List<AlbumCategory>>
