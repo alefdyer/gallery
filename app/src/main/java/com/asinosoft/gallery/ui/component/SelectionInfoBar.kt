@@ -1,66 +1,48 @@
 package com.asinosoft.gallery.ui.component
 
-import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.dp
 import com.asinosoft.gallery.R
+import com.asinosoft.gallery.ui.theme.GalleryTheme
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SelectionInfoBar(
     modifier: Modifier = Modifier,
-    selected: Set<Long> = setOf(),
-    onBack: () -> Unit = {},
-    onShare: () -> Unit = {},
-    onDelete: () -> Unit = {},
-    onAddTag: () -> Unit = {},
-    onRemoveTag: (() -> Unit)? = null
+    selection: Set<Long> = setOf(),
+    onCancel: () -> Unit = {},
 ) {
-    TopAppBar(
-        modifier = modifier,
-        title = {
-            Text(text = selected.count().toString())
-        },
-        navigationIcon = {
-            IconButton(onClick = onBack) {
+    Surface(modifier, RoundedCornerShape(50)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onCancel) {
                 Icon(
                     painter = painterResource(R.drawable.close),
                     contentDescription = null
                 )
             }
-        },
-        actions = {
-            IconButton(onClick = { onAddTag() }) {
-                Icon(
-                    painter = painterResource(R.drawable.add_tag),
-                    contentDescription = null
-                )
-            }
-            if (onRemoveTag != null) {
-                IconButton(onClick = { onRemoveTag() }) {
-                    Icon(
-                        painter = painterResource(R.drawable.remove_tag),
-                        contentDescription = null
-                    )
-                }
-            }
-            IconButton(onClick = { onShare() }) {
-                Icon(
-                    painter = painterResource(R.drawable.share),
-                    contentDescription = null
-                )
-            }
-            IconButton(onClick = { onDelete() }) {
-                Icon(
-                    painter = painterResource(R.drawable.delete),
-                    contentDescription = null
-                )
-            }
+
+            Text(
+                text = "${selection.size}",
+                modifier = Modifier.padding(end = 16.dp)
+            )
         }
-    )
+    }
+}
+
+@Preview
+@Composable
+private fun PreviewSelectionInfoBar() {
+    GalleryTheme {
+        SelectionInfoBar(selection = (1L..23L).toSet()) { }
+    }
 }

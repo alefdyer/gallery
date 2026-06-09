@@ -20,7 +20,6 @@ class MainViewModel @Inject constructor(
     private val storageService: StorageService,
     @param:ApplicationContext private val context: Context
 ) : ViewModel() {
-    val isFetching = storageService.isFetching
     val messages = MessageBus.messages
 
     fun start() = viewModelScope.launchAndCatch {
@@ -30,12 +29,6 @@ class MainViewModel @Inject constructor(
 
                 storageService.fetch(storage)
             }
-        }
-    }
-
-    fun fetch() = viewModelScope.launchAndCatch {
-        storageDao.getAccounts().first().forEach {
-            storageService.fetch(it)
         }
     }
 }

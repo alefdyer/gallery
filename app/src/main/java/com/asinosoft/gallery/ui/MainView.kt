@@ -26,7 +26,7 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.asinosoft.gallery.R
 import com.asinosoft.gallery.data.Album
 import com.asinosoft.gallery.data.Media
-import com.asinosoft.gallery.model.MainViewModel
+import com.asinosoft.gallery.model.ImageListViewModel
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -35,21 +35,24 @@ fun MainView(
     onMediaClick: (Media) -> Unit,
     onAlbumClick: (Album) -> Unit,
     modifier: Modifier = Modifier,
-    model: MainViewModel = hiltViewModel()
+    model: ImageListViewModel = hiltViewModel()
 ) {
     val isFetching by model.isFetching.collectAsState(false)
     val pagerState = rememberPagerState { 3 }
     val coroutineScope = rememberCoroutineScope()
+    val selection by model.selection.collectAsState()
 
     Scaffold(
         modifier,
         bottomBar = {
-            ViewModeBar(
-                pagerState = pagerState,
-                onPhotos = { coroutineScope.launch { pagerState.scrollToPage(0) } },
-                onAlbums = { coroutineScope.launch { pagerState.scrollToPage(1) } },
-                onStorages = { coroutineScope.launch { pagerState.scrollToPage(2) } }
-            )
+            if (selection.isEmpty()) {
+                ViewModeBar(
+                    pagerState = pagerState,
+                    onPhotos = { coroutineScope.launch { pagerState.scrollToPage(0) } },
+                    onAlbums = { coroutineScope.launch { pagerState.scrollToPage(1) } },
+                    onStorages = { coroutineScope.launch { pagerState.scrollToPage(2) } }
+                )
+            }
         }
     ) { paddingValues ->
         PullToRefreshBox(
