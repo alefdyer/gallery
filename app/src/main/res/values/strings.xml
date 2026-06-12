@@ -37,7 +37,8 @@
     <string name="storage_check_unknown_error">Ошибка: %1$s</string>
     <string name="other">Прочее</string>
     <string name="new_category">Новая категория</string>
-    <string name="add_to_album">Добавить в альбом</string>
+    <string name="add_to_album">В альбом</string>
+    <string name="remove_from_album">Из альбома</string>
     <string name="name">Название</string>
     <string name="category">Категория</string>
     <string name="add">Добавить</string>

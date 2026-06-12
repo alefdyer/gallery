@@ -1,17 +1,18 @@
 package com.asinosoft.gallery.ui.component
 
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.asinosoft.gallery.R
@@ -25,34 +26,36 @@ fun SelectionControlBar(
     onAddTag: () -> Unit = {},
     onRemoveTag: (() -> Unit)? = null
 ) {
-    Surface(modifier, RoundedCornerShape(50)) {
-        Row(Modifier.padding(8.dp)) {
-            IconButton(onClick = { onAddTag() }) {
-                Icon(
-                    painter = painterResource(R.drawable.add_tag),
-                    contentDescription = null
-                )
-            }
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(50)
+    ) {
+        Row(
+            modifier = Modifier.padding(8.dp),
+            horizontalArrangement = Arrangement.SpaceEvenly
+        ) {
+            LabeledIconButton(
+                label = stringResource(R.string.add_to_album),
+                icon = painterResource(R.drawable.add_tag),
+                onClick = { onAddTag() }
+            )
             if (onRemoveTag != null) {
-                IconButton(onClick = { onRemoveTag() }) {
-                    Icon(
-                        painter = painterResource(R.drawable.remove_tag),
-                        contentDescription = null
-                    )
-                }
-            }
-            IconButton(onClick = { onShare() }) {
-                Icon(
-                    painter = painterResource(R.drawable.share),
-                    contentDescription = null
+                LabeledIconButton(
+                    label = stringResource(R.string.remove_from_album),
+                    icon = painterResource(R.drawable.remove_tag),
+                    onClick = { onRemoveTag() }
                 )
             }
-            IconButton(onClick = { onDelete() }) {
-                Icon(
-                    painter = painterResource(R.drawable.delete),
-                    contentDescription = null
-                )
-            }
+            LabeledIconButton(
+                label = stringResource(R.string.share),
+                icon = painterResource(R.drawable.share),
+                onClick = { onShare() }
+            )
+            LabeledIconButton(
+                label = stringResource(R.string.delete),
+                icon = painterResource(R.drawable.delete),
+                onClick = { onDelete() }
+            )
         }
     }
 }
@@ -61,9 +64,10 @@ fun SelectionControlBar(
 @Composable
 private fun PreviewSelectionControlBar() {
     GalleryTheme {
-        Box(Modifier.size(400.dp)) {
+        Box(Modifier.size(800.dp)) {
             SelectionControlBar(
-                Modifier.align(Alignment.BottomCenter)
+                Modifier.align(Alignment.BottomCenter),
+                onRemoveTag = {}
             )
         }
     }
