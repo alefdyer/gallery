@@ -1,12 +1,12 @@
 package com.asinosoft.gallery.ui.component
 
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Card
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Switch
@@ -36,37 +36,42 @@ fun FilterDialog(
         Card {
             Text(
                 text = stringResource(R.string.filter),
-                modifier = Modifier.align(Alignment.CenterHorizontally).padding(8.dp),
+                modifier = Modifier
+                    .align(Alignment.CenterHorizontally)
+                    .padding(8.dp),
                 style = MaterialTheme.typography.titleLarge
             )
 
-            LazyColumn(contentPadding = PaddingValues(8.dp)) {
-                items(filters) { filter ->
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        filter.application.icon?.let { icon ->
-                            Image(
-                                bitmap = icon.toBitmap().asImageBitmap(),
-                                contentDescription = null,
-                                modifier = Modifier
-                                    .size(32.dp)
-                                    .padding(4.dp)
-                            )
-                        }
-                        Text(
-                            text = filter.application.name,
-                            modifier = Modifier.weight(1f)
-                        )
-                        Switch(
-                            checked = filter.enabled,
-                            onCheckedChange = { onChangeFilter(filter, it) }
+            filters.forEach { filter ->
+                Row(
+                    modifier = Modifier
+                        .padding(8.dp)
+                        .clickable { onChangeFilter(filter, !filter.enabled) },
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    filter.application.icon?.let { icon ->
+                        Image(
+                            bitmap = icon.toBitmap().asImageBitmap(),
+                            contentDescription = null,
+                            modifier = Modifier
+                                .size(32.dp)
                         )
                     }
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        text = filter.application.name,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Switch(
+                        checked = filter.enabled,
+                        onCheckedChange = { onChangeFilter(filter, it) }
+                    )
                 }
             }
 
-            TextButton(onClick = onDismiss, Modifier.align(Alignment.End).padding(8.dp)) {
+            TextButton(onClick = onDismiss, Modifier
+                .align(Alignment.End)
+                .padding(8.dp)) {
                 Text(stringResource(R.string.close))
             }
         }
