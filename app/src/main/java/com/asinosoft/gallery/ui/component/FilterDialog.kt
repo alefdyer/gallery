@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Card
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -46,30 +47,36 @@ fun FilterDialog(
                 style = MaterialTheme.typography.titleLarge
             )
 
-            filters.forEach { filter ->
-                Row(
-                    modifier = Modifier
-                        .padding(horizontal = 8.dp)
-                        .clickable { onChangeFilter(filter, !filter.enabled) },
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    filter.application.icon?.let { icon ->
-                        Image(
-                            bitmap = icon.toBitmap().asImageBitmap(),
-                            contentDescription = null,
-                            modifier = Modifier
-                                .size(32.dp)
+            if (filters.isEmpty()) {
+                CircularProgressIndicator(
+                    Modifier.align(Alignment.CenterHorizontally)
+                )
+            } else {
+                filters.forEach { filter ->
+                    Row(
+                        modifier = Modifier
+                            .padding(horizontal = 8.dp)
+                            .clickable { onChangeFilter(filter, !filter.enabled) },
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        filter.application.icon?.let { icon ->
+                            Image(
+                                bitmap = icon.toBitmap().asImageBitmap(),
+                                contentDescription = null,
+                                modifier = Modifier
+                                    .size(32.dp)
+                            )
+                        }
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            text = filter.application.name,
+                            modifier = Modifier.weight(1f)
+                        )
+                        Switch(
+                            checked = filter.enabled,
+                            onCheckedChange = { onChangeFilter(filter, it) }
                         )
                     }
-                    Spacer(Modifier.width(8.dp))
-                    Text(
-                        text = filter.application.name,
-                        modifier = Modifier.weight(1f)
-                    )
-                    Switch(
-                        checked = filter.enabled,
-                        onCheckedChange = { onChangeFilter(filter, it) }
-                    )
                 }
             }
 
