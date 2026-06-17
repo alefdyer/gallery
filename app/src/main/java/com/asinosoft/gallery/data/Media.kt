@@ -27,6 +27,7 @@ data class Media(
     val storageId: Long = 0,
     val storageType: StorageType = StorageType.LOCAL,
     val storageItemId: String = "",
+    val owner: String? = null,
     val thumbnail: Uri? = null,
     val image: Image? = null,
     val video: Video? = null

@@ -6,6 +6,7 @@ import android.net.Uri
 import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore.Images
+import androidx.core.database.getStringOrNull
 import android.provider.MediaStore.Video as Videos
 import com.asinosoft.gallery.data.Image
 import com.asinosoft.gallery.data.Media
@@ -83,7 +84,8 @@ class LocalStorageProvider(
                     Images.Media.RELATIVE_PATH,
                     Images.Media.SIZE,
                     Images.Media.DATA,
-                    Images.Media.MIME_TYPE
+                    Images.Media.MIME_TYPE,
+                    Images.Media.OWNER_PACKAGE_NAME,
                 ),
                 selection,
                 arrayOf(),
@@ -101,6 +103,7 @@ class LocalStorageProvider(
             val sizeColumn = cursor.getColumnIndexOrThrow(Images.Media.SIZE)
             val dataColumn = cursor.getColumnIndexOrThrow(Images.Media.DATA)
             val mimeTypeColumn = cursor.getColumnIndexOrThrow(Images.Media.MIME_TYPE)
+            val ownerColumn = cursor.getColumnIndexOrThrow(Images.Media.OWNER_PACKAGE_NAME)
 
             while (cursor.moveToNext()) {
                 val path: String = cursor.getString(pathColumn)
@@ -124,6 +127,7 @@ class LocalStorageProvider(
 
                 val data: String = cursor.getString(dataColumn)
                 val mimeType: String = cursor.getString(mimeTypeColumn)
+                val owner: String? = cursor.getStringOrNull(ownerColumn)
 
                 val image =
                     Media(
@@ -138,6 +142,7 @@ class LocalStorageProvider(
                         storageId = storage.id,
                         storageType = storage.type,
                         storageItemId = id.toString(),
+                        owner = owner,
                         image =
                             Image(
                                 width = width,
@@ -163,7 +168,8 @@ class LocalStorageProvider(
                     Videos.Media.DATA,
                     Videos.Media.DATE_TAKEN,
                     Videos.Media.DATE_ADDED,
-                    Videos.Media.MIME_TYPE
+                    Videos.Media.MIME_TYPE,
+                    Videos.Media.OWNER_PACKAGE_NAME,
                 ),
                 selection,
                 null,
@@ -180,6 +186,7 @@ class LocalStorageProvider(
             val dataColumn = cursor.getColumnIndexOrThrow(Videos.Media.DATA)
             val durationColumn = cursor.getColumnIndexOrThrow(Videos.Media.DURATION)
             val mimeTypeColumn = cursor.getColumnIndexOrThrow(Videos.Media.MIME_TYPE)
+            val ownerColumn = cursor.getColumnIndexOrThrow(Videos.Media.OWNER_PACKAGE_NAME)
 
             while (cursor.moveToNext()) {
                 val path: String = cursor.getString(pathColumn)
@@ -201,6 +208,7 @@ class LocalStorageProvider(
                 val data: String = cursor.getString(dataColumn)
                 val duration: Long = cursor.getLong(durationColumn)
                 val mimeType: String = cursor.getString(mimeTypeColumn)
+                val owner: String? = cursor.getStringOrNull(ownerColumn)
 
                 val video =
                     Media(
@@ -215,6 +223,7 @@ class LocalStorageProvider(
                         storageId = storage.id,
                         storageType = storage.type,
                         storageItemId = id.toString(),
+                        owner = owner,
                         video = Video(duration)
                     )
 

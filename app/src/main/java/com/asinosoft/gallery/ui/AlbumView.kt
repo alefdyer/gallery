@@ -36,7 +36,7 @@ fun AlbumView(
         ImageListView(
             onMediaClick,
             onClose,
-            Modifier.padding(it)
+            modifier = Modifier.padding(it)
         )
     }
 }

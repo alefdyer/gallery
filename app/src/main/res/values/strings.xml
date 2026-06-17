@@ -43,4 +43,7 @@
     <string name="category">Категория</string>
     <string name="add">Добавить</string>
     <string name="cancel">Отмена</string>
+    <string name="settings">Настройки</string>
+    <string name="filter">Фильтр</string>
+    <string name="close">Закрыть</string>
 </resources>

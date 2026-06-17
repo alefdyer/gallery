@@ -37,6 +37,8 @@ import androidx.compose.ui.draganddrop.DragAndDropTransferData
 import androidx.compose.ui.draganddrop.mimeTypes
 import androidx.compose.ui.draganddrop.toAndroidDragEvent
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.res.painterResource
@@ -57,6 +59,7 @@ import kotlinx.coroutines.launch
 fun AlbumListView(
     modifier: Modifier = Modifier,
     onAlbumClick: (Album) -> Unit = {},
+    nestedScroll: NestedScrollConnection,
     model: AlbumsViewModel = hiltViewModel()
 ) {
     val scope = rememberCoroutineScope()
@@ -132,6 +135,7 @@ fun AlbumListView(
                 },
                 target = dragAndDropTarget
             )
+            .nestedScroll(nestedScroll)
     ) {
         items(categories) { category ->
             AlbumCategoriesRow(

@@ -24,6 +24,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -44,9 +46,10 @@ fun ImageListView(
     onMediaClick: (Media) -> Unit,
     onClose: () -> Unit,
     modifier: Modifier = Modifier,
+    nestedScroll: NestedScrollConnection? = null,
     model: ImageListViewModel = hiltViewModel()
 ) {
-    val images by model.images.collectAsState(listOf())
+    val images by model.filteredImages.collectAsState(listOf())
     val selection by model.selection.collectAsState()
 
     var closeOnEmptyList by remember { mutableStateOf(false) }
@@ -85,6 +88,9 @@ fun ImageListView(
                     dragSelectionState = dragSelectionState,
                     onSelectedChange = model::setSelection
                 )
+                .let {
+                    if (nestedScroll == null) it else it.nestedScroll(nestedScroll)
+                }
         ) {
             items(images, key = { it.id }) { media ->
                 MediaThumbnail(

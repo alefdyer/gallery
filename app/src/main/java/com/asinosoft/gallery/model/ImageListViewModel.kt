@@ -7,6 +7,9 @@ import androidx.lifecycle.viewModelScope
 import com.asinosoft.gallery.data.Album
 import com.asinosoft.gallery.data.AlbumCategory
 import com.asinosoft.gallery.data.AlbumDao
+import com.asinosoft.gallery.data.Application
+import com.asinosoft.gallery.data.ApplicationDao
+import com.asinosoft.gallery.data.Filter
 import com.asinosoft.gallery.data.Media
 import com.asinosoft.gallery.data.MediaDao
 import com.asinosoft.gallery.data.MediaService
@@ -15,21 +18,22 @@ import com.asinosoft.gallery.data.storage.StorageDao
 import com.asinosoft.gallery.data.storage.StorageService
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
-import javax.inject.Inject
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-import kotlin.collections.minus
-import kotlin.collections.plus
+import javax.inject.Inject
 
 @HiltViewModel
 class ImageListViewModel @Inject constructor(
     state: SavedStateHandle,
     albumDao: AlbumDao,
     mediaDao: MediaDao,
+    applicationDao: ApplicationDao,
     private val mediaService: MediaService,
     private val storageDao: StorageDao,
     private val storageService: StorageService,
@@ -50,13 +54,24 @@ class ImageListViewModel @Inject constructor(
     val isFetching = storageService.isFetching
 
     val images: StateFlow<List<Media>> = (
-        albumId?.let { albumDao.getMediaInAlbum(albumId) }
-            ?: mediaDao.getImages()
-        ).stateIn(
-        scope = viewModelScope,
-        started = SharingStarted.Eagerly,
-        initialValue = emptyList()
-    )
+            albumId?.let { albumDao.getMediaInAlbum(albumId) }
+                ?: mediaDao.getImages()
+            ).stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.Eagerly,
+            initialValue = emptyList()
+        )
+
+    private lateinit var applications: List<Application>
+    private val activeFilters = MutableStateFlow<Set<String>>(setOf())
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    var filters = MutableStateFlow<List<Filter>>(listOf())
+
+    val filteredImages = images.combine(activeFilters) { images, filters ->
+        if (filters.isEmpty()) images
+        else images.filter { filters.contains(it.owner) }
+    }
 
     init {
         viewModelScope.launch {
@@ -64,7 +79,31 @@ class ImageListViewModel @Inject constructor(
                 val value = albumDao.getAlbumById(albumId)
                 album.emit(value)
             }
+
+
+            images.collect { images ->
+                val owners = images.map { it.owner }.toSet()
+                applications = applicationDao.getApplications()
+                    .filter { owners.contains(it.pkg) }
+                    .sortedBy { it.name }
+                filters.emit(
+                    applications.map { Filter(it, activeFilters.value.contains(it.pkg)) }
+                )
+            }
         }
+    }
+
+    fun setFilter(filter: Filter, value: Boolean) = viewModelScope.launch {
+        val newFilters = activeFilters.value.toMutableSet()
+        if (value) {
+            newFilters.add(filter.application.pkg)
+        } else {
+            newFilters.remove(filter.application.pkg)
+        }
+        activeFilters.emit(newFilters)
+        filters.emit(
+            applications.map { Filter(it, newFilters.contains(it.pkg)) }
+        )
     }
 
     fun fetch() = viewModelScope.launchAndCatch {
@@ -106,10 +145,11 @@ class ImageListViewModel @Inject constructor(
         clearSelection()
     }
 
-    fun addSelectionToNewAlbum(name: String, category: AlbumCategory) = viewModelScope.launchAndCatch {
-        mediaService.addToNewAlbum(selection.value, name, category)
-        clearSelection()
-    }
+    fun addSelectionToNewAlbum(name: String, category: AlbumCategory) =
+        viewModelScope.launchAndCatch {
+            mediaService.addToNewAlbum(selection.value, name, category)
+            clearSelection()
+        }
 
     fun removeSelectionFromAlbum(albumId: Long) = viewModelScope.launchAndCatch {
         mediaService.removeFromAlbum(selection.value, albumId)

@@ -20,6 +20,7 @@ fun Navigation(nav: NavHostController, modifier: Modifier = Modifier) {
     val navigateToAlbumMedia = { albumId: Long, media: Media ->
         nav.navigate("album/$albumId/pager/${media.id}")
     }
+    val navigateToSettings = { nav.navigate("settings") }
 
     NavHost(
         modifier = modifier,
@@ -31,7 +32,8 @@ fun Navigation(nav: NavHostController, modifier: Modifier = Modifier) {
         composable("main") {
             MainView(
                 onMediaClick = navigateToMedia,
-                onAlbumClick = navigateToAlbum
+                onAlbumClick = navigateToAlbum,
+                onSettingsClick = navigateToSettings,
             )
         }
 
@@ -68,6 +70,10 @@ fun Navigation(nav: NavHostController, modifier: Modifier = Modifier) {
                 onAlbumClick = navigateToAlbum,
                 onClose = nav::navigateUp
             )
+        }
+
+        composable("settings") {
+            SettingsView(onClose = nav::navigateUp)
         }
     }
 }
