@@ -1,8 +1,11 @@
 package com.asinosoft.gallery.data.storage
 
 import android.net.Uri
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.res.stringResource
 import androidx.room.Entity
 import androidx.room.PrimaryKey
+import com.asinosoft.gallery.R
 
 @Entity(tableName = "storage")
 data class Storage(
@@ -20,4 +23,13 @@ data class Storage(
         login = login,
         password = password
     )
+
+    @Composable
+    fun title(): String = when(type) {
+        StorageType.LOCAL -> stringResource(R.string.phone)
+        StorageType.DROPBOX -> stringResource(R.string.dropbox)
+        StorageType.NEXTCLOUD -> stringResource(R.string.nextcloud)
+        StorageType.WEBDAV -> stringResource(R.string.webdav)
+        StorageType.YANDEX -> stringResource(R.string.yandex)
+    }
 }

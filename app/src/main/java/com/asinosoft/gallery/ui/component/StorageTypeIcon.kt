@@ -14,7 +14,7 @@ fun StorageTypeIcon(type: StorageType, modifier: Modifier = Modifier) {
     val size = modifier.size(32.dp)
     when (type) {
         StorageType.LOCAL -> Image(
-            painterResource(R.drawable.ic_launcher_background),
+            painterResource(R.drawable.smartphone),
             contentDescription = null,
             modifier = size
         )

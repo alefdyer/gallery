@@ -46,4 +46,9 @@
     <string name="settings">Настройки</string>
     <string name="filter">Фильтр</string>
     <string name="close">Закрыть</string>
+    <string name="phone">Телефон</string>
+    <string name="nextcloud">NextCloud</string>
+    <string name="dropbox">Dropbox</string>
+    <string name="yandex">Яндекс Диск</string>
+    <string name="webdav">WebDAV</string>
 </resources>

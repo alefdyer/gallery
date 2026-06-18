@@ -22,13 +22,13 @@ fun SettingsView(
         topBar = {
             TopAppBar(
                 title = {
-                    Text(stringResource( R.string.settings))
+                    Text(stringResource( R.string.storages))
                 },
                 navigationIcon = {
                     IconButton(onClick = onClose) {
                         Icon(
                             painter = painterResource(R.drawable.arrow_back),
-                            contentDescription = null
+                            contentDescription = stringResource(R.string.close)
                         )
                     }
                 }

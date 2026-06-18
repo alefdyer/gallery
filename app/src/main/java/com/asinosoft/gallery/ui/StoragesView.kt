@@ -116,7 +116,7 @@ fun StoragesView(modifier: Modifier = Modifier, model: StoragesViewModel = hiltV
                             StorageTypeIcon(storage.type)
 
                             Text(
-                                text = storage.url?.toString() ?: "",
+                                text = storage.title(),
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
                                 modifier = Modifier.weight(2f)
