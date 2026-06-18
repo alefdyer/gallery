@@ -65,7 +65,7 @@ fun MainView(
                     TopAppBar(
                         title = { },
                         actions = {
-                            if (selection.isEmpty()) {
+                            if (selection.isEmpty() && 0 == pagerState.currentPage) {
                                 IconButton(onClick = { showFilters.value = true}) {
                                     Icon(painterResource(R.drawable.filter), contentDescription = null)
                                 }
@@ -106,7 +106,6 @@ fun MainView(
                     pagerState = pagerState,
                     onPhotos = { coroutineScope.launch { pagerState.scrollToPage(0) } },
                     onAlbums = { coroutineScope.launch { pagerState.scrollToPage(1) } },
-                    onStorages = { coroutineScope.launch { pagerState.scrollToPage(2) } }
                 )
             }
 
@@ -127,7 +126,6 @@ fun ViewModeBar(
     pagerState: PagerState,
     onPhotos: () -> Unit,
     onAlbums: () -> Unit,
-    onStorages: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     NavigationBar(
@@ -156,17 +154,6 @@ fun ViewModeBar(
                 )
             },
             label = { Text(stringResource(id = R.string.albums)) }
-        )
-        NavigationBarItem(
-            selected = 2 == pagerState.currentPage,
-            onClick = onStorages,
-            icon = {
-                Icon(
-                    painter = painterResource(R.drawable.album),
-                    contentDescription = stringResource(id = R.string.storages)
-                )
-            },
-            label = { Text(stringResource(id = R.string.storages)) }
         )
         Spacer(Modifier.width(60.dp))
     }
