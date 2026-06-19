@@ -36,13 +36,13 @@ fun SelectionControlBar(
         ) {
             LabeledIconButton(
                 label = stringResource(R.string.add_to_album),
-                icon = painterResource(R.drawable.add_tag),
+                icon = painterResource(R.drawable.playlist_add),
                 onClick = { onAddTag() }
             )
             if (onRemoveTag != null) {
                 LabeledIconButton(
                     label = stringResource(R.string.remove_from_album),
-                    icon = painterResource(R.drawable.remove_tag),
+                    icon = painterResource(R.drawable.playlist_remove),
                     onClick = { onRemoveTag() }
                 )
             }

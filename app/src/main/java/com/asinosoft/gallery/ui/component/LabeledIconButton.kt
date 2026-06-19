@@ -50,7 +50,7 @@ private fun Preview() {
     GalleryTheme {
         LabeledIconButton(
             label = "Up and down",
-            icon = painterResource(R.drawable.add_tag),
+            icon = painterResource(R.drawable.playlist_add),
             onClick = {}
         )
     }
