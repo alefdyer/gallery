@@ -9,10 +9,15 @@ import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
@@ -27,7 +32,9 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.asinosoft.gallery.data.Album
 import com.asinosoft.gallery.model.PagerViewModel
+import com.asinosoft.gallery.ui.component.Carousel
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PagerView(
     onAlbumClick: (Album) -> Unit,
@@ -37,8 +44,15 @@ fun PagerView(
 ) {
     val items by model.images.collectAsState(listOf())
     val offset by model.offset.collectAsState(0)
-    val pagerState: PagerState = key(items, offset) {
-        rememberPagerState(offset) { items.size }
+    val pagerState: PagerState = key(items, offset) { rememberPagerState(offset) { items.size } }
+    val carouselState: PagerState = key(items, offset) { rememberPagerState(offset) { items.size } }
+
+    LaunchedEffect(pagerState.currentPage) {
+        carouselState.animateScrollToPage(pagerState.currentPage)
+    }
+
+    LaunchedEffect(carouselState.currentPage) {
+        pagerState.animateScrollToPage(carouselState.currentPage)
     }
 
     Box(
@@ -87,6 +101,22 @@ fun PagerView(
             PagerViewBar(
                 onBack = onClose,
                 onShowInfo = { showInfo = true }
+            )
+        }
+
+        AnimatedVisibility(
+            modifier = Modifier
+                .height(144.dp)
+                .fillMaxWidth()
+                .align(Alignment.BottomCenter)
+                .offset(y = (-128).dp),
+            visible = showControls,
+            enter = slideInVertically(tween(easing = LinearEasing)) { it / 2 },
+            exit = slideOutVertically(tween(easing = LinearEasing)) { it / 2 }
+        ) {
+            Carousel(
+                items = items,
+                pagerState = carouselState,
             )
         }
 

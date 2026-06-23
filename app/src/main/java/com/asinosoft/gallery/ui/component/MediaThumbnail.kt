@@ -3,7 +3,6 @@ package com.asinosoft.gallery.ui.component
 import android.graphics.Bitmap.CompressFormat
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Checkbox
@@ -30,7 +29,6 @@ import coil3.request.allowHardware
 import coil3.toBitmap
 import com.asinosoft.gallery.R
 import com.asinosoft.gallery.data.Media
-import com.asinosoft.gallery.data.storage.StorageType
 import com.asinosoft.gallery.model.MediaViewModel
 import java.io.File
 import kotlinx.coroutines.Dispatchers
@@ -40,6 +38,7 @@ import kotlinx.coroutines.launch
 fun MediaThumbnail(
     media: Media,
     modifier: Modifier = Modifier,
+    aspectRatio: Float = 1f,
     selected: Set<Long> = setOf(),
     selectionMode: Boolean = false,
     onClick: (Media) -> Unit = {},
@@ -93,7 +92,7 @@ fun MediaThumbnail(
             model = request,
             contentDescription = null,
             contentScale = ContentScale.Crop,
-            modifier = Modifier.aspectRatio(1f).then(size)
+            modifier = Modifier.aspectRatio(aspectRatio).then(size)
         )
 
         if (null != media.video) {
@@ -105,8 +104,6 @@ fun MediaThumbnail(
             )
         }
 
-        StorageIcon(media.storageType)
-
         if (selectionMode) {
             Checkbox(
                 checked = selected.contains(media.id),
@@ -115,22 +112,4 @@ fun MediaThumbnail(
             )
         }
     }
-}
-
-@Composable
-private fun BoxScope.StorageIcon(storageType: StorageType) {
-    val icon = when (storageType) {
-        StorageType.DROPBOX -> R.drawable.dropbox_icon
-        StorageType.LOCAL -> R.drawable.mobile
-        StorageType.NEXTCLOUD -> R.drawable.nextcloud_icon
-        StorageType.WEBDAV -> R.drawable.webdav
-        StorageType.YANDEX -> R.drawable.yandex_icon
-    }
-
-    Icon(
-        painterResource(icon),
-        contentDescription = null,
-        modifier = Modifier.size(16.dp).align(Alignment.BottomStart),
-        tint = Color.White
-    )
 }
