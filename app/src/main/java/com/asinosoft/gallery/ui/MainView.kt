@@ -2,11 +2,20 @@ package com.asinosoft.gallery.ui
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animate
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.pager.rememberPagerState
@@ -19,10 +28,10 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -32,26 +41,30 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
+import androidx.core.graphics.drawable.toBitmap
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.asinosoft.gallery.R
 import com.asinosoft.gallery.data.Album
 import com.asinosoft.gallery.data.Media
 import com.asinosoft.gallery.model.ImageListViewModel
-import com.asinosoft.gallery.ui.component.FilterDialog
 import com.asinosoft.gallery.ui.theme.GalleryTheme
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -64,17 +77,35 @@ fun MainView(
     model: ImageListViewModel = hiltViewModel()
 ) {
     val isFetching by model.isFetching.collectAsState(false)
+    val filters by model.filters.collectAsState(listOf())
     val pagerState = rememberPagerState { 2 }
     val coroutineScope = rememberCoroutineScope()
     val selection by model.selection.collectAsState()
     val topScroll = TopAppBarDefaults.enterAlwaysScrollBehavior()
-    val showFilters = remember { mutableStateOf(false) }
 
     var navbarHeight by remember { mutableFloatStateOf(0f) }
     var navbarOffset by remember { mutableFloatStateOf(0f) }
+    var lastScrollTime by remember { mutableStateOf(0L) }
+
+    LaunchedEffect(lastScrollTime) {
+        if (lastScrollTime == 0L) return@LaunchedEffect
+        delay(500)
+        launch {
+            animate(initialValue = navbarOffset, targetValue = 0f) { v, _ ->
+                navbarOffset = v
+            }
+        }
+        launch {
+            animate(initialValue = topScroll.state.heightOffset, targetValue = 0f) { v, _ ->
+                topScroll.state.heightOffset = v
+            }
+        }
+    }
+
     val navbarScrollConnection = remember {
         object : NestedScrollConnection {
             override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+                lastScrollTime = System.currentTimeMillis()
                 val delta = available.y
                 val newOffset = navbarOffset - delta
                 navbarOffset = newOffset.coerceIn(0f, navbarHeight)
@@ -82,7 +113,8 @@ fun MainView(
             }
 
             override suspend fun onPostFling(consumed: Velocity, available: Velocity): Velocity {
-                val targetOffset = if (navbarOffset > navbarHeight/2f) navbarHeight else 0f
+                lastScrollTime = System.currentTimeMillis()
+                val targetOffset = if (navbarOffset > navbarHeight / 2f) navbarHeight else 0f
                 coroutineScope.launch {
                     animate(
                         initialValue = navbarOffset,
@@ -98,46 +130,89 @@ fun MainView(
         }
     }
 
-    Scaffold(modifier.nestedScroll(navbarScrollConnection)) { paddingValues ->
-        PullToRefreshBox(
-            isRefreshing = isFetching, onRefresh = model::fetch, Modifier.padding(paddingValues)
-        ) {
-            Column {
-                AnimatedVisibility(visible = selection.isEmpty()) {
-                    TopAppBar(
-                        title = { }, actions = {
-                            if (selection.isEmpty() && 0 == pagerState.currentPage) {
-                                IconButton(onClick = { showFilters.value = true }) {
-                                    Icon(
-                                        painterResource(R.drawable.filter),
-                                        contentDescription = null
-                                    )
-                                }
-                            }
-                            IconButton(onClick = onSettingsClick) {
-                                Icon(
-                                    painterResource(R.drawable.settings), contentDescription = null
-                                )
-                            }
-                        }, colors = TopAppBarDefaults.topAppBarColors(
-                            containerColor = Color.Transparent,
-                            scrolledContainerColor = Color.Transparent
-                        ), scrollBehavior = topScroll
-                    )
-                }
+    val density = LocalDensity.current
+    val topBarPadding = 8.dp
 
+    Scaffold(
+        modifier = modifier
+            .nestedScroll(navbarScrollConnection)
+            .nestedScroll(topScroll.nestedScrollConnection)
+    ) { paddingValues ->
+        PullToRefreshBox(
+            isRefreshing = isFetching,
+            onRefresh = model::fetch,
+            modifier = Modifier.fillMaxSize()
+        ) {
+            Box(Modifier.fillMaxSize()) {
                 HorizontalPager(state = pagerState) {
                     when (it) {
                         0 -> ImageListView(
                             onMediaClick = onMediaClick,
                             onClose = {},
-                            nestedScroll = topScroll.nestedScrollConnection
+                            scrollBehavior = topScroll,
+                            contentPadding = PaddingValues(
+                                top = 72.dp + paddingValues.calculateTopPadding(),
+                                bottom = 80.dp + paddingValues.calculateBottomPadding()
+                            )
                         )
 
                         1 -> AlbumListView(
                             onAlbumClick = onAlbumClick,
-                            nestedScroll = topScroll.nestedScrollConnection
+                            nestedScroll = topScroll.nestedScrollConnection,
+                            contentPadding = PaddingValues(
+                                top = 72.dp + paddingValues.calculateTopPadding(),
+                                bottom = 80.dp + paddingValues.calculateBottomPadding()
+                            )
                         )
+                    }
+                }
+
+                AnimatedVisibility(
+                    visible = selection.isEmpty(),
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(top = topBarPadding + paddingValues.calculateTopPadding(), end = 8.dp)
+                        .onGloballyPositioned {
+                            topScroll.state.heightOffsetLimit =
+                                -it.size.height.toFloat() - with(density) { (topBarPadding + paddingValues.calculateTopPadding()).toPx() }
+                        }
+                        .offset { IntOffset(0, topScroll.state.heightOffset.toInt()) }
+                ) {
+                    Surface(
+                        shape = RoundedCornerShape(50),
+                        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.8f),
+                        tonalElevation = 4.dp
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            if (0 == pagerState.currentPage && filters.isNotEmpty()) {
+                                LazyRow(
+                                    modifier = Modifier.widthIn(max = 240.dp),
+                                    contentPadding = PaddingValues(horizontal = 8.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    items(filters, key = { it.application.pkg }) { filter ->
+                                        filter.application.icon?.let { icon ->
+                                            Image(
+                                                bitmap = icon.toBitmap().asImageBitmap(),
+                                                contentDescription = filter.application.name,
+                                                modifier = Modifier
+                                                    .padding(4.dp)
+                                                    .size(32.dp)
+                                                    .alpha(if (filter.enabled) 1f else 0.3f)
+                                                    .clickable { model.setFilter(filter, !filter.enabled) }
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+
+                            IconButton(onClick = onSettingsClick) {
+                                Icon(
+                                    painterResource(R.drawable.settings),
+                                    contentDescription = null
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -149,17 +224,13 @@ fun MainView(
                     pagerState = pagerState,
                     onPhotos = { coroutineScope.launch { pagerState.scrollToPage(0) } },
                     onAlbums = { coroutineScope.launch { pagerState.scrollToPage(1) } },
-                    modifier.onGloballyPositioned { navbarHeight = it.size.height.toFloat() }
+                    modifier = Modifier
+                        .padding(bottom = paddingValues.calculateBottomPadding())
+                        .onGloballyPositioned {
+                            navbarHeight = it.size.height.toFloat() + with(density) { paddingValues.calculateBottomPadding().toPx() }
+                        }
                         .offset { IntOffset(0, navbarOffset.toInt()) }
                 )
-            }
-
-            if (showFilters.value) {
-                val filters by model.filters.collectAsState()
-                FilterDialog(
-                    filters = filters,
-                    onChangeFilter = model::setFilter,
-                    onDismiss = { showFilters.value = false })
             }
         }
     }

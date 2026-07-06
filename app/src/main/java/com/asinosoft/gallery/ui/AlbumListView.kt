@@ -12,6 +12,7 @@ import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -60,6 +61,7 @@ fun AlbumListView(
     modifier: Modifier = Modifier,
     onAlbumClick: (Album) -> Unit = {},
     nestedScroll: NestedScrollConnection,
+    contentPadding: PaddingValues = PaddingValues(0.dp),
     model: AlbumsViewModel = hiltViewModel()
 ) {
     val scope = rememberCoroutineScope()
@@ -127,6 +129,7 @@ fun AlbumListView(
 
     LazyColumn(
         state = lazyListState,
+        contentPadding = contentPadding,
         modifier = modifier
             .fillMaxSize()
             .dragAndDropTarget(

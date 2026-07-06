@@ -6,27 +6,28 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.TopAppBarScrollBehavior
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.nestedScroll
-import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.asinosoft.gallery.data.Media
@@ -46,14 +47,14 @@ fun ImageListView(
     onMediaClick: (Media) -> Unit,
     onClose: () -> Unit,
     modifier: Modifier = Modifier,
-    nestedScroll: NestedScrollConnection? = null,
+    scrollBehavior: TopAppBarScrollBehavior? = null,
+    contentPadding: PaddingValues = PaddingValues(0.dp),
     model: ImageListViewModel = hiltViewModel()
 ) {
     val images by model.filteredImages.collectAsState(listOf())
     val selection by model.selection.collectAsState()
 
     var closeOnEmptyList by remember { mutableStateOf(false) }
-    var topPadding by remember { mutableIntStateOf(0) }
     val lazyGridState = rememberLazyGridState()
     var showTagDialog by remember { mutableStateOf(false) }
     val dragSelectionState = remember { DragSelectionState() }
@@ -79,8 +80,8 @@ fun ImageListView(
         LazyVerticalGrid(
             state = lazyGridState,
             columns = GridCells.Fixed(3),
+            contentPadding = contentPadding,
             modifier = Modifier
-                .padding(top = topPadding.pxToDp())
                 .dragSelection(
                     items = images,
                     state = lazyGridState,
@@ -89,7 +90,7 @@ fun ImageListView(
                     onSelectedChange = model::setSelection
                 )
                 .let {
-                    if (nestedScroll == null) it else it.nestedScroll(nestedScroll)
+                    if (scrollBehavior == null) it else it.nestedScroll(scrollBehavior.nestedScrollConnection)
                 }
         ) {
             items(images, key = { it.id }) { media ->
@@ -114,11 +115,19 @@ fun ImageListView(
             listItems = images,
             modifier = Modifier
                 .align(Alignment.CenterEnd)
-                .padding(top = topPadding.pxToDp(), end = 4.dp)
+                .padding(top = contentPadding.calculateTopPadding(), end = 4.dp)
         )
 
         AnimatedVisibility(
-            modifier = Modifier.align(Alignment.TopStart).padding(8.dp),
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .padding(8.dp)
+                .offset {
+                    IntOffset(
+                        0,
+                        scrollBehavior?.state?.heightOffset?.toInt() ?: 0
+                    )
+                },
             visible = selection.isNotEmpty()
         ) {
             SelectionInfoBar(
@@ -156,9 +165,6 @@ fun ImageListView(
         }
     }
 }
-
-@Composable
-fun Int.pxToDp() = with(LocalDensity.current) { this@pxToDp.toDp() }
 
 private val months = DateFormatSymbols
     .getInstance()
