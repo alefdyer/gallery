@@ -24,6 +24,7 @@ import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -33,6 +34,7 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.asinosoft.gallery.data.Album
 import com.asinosoft.gallery.model.PagerViewModel
 import com.asinosoft.gallery.ui.component.Carousel
+import kotlinx.coroutines.flow.filterNotNull
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -47,12 +49,29 @@ fun PagerView(
     val pagerState: PagerState = key(items, offset) { rememberPagerState(offset) { items.size } }
     val carouselState: PagerState = key(items, offset) { rememberPagerState(offset) { items.size } }
 
-    LaunchedEffect(pagerState.currentPage) {
-        carouselState.animateScrollToPage(pagerState.currentPage)
-    }
-
-    LaunchedEffect(carouselState.currentPage) {
-        pagerState.animateScrollToPage(carouselState.currentPage)
+    // Synchronize pagers' state
+    LaunchedEffect(pagerState, carouselState) {
+        snapshotFlow {
+            val (scrollingState, followingState) = if (pagerState.isScrollInProgress) {
+                pagerState to carouselState
+            } else if (carouselState.isScrollInProgress) {
+                carouselState to pagerState
+            } else {
+                return@snapshotFlow null
+            }
+            Triple(
+                followingState,
+                scrollingState.currentPage,
+                scrollingState.currentPageOffsetFraction
+            )
+        }
+            .filterNotNull()
+            .collect { (followingState, currentPage, currentPageOffsetFraction) ->
+                followingState.scrollToPage(
+                    page = currentPage,
+                    pageOffsetFraction = currentPageOffsetFraction
+                )
+            }
     }
 
     Box(
