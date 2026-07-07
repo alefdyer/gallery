@@ -66,6 +66,7 @@ import com.asinosoft.gallery.model.ImageListViewModel
 import com.asinosoft.gallery.ui.theme.GalleryTheme
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlin.time.Duration.Companion.milliseconds
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -89,7 +90,7 @@ fun MainView(
 
     LaunchedEffect(lastScrollTime) {
         if (lastScrollTime == 0L) return@LaunchedEffect
-        delay(500)
+        delay(500.milliseconds)
         launch {
             animate(initialValue = navbarOffset, targetValue = 0f) { v, _ ->
                 navbarOffset = v
@@ -144,25 +145,23 @@ fun MainView(
             modifier = Modifier.fillMaxSize()
         ) {
             Box(Modifier.fillMaxSize()) {
+                val contentPadding = PaddingValues(
+                    top = 36.dp + paddingValues.calculateTopPadding(),
+                    bottom = paddingValues.calculateBottomPadding()
+                )
                 HorizontalPager(state = pagerState) {
                     when (it) {
                         0 -> ImageListView(
                             onMediaClick = onMediaClick,
                             onClose = {},
                             scrollBehavior = topScroll,
-                            contentPadding = PaddingValues(
-                                top = 72.dp + paddingValues.calculateTopPadding(),
-                                bottom = 80.dp + paddingValues.calculateBottomPadding()
-                            )
+                            contentPadding = contentPadding
                         )
 
                         1 -> AlbumListView(
                             onAlbumClick = onAlbumClick,
                             nestedScroll = topScroll.nestedScrollConnection,
-                            contentPadding = PaddingValues(
-                                top = 72.dp + paddingValues.calculateTopPadding(),
-                                bottom = 80.dp + paddingValues.calculateBottomPadding()
-                            )
+                            contentPadding = contentPadding
                         )
                     }
                 }
@@ -170,7 +169,7 @@ fun MainView(
                 AnimatedVisibility(
                     visible = selection.isEmpty(),
                     modifier = Modifier
-                        .align(Alignment.TopEnd)
+                        .align(Alignment.TopCenter)
                         .padding(top = topBarPadding + paddingValues.calculateTopPadding(), end = 8.dp)
                         .onGloballyPositioned {
                             topScroll.state.heightOffsetLimit =
@@ -199,7 +198,7 @@ fun MainView(
                                                     .padding(4.dp)
                                                     .size(32.dp)
                                                     .alpha(if (filter.enabled) 1f else 0.3f)
-                                                    .clickable { model.setFilter(filter, !filter.enabled) }
+                                                    .clickable { model.toggleFilter(filter) }
                                             )
                                         }
                                     }

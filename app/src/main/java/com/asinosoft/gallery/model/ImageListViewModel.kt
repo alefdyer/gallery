@@ -87,22 +87,32 @@ class ImageListViewModel @Inject constructor(
                     .filter { owners.contains(it.pkg) }
                     .sortedBy { it.name }
                 filters.emit(
-                    applications.map { Filter(it, activeFilters.value.contains(it.pkg)) }
+                    applications.map {
+                        Filter(
+                            it,
+                            activeFilters.value.isEmpty() or activeFilters.value.contains(it.pkg)
+                        )
+                    }
                 )
             }
         }
     }
 
-    fun setFilter(filter: Filter, value: Boolean) = viewModelScope.launch {
+    fun toggleFilter(filter: Filter) = viewModelScope.launch {
         val newFilters = activeFilters.value.toMutableSet()
-        if (value) {
-            newFilters.add(filter.application.pkg)
-        } else {
+        if (activeFilters.value.contains(filter.application.pkg)) {
             newFilters.remove(filter.application.pkg)
+        } else {
+            newFilters.add(filter.application.pkg)
         }
         activeFilters.emit(newFilters)
         filters.emit(
-            applications.map { Filter(it, newFilters.contains(it.pkg)) }
+            applications.map {
+                Filter(
+                    it,
+                    activeFilters.value.isEmpty() or newFilters.contains(it.pkg)
+                )
+            }
         )
     }
 
