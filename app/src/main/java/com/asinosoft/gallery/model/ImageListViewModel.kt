@@ -82,10 +82,8 @@ class ImageListViewModel @Inject constructor(
 
 
             images.collect { images ->
-                val owners = images.map { it.owner }.toSet()
-                applications = applicationDao.getApplications()
-                    .filter { owners.contains(it.pkg) }
-                    .sortedBy { it.name }
+                val owners = images.mapNotNull { it.owner }.toSet()
+                applications = applicationDao.getApplications(owners).sortedBy { it.name }
                 filters.emit(
                     applications.map {
                         Filter(

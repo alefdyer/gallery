@@ -10,12 +10,14 @@ import javax.inject.Inject
 
 class ApplicationRepository @Inject constructor(@param:ApplicationContext private val context: Context) :
     ApplicationDao {
-    override suspend fun getApplications(): List<Application> = withContext(Dispatchers.IO) {
+    override suspend fun getApplications(packages: Set<String>): List<Application> = withContext(Dispatchers.IO) {
         val intent = Intent(Intent.ACTION_MAIN).apply { addCategory(Intent.CATEGORY_LAUNCHER) }
         val activities = context.packageManager.queryIntentActivities(intent, 0)
         activities.sortWith(ResolveInfo.DisplayNameComparator(context.packageManager))
 
-        activities.map {
+        activities
+            .filter { packages.contains(it.activityInfo.packageName) }
+            .map {
                 Application(
                     it.activityInfo.loadLabel(context.packageManager).toString(),
                     it.activityInfo.packageName,
