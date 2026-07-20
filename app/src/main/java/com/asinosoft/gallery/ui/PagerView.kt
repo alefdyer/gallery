@@ -9,6 +9,7 @@ import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
@@ -34,7 +35,6 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.asinosoft.gallery.data.Album
 import com.asinosoft.gallery.model.PagerViewModel
 import com.asinosoft.gallery.ui.component.Carousel
-import kotlinx.coroutines.flow.filterNotNull
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -54,18 +54,16 @@ fun PagerView(
         snapshotFlow {
             val (scrollingState, followingState) = if (pagerState.isScrollInProgress) {
                 pagerState to carouselState
-            } else if (carouselState.isScrollInProgress) {
-                carouselState to pagerState
             } else {
-                return@snapshotFlow null
+                carouselState to pagerState
             }
+
             Triple(
                 followingState,
                 scrollingState.currentPage,
                 scrollingState.currentPageOffsetFraction
             )
         }
-            .filterNotNull()
             .collect { (followingState, currentPage, currentPageOffsetFraction) ->
                 followingState.scrollToPage(
                     page = currentPage,
@@ -77,6 +75,7 @@ fun PagerView(
     Box(
         modifier =
             modifier
+                .fillMaxSize()
                 .background(Color.Black)
     ) {
         var showControls by remember { mutableStateOf(true) }
@@ -104,7 +103,11 @@ fun PagerView(
         ) { n ->
             val item = items[n]
             if (null !== item.image) {
-                ImageView(item) { showControls = !showControls }
+                ImageView(item) {
+                    if (!pagerState.isScrollInProgress && !carouselState.isScrollInProgress) {
+                        showControls = !showControls
+                    }
+                }
             } else if (null != item.video) {
                 VideoView(item) { isPlaying -> showControls = !isPlaying }
             } else {
