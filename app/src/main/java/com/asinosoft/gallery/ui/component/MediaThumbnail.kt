@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -52,9 +53,15 @@ fun MediaThumbnail(
         val scope = rememberCoroutineScope()
         val size = rememberConstraintsSizeResolver()
 
-        var request by remember { mutableStateOf<ImageRequest?>(null) }
+        var request by remember(media) { mutableStateOf<ImageRequest?>(null) }
 
-        LaunchedEffect(media) {
+        DisposableEffect(media) {
+            onDispose {
+                request = null
+            }
+        }
+
+        LaunchedEffect(media, size) {
             val thumbnail = File(context.cacheDir, media.id.toString())
             request = if (thumbnail.exists() && thumbnail.length() > 0) {
                 val key = "thumbnail-${media.id}"
