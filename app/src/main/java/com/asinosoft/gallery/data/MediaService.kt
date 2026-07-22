@@ -3,13 +3,9 @@ package com.asinosoft.gallery.data
 import android.content.Context
 import android.content.Intent
 import android.util.Log
-import androidx.work.Data
-import androidx.work.OneTimeWorkRequestBuilder
-import androidx.work.WorkManager
 import com.asinosoft.gallery.GalleryApp
 import com.asinosoft.gallery.data.storage.StorageProvider
 import com.asinosoft.gallery.di.IntentHelper
-import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import kotlin.system.measureTimeMillis
 import kotlinx.coroutines.Dispatchers
@@ -20,7 +16,6 @@ import kotlinx.coroutines.withContext
 class MediaService @Inject constructor(
     private val albumDao: AlbumDao,
     private val mediaDao: MediaDao,
-    @param:ApplicationContext private val context: Context
 ) {
     private val intentHelper = IntentHelper
 
@@ -135,7 +130,6 @@ class MediaService @Inject constructor(
                 }
 
                 updated += mediaIds
-                enqueueThumbnailPrefetch(mediaIds)
             }
         }
 
@@ -145,21 +139,5 @@ class MediaService @Inject constructor(
         }
         mediaDao.deleteAllExcept(provider.storage.id, updated)
         albumDao.deleteEmptyAlbums()
-    }
-
-    private fun enqueueThumbnailPrefetch(mediaIds: Collection<Long>) {
-        if (mediaIds.isEmpty()) {
-            return
-        }
-
-        val request = OneTimeWorkRequestBuilder<ThumbnailPrefetchWorker>()
-            .setInputData(
-                Data.Builder()
-                    .putLongArray(ThumbnailPrefetchWorker.KEY_MEDIA_IDS, mediaIds.toLongArray())
-                    .build()
-            )
-            .build()
-
-        WorkManager.getInstance(context).enqueue(request)
     }
 }

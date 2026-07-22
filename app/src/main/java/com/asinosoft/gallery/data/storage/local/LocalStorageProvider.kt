@@ -3,8 +3,6 @@ package com.asinosoft.gallery.data.storage.local
 import android.content.ContentUris
 import android.content.Context
 import android.net.Uri
-import android.os.Build
-import android.os.Environment
 import android.provider.MediaStore.Images
 import androidx.core.database.getStringOrNull
 import android.provider.MediaStore.Video as Videos
@@ -26,19 +24,6 @@ class LocalStorageProvider(
     override val storage: Storage,
     @param:ApplicationContext private val context: Context
 ) : StorageProvider {
-    companion object {
-        val STANDARD_DIRECTORIES = buildList {
-            add(Environment.DIRECTORY_PICTURES)
-            add(Environment.DIRECTORY_MOVIES)
-            add(Environment.DIRECTORY_DOWNLOADS)
-            add(Environment.DIRECTORY_DCIM)
-            add(Environment.DIRECTORY_DOCUMENTS)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                add(Environment.DIRECTORY_SCREENSHOTS)
-            }
-        }
-    }
-
     override suspend fun fetchAll(): Flow<Media> = flow {
         emitAll(fetchImages(""))
         emitAll(fetchVideos(""))
@@ -107,10 +92,6 @@ class LocalStorageProvider(
 
             while (cursor.moveToNext()) {
                 val path: String = cursor.getString(pathColumn)
-                if (!STANDARD_DIRECTORIES.any { path.startsWith(it) }) {
-                    continue
-                }
-
                 val id = cursor.getLong(idColumn)
                 val dateAdded: Long = cursor.getLong(dateAddedColumn)
                 val dateTaken: Long = cursor.getLong(dateTakenColumn)
@@ -190,10 +171,6 @@ class LocalStorageProvider(
 
             while (cursor.moveToNext()) {
                 val path: String = cursor.getString(pathColumn)
-                if (!STANDARD_DIRECTORIES.any { path.startsWith(it) }) {
-                    continue
-                }
-
                 val id = cursor.getLong(idColumn)
                 val dateAdded: Long = cursor.getLong(dateAddedColumn)
                 val dateTaken: Long = cursor.getLong(dateTakenColumn)
