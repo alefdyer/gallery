@@ -36,13 +36,22 @@ import com.asinosoft.gallery.data.Media
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
+import kotlin.math.abs
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlin.time.Duration.Companion.milliseconds
 
-private fun firstVisibleMediaDate(listItems: List<Media>, lazyGridState: LazyGridState): LocalDate {
-    val i = lazyGridState.firstVisibleItemIndex
-    return listItems[i].date
+private fun getIndicatorDate(
+    listItems: List<Media>,
+    lazyGridState: LazyGridState,
+    scrollOffset: Int
+): LocalDate? {
+    val nearestItem = lazyGridState.layoutInfo.visibleItemsInfo
+        .minByOrNull { abs(it.offset.y - scrollOffset) }
+
+    val index = nearestItem?.index ?: lazyGridState.firstVisibleItemIndex
+    return listItems.getOrNull(index)?.date
 }
 
 private val shortDateFormatter: DateTimeFormatter =
@@ -77,12 +86,6 @@ fun LazyGridVerticalScrollIndicator(
 
     val density = LocalDensity.current
     val scope = rememberCoroutineScope()
-    val dateLabel by remember(listItems) {
-        derivedStateOf {
-            firstVisibleMediaDate(listItems, lazyGridState).format(shortDateFormatter)
-        }
-    }
-
     var showThumb by remember { mutableStateOf(false) }
     var showLabel by remember { mutableStateOf(false) }
     var hideJob by remember { mutableStateOf<Job?>(null) }
@@ -96,7 +99,7 @@ fun LazyGridVerticalScrollIndicator(
             hideJob = null
         } else {
             hideJob = scope.launch {
-                delay(1000)
+                delay(1000.milliseconds)
                 showThumb = false
                 showLabel = false
             }
@@ -151,6 +154,13 @@ fun LazyGridVerticalScrollIndicator(
             }
 
             if (showLabel) {
+                val dateLabel by remember(listItems, lazyGridState, scrollOffset) {
+                    derivedStateOf {
+                        val indicatorOffset = scrollOffset + (maxHeight * scrollOffset / contentSize).value.toInt()
+                        getIndicatorDate(listItems, lazyGridState, indicatorOffset)?.format(shortDateFormatter)
+                    }
+                }
+
                 dateLabel?.let { label ->
                     Surface(
                         modifier = Modifier
