@@ -20,9 +20,10 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
@@ -169,20 +170,23 @@ fun MainView(
                 AnimatedVisibility(
                     visible = selection.isEmpty(),
                     modifier = Modifier
-                        .align(Alignment.TopCenter)
-                        .padding(top = topBarPadding + paddingValues.calculateTopPadding(), end = 8.dp)
+                        .align(Alignment.TopEnd)
+                        .padding(top = topBarPadding + 8.dp + paddingValues.calculateTopPadding(), end = 8.dp)
                         .onGloballyPositioned {
                             topScroll.state.heightOffsetLimit =
-                                -it.size.height.toFloat() - with(density) { (topBarPadding + paddingValues.calculateTopPadding()).toPx() }
+                                -it.size.height.toFloat() - with(density) { (topBarPadding + 8.dp + paddingValues.calculateTopPadding()).toPx() }
                         }
                         .offset { IntOffset(0, topScroll.state.heightOffset.toInt()) }
                 ) {
                     Surface(
                         shape = RoundedCornerShape(50),
-                        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.8f),
+                        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f),
                         tonalElevation = 4.dp
                     ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
+                        Row(
+                            modifier = Modifier.padding(vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
                             if (0 == pagerState.currentPage && filters.isNotEmpty()) {
                                 LazyRow(
                                     modifier = Modifier.widthIn(max = 240.dp),
@@ -204,13 +208,6 @@ fun MainView(
                                     }
                                 }
                             }
-
-                            IconButton(onClick = onSettingsClick) {
-                                Icon(
-                                    painterResource(R.drawable.settings),
-                                    contentDescription = null
-                                )
-                            }
                         }
                     }
                 }
@@ -223,8 +220,10 @@ fun MainView(
                     pagerState = pagerState,
                     onPhotos = { coroutineScope.launch { pagerState.scrollToPage(0) } },
                     onAlbums = { coroutineScope.launch { pagerState.scrollToPage(1) } },
+                    onSettings = onSettingsClick,
                     modifier = Modifier
                         .padding(bottom = paddingValues.calculateBottomPadding())
+                        .offset(y = 8.dp)
                         .onGloballyPositioned {
                             navbarHeight = it.size.height.toFloat() + with(density) { paddingValues.calculateBottomPadding().toPx() }
                         }
@@ -240,15 +239,18 @@ private fun ViewModeBar(
     pagerState: PagerState,
     onPhotos: () -> Unit,
     onAlbums: () -> Unit,
+    onSettings: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    var menuExpanded by remember { mutableStateOf(false) }
+
     Surface(
         modifier = modifier.padding(16.dp),
         shape = RoundedCornerShape(50),
-        color = MaterialTheme.colorScheme.surface.copy(alpha = .8f),
+        color = MaterialTheme.colorScheme.surface.copy(alpha = .95f),
     ) {
-        val size = Modifier.width(96.dp)
-        Row(Modifier.padding(2.dp)) {
+        val size = Modifier.width(80.dp)
+        Row(Modifier.padding(2.dp), verticalAlignment = Alignment.CenterVertically) {
             EllipseButton(
                 onClick = onPhotos,
                 selected = 0 == pagerState.currentPage,
@@ -264,6 +266,35 @@ private fun ViewModeBar(
                 label = stringResource(R.string.albums),
                 modifier = size
             )
+
+            Box {
+                EllipseButton(
+                    onClick = { menuExpanded = true },
+                    selected = false,
+                    icon = painterResource(R.drawable.menu),
+                    label = stringResource(R.string.menu),
+                    modifier = size
+                )
+
+                DropdownMenu(
+                    expanded = menuExpanded,
+                    onDismissRequest = { menuExpanded = false }
+                ) {
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.settings)) },
+                        onClick = {
+                            menuExpanded = false
+                            onSettings()
+                        },
+                        leadingIcon = {
+                            Icon(
+                                painter = painterResource(R.drawable.settings),
+                                contentDescription = null
+                            )
+                        }
+                    )
+                }
+            }
         }
     }
 }
@@ -279,17 +310,23 @@ private fun EllipseButton(
     Surface(
         modifier = modifier,
         shape = RoundedCornerShape(50),
-        color = if (selected) MaterialTheme.colorScheme.onPrimary.copy(alpha = .8f) else Color.Transparent
+        color = if (selected) Color.Black.copy(alpha = .15f) else Color.Transparent
     ) {
         TextButton(
             onClick = onClick,
+            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 7.dp)
         ) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Icon(
-                    painter = icon, contentDescription = label
+                    painter = icon, contentDescription = label,
+                    tint = Color.Black,
+                    modifier = Modifier.size(25.dp)
                 )
                 Text(
-                    text = label, style = MaterialTheme.typography.labelSmall
+                    text = label,
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = if (selected) androidx.compose.ui.text.font.FontWeight.Bold else androidx.compose.ui.text.font.FontWeight.Normal,
+                    color = Color.Black
                 )
             }
         }
@@ -301,6 +338,6 @@ private fun EllipseButton(
 private fun Preview() {
     GalleryTheme {
         val pagerState = rememberPagerState { 2 }
-        ViewModeBar(pagerState, {}, {})
+        ViewModeBar(pagerState, {}, {}, {})
     }
 }
