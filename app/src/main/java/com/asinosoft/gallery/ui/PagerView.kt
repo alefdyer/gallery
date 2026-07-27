@@ -10,7 +10,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.pager.HorizontalPager
@@ -18,14 +17,12 @@ import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -47,30 +44,6 @@ fun PagerView(
     val items by model.images.collectAsState(listOf())
     val offset by model.offset.collectAsState(0)
     val pagerState: PagerState = key(items, offset) { rememberPagerState(offset) { items.size } }
-    val carouselState: PagerState = key(items, offset) { rememberPagerState(offset) { items.size } }
-
-    // Synchronize pagers' state
-    LaunchedEffect(pagerState, carouselState) {
-        snapshotFlow {
-            val (scrollingState, followingState) = if (pagerState.isScrollInProgress) {
-                pagerState to carouselState
-            } else {
-                carouselState to pagerState
-            }
-
-            Triple(
-                followingState,
-                scrollingState.currentPage,
-                scrollingState.currentPageOffsetFraction
-            )
-        }
-            .collect { (followingState, currentPage, currentPageOffsetFraction) ->
-                followingState.scrollToPage(
-                    page = currentPage,
-                    pageOffsetFraction = currentPageOffsetFraction
-                )
-            }
-    }
 
     Box(
         modifier =
@@ -104,7 +77,7 @@ fun PagerView(
             val item = items[n]
             if (null !== item.image) {
                 ImageView(item) {
-                    if (!pagerState.isScrollInProgress && !carouselState.isScrollInProgress) {
+                    if (!pagerState.isScrollInProgress) {
                         showControls = !showControls
                     }
                 }
@@ -129,7 +102,6 @@ fun PagerView(
         AnimatedVisibility(
             modifier = Modifier
                 .height(144.dp)
-                .fillMaxWidth()
                 .align(Alignment.BottomCenter)
                 .offset(y = (-128).dp),
             visible = showControls,
@@ -138,7 +110,7 @@ fun PagerView(
         ) {
             Carousel(
                 items = items,
-                pagerState = carouselState,
+                pagerState = pagerState,
             )
         }
 

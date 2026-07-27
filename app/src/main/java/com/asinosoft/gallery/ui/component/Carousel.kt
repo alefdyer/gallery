@@ -5,14 +5,19 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.PageSize
 import androidx.compose.foundation.pager.PagerState
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.key
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.asinosoft.gallery.data.Media
+import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -23,9 +28,36 @@ fun Carousel(
     modifier: Modifier = Modifier,
 ) {
     val scope = rememberCoroutineScope()
+    val carouselState: PagerState = key(items, pagerState) { rememberPagerState(pagerState.currentPage) { items.size } }
+
+    // Synchronize pagers' state
+    LaunchedEffect(pagerState, carouselState) {
+        snapshotFlow {
+            val (scrollingState, followingState) = if (pagerState.isScrollInProgress) {
+                pagerState to carouselState
+            } else if (carouselState.isScrollInProgress) {
+                carouselState to pagerState
+            } else {
+                return@snapshotFlow null
+            }
+
+            Triple(
+                followingState,
+                scrollingState.currentPage,
+                scrollingState.currentPageOffsetFraction
+            )
+        }
+            .filterNotNull()
+            .collect { (followingState, currentPage, currentPageOffsetFraction) ->
+                followingState.scrollToPage(
+                    page = currentPage,
+                    pageOffsetFraction = currentPageOffsetFraction
+                )
+            }
+    }
 
     HorizontalPager(
-        state = pagerState,
+        state = carouselState,
         pageSize = PageSize.Fixed(40.dp),
         pageSpacing = 4.dp,
         contentPadding = PaddingValues(8.dp),
