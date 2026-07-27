@@ -15,7 +15,8 @@ import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -29,11 +30,20 @@ class PagerViewModel @Inject constructor(
 ) : ViewModel() {
     private val albumId: Long? = state["albumId"]
     private val imageId: Long = state["imageId"]!!
+    private val activeFilterPackages: Set<String> = state.get<String>("filters")
+        ?.split(",")
+        ?.filter(String::isNotEmpty)
+        ?.toSet()
+        ?: emptySet()
 
     val images: StateFlow<List<Media>> = (
             albumId?.let { albumDao.getMediaInAlbum(albumId) }
                 ?: mediaDao.getImages()
-            ).stateIn(
+            )
+        .combine(flowOf(activeFilterPackages)) { images, filters ->
+            if (filters.isEmpty()) images else images.filter { filters.contains(it.owner) }
+        }
+        .stateIn(
             scope = viewModelScope,
             started = SharingStarted.Eagerly,
             initialValue = emptyList()
@@ -43,12 +53,12 @@ class PagerViewModel @Inject constructor(
 
     init {
         viewModelScope.launch {
-            val images = albumId?.let { albumDao.getMediaInAlbum(albumId).first() }
-                ?: mediaDao.getImages().first()
-
-            val index = images.indexOfFirst { image -> image.id == imageId }
-            offset.emit(index)
-
+            images.collect { images ->
+                val index = images.indexOfFirst { image -> image.id == imageId }
+                if (index >= 0) {
+                    offset.emit(index)
+                }
+            }
         }
     }
 

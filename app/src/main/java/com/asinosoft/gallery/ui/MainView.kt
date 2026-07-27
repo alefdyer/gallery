@@ -71,7 +71,7 @@ import kotlin.time.Duration.Companion.milliseconds
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MainView(
-    onMediaClick: (Media) -> Unit,
+    onMediaClick: (Media, Set<String>) -> Unit,
     onAlbumClick: (Album) -> Unit,
     onSettingsClick: () -> Unit,
     modifier: Modifier = Modifier,

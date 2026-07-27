@@ -166,7 +166,7 @@ dependencies {
     ksp("androidx.room:room-compiler:$roomVersion")
 
     // KtLint
-    ktlintRuleset("io.nlopez.compose.rules:ktlint:0.6.2")
+    ktlintRuleset("io.nlopez.compose.rules:ktlint:0.6.3")
 
     // Test
     testImplementation("junit:junit:4.13.2")

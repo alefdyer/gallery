@@ -65,6 +65,8 @@ class ImageListViewModel @Inject constructor(
     private lateinit var applications: List<Application>
     private val activeFilters = MutableStateFlow<Set<String>>(setOf())
 
+    val activeFilterPackages: StateFlow<Set<String>> = activeFilters
+
     @OptIn(ExperimentalCoroutinesApi::class)
     var filters = MutableStateFlow<List<Filter>>(listOf())
 

@@ -35,7 +35,7 @@ import com.asinosoft.gallery.model.ImageListViewModel
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AlbumView(
-    onMediaClick: (Media) -> Unit,
+    onMediaClick: (Media, Set<String>) -> Unit,
     onClose: () -> Unit,
     modifier: Modifier = Modifier,
     model: ImageListViewModel = hiltViewModel()

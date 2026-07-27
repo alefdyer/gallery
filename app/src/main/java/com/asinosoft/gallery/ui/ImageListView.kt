@@ -44,7 +44,7 @@ import com.asinosoft.gallery.ui.component.dragSelection
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ImageListView(
-    onMediaClick: (Media) -> Unit,
+    onMediaClick: (Media, Set<String>) -> Unit,
     onClose: () -> Unit,
     modifier: Modifier = Modifier,
     scrollBehavior: TopAppBarScrollBehavior? = null,
@@ -98,7 +98,7 @@ fun ImageListView(
                     media = media,
                     selectionMode = selection.isNotEmpty(),
                     selected = selection,
-                    onClick = onMediaClick,
+                    onClick = { media -> onMediaClick(media, model.activeFilterPackages.value) },
                     onSelect = { image ->
                         if (!dragSelectionState.active) {
                             model.toggleSelection(image)

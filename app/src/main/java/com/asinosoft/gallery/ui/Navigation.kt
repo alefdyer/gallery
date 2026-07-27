@@ -15,10 +15,12 @@ import com.asinosoft.gallery.data.Media
 
 @Composable
 fun Navigation(nav: NavHostController, modifier: Modifier = Modifier) {
-    val navigateToMedia = { media: Media -> nav.navigate("pager/${media.id}") }
+    val navigateToMedia = { media: Media, filters: Set<String> ->
+        nav.navigate("pager/${media.id}/${filters.joinToString(",")}")
+    }
     val navigateToAlbum = { album: Album -> nav.navigate("album/${album.id}") }
-    val navigateToAlbumMedia = { albumId: Long, media: Media ->
-        nav.navigate("album/$albumId/pager/${media.id}")
+    val navigateToAlbumMedia = { albumId: Long, media: Media, filters: Set<String> ->
+        nav.navigate("album/$albumId/pager/${media.id}/${filters.joinToString(",")}")
     }
     val navigateToSettings = { nav.navigate("settings") }
 
@@ -38,8 +40,11 @@ fun Navigation(nav: NavHostController, modifier: Modifier = Modifier) {
         }
 
         composable(
-            "pager/{imageId}",
-            arguments = listOf(navArgument("imageId") { type = NavType.LongType })
+            "pager/{imageId}/{filters}",
+            arguments = listOf(
+                navArgument("imageId") { type = NavType.LongType },
+                navArgument("filters") { type = NavType.StringType; defaultValue = "" }
+            )
         ) {
             PagerView(
                 onAlbumClick = navigateToAlbum,
@@ -54,16 +59,17 @@ fun Navigation(nav: NavHostController, modifier: Modifier = Modifier) {
             val albumId = route.arguments?.getLong("albumId")!!
 
             AlbumView(
-                onMediaClick = { media -> navigateToAlbumMedia(albumId, media) },
+                onMediaClick = { media, filters -> navigateToAlbumMedia(albumId, media, filters) },
                 onClose = nav::navigateUp
             )
         }
 
         composable(
-            "album/{albumId}/pager/{imageId}",
+            "album/{albumId}/pager/{imageId}/{filters}",
             arguments = listOf(
                 navArgument("albumId") { type = NavType.LongType },
-                navArgument("imageId") { type = NavType.LongType }
+                navArgument("imageId") { type = NavType.LongType },
+                navArgument("filters") { type = NavType.StringType; defaultValue = "" }
             )
         ) {
             PagerView(
