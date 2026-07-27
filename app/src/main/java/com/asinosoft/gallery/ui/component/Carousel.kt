@@ -2,6 +2,7 @@ package com.asinosoft.gallery.ui.component
 
 import androidx.compose.foundation.gestures.snapping.SnapPosition
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.PageSize
 import androidx.compose.foundation.pager.PagerState
@@ -15,8 +16,11 @@ import androidx.compose.runtime.key
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.dp
 import com.asinosoft.gallery.data.Media
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.launch
 
@@ -30,8 +34,33 @@ fun Carousel(
     val scope = rememberCoroutineScope()
     val carouselState: PagerState = key(items, pagerState) { rememberPagerState(pagerState.currentPage) { items.size } }
 
-    // Synchronize pagers' state
+    // Synchronize pagers' state during scroll and settle
     LaunchedEffect(pagerState, carouselState) {
+        // Sync active page when carousel settles
+        launch {
+            snapshotFlow { carouselState.currentPage }
+                .distinctUntilChanged()
+                .collect { page ->
+                    if (carouselState.isScrollInProgress && !pagerState.isScrollInProgress) {
+                        if (pagerState.currentPage != page) {
+                            pagerState.scrollToPage(page)
+                        }
+                    }
+                }
+        }
+
+        launch {
+            snapshotFlow { pagerState.currentPage }
+                .distinctUntilChanged()
+                .collect { page ->
+                    if (pagerState.isScrollInProgress && !carouselState.isScrollInProgress) {
+                        if (carouselState.currentPage != page) {
+                            carouselState.scrollToPage(page)
+                        }
+                    }
+                }
+        }
+
         snapshotFlow {
             val (scrollingState, followingState) = if (pagerState.isScrollInProgress) {
                 pagerState to carouselState
@@ -56,45 +85,50 @@ fun Carousel(
             }
     }
 
-    HorizontalPager(
-        state = carouselState,
-        pageSize = PageSize.Fixed(40.dp),
-        pageSpacing = 4.dp,
-        contentPadding = PaddingValues(8.dp),
-        modifier = modifier,
-        snapPosition = CarouselSnapPosition
-    ) { page ->
-        val media = items[page]
-
-        Surface(shape = RoundedCornerShape(4.dp)) {
-            MediaThumbnail(
-                media = media,
-                aspectRatio = if (page == pagerState.currentPage) 0.4f else 0.5f,
-                onClick = { scope.launch { pagerState.scrollToPage(page) } },
-            )
+    // Ensure settling position is fully synchronized when scroll stops
+    LaunchedEffect(carouselState.isScrollInProgress) {
+        if (!carouselState.isScrollInProgress) {
+            if (pagerState.currentPage != carouselState.currentPage) {
+                pagerState.animateScrollToPage(carouselState.currentPage)
+            }
         }
     }
-}
 
-private object CarouselSnapPosition : SnapPosition {
-    override fun position(
-        layoutSize: Int,
-        itemSize: Int,
-        beforeContentPadding: Int,
-        afterContentPadding: Int,
-        itemIndex: Int,
-        itemCount: Int
-    ): Int {
-        val availableLayoutSpace = layoutSize - beforeContentPadding - afterContentPadding
-        val center = availableLayoutSpace / 2 - itemSize / 2
-
-        if (itemIndex !in 0..<itemCount) {
-            return center
+    LaunchedEffect(pagerState.isScrollInProgress) {
+        if (!pagerState.isScrollInProgress) {
+            if (carouselState.currentPage != pagerState.currentPage) {
+                carouselState.animateScrollToPage(pagerState.currentPage)
+            }
         }
+    }
 
-        val start = itemIndex * itemSize / 3
-        val end = availableLayoutSpace - itemSize - (itemCount - itemIndex - 1) * itemSize / 3
+    HorizontalPager(
+        state = carouselState,
+        pageSize = PageSize.Fixed(28.dp),
+        pageSpacing = 6.dp,
+        contentPadding = PaddingValues(horizontal = 16.dp),
+        modifier = modifier,
+        snapPosition = SnapPosition.Center
+    ) { page ->
+        val media = items[page]
+        val isSelected = page == carouselState.currentPage
 
-        return center.coerceAtLeast(end).coerceAtMost(start)
+        val scale = if (isSelected) 1.25f else 1.0f
+
+        Surface(
+            shape = RoundedCornerShape(2.dp),
+            color = Color.Transparent,
+            modifier = Modifier.graphicsLayer {
+                scaleX = scale
+                scaleY = scale
+            }
+        ) {
+            MediaThumbnail(
+                media = media,
+                modifier = Modifier.fillMaxWidth(),
+                aspectRatio = 0.75f,
+                onClick = { scope.launch { pagerState.animateScrollToPage(page) } },
+            )
+        }
     }
 }

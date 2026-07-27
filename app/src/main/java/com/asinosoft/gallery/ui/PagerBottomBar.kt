@@ -1,17 +1,18 @@
 package com.asinosoft.gallery.ui
 
-import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.NavigationBarItemDefaults
-import androidx.compose.material3.Text
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
 import com.asinosoft.gallery.R
 
 @Composable
@@ -22,54 +23,40 @@ fun PagerBottomBar(
     onDelete: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val colors =
-        NavigationBarItemDefaults.colors(
-            unselectedIconColor = Color.White,
-            unselectedTextColor = Color.White
-        )
-
-    NavigationBar(
-        containerColor = Color.Transparent,
-        contentColor = Color.White,
-        modifier =
-            modifier.background(
-                Brush.verticalGradient(listOf(Color.Transparent, Color.Transparent.copy(0.5f)))
-            )
+    Surface(
+        modifier = modifier.padding(16.dp),
+        shape = RoundedCornerShape(50),
+        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.8f),
+        tonalElevation = 4.dp
     ) {
-        NavigationBarItem(
-            selected = false,
-            onClick = onShare,
-            icon = { Icon(painterResource(R.drawable.share), stringResource(id = R.string.share)) },
-            label = { Text(stringResource(id = R.string.share)) },
-            colors = colors
-        )
-        NavigationBarItem(
-            selected = false,
-            onClick = onEdit,
-            icon = { Icon(painterResource(R.drawable.brush), stringResource(id = R.string.edit)) },
-            label = { Text(stringResource(id = R.string.edit)) },
-            colors = colors
-        )
-        NavigationBarItem(
-            selected = false,
-            onClick = onSearch,
-            icon = {
-                Icon(painterResource(R.drawable.image_search), stringResource(id = R.string.search))
-            },
-            label = { Text(stringResource(id = R.string.search)) },
-            colors = colors
-        )
-        NavigationBarItem(
-            selected = false,
-            onClick = onDelete,
-            icon = {
+        Row(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            IconButton(onClick = onShare) {
                 Icon(
-                    painterResource(R.drawable.delete),
-                    stringResource(id = R.string.delete)
+                    painter = painterResource(R.drawable.share),
+                    contentDescription = stringResource(id = R.string.share)
                 )
-            },
-            label = { Text(stringResource(id = R.string.delete)) },
-            colors = colors
-        )
+            }
+            IconButton(onClick = onEdit) {
+                Icon(
+                    painter = painterResource(R.drawable.brush),
+                    contentDescription = stringResource(id = R.string.edit)
+                )
+            }
+            IconButton(onClick = onSearch) {
+                Icon(
+                    painter = painterResource(R.drawable.image_search),
+                    contentDescription = stringResource(id = R.string.search)
+                )
+            }
+            IconButton(onClick = onDelete) {
+                Icon(
+                    painter = painterResource(R.drawable.delete),
+                    contentDescription = stringResource(id = R.string.delete)
+                )
+            }
+        }
     }
 }
