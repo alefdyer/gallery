@@ -29,7 +29,6 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -54,6 +53,7 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.Velocity
@@ -83,10 +83,11 @@ fun MainView(
     val pagerState = rememberPagerState { 2 }
     val coroutineScope = rememberCoroutineScope()
     val selection by model.selection.collectAsState()
-    val topScroll = TopAppBarDefaults.enterAlwaysScrollBehavior()
 
     var navbarHeight by remember { mutableFloatStateOf(0f) }
     var navbarOffset by remember { mutableFloatStateOf(0f) }
+    var topbarHeight by remember { mutableFloatStateOf(0f) }
+    var topbarOffset by remember { mutableFloatStateOf(0f) }
     var lastScrollTime by remember { mutableStateOf(0L) }
 
     LaunchedEffect(lastScrollTime) {
@@ -98,32 +99,48 @@ fun MainView(
             }
         }
         launch {
-            animate(initialValue = topScroll.state.heightOffset, targetValue = 0f) { v, _ ->
-                topScroll.state.heightOffset = v
+            animate(initialValue = topbarOffset, targetValue = 0f) { v, _ ->
+                topbarOffset = v
             }
         }
     }
 
-    val navbarScrollConnection = remember {
+    val syncPanelsScrollConnection = remember {
         object : NestedScrollConnection {
             override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
                 lastScrollTime = System.currentTimeMillis()
                 val delta = available.y
-                val newOffset = navbarOffset - delta
-                navbarOffset = newOffset.coerceIn(0f, navbarHeight)
+
+                val newNavbarOffset = navbarOffset - delta
+                navbarOffset = newNavbarOffset.coerceIn(0f, navbarHeight)
+
+                val newTopbarOffset = topbarOffset - delta
+                topbarOffset = newTopbarOffset.coerceIn(0f, topbarHeight)
+
                 return Offset.Zero
             }
 
             override suspend fun onPostFling(consumed: Velocity, available: Velocity): Velocity {
                 lastScrollTime = System.currentTimeMillis()
-                val targetOffset = if (navbarOffset > navbarHeight / 2f) navbarHeight else 0f
+                val targetNavbarOffset = if (navbarOffset > navbarHeight / 2f) navbarHeight else 0f
+                val targetTopbarOffset = if (topbarOffset > topbarHeight / 2f) topbarHeight else 0f
+
                 coroutineScope.launch {
                     animate(
                         initialValue = navbarOffset,
-                        targetValue = targetOffset,
+                        targetValue = targetNavbarOffset,
                         initialVelocity = 10f
                     ) { y, _ ->
                         navbarOffset = y
+                    }
+                }
+                coroutineScope.launch {
+                    animate(
+                        initialValue = topbarOffset,
+                        targetValue = targetTopbarOffset,
+                        initialVelocity = 10f
+                    ) { y, _ ->
+                        topbarOffset = y
                     }
                 }
 
@@ -136,9 +153,7 @@ fun MainView(
     val topBarPadding = 8.dp
 
     Scaffold(
-        modifier = modifier
-            .nestedScroll(navbarScrollConnection)
-            .nestedScroll(topScroll.nestedScrollConnection)
+        modifier = modifier.nestedScroll(syncPanelsScrollConnection)
     ) { paddingValues ->
         PullToRefreshBox(
             isRefreshing = isFetching,
@@ -155,13 +170,13 @@ fun MainView(
                         0 -> ImageListView(
                             onMediaClick = onMediaClick,
                             onClose = {},
-                            scrollBehavior = topScroll,
+                            scrollBehavior = null,
                             contentPadding = contentPadding
                         )
 
                         1 -> AlbumListView(
                             onAlbumClick = onAlbumClick,
-                            nestedScroll = topScroll.nestedScrollConnection,
+                            nestedScroll = syncPanelsScrollConnection,
                             contentPadding = contentPadding
                         )
                     }
@@ -173,10 +188,9 @@ fun MainView(
                         .align(Alignment.TopEnd)
                         .padding(top = topBarPadding + 8.dp + paddingValues.calculateTopPadding(), end = 8.dp)
                         .onGloballyPositioned {
-                            topScroll.state.heightOffsetLimit =
-                                -it.size.height.toFloat() - with(density) { (topBarPadding + 8.dp + paddingValues.calculateTopPadding()).toPx() }
+                            topbarHeight = it.size.height.toFloat() + with(density) { (topBarPadding + 8.dp + paddingValues.calculateTopPadding()).toPx() }
                         }
-                        .offset { IntOffset(0, topScroll.state.heightOffset.toInt()) }
+                        .offset { IntOffset(0, -topbarOffset.toInt()) }
                 ) {
                     Surface(
                         shape = RoundedCornerShape(50),
@@ -314,18 +328,19 @@ private fun EllipseButton(
     ) {
         TextButton(
             onClick = onClick,
-            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 7.dp)
+            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 4.dp)
         ) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Icon(
-                    painter = icon, contentDescription = label,
+                    painter = icon,
+                    contentDescription = label,
                     tint = Color.Black,
-                    modifier = Modifier.size(25.dp)
+                    modifier = Modifier.size(20.dp)
                 )
                 Text(
                     text = label,
                     style = MaterialTheme.typography.labelSmall,
-                    fontWeight = if (selected) androidx.compose.ui.text.font.FontWeight.Bold else androidx.compose.ui.text.font.FontWeight.Normal,
+                    fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
                     color = Color.Black
                 )
             }
