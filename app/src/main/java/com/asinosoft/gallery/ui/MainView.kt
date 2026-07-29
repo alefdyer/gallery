@@ -1,34 +1,15 @@
 package com.asinosoft.gallery.ui
 
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animate
-import androidx.compose.foundation.Image
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.pager.HorizontalPager
-import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.pager.rememberPagerState
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -41,30 +22,21 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
-import androidx.core.graphics.drawable.toBitmap
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
-import com.asinosoft.gallery.R
 import com.asinosoft.gallery.data.Album
 import com.asinosoft.gallery.data.Media
 import com.asinosoft.gallery.model.ImageListViewModel
-import com.asinosoft.gallery.ui.theme.GalleryTheme
+import com.asinosoft.gallery.ui.component.FilterBar
+import com.asinosoft.gallery.ui.component.ViewModeBar
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.time.Duration.Companion.milliseconds
@@ -182,177 +154,40 @@ fun MainView(
                     }
                 }
 
-                AnimatedVisibility(
-                    visible = selection.isEmpty(),
+                FilterBar(
+                    visible = selection.isEmpty() && pagerState.currentPage == 0,
+                    filters = filters,
+                    onToggleFilter = model::toggleFilter,
                     modifier = Modifier
                         .align(Alignment.TopEnd)
-                        .padding(top = topBarPadding + 8.dp + paddingValues.calculateTopPadding(), end = 8.dp)
-                        .onGloballyPositioned {
-                            topbarHeight = it.size.height.toFloat() + with(density) { (topBarPadding + 8.dp + paddingValues.calculateTopPadding()).toPx() }
-                        }
-                        .offset { IntOffset(0, -topbarOffset.toInt()) }
-                ) {
-                    Surface(
-                        shape = RoundedCornerShape(50),
-                        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f),
-                        tonalElevation = 4.dp
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(vertical = 4.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            if (0 == pagerState.currentPage && filters.isNotEmpty()) {
-                                LazyRow(
-                                    modifier = Modifier.widthIn(max = 240.dp),
-                                    contentPadding = PaddingValues(horizontal = 8.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                ) {
-                                    items(filters, key = { it.application.pkg }) { filter ->
-                                        filter.application.icon?.let { icon ->
-                                            Image(
-                                                bitmap = icon.toBitmap().asImageBitmap(),
-                                                contentDescription = filter.application.name,
-                                                modifier = Modifier
-                                                    .padding(4.dp)
-                                                    .size(32.dp)
-                                                    .alpha(if (filter.enabled) 1f else 0.3f)
-                                                    .clickable { model.toggleFilter(filter) }
-                                            )
-                                        }
-                                    }
-                                }
-                            }
+                        .padding(
+                            top = topBarPadding + 8.dp + paddingValues.calculateTopPadding(),
+                            end = 8.dp
+                        )
+                        .offset { IntOffset(0, -topbarOffset.toInt()) },
+                    onMeasuredHeight = {
+                        topbarHeight =
+                            it + with(density) { (topBarPadding + 8.dp + paddingValues.calculateTopPadding()).toPx() }
+                    }
+                )
+            }
+
+            ViewModeBar(
+                visible = selection.isEmpty(),
+                pagerState = pagerState,
+                onPhotos = { coroutineScope.launch { pagerState.scrollToPage(0) } },
+                onAlbums = { coroutineScope.launch { pagerState.scrollToPage(1) } },
+                onSettings = onSettingsClick,
+                modifier = Modifier
+                    .padding(bottom = paddingValues.calculateBottomPadding())
+                    .offset(y = 8.dp)
+                    .onGloballyPositioned {
+                        navbarHeight = it.size.height.toFloat() + with(density) {
+                            paddingValues.calculateBottomPadding().toPx()
                         }
                     }
-                }
-            }
-
-            AnimatedVisibility(
-                visible = selection.isEmpty(), modifier = Modifier.align(Alignment.BottomCenter)
-            ) {
-                ViewModeBar(
-                    pagerState = pagerState,
-                    onPhotos = { coroutineScope.launch { pagerState.scrollToPage(0) } },
-                    onAlbums = { coroutineScope.launch { pagerState.scrollToPage(1) } },
-                    onSettings = onSettingsClick,
-                    modifier = Modifier
-                        .padding(bottom = paddingValues.calculateBottomPadding())
-                        .offset(y = 8.dp)
-                        .onGloballyPositioned {
-                            navbarHeight = it.size.height.toFloat() + with(density) { paddingValues.calculateBottomPadding().toPx() }
-                        }
-                        .offset { IntOffset(0, navbarOffset.toInt()) }
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun ViewModeBar(
-    pagerState: PagerState,
-    onPhotos: () -> Unit,
-    onAlbums: () -> Unit,
-    onSettings: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    var menuExpanded by remember { mutableStateOf(false) }
-
-    Surface(
-        modifier = modifier.padding(16.dp),
-        shape = RoundedCornerShape(50),
-        color = MaterialTheme.colorScheme.surface.copy(alpha = .95f),
-    ) {
-        val size = Modifier.width(80.dp)
-        Row(Modifier.padding(2.dp), verticalAlignment = Alignment.CenterVertically) {
-            EllipseButton(
-                onClick = onPhotos,
-                selected = 0 == pagerState.currentPage,
-                icon = painterResource(R.drawable.photo),
-                label = stringResource(R.string.photos),
-                modifier = size
+                    .offset { IntOffset(0, navbarOffset.toInt()) }
             )
-
-            EllipseButton(
-                onClick = onAlbums,
-                selected = 1 == pagerState.currentPage,
-                icon = painterResource(R.drawable.album),
-                label = stringResource(R.string.albums),
-                modifier = size
-            )
-
-            Box {
-                EllipseButton(
-                    onClick = { menuExpanded = true },
-                    selected = false,
-                    icon = painterResource(R.drawable.menu),
-                    label = stringResource(R.string.menu),
-                    modifier = size
-                )
-
-                DropdownMenu(
-                    expanded = menuExpanded,
-                    onDismissRequest = { menuExpanded = false }
-                ) {
-                    DropdownMenuItem(
-                        text = { Text(stringResource(R.string.settings)) },
-                        onClick = {
-                            menuExpanded = false
-                            onSettings()
-                        },
-                        leadingIcon = {
-                            Icon(
-                                painter = painterResource(R.drawable.settings),
-                                contentDescription = null
-                            )
-                        }
-                    )
-                }
-            }
         }
-    }
-}
-
-@Composable
-private fun EllipseButton(
-    onClick: () -> Unit,
-    selected: Boolean,
-    icon: Painter,
-    label: String,
-    modifier: Modifier = Modifier
-) {
-    Surface(
-        modifier = modifier,
-        shape = RoundedCornerShape(50),
-        color = if (selected) Color.Black.copy(alpha = .15f) else Color.Transparent
-    ) {
-        TextButton(
-            onClick = onClick,
-            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 4.dp)
-        ) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Icon(
-                    painter = icon,
-                    contentDescription = label,
-                    tint = Color.Black,
-                    modifier = Modifier.size(20.dp)
-                )
-                Text(
-                    text = label,
-                    style = MaterialTheme.typography.labelSmall,
-                    fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
-                    color = Color.Black
-                )
-            }
-        }
-    }
-}
-
-@Preview
-@Composable
-private fun Preview() {
-    GalleryTheme {
-        val pagerState = rememberPagerState { 2 }
-        ViewModeBar(pagerState, {}, {}, {})
     }
 }
