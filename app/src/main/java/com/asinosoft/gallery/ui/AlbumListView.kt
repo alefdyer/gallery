@@ -191,7 +191,7 @@ private fun AlbumCategoriesRow(
                 AlbumCover(
                     album,
                     Modifier
-                        .size(LocalWindowInfo.current.containerDpSize.width / 3)
+                        .size(LocalWindowInfo.current.containerDpSize.width / 3.3f)
                         .dragAndDropSource { _ -> album.album.toDragAndDrop() }
                         .pointerInput(Unit) {
                             awaitEachGesture {
