@@ -2,14 +2,21 @@ package com.asinosoft.gallery.ui.component
 
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.gestures.scrollBy
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.calculateStartPadding
 import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.composed
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.LayoutDirection
 import com.asinosoft.gallery.data.Media
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -58,60 +65,68 @@ fun Modifier.dragSelection(
     state: LazyGridState,
     currentSelection: () -> Set<Long>,
     dragSelectionState: DragSelectionState,
-    onSelectedChange: (Set<Long>) -> Unit
-): Modifier = pointerInput(items) {
-    var dragOffset: Offset? = null
-    var autoScrollJob: Job? = null
+    onSelectedChange: (Set<Long>) -> Unit,
+    contentPadding: PaddingValues = PaddingValues()
+): Modifier = composed {
+    val density = LocalDensity.current
+    val layoutDirection = LocalLayoutDirection.current
 
-    detectDragGesturesAfterLongPress(
-        onDragStart = { offset ->
-            val (index, media) = getMediaAtPosition(offset, state, items)
-                ?: return@detectDragGesturesAfterLongPress
-            dragOffset = offset
-            onSelectedChange(
-                dragSelectionState.onDragStart(items, currentSelection(), index, media.id)
-            )
+    Modifier.pointerInput(items, contentPadding) {
+        var dragOffset: Offset? = null
+        var autoScrollJob: Job? = null
 
-            autoScrollJob = CoroutineScope(Dispatchers.Main).launch {
-                while (true) {
-                    val offset = dragOffset ?: break
-                    val scrollDelta = calculateAutoScrollDelta(offset.y, state)
-                    if (scrollDelta != 0f) {
-                        val scrolled = state.scrollBy(scrollDelta)
-                        if (scrolled != 0f) {
-                            getMediaAtPosition(
-                                offset,
-                                state,
-                                items
-                            )?.first?.let { draggedIndex ->
-                                onSelectedChange(dragSelectionState.onDrag(items, draggedIndex))
+        detectDragGesturesAfterLongPress(
+            onDragStart = { offset ->
+                val adjustedOffset = offsetForContentPadding(offset, contentPadding, layoutDirection, density)
+                val (index, media) = getMediaAtPosition(adjustedOffset, state, items)
+                    ?: return@detectDragGesturesAfterLongPress
+                dragOffset = adjustedOffset
+                onSelectedChange(
+                    dragSelectionState.onDragStart(items, currentSelection(), index, media.id)
+                )
+
+                autoScrollJob = CoroutineScope(Dispatchers.Main).launch {
+                    while (true) {
+                        val offset = dragOffset ?: break
+                        val scrollDelta = calculateAutoScrollDelta(offset.y, state)
+                        if (scrollDelta != 0f) {
+                            val scrolled = state.scrollBy(scrollDelta)
+                            if (scrolled != 0f) {
+                                getMediaAtPosition(
+                                    offset,
+                                    state,
+                                    items
+                                )?.first?.let { draggedIndex ->
+                                    onSelectedChange(dragSelectionState.onDrag(items, draggedIndex))
+                                }
                             }
                         }
+                        delay(SCROLL_INTERVAL_MS)
                     }
-                    delay(SCROLL_INTERVAL_MS)
                 }
+            },
+            onDrag = { change, _ ->
+                change.consume()
+                val adjustedOffset = offsetForContentPadding(change.position, contentPadding, layoutDirection, density)
+                dragOffset = adjustedOffset
+                val (index, _) = getMediaAtPosition(adjustedOffset, state, items)
+                    ?: return@detectDragGesturesAfterLongPress
+                onSelectedChange(dragSelectionState.onDrag(items, index))
+            },
+            onDragEnd = {
+                autoScrollJob?.cancel()
+                autoScrollJob = null
+                dragOffset = null
+                dragSelectionState.onDragEnd()
+            },
+            onDragCancel = {
+                autoScrollJob?.cancel()
+                autoScrollJob = null
+                dragOffset = null
+                dragSelectionState.onDragEnd()
             }
-        },
-        onDrag = { change, _ ->
-            change.consume()
-            dragOffset = change.position
-            val (index, _) = getMediaAtPosition(change.position, state, items)
-                ?: return@detectDragGesturesAfterLongPress
-            onSelectedChange(dragSelectionState.onDrag(items, index))
-        },
-        onDragEnd = {
-            autoScrollJob?.cancel()
-            autoScrollJob = null
-            dragOffset = null
-            dragSelectionState.onDragEnd()
-        },
-        onDragCancel = {
-            autoScrollJob?.cancel()
-            autoScrollJob = null
-            dragOffset = null
-            dragSelectionState.onDragEnd()
-        }
-    )
+        )
+    }
 }
 
 private fun calculateAutoScrollDelta(offset: Float, state: LazyGridState): Float {
@@ -133,6 +148,21 @@ private fun calculateAutoScrollDelta(offset: Float, state: LazyGridState): Float
 
         else -> 0f
     }
+}
+
+internal fun offsetForContentPadding(
+    offset: Offset,
+    contentPadding: PaddingValues,
+    layoutDirection: LayoutDirection,
+    density: Density
+): Offset {
+    val startOffset = with(density) {
+        contentPadding.calculateStartPadding(layoutDirection).toPx()
+    }
+    val topOffset = with(density) {
+        contentPadding.calculateTopPadding().toPx()
+    }
+    return Offset(offset.x - startOffset, offset.y - topOffset)
 }
 
 private fun getMediaAtPosition(

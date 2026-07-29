@@ -87,7 +87,8 @@ fun ImageListView(
                     state = lazyGridState,
                     currentSelection = { selection },
                     dragSelectionState = dragSelectionState,
-                    onSelectedChange = model::setSelection
+                    onSelectedChange = model::setSelection,
+                    contentPadding = contentPadding
                 )
                 .let {
                     if (scrollBehavior == null) it else it.nestedScroll(scrollBehavior.nestedScrollConnection)
