@@ -15,7 +15,7 @@ import com.asinosoft.gallery.data.storage.StorageDao
         Media::class,
         MediaAlbum::class,
         Storage::class],
-    version = 3,
+    version = 4,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -36,6 +36,7 @@ abstract class AppDatabase : RoomDatabase() {
 
         private fun buildDatabase(context: Context): AppDatabase = Room
             .databaseBuilder(context, AppDatabase::class.java, "media.db")
+            .fallbackToDestructiveMigration(true)
             .addCallback(AppDatabaseInitializer())
             .build()
     }

@@ -6,16 +6,20 @@ import android.util.Log
 import com.asinosoft.gallery.GalleryApp
 import com.asinosoft.gallery.data.storage.StorageProvider
 import com.asinosoft.gallery.di.IntentHelper
+import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import kotlin.system.measureTimeMillis
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.chunked
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 class MediaService @Inject constructor(
     private val albumDao: AlbumDao,
     private val mediaDao: MediaDao,
+    @param:ApplicationContext private val context: Context
 ) {
     private val intentHelper = IntentHelper
 
@@ -108,8 +112,7 @@ class MediaService @Inject constructor(
     suspend fun update(provider: StorageProvider) = withContext(Dispatchers.IO) {
         Log.i("MediaService", "update: ${provider.storage}")
         val updated = mutableSetOf<Long>()
-        val albums = HashMap<String, MutableSet<Long>>()
-        provider.fetchAll().chunked(100).collect { fetched ->
+        provider.fetchAll().chunked(500).collect { fetched ->
             val media = mediaDao.getMediaByStorageItemIds(
                 provider.storage.id,
                 fetched.map {
@@ -123,20 +126,29 @@ class MediaService @Inject constructor(
 
             if (toInsert.isNotEmpty()) {
                 val mediaIds = mediaDao.upsertAll(toInsert)
+                val chunkAlbums = HashMap<String, MutableSet<Long>>()
                 toInsert.forEachIndexed { index, media ->
-                    val album = media.path.split('/').last { it.isNotEmpty() }
+                    val albumName = media.path.split('/').last { it.isNotEmpty() }
                     val mediaId = mediaIds[index]
-                    albums.getOrPut(album, { mutableSetOf() }) += mediaId
+                    chunkAlbums.getOrPut(albumName) { mutableSetOf() } += mediaId
+                }
+
+                chunkAlbums.forEach { (name, ids) ->
+                    val album = albumDao.getOrCreateAlbum(name, AlbumCategory.OTHER.id)
+                    addToAlbum(ids, album.id)
                 }
 
                 updated += mediaIds
+
+                CoroutineScope(Dispatchers.IO).launch {
+                    val batch = toInsert.mapIndexed { index, media ->
+                        mediaIds[index] to media.uri
+                    }
+                    ThumbnailCache.preloadBatch(context, batch)
+                }
             }
         }
 
-        albums.forEach { (name, mediaIds) ->
-            val album = albumDao.getOrCreateAlbum(name, AlbumCategory.OTHER.id)
-            addToAlbum(mediaIds, album.id)
-        }
         mediaDao.deleteAllExcept(provider.storage.id, updated)
         albumDao.deleteEmptyAlbums()
     }

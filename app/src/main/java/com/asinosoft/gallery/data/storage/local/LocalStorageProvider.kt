@@ -14,7 +14,6 @@ import com.asinosoft.gallery.data.storage.StorageCheckResult
 import com.asinosoft.gallery.data.storage.StorageProvider
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.time.ZoneId
-import java.util.Date
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.first
@@ -78,6 +77,7 @@ class LocalStorageProvider(
             )
 
         query?.use { cursor ->
+            val zoneId = ZoneId.systemDefault()
             val idColumn = cursor.getColumnIndexOrThrow(Images.Media._ID)
             val dateAddedColumn = cursor.getColumnIndexOrThrow(Images.Media.DATE_ADDED)
             val dateTakenColumn = cursor.getColumnIndexOrThrow(Images.Media.DATE_TAKEN)
@@ -101,8 +101,7 @@ class LocalStorageProvider(
                 val orientation: Int = cursor.getInt(orientationColumn)
 
                 val uri = ContentUris.withAppendedId(Images.Media.EXTERNAL_CONTENT_URI, id)
-                val datetime =
-                    Date(date).toInstant().atZone(ZoneId.systemDefault()).toLocalDateTime()
+                val datetime = java.time.Instant.ofEpochMilli(date).atZone(zoneId).toLocalDateTime()
 
                 val size: Long = cursor.getLong(sizeColumn)
 
@@ -158,6 +157,7 @@ class LocalStorageProvider(
             )
 
         cursor?.use { cursor ->
+            val zoneId = ZoneId.systemDefault()
             val idColumn = cursor.getColumnIndexOrThrow(Videos.Media._ID)
             val dateAddedColumn = cursor.getColumnIndexOrThrow(Videos.Media.DATE_ADDED)
             val dateTakenColumn = cursor.getColumnIndexOrThrow(Videos.Media.DATE_TAKEN)
@@ -177,8 +177,7 @@ class LocalStorageProvider(
                 val date = if (dateTaken > 0) dateTaken else (dateAdded * 1000)
 
                 val uri = ContentUris.withAppendedId(Videos.Media.EXTERNAL_CONTENT_URI, id)
-                val datetime =
-                    Date(date).toInstant().atZone(ZoneId.systemDefault()).toLocalDateTime()
+                val datetime = java.time.Instant.ofEpochMilli(date).atZone(zoneId).toLocalDateTime()
 
                 val size: Long = cursor.getLong(sizeColumn)
 
