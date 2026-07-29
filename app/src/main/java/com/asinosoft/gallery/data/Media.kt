@@ -11,7 +11,8 @@ import java.time.LocalTime
 @Entity(
     tableName = "media",
     indices = [
-        Index(value = ["storageId", "storageItemId"], unique = true)
+        Index(value = ["storageId", "storageItemId"], unique = true),
+        Index(value = ["date", "time"])
     ]
 )
 data class Media(

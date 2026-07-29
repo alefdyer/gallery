@@ -1,6 +1,6 @@
 package com.asinosoft.gallery.ui.component
 
-import android.graphics.Bitmap.CompressFormat
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.aspectRatio
@@ -8,13 +8,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -22,17 +17,13 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
-import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
-import coil3.compose.AsyncImage
-import coil3.compose.rememberConstraintsSizeResolver
+import coil3.compose.rememberAsyncImagePainter
+import coil3.request.CachePolicy
 import coil3.request.ImageRequest
 import coil3.request.allowHardware
-import coil3.toBitmap
 import com.asinosoft.gallery.R
 import com.asinosoft.gallery.data.Media
-import com.asinosoft.gallery.model.MediaViewModel
-import java.io.File
-import kotlinx.coroutines.Dispatchers
+import com.asinosoft.gallery.data.ThumbnailCache
 import kotlinx.coroutines.launch
 
 @Composable
@@ -43,63 +34,45 @@ fun MediaThumbnail(
     selected: Set<Long> = setOf(),
     selectionMode: Boolean = false,
     onClick: (Media) -> Unit = {},
-    onSelect: (Media) -> Unit = {},
-    model: MediaViewModel = hiltViewModel()
+    onSelect: (Media) -> Unit = {}
 ) {
     Box(
         modifier = modifier.clickable { if (selectionMode) onSelect(media) else onClick(media) }
     ) {
         val context = LocalContext.current
         val scope = rememberCoroutineScope()
-        val size = rememberConstraintsSizeResolver()
 
-        var request by remember(media) { mutableStateOf<ImageRequest?>(null) }
+        val cacheKey = remember(media.id) { "media-${media.id}" }
+        val request = remember(media, context, cacheKey) {
+            val file = ThumbnailCache.getFile(context, media.id)
+            val data = if (file.exists() && file.length() > 0) file else media.uri
 
-        DisposableEffect(media) {
-            onDispose {
-                request = null
-            }
-        }
-
-        LaunchedEffect(media, size) {
-            val thumbnail = File(context.cacheDir, media.id.toString())
-            request = if (thumbnail.exists() && thumbnail.length() > 0) {
-                val key = "thumbnail-${media.id}"
-                ImageRequest
-                    .Builder(context)
-                    .memoryCacheKey(key)
-                    .data(thumbnail)
-                    .build()
-            } else {
-                val uri = model.getThumbnailUri(media)
-                val key = "media-${media.id}"
-                ImageRequest
-                    .Builder(context)
-                    .data(uri)
-                    .diskCacheKey(key)
-                    .memoryCacheKey(key)
-                    .size(size)
-                    .allowHardware(true)
-                    .listener(onSuccess = { _, result ->
-                        if (!media.filename.endsWith(".gif", ignoreCase = true)) {
-                            scope.launch(Dispatchers.IO) {
-                                thumbnail.outputStream().use {
-                                    result.image
-                                        .toBitmap()
-                                        .compress(CompressFormat.WEBP, 90, it)
-                                }
-                            }
+            ImageRequest.Builder(context)
+                .data(data)
+                .size(300, 300)
+                .memoryCacheKey(cacheKey)
+                .diskCacheKey(cacheKey)
+                .placeholderMemoryCacheKey(cacheKey)
+                .memoryCachePolicy(CachePolicy.ENABLED)
+                .diskCachePolicy(CachePolicy.ENABLED)
+                .allowHardware(true)
+                .listener(onSuccess = { _, result ->
+                    if (!file.exists()) {
+                        scope.launch {
+                            ThumbnailCache.save(context, media.id, result.image)
                         }
-                    })
-                    .build()
-            }
+                    }
+                })
+                .build()
         }
 
-        AsyncImage(
-            model = request,
+        val painter = rememberAsyncImagePainter(model = request)
+
+        Image(
+            painter = painter,
             contentDescription = null,
             contentScale = ContentScale.Crop,
-            modifier = Modifier.aspectRatio(aspectRatio).then(size)
+            modifier = Modifier.aspectRatio(aspectRatio)
         )
 
         if (null != media.video) {

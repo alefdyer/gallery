@@ -3,6 +3,8 @@ package com.asinosoft.gallery
 import android.app.Application
 import coil3.ImageLoader
 import coil3.SingletonImageLoader
+import coil3.disk.DiskCache
+import coil3.disk.directory
 import coil3.gif.GifDecoder
 import coil3.memory.MemoryCache
 import coil3.network.okhttp.OkHttpNetworkFetcherFactory
@@ -40,9 +42,17 @@ class GalleryApp : Application() {
                 .memoryCache(
                     MemoryCache
                         .Builder()
-                        .maxSizePercent(this, 0.25)
+                        .maxSizePercent(this, 0.35)
                         .build()
-                ).components {
+                )
+                .diskCachePolicy(CachePolicy.ENABLED)
+                .diskCache {
+                    DiskCache.Builder()
+                        .directory(cacheDir.resolve("image_cache"))
+                        .maxSizeBytes(500L * 1024 * 1024)
+                        .build()
+                }
+                .components {
                     add(GifDecoder.Factory())
                     add(SvgDecoder.Factory())
                     add(OkHttpNetworkFetcherFactory({ httpClient }))
