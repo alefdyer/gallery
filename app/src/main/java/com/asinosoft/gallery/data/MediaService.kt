@@ -43,6 +43,7 @@ class MediaService @Inject constructor(
             Intent().apply {
                 action = Intent.ACTION_EDIT
                 data = uri
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             }
         context.startActivity(edit)
     }
@@ -70,6 +71,7 @@ class MediaService @Inject constructor(
                 }
             }
         val chooser = Intent.createChooser(send, null)
+        chooser.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         context.startActivity(chooser)
     }
 
