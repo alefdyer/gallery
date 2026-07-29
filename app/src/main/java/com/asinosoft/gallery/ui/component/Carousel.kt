@@ -2,6 +2,7 @@ package com.asinosoft.gallery.ui.component
 
 import androidx.compose.foundation.gestures.snapping.SnapPosition
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.PageSize
 import androidx.compose.foundation.pager.PagerState
@@ -15,6 +16,8 @@ import androidx.compose.runtime.key
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.dp
 import com.asinosoft.gallery.data.Media
 import kotlinx.coroutines.flow.filterNotNull
@@ -30,7 +33,7 @@ fun Carousel(
     val scope = rememberCoroutineScope()
     val carouselState: PagerState = key(items, pagerState) { rememberPagerState(pagerState.currentPage) { items.size } }
 
-    // Synchronize pagers' state
+    // Synchronize pagers' state during scroll and settle
     LaunchedEffect(pagerState, carouselState) {
         snapshotFlow {
             val (scrollingState, followingState) = if (pagerState.isScrollInProgress) {
@@ -58,19 +61,30 @@ fun Carousel(
 
     HorizontalPager(
         state = carouselState,
-        pageSize = PageSize.Fixed(40.dp),
-        pageSpacing = 4.dp,
-        contentPadding = PaddingValues(8.dp),
+        pageSize = PageSize.Fixed(28.dp),
+        pageSpacing = 6.dp,
+        contentPadding = PaddingValues(horizontal = 16.dp),
         modifier = modifier,
         snapPosition = CarouselSnapPosition
     ) { page ->
         val media = items[page]
+        val isSelected = page == pagerState.currentPage
 
-        Surface(shape = RoundedCornerShape(4.dp)) {
+        val scale = if (isSelected) 1.25f else 1.0f
+
+        Surface(
+            shape = RoundedCornerShape(2.dp),
+            color = Color.Transparent,
+            modifier = Modifier.graphicsLayer {
+                scaleX = scale
+                scaleY = scale
+            }
+        ) {
             MediaThumbnail(
                 media = media,
-                aspectRatio = if (page == pagerState.currentPage) 0.4f else 0.5f,
-                onClick = { scope.launch { pagerState.scrollToPage(page) } },
+                modifier = Modifier.fillMaxWidth(),
+                aspectRatio = 0.75f,
+                onClick = { scope.launch { pagerState.animateScrollToPage(page) } },
             )
         }
     }

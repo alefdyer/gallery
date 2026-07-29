@@ -101,9 +101,9 @@ fun PagerView(
 
         AnimatedVisibility(
             modifier = Modifier
-                .height(144.dp)
+                .height(64.dp)
                 .align(Alignment.BottomCenter)
-                .offset(y = (-128).dp),
+                .offset(y = (-85).dp),
             visible = showControls,
             enter = slideInVertically(tween(easing = LinearEasing)) { it / 2 },
             exit = slideOutVertically(tween(easing = LinearEasing)) { it / 2 }
@@ -115,7 +115,9 @@ fun PagerView(
         }
 
         AnimatedVisibility(
-            modifier = Modifier.align(Alignment.BottomCenter),
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .offset(y = (-8).dp),
             visible = showControls,
             enter = slideInVertically(tween(easing = LinearEasing)) { it / 2 },
             exit = slideOutVertically(tween(easing = LinearEasing)) { it / 2 }
