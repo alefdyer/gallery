@@ -18,6 +18,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import coil3.compose.rememberAsyncImagePainter
+import coil3.compose.rememberConstraintsSizeResolver
 import coil3.request.CachePolicy
 import coil3.request.ImageRequest
 import coil3.request.allowHardware
@@ -41,6 +42,7 @@ fun MediaThumbnail(
     ) {
         val context = LocalContext.current
         val scope = rememberCoroutineScope()
+        val size = rememberConstraintsSizeResolver()
 
         val cacheKey = remember(media.id) { "media-${media.id}" }
         val request = remember(media, context, cacheKey) {
@@ -49,7 +51,7 @@ fun MediaThumbnail(
 
             ImageRequest.Builder(context)
                 .data(data)
-                .size(300, 300)
+                .size(size)
                 .memoryCacheKey(cacheKey)
                 .diskCacheKey(cacheKey)
                 .placeholderMemoryCacheKey(cacheKey)
@@ -72,7 +74,7 @@ fun MediaThumbnail(
             painter = painter,
             contentDescription = null,
             contentScale = ContentScale.Crop,
-            modifier = Modifier.aspectRatio(aspectRatio)
+            modifier = Modifier.aspectRatio(aspectRatio).then(size)
         )
 
         if (null != media.video) {
