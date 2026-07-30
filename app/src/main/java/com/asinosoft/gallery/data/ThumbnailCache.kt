@@ -7,6 +7,7 @@ import coil3.Image
 import coil3.SingletonImageLoader
 import coil3.request.ImageRequest
 import coil3.request.allowHardware
+import coil3.size.Size
 import coil3.toBitmap
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
@@ -58,7 +59,7 @@ object ThumbnailCache {
             val imageLoader = SingletonImageLoader.get(context)
             val request = ImageRequest.Builder(context)
                 .data(uri)
-                .size(300, 300)
+                .size(getThumbnailSize(context))
                 .memoryCacheKey("media-$mediaId")
                 .diskCacheKey("media-$mediaId")
                 .allowHardware(false)
@@ -70,38 +71,25 @@ object ThumbnailCache {
         }
     }
 
-    suspend fun preloadBatch(context: Context, items: List<Pair<Long, Uri?>>) = withContext(Dispatchers.IO) {
-        if (items.isEmpty()) return@withContext
+    suspend fun preloadBatch(context: Context, items: List<Pair<Long, Uri?>>) =
+        withContext(Dispatchers.IO) {
+            if (items.isEmpty()) return@withContext
 
-        _progress.update { curr ->
-            PreloadProgress(
-                isPreloading = true,
-                current = curr.current,
-                total = curr.total + items.size
-            )
-        }
-
-        var processed = 0
-        try {
-            items.forEach { (mediaId, uri) ->
-                preload(context, mediaId, uri)
-                processed++
-                _progress.update { curr ->
-                    val updatedCurrent = curr.current + 1
-                    val isDone = updatedCurrent >= curr.total
-                    PreloadProgress(
-                        isPreloading = !isDone,
-                        current = updatedCurrent,
-                        total = curr.total
-                    )
-                }
+            _progress.update { curr ->
+                PreloadProgress(
+                    isPreloading = true,
+                    current = curr.current,
+                    total = curr.total + items.size
+                )
             }
-        } finally {
-            withContext(NonCancellable) {
-                val remaining = items.size - processed
-                if (remaining > 0) {
+
+            var processed = 0
+            try {
+                items.forEach { (mediaId, uri) ->
+                    preload(context, mediaId, uri)
+                    processed++
                     _progress.update { curr ->
-                        val updatedCurrent = curr.current + remaining
+                        val updatedCurrent = curr.current + 1
                         val isDone = updatedCurrent >= curr.total
                         PreloadProgress(
                             isPreloading = !isDone,
@@ -110,7 +98,30 @@ object ThumbnailCache {
                         )
                     }
                 }
+            } finally {
+                withContext(NonCancellable) {
+                    val remaining = items.size - processed
+                    if (remaining > 0) {
+                        _progress.update { curr ->
+                            val updatedCurrent = curr.current + remaining
+                            val isDone = updatedCurrent >= curr.total
+                            PreloadProgress(
+                                isPreloading = !isDone,
+                                current = updatedCurrent,
+                                total = curr.total
+                            )
+                        }
+                    }
+                }
             }
         }
+
+    private var thumbnailSize: Size? = null
+
+    private fun getThumbnailSize(context: Context): Size {
+        return thumbnailSize ?: Size(
+            context.resources.displayMetrics.widthPixels / 3,
+            context.resources.displayMetrics.widthPixels / 3
+        ).also { thumbnailSize = it }
     }
 }
