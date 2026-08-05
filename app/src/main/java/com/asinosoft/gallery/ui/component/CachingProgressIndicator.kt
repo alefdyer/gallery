@@ -59,7 +59,7 @@ fun BoxScope.CachingProgressIndicator(
             ) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = "Кэширование миниатюр",
+                        text = "Поиск изображений",
                         style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.Bold
                     )
