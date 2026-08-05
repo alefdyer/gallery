@@ -1,7 +1,6 @@
 package com.asinosoft.gallery.ui.component
 
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.MutatePriority
 import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.draggable
 import androidx.compose.foundation.gestures.rememberDraggableState
@@ -33,26 +32,12 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import com.asinosoft.gallery.R
 import com.asinosoft.gallery.data.Media
-import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
-import kotlin.math.abs
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.time.Duration.Companion.milliseconds
-
-private fun getIndicatorDate(
-    listItems: List<Media>,
-    lazyGridState: LazyGridState,
-    scrollOffset: Int
-): LocalDate? {
-    val nearestItem = lazyGridState.layoutInfo.visibleItemsInfo
-        .minByOrNull { abs(it.offset.y - scrollOffset) }
-
-    val index = nearestItem?.index ?: lazyGridState.firstVisibleItemIndex
-    return listItems.getOrNull(index)?.date
-}
 
 private val shortDateFormatter: DateTimeFormatter =
     DateTimeFormatter.ofLocalizedDate(FormatStyle.SHORT)
@@ -79,7 +64,8 @@ fun LazyGridVerticalScrollIndicator(
         scrollOffset == Int.MAX_VALUE ||
         contentSize == Int.MAX_VALUE ||
         viewportSize == Int.MAX_VALUE ||
-        contentSize <= viewportSize
+        contentSize <= viewportSize ||
+        listItems.isEmpty()
     ) {
         return
     }
@@ -90,7 +76,7 @@ fun LazyGridVerticalScrollIndicator(
     var showLabel by remember { mutableStateOf(false) }
     var hideJob by remember { mutableStateOf<Job?>(null) }
     var isDragged by remember { mutableStateOf(false) }
-    var dragOffset by remember { mutableFloatStateOf(0f) }
+    var dragOffsetPx by remember { mutableFloatStateOf(0f) }
 
     LaunchedEffect(lazyGridState.isScrollInProgress, isDragged) {
         if (lazyGridState.isScrollInProgress || isDragged) {
@@ -109,18 +95,17 @@ fun LazyGridVerticalScrollIndicator(
     if (showThumb) {
         BoxWithConstraints(modifier = modifier.fillMaxHeight()) {
             val thumbSize = 32.dp
-            val thumbTravel = maxHeight - thumbSize
-            val thumbOffset = thumbTravel * scrollOffset / contentSize
+            val thumbSizePx = with(density) { thumbSize.toPx() }
+            val thumbTravelPx = (constraints.maxHeight.toFloat() - thumbSizePx).coerceAtLeast(1f)
+            val thumbOffset = (maxHeight - thumbSize) * scrollOffset / contentSize
 
             val draggableState = rememberDraggableState { dragAmount ->
-                dragOffset += dragAmount
-                val offset =
-                    dragOffset * contentSize / constraints.maxHeight -
-                        (with(density) { thumbSize.toPx() })
+                dragOffsetPx = (dragOffsetPx + dragAmount).coerceIn(0f, thumbTravelPx)
+                val fraction = dragOffsetPx / thumbTravelPx
+                val targetIndex = (fraction * (listItems.size - 1)).toInt().coerceIn(0, listItems.size - 1)
+                
                 scope.launch {
-                    lazyGridState.scroll(MutatePriority.UserInput) {
-                        scrollBy(offset - scrollOffset)
-                    }
+                    lazyGridState.scrollToItem(targetIndex)
                 }
             }
 
@@ -136,8 +121,7 @@ fun LazyGridVerticalScrollIndicator(
                         draggableState,
                         Orientation.Vertical,
                         onDragStarted = {
-                            dragOffset =
-                                scrollOffset.toFloat() * constraints.maxHeight / contentSize
+                            dragOffsetPx = (scrollOffset.toFloat() / contentSize * thumbTravelPx).coerceIn(0f, thumbTravelPx)
                             isDragged = true
                             showLabel = true
                         },
@@ -154,10 +138,10 @@ fun LazyGridVerticalScrollIndicator(
             }
 
             if (showLabel) {
-                val dateLabel by remember(listItems, lazyGridState, scrollOffset) {
+                val dateLabel by remember(listItems, lazyGridState) {
                     derivedStateOf {
-                        val indicatorOffset = scrollOffset + (maxHeight * scrollOffset / contentSize).value.toInt()
-                        getIndicatorDate(listItems, lazyGridState, indicatorOffset)?.format(shortDateFormatter)
+                        val index = lazyGridState.firstVisibleItemIndex.coerceIn(0, listItems.size - 1)
+                        listItems.getOrNull(index)?.date?.format(shortDateFormatter)
                     }
                 }
 
