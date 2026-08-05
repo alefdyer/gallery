@@ -83,13 +83,14 @@ class ImageListViewModel @Inject constructor(
             }
 
 
-            var lastOwners: Set<String>? = null
+            var lastOwners: List<String>? = null
             images.collect { images ->
-                val owners = images.mapNotNull { it.owner }.toSet()
-                if (owners != lastOwners) {
-                    lastOwners = owners
+                val ownersInOrder = images.mapNotNull { it.owner }.distinct()
+                if (ownersInOrder != lastOwners) {
+                    lastOwners = ownersInOrder
                     kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                        applications = applicationDao.getApplications(owners).sortedBy { it.name }
+                        val fetchedApps = applicationDao.getApplications(ownersInOrder.toSet()).associateBy { it.pkg }
+                        applications = ownersInOrder.mapNotNull { fetchedApps[it] }
                         filters.emit(
                             applications.map {
                                 Filter(

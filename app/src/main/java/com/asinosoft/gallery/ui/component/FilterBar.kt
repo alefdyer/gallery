@@ -10,10 +10,12 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -31,6 +33,14 @@ fun FilterBar(
     modifier: Modifier = Modifier,
     onMeasuredHeight: (Float) -> Unit = {}
 ) {
+    val lazyListState = rememberLazyListState()
+
+    LaunchedEffect(filters) {
+        if (filters.isNotEmpty()) {
+            lazyListState.animateScrollToItem(0)
+        }
+    }
+
     AnimatedVisibility(
         visible = visible,
         modifier = modifier.onGloballyPositioned {
@@ -48,6 +58,7 @@ fun FilterBar(
             ) {
                 if (filters.isNotEmpty()) {
                     LazyRow(
+                        state = lazyListState,
                         modifier = Modifier.widthIn(max = 240.dp),
                         contentPadding = PaddingValues(horizontal = 8.dp),
                         verticalAlignment = Alignment.CenterVertically,
