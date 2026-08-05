@@ -59,7 +59,7 @@ fun FilterBar(
                 if (filters.isNotEmpty()) {
                     LazyRow(
                         state = lazyListState,
-                        modifier = Modifier.widthIn(max = 240.dp),
+                        modifier = Modifier.widthIn(max = 285.dp),
                         contentPadding = PaddingValues(horizontal = 8.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {

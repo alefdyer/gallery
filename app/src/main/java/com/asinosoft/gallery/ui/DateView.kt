@@ -49,7 +49,7 @@ fun DateView(
     year: Int,
     month: Int,
     day: Int,
-    onMediaClick: (Media, Set<String>) -> Unit,
+    onMediaClick: (Int, Int, Int, Media, Set<String>) -> Unit,
     onClose: () -> Unit,
     modifier: Modifier = Modifier,
     model: ImageListViewModel = hiltViewModel()
@@ -63,7 +63,9 @@ fun DateView(
     val filterDay = if (day > 0) day else null
 
     LaunchedEffect(year, month, day) {
-        model.setDateFilter(DateFilter(filterYear, filterMonth, filterDay))
+        if (model.activeDateFilter.value == null) {
+            model.setDateFilter(DateFilter(filterYear, filterMonth, filterDay))
+        }
     }
 
     val activeDateFilter by model.activeDateFilter.collectAsState()
@@ -114,7 +116,13 @@ fun DateView(
                 }
         ) {
             ImageListView(
-                onMediaClick = onMediaClick,
+                onMediaClick = { media, filters ->
+                    val curFilter = activeDateFilter
+                    val curYear = curFilter?.year ?: year
+                    val curMonth = curFilter?.month ?: month
+                    val curDay = curFilter?.day ?: day
+                    onMediaClick(curYear, curMonth, curDay, media, filters)
+                },
                 onClose = handleClose,
                 scrollBehavior = topScroll,
                 contentPadding = PaddingValues(

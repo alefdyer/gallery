@@ -101,7 +101,9 @@ fun Navigation(nav: NavHostController, modifier: Modifier = Modifier) {
                 year = year,
                 month = month,
                 day = day,
-                onMediaClick = { media, filters -> navigateToDateMedia(year, month, day, media, filters) },
+                onMediaClick = { curYear, curMonth, curDay, media, filters ->
+                    navigateToDateMedia(curYear, curMonth, curDay, media, filters)
+                },
                 onClose = nav::navigateUp
             )
         }
