@@ -171,11 +171,7 @@ class MediaService @Inject constructor(
             }
         }
 
-        val existingIds = mediaDao.getAllIds(provider.storage.id).toSet()
-        val toDelete = existingIds - updated
-        if (toDelete.isNotEmpty()) {
-            mediaDao.deleteAll(toDelete)
-        }
+        mediaDao.deleteAllExcept(provider.storage.id, updated)
         albumDao.deleteEmptyAlbums()
     }
 }

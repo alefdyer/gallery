@@ -1,20 +1,27 @@
 package com.asinosoft.gallery.ui
 
 import androidx.compose.animation.core.animate
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -28,14 +35,17 @@ import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import com.asinosoft.gallery.R
 import com.asinosoft.gallery.data.Album
 import com.asinosoft.gallery.data.Media
 import com.asinosoft.gallery.model.ImageListViewModel
 import com.asinosoft.gallery.ui.component.CachingProgressIndicator
+import com.asinosoft.gallery.ui.component.DateFolderTreeView
 import com.asinosoft.gallery.ui.component.FilterBar
 import com.asinosoft.gallery.ui.component.ViewModeBar
 import kotlinx.coroutines.delay
@@ -56,6 +66,8 @@ fun MainView(
     val pagerState = rememberPagerState { 2 }
     val coroutineScope = rememberCoroutineScope()
     val selection by model.selection.collectAsState()
+    val isFolderExplorerOpen by model.isFolderExplorerOpen.collectAsState()
+    val activeDateFilter by model.activeDateFilter.collectAsState()
 
     var navbarHeight by remember { mutableFloatStateOf(0f) }
     var navbarOffset by remember { mutableFloatStateOf(0f) }
@@ -138,27 +150,74 @@ fun MainView(
                     top = 36.dp + paddingValues.calculateTopPadding(),
                     bottom = paddingValues.calculateBottomPadding()
                 )
-                HorizontalPager(state = pagerState) { page ->
-                    androidx.compose.runtime.key(page) {
-                        when (page) {
-                            0 -> ImageListView(
-                                onMediaClick = onMediaClick,
-                                onClose = {},
-                                scrollBehavior = null,
-                                contentPadding = contentPadding
-                            )
 
-                            1 -> AlbumListView(
-                                onAlbumClick = onAlbumClick,
-                                nestedScroll = syncPanelsScrollConnection,
-                                contentPadding = contentPadding
-                            )
+                if (isFolderExplorerOpen) {
+                    val images by model.images.collectAsState()
+                    DateFolderTreeView(
+                        images = images,
+                        expandedNodes = model.expandedFolderNodes,
+                        initialScrollIndex = model.treeListIndex,
+                        initialScrollOffset = model.treeListOffset,
+                        onUpdateScrollPosition = { idx, off ->
+                            model.treeListIndex = idx
+                            model.treeListOffset = off
+                        },
+                        onSelectDateFilter = model::setDateFilter,
+                        contentPadding = contentPadding
+                    )
+                } else {
+                    HorizontalPager(state = pagerState) { page ->
+                        key(page) {
+                            when (page) {
+                                0 -> ImageListView(
+                                    onMediaClick = onMediaClick,
+                                    onClose = {},
+                                    scrollBehavior = null,
+                                    contentPadding = contentPadding
+                                )
+
+                                1 -> AlbumListView(
+                                    onAlbumClick = onAlbumClick,
+                                    nestedScroll = syncPanelsScrollConnection,
+                                    contentPadding = contentPadding
+                                )
+                            }
                         }
                     }
                 }
 
+                Surface(
+                    shape = RoundedCornerShape(50),
+                    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f),
+                    tonalElevation = 4.dp,
+                    modifier = Modifier
+                        .align(Alignment.TopStart)
+                        .padding(
+                            top = topBarPadding + 8.dp + paddingValues.calculateTopPadding(),
+                            start = 8.dp
+                        )
+                        .offset { IntOffset(0, -topbarOffset.toInt()) }
+                ) {
+                    Box(
+                        contentAlignment = Alignment.Center,
+                        modifier = Modifier
+                            .clickable { model.toggleFolderExplorer() }
+                            .padding(8.dp)
+                            .size(32.dp)
+                    ) {
+                        val showBack = isFolderExplorerOpen || activeDateFilter != null
+                        Icon(
+                            painter = painterResource(
+                                if (showBack) R.drawable.arrow_back else R.drawable.folder_yellow
+                            ),
+                            contentDescription = if (showBack) "Назад в список" else "Папка",
+                            tint = if (showBack) MaterialTheme.colorScheme.onSurface else androidx.compose.ui.graphics.Color.Unspecified
+                        )
+                    }
+                }
+
                 FilterBar(
-                    visible = selection.isEmpty() && pagerState.currentPage == 0,
+                    visible = selection.isEmpty() && pagerState.currentPage == 0 && !isFolderExplorerOpen,
                     filters = filters,
                     onToggleFilter = model::toggleFilter,
                     modifier = Modifier

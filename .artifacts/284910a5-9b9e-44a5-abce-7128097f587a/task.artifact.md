@@ -1,5 +1,5 @@
 # Задачи
 
-- [x] Установить `launchMode="singleTask"` в `AndroidManifest.xml` `[x]`
-- [x] Переопределить `onNewIntent` в `MainActivity.kt` `[x]`
+- [x] Сохранять позицию прокрутки проводника `treeListIndex` / `treeListOffset` в `ImageListViewModel` `[x]`
+- [x] Восстанавливать позицию скролла списка при выходе и возврате в проводник `[x]`
 - [x] Проверить сборку проекта `[x]`

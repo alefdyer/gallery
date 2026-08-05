@@ -28,6 +28,12 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
+data class DateFilter(
+    val year: Int? = null,
+    val month: Int? = null,
+    val day: Int? = null
+)
+
 @HiltViewModel
 class ImageListViewModel @Inject constructor(
     state: SavedStateHandle,
@@ -67,13 +73,30 @@ class ImageListViewModel @Inject constructor(
 
     val activeFilterPackages: StateFlow<Set<String>> = activeFilters
 
+    val activeDateFilter = MutableStateFlow<DateFilter?>(null)
+    val isFolderExplorerOpen = MutableStateFlow(false)
+    val expandedFolderNodes = androidx.compose.runtime.mutableStateMapOf<String, Boolean>()
+    var treeListIndex = 0
+    var treeListOffset = 0
+
     @OptIn(ExperimentalCoroutinesApi::class)
     var filters = MutableStateFlow<List<Filter>>(listOf())
 
-    val filteredImages = images.combine(activeFilters) { images, filters ->
-        if (filters.isEmpty()) images
-        else images.filter { filters.contains(it.owner) }
-    }
+    val filteredImages: StateFlow<List<Media>> = combine(images, activeFilters, activeDateFilter) { images, filters, dateFilter ->
+        var result = if (filters.isEmpty()) images else images.filter { filters.contains(it.owner) }
+        if (dateFilter != null) {
+            result = result.filter { media ->
+                (dateFilter.year == null || media.date.year == dateFilter.year) &&
+                (dateFilter.month == null || media.date.monthValue == dateFilter.month) &&
+                (dateFilter.day == null || media.date.dayOfMonth == dateFilter.day)
+            }
+        }
+        result
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.Eagerly,
+        initialValue = emptyList()
+    )
 
     init {
         viewModelScope.launch {
@@ -102,6 +125,24 @@ class ImageListViewModel @Inject constructor(
                     }
                 }
             }
+        }
+    }
+
+    fun setDateFilter(filter: DateFilter?) {
+        activeDateFilter.value = filter
+        if (filter != null) {
+            isFolderExplorerOpen.value = false
+        }
+    }
+
+    fun toggleFolderExplorer() {
+        if (activeDateFilter.value != null) {
+            activeDateFilter.value = null
+            isFolderExplorerOpen.value = true
+        } else if (isFolderExplorerOpen.value) {
+            isFolderExplorerOpen.value = false
+        } else {
+            isFolderExplorerOpen.value = true
         }
     }
 

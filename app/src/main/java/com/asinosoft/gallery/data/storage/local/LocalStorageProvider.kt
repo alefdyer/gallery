@@ -103,9 +103,6 @@ class LocalStorageProvider(
             val ownerColumn = cursor.getColumnIndexOrThrow(Images.Media.OWNER_PACKAGE_NAME)
 
             while (cursor.moveToNext()) {
-                val size: Long = cursor.getLong(sizeColumn)
-                if (size <= 0) continue
-
                 val path: String = cursor.getString(pathColumn)
                 val id = cursor.getLong(idColumn)
                 val dateAdded: Long = cursor.getLong(dateAddedColumn)
@@ -117,6 +114,8 @@ class LocalStorageProvider(
 
                 val uri = ContentUris.withAppendedId(Images.Media.EXTERNAL_CONTENT_URI, id)
                 val datetime = java.time.Instant.ofEpochMilli(date).atZone(zoneId).toLocalDateTime()
+
+                val size: Long = cursor.getLong(sizeColumn)
 
                 val data: String = cursor.getString(dataColumn)
                 val mimeType: String = cursor.getString(mimeTypeColumn)
@@ -183,9 +182,6 @@ class LocalStorageProvider(
             val ownerColumn = cursor.getColumnIndexOrThrow(Videos.Media.OWNER_PACKAGE_NAME)
 
             while (cursor.moveToNext()) {
-                val size: Long = cursor.getLong(sizeColumn)
-                if (size <= 0) continue
-
                 val path: String = cursor.getString(pathColumn)
                 val id = cursor.getLong(idColumn)
                 val dateAdded: Long = cursor.getLong(dateAddedColumn)
@@ -194,6 +190,8 @@ class LocalStorageProvider(
 
                 val uri = ContentUris.withAppendedId(Videos.Media.EXTERNAL_CONTENT_URI, id)
                 val datetime = java.time.Instant.ofEpochMilli(date).atZone(zoneId).toLocalDateTime()
+
+                val size: Long = cursor.getLong(sizeColumn)
 
                 val data: String = cursor.getString(dataColumn)
                 val duration: Long = cursor.getLong(durationColumn)
