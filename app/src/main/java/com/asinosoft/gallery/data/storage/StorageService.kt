@@ -8,6 +8,8 @@ import javax.inject.Inject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlin.system.measureTimeMillis
 
@@ -21,6 +23,7 @@ class StorageService @Inject constructor(
 ) {
     private val fetchingFlow = MutableStateFlow(false)
     val isFetching: StateFlow<Boolean> = fetchingFlow
+    private val fetchMutex = Mutex()
 
     suspend fun checkStorage(storage: Storage): StorageCheckResult = withContext(Dispatchers.IO) {
         val provider = storageProviderRegistry.createStorageProvider(storage)
@@ -40,7 +43,7 @@ class StorageService @Inject constructor(
         storageAuthProvider.refresh()
     }
 
-    suspend fun fetch(storage: Storage) {
+    suspend fun fetch(storage: Storage) = fetchMutex.withLock {
         fetchingFlow.emit(true)
         try {
             val provider = storageProviderRegistry.getStorageProvider(storage.id)

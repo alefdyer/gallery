@@ -24,10 +24,17 @@ class MediaService @Inject constructor(
     private val intentHelper = IntentHelper
 
     suspend fun add(media: Media) {
-        val mediaId = mediaDao.upsert(media)
+        var mediaId = mediaDao.upsert(media)
+        if (mediaId <= 0) {
+            mediaId = mediaDao.getMediaId(media.storageId, media.storageItemId) ?: return
+        }
         val albumName = media.path.split('/').last { it.isNotEmpty() }
         val album = albumDao.getOrCreateAlbum(albumName, AlbumCategory.OTHER.id)
         addToAlbum(listOf(mediaId), album.id)
+
+        CoroutineScope(Dispatchers.IO).launch {
+            ThumbnailCache.preload(context, mediaId, media.uri)
+        }
     }
 
     suspend fun delete(mediaIds: Collection<Long>, context: Context, callback: () -> Unit) {
@@ -127,12 +134,23 @@ class MediaService @Inject constructor(
             val toInsert = fetched.filterNot { current.contains(it.storageItemId) }
 
             if (toInsert.isNotEmpty()) {
-                val mediaIds = mediaDao.upsertAll(toInsert)
+                val rawMediaIds = mediaDao.upsertAll(toInsert)
+                val validMediaIds = rawMediaIds.mapIndexedNotNull { index, id ->
+                    if (id > 0) id
+                    else {
+                        val item = toInsert[index]
+                        mediaDao.getMediaId(item.storageId, item.storageItemId)
+                    }
+                }
+
                 val chunkAlbums = HashMap<String, MutableSet<Long>>()
                 toInsert.forEachIndexed { index, media ->
                     val albumName = media.path.split('/').last { it.isNotEmpty() }
-                    val mediaId = mediaIds[index]
-                    chunkAlbums.getOrPut(albumName) { mutableSetOf() } += mediaId
+                    val rawId = rawMediaIds[index]
+                    val realId = if (rawId > 0) rawId else mediaDao.getMediaId(media.storageId, media.storageItemId) ?: -1L
+                    if (realId > 0) {
+                        chunkAlbums.getOrPut(albumName) { mutableSetOf() } += realId
+                    }
                 }
 
                 chunkAlbums.forEach { (name, ids) ->
@@ -140,18 +158,24 @@ class MediaService @Inject constructor(
                     addToAlbum(ids, album.id)
                 }
 
-                updated += mediaIds
+                updated += validMediaIds
 
                 CoroutineScope(Dispatchers.IO).launch {
-                    val batch = toInsert.mapIndexed { index, media ->
-                        mediaIds[index] to media.uri
+                    val batch = toInsert.mapIndexedNotNull { index, media ->
+                        val rawId = rawMediaIds[index]
+                        val realId = if (rawId > 0) rawId else mediaDao.getMediaId(media.storageId, media.storageItemId) ?: -1L
+                        if (realId > 0) realId to media.uri else null
                     }
                     ThumbnailCache.preloadBatch(context, batch)
                 }
             }
         }
 
-        mediaDao.deleteAllExcept(provider.storage.id, updated)
+        val existingIds = mediaDao.getAllIds(provider.storage.id).toSet()
+        val toDelete = existingIds - updated
+        if (toDelete.isNotEmpty()) {
+            mediaDao.deleteAll(toDelete)
+        }
         albumDao.deleteEmptyAlbums()
     }
 }

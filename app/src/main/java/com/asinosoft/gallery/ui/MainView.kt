@@ -138,20 +138,22 @@ fun MainView(
                     top = 36.dp + paddingValues.calculateTopPadding(),
                     bottom = paddingValues.calculateBottomPadding()
                 )
-                HorizontalPager(state = pagerState) {
-                    when (it) {
-                        0 -> ImageListView(
-                            onMediaClick = onMediaClick,
-                            onClose = {},
-                            scrollBehavior = null,
-                            contentPadding = contentPadding
-                        )
+                HorizontalPager(state = pagerState) { page ->
+                    androidx.compose.runtime.key(page) {
+                        when (page) {
+                            0 -> ImageListView(
+                                onMediaClick = onMediaClick,
+                                onClose = {},
+                                scrollBehavior = null,
+                                contentPadding = contentPadding
+                            )
 
-                        1 -> AlbumListView(
-                            onAlbumClick = onAlbumClick,
-                            nestedScroll = syncPanelsScrollConnection,
-                            contentPadding = contentPadding
-                        )
+                            1 -> AlbumListView(
+                                onAlbumClick = onAlbumClick,
+                                nestedScroll = syncPanelsScrollConnection,
+                                contentPadding = contentPadding
+                            )
+                        }
                     }
                 }
 
