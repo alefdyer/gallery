@@ -1,5 +1,9 @@
 package com.asinosoft.gallery.ui.component
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.draggable
@@ -29,6 +33,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.asinosoft.gallery.R
 import com.asinosoft.gallery.data.Media
@@ -85,25 +90,33 @@ fun LazyGridVerticalScrollIndicator(
             hideJob = null
         } else {
             hideJob = scope.launch {
-                delay(1000.milliseconds)
+                delay(1200.milliseconds)
                 showThumb = false
                 showLabel = false
             }
         }
     }
 
-    if (showThumb) {
-        BoxWithConstraints(modifier = modifier.fillMaxHeight()) {
-            val thumbSize = 32.dp
-            val thumbSizePx = with(density) { thumbSize.toPx() }
-            val thumbTravelPx = (constraints.maxHeight.toFloat() - thumbSizePx).coerceAtLeast(1f)
-            val thumbOffset = (maxHeight - thumbSize) * scrollOffset / contentSize
+    val animatedThumbSize by animateDpAsState(
+        targetValue = if (isDragged) 44.dp else 36.dp,
+        label = "thumbSize"
+    )
+
+    AnimatedVisibility(
+        visible = showThumb,
+        enter = fadeIn(),
+        exit = fadeOut(),
+        modifier = modifier
+    ) {
+        BoxWithConstraints(modifier = Modifier.fillMaxHeight()) {
+            val thumbTravelPx = (constraints.maxHeight.toFloat() - with(density) { animatedThumbSize.toPx() }).coerceAtLeast(1f)
+            val thumbOffset = (maxHeight - animatedThumbSize) * scrollOffset / contentSize
 
             val draggableState = rememberDraggableState { dragAmount ->
                 dragOffsetPx = (dragOffsetPx + dragAmount).coerceIn(0f, thumbTravelPx)
                 val fraction = dragOffsetPx / thumbTravelPx
                 val targetIndex = (fraction * (listItems.size - 1)).toInt().coerceIn(0, listItems.size - 1)
-                
+
                 scope.launch {
                     lazyGridState.scrollToItem(targetIndex)
                 }
@@ -111,12 +124,12 @@ fun LazyGridVerticalScrollIndicator(
 
             Surface(
                 shape = CircleShape,
-                shadowElevation = 16.dp,
-                color = MaterialTheme.colorScheme.surface,
-                border = BorderStroke(2.dp, MaterialTheme.colorScheme.surfaceContainer),
+                shadowElevation = 8.dp,
+                color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.95f),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
                 modifier = Modifier
                     .align(Alignment.TopEnd)
-                    .offset(x = 16.dp, y = thumbOffset)
+                    .offset(x = 12.dp, y = thumbOffset)
                     .draggable(
                         draggableState,
                         Orientation.Vertical,
@@ -129,11 +142,12 @@ fun LazyGridVerticalScrollIndicator(
                     )
             ) {
                 Icon(
-                    painterResource(R.drawable.height),
+                    painter = painterResource(R.drawable.height),
                     contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
                     modifier = Modifier
                         .padding(8.dp)
-                        .size(thumbSize)
+                        .size(animatedThumbSize - 16.dp)
                 )
             }
 
@@ -149,18 +163,19 @@ fun LazyGridVerticalScrollIndicator(
                     Surface(
                         modifier = Modifier
                             .align(Alignment.TopEnd)
-                            .padding(top = 8.dp, end = 64.dp)
+                            .padding(top = 2.dp, end = 56.dp)
                             .offset(y = thumbOffset),
-                        border = BorderStroke(2.dp, MaterialTheme.colorScheme.surfaceContainer),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
                         shape = RoundedCornerShape(50),
-                        shadowElevation = 16.dp,
-                        color = MaterialTheme.colorScheme.surface
+                        shadowElevation = 8.dp,
+                        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.95f)
                     ) {
                         Text(
                             text = label,
-                            style = MaterialTheme.typography.labelLarge,
-                            color = MaterialTheme.colorScheme.onSurface,
-                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 4.dp)
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.Medium,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer,
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
                         )
                     }
                 }
