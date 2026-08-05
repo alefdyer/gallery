@@ -16,7 +16,7 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import java.time.ZoneId
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emitAll
-import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.flow
 
 class LocalStorageProvider(
@@ -30,14 +30,26 @@ class LocalStorageProvider(
 
     override suspend fun checkConnection() = StorageCheckResult.Success
 
-    override suspend fun fetchOne(uri: Uri): Media? =
-        if (uri.toString().startsWith(Images.Media.EXTERNAL_CONTENT_URI.toString())) {
-            fetchImages("${Images.Media._ID} = ${uri.lastPathSegment}").first()
-        } else if (uri.toString().startsWith(Videos.Media.EXTERNAL_CONTENT_URI.toString())) {
-            fetchVideos("${Videos.Media._ID} = ${uri.lastPathSegment}").first()
+    override suspend fun fetchOne(uri: Uri): Media? {
+        val id = uri.lastPathSegment?.toLongOrNull()
+        return if (id != null) {
+            if (uri.toString().startsWith(Images.Media.EXTERNAL_CONTENT_URI.toString())) {
+                fetchImages("${Images.Media._ID} = $id").firstOrNull()
+            } else if (uri.toString().startsWith(Videos.Media.EXTERNAL_CONTENT_URI.toString())) {
+                fetchVideos("${Videos.Media._ID} = $id").firstOrNull()
+            } else {
+                null
+            }
         } else {
-            null
+            if (uri.toString().startsWith(Images.Media.EXTERNAL_CONTENT_URI.toString())) {
+                fetchImages("").firstOrNull()
+            } else if (uri.toString().startsWith(Videos.Media.EXTERNAL_CONTENT_URI.toString())) {
+                fetchVideos("").firstOrNull()
+            } else {
+                null
+            }
         }
+    }
 
     override suspend fun getMediaUri(media: Media): Uri = ContentUris.withAppendedId(
         if (media.image !=
@@ -91,6 +103,9 @@ class LocalStorageProvider(
             val ownerColumn = cursor.getColumnIndexOrThrow(Images.Media.OWNER_PACKAGE_NAME)
 
             while (cursor.moveToNext()) {
+                val size: Long = cursor.getLong(sizeColumn)
+                if (size <= 0) continue
+
                 val path: String = cursor.getString(pathColumn)
                 val id = cursor.getLong(idColumn)
                 val dateAdded: Long = cursor.getLong(dateAddedColumn)
@@ -102,8 +117,6 @@ class LocalStorageProvider(
 
                 val uri = ContentUris.withAppendedId(Images.Media.EXTERNAL_CONTENT_URI, id)
                 val datetime = java.time.Instant.ofEpochMilli(date).atZone(zoneId).toLocalDateTime()
-
-                val size: Long = cursor.getLong(sizeColumn)
 
                 val data: String = cursor.getString(dataColumn)
                 val mimeType: String = cursor.getString(mimeTypeColumn)
@@ -170,6 +183,9 @@ class LocalStorageProvider(
             val ownerColumn = cursor.getColumnIndexOrThrow(Videos.Media.OWNER_PACKAGE_NAME)
 
             while (cursor.moveToNext()) {
+                val size: Long = cursor.getLong(sizeColumn)
+                if (size <= 0) continue
+
                 val path: String = cursor.getString(pathColumn)
                 val id = cursor.getLong(idColumn)
                 val dateAdded: Long = cursor.getLong(dateAddedColumn)
@@ -178,8 +194,6 @@ class LocalStorageProvider(
 
                 val uri = ContentUris.withAppendedId(Videos.Media.EXTERNAL_CONTENT_URI, id)
                 val datetime = java.time.Instant.ofEpochMilli(date).atZone(zoneId).toLocalDateTime()
-
-                val size: Long = cursor.getLong(sizeColumn)
 
                 val data: String = cursor.getString(dataColumn)
                 val duration: Long = cursor.getLong(durationColumn)

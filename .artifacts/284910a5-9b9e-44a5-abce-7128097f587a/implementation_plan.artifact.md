@@ -1,22 +1,27 @@
-# План реализации: Сортировка фильтров по дате самого свежего изображения
+# План реализации: Предотвращение перезапуска Галереи через launchMode=singleTask
 
 ## Обзор задачи
-Упорядочить список фильтров приложений в верхнем плавающем блоке слева направо так, чтобы первыми (самыми левыми) шли приложения, в которых появились самые новые (последние) фотографии.
+Исключить перезапуск приложения при повторном открытии или возврате из приложения Камера.
 
-## Логика сортировки
+## Причина
+При значении `launchMode="singleTop"` повторный запуск Галереи из лаунчера/системной панели после съёмки в Камере сопровождается интентом `FLAG_ACTIVITY_RESET_TASK_IF_NEEDED`, из-за чего Android сбрасывал стек и пересоздавал `MainActivity` с нуля через `onCreate`.
 
-### Алгоритм
-1. Список медиафайлов `images` поступает отсортированным от самых свежих к старым (`ORDER BY date DESC, time DESC`).
-2. При проходе по `images` собираем порядок пакетов-владельцев (`ownersInOrder = images.mapNotNull { it.owner }.distinct()`).
-3. Первое появление каждого пакета `owner` в списке `images` указывает на самое свежее фото этого приложения.
-4. Отсортировать полученные приложения в точности по списку `ownersInOrder`.
-5. В результате слева отображаются иконки приложений с наиболее свежими снимками.
+## Решение
+
+### 1. Перевод на `android:launchMode="singleTask"` (`AndroidManifest.xml`)
+Установить для `MainActivity` режим `android:launchMode="singleTask"`. В этом режиме Android нативно сохраняет главный экземпляр активности в системном стеке задач. При возврате из Камеры или нажатии на иконку приложения система гарантированно возвращает существующий экран без пересоздания активности.
+
+### 2. Добавление `onNewIntent` в `MainActivity.kt`
+Переопределить `onNewIntent(intent)` для корректной приемки повторных вызовов активности без перезапуска состояния.
 
 ## Предлагаемые изменения
 
-### [MODIFY] [ImageListViewModel.kt](file:///C:/Users/Alexander/AndroidStudioProjects/gallery/app/src/main/java/com/asinosoft/gallery/model/ImageListViewModel.kt)
-- Обновить порядок сортировки `applications`: вместо алфавитной сортировки `sortedBy { it.name }` упорядочивать их по дате появления первого фото приложения в списке `images`.
+### [MODIFY] [AndroidManifest.xml](file:///C:/Users/Alexander/AndroidStudioProjects/gallery/app/src/main/AndroidManifest.xml)
+- Изменить `android:launchMode="singleTop"` на `android:launchMode="singleTask"`.
+
+### [MODIFY] [MainActivity.kt](file:///C:/Users/Alexander/AndroidStudioProjects/gallery/app/src/main/java/com/asinosoft/gallery/MainActivity.kt)
+- Добавить обработку `onNewIntent(intent)`.
 
 ## План верификации
 - Сборка проекта через Gradle (`app:assembleDebug`).
-- Проверка порядка иконок в фильтре верхнего меню.
+- Проверка: свернуть Галерею, открыть Камеру, сделать фото, вернуться в Галерею — экран не перезапускается и мгновенно остается открытым.

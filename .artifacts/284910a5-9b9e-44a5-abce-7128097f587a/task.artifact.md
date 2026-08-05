@@ -1,4 +1,5 @@
 # Задачи
 
-- [x] Обновить алгоритм сортировки фильтров в `ImageListViewModel.kt` `[x]`
+- [x] Установить `launchMode="singleTask"` в `AndroidManifest.xml` `[x]`
+- [x] Переопределить `onNewIntent` в `MainActivity.kt` `[x]`
 - [x] Проверить сборку проекта `[x]`

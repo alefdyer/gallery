@@ -17,6 +17,12 @@ interface MediaDao {
         storageItemIds: Collection<String>
     ): List<Media>
 
+    @Query("SELECT id FROM media WHERE storageId = :storageId")
+    suspend fun getAllIds(storageId: Long): List<Long>
+
+    @Query("SELECT id FROM media WHERE storageId = :storageId AND storageItemId = :storageItemId")
+    suspend fun getMediaId(storageId: Long, storageItemId: String): Long?
+
     @Query("SELECT uri FROM media WHERE id = :mediaId")
     fun getUri(mediaId: Long): Uri
 

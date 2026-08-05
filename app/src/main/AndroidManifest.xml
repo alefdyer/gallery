@@ -19,6 +19,8 @@
     <application
         android:name=".GalleryApp"
         android:allowBackup="true"
+        android:largeHeap="true"
+        android:hardwareAccelerated="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:enableOnBackInvokedCallback="true"
         android:fullBackupContent="@xml/backup_rules"
@@ -33,6 +35,8 @@
         <activity
             android:name=".MainActivity"
             android:exported="true"
+            android:launchMode="singleTask"
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|uiMode"
             android:theme="@style/Theme.Gallery">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
