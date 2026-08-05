@@ -1,19 +1,14 @@
 package com.asinosoft.gallery.ui.component
 
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -64,33 +59,19 @@ fun BoxScope.ViewModeBar(
                     modifier = size
                 )
 
-                Box {
-                    EllipseButton(
-                        onClick = { menuExpanded = true },
-                        selected = false,
-                        icon = painterResource(R.drawable.menu),
-                        label = stringResource(R.string.menu),
-                        modifier = size
-                    )
+                EllipseButton(
+                    onClick = { menuExpanded = true },
+                    selected = false,
+                    icon = painterResource(R.drawable.menu),
+                    label = stringResource(R.string.menu),
+                    modifier = size
+                )
 
-                    DropdownMenu(
-                        expanded = menuExpanded,
-                        onDismissRequest = { menuExpanded = false }
-                    ) {
-                        DropdownMenuItem(
-                            text = { Text(stringResource(R.string.settings)) },
-                            onClick = {
-                                menuExpanded = false
-                                onSettings()
-                            },
-                            leadingIcon = {
-                                Icon(
-                                    painter = painterResource(R.drawable.settings),
-                                    contentDescription = null
-                                )
-                            }
-                        )
-                    }
+                if (menuExpanded) {
+                    MenuBottomSheet(
+                        onDismissRequest = { menuExpanded = false },
+                        onSettingsClick = onSettings
+                    )
                 }
             }
         }

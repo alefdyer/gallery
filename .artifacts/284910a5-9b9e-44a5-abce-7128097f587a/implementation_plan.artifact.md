@@ -1,24 +1,26 @@
-# План реализации: Редизайн ползунка (Круглая плашка с иконкой)
+# План реализации: Редизайн всплывающего меню и обновление иконки настроек
 
 ## Обзор задачи
-Обновить внешний вид бокового ползунка скролла, сделав его в виде элегантной круглой плашки с иконкой и анимированным увеличением при нажатии.
-
-## Описание дизайна
-
-### 1. Круглая плашка с иконкой (Thumb)
-- **Форма**: Круглая плашка (`CircleShape`) с мягкой объемной тенью (`shadowElevation = 8.dp`).
-- **Цвета**: Фон `MaterialTheme.colorScheme.surfaceContainerHigh` с тонким контрастным контуром. Цвет иконки — акцентный `MaterialTheme.colorScheme.primary`.
-- **Анимация зажатия**: При касании и перетаскивании (`isDragged`) размер плашки плавно увеличивается с `36.dp` до `44.dp` (`animateDpAsState`).
-
-### 2. Всплывающий балун с датой (Date Label)
-- **Форма**: Вытянутая полупрозрачная капсула с закруглением `RoundedCornerShape(50)`.
-- **Расположение**: Слева от круглой плашки с динамическим смещением по вертикали.
+Переделать выпадающее меню кнопки «Меню» во всплывающую шторку (Bottom Sheet) со стильной сеткой кнопок 4x2 с белыми кружками и подписями, идентичную предоставленному скриншоту, а также обновить векторную иконку настроек.
 
 ## Предлагаемые изменения
 
-### [MODIFY] [LazyGridScrollIndicator.kt](file:///C:/Users/Alexander/AndroidStudioProjects/gallery/app/src/main/java/com/asinosoft/gallery/ui/component/LazyGridScrollIndicator.kt)
-- Реализовать круглую анимируемую плашку с иконкой и стилизованную балун-метку даты.
+### 1. Обновление вектора иконки настроек
+#### [MODIFY] [settings.xml](file:///C:/Users/Alexander/AndroidStudioProjects/gallery/app/src/main/res/drawable/settings.xml)
+- Заменить геометрию пути вектора на современную аккуратную иконку шестеренки Material 3.
+
+### 2. Новая всплывающая шторка меню
+#### [NEW] [MenuBottomSheet.kt](file:///C:/Users/Alexander/AndroidStudioProjects/gallery/app/src/main/java/com/asinosoft/gallery/ui/component/MenuBottomSheet.kt)
+- Создать компонент на базе `ModalBottomSheet` с округлой формой верхней части (`RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)`).
+- Сетка из 4 колонок (4x2):
+  - **Строка 1**: Видео, Избранное, Последние, Типы съемки.
+  - **Строка 2**: Личный альбом, Корзина, Настройки, Студия.
+- Элемент сетки: белый круг (`CircleShape`, `Surface`) с иконкой по центру и текстом под кружком.
+
+### 3. Подключение меню
+#### [MODIFY] [ViewModeBar.kt](file:///C:/Users/Alexander/AndroidStudioProjects/gallery/app/src/main/java/com/asinosoft/gallery/ui/component/ViewModeBar.kt)
+- При клике на третью кнопку «Меню» вызывать `MenuBottomSheet`. По клику на пункт «Настройки» открывать экран настроек.
 
 ## План верификации
 - Сборка проекта через Gradle (`app:assembleDebug`).
-- Визуальная проверка нового вида и реактивности ползунка.
+- Ручная проверка открытия всплывающего меню и переход к настройкам.
