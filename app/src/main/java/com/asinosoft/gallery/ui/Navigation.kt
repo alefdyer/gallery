@@ -22,6 +22,12 @@ fun Navigation(nav: NavHostController, modifier: Modifier = Modifier) {
     val navigateToAlbumMedia = { albumId: Long, media: Media, filters: Set<String> ->
         nav.navigate("album/$albumId/pager/${media.id}/${filters.joinToString(",")}")
     }
+    val navigateToDate = { year: Int, month: Int, day: Int ->
+        nav.navigate("dateView/$year/$month/$day")
+    }
+    val navigateToDateMedia = { year: Int, month: Int, day: Int, media: Media, filters: Set<String> ->
+        nav.navigate("dateView/$year/$month/$day/pager/${media.id}/${filters.joinToString(",")}")
+    }
     val navigateToSettings = { nav.navigate("settings") }
 
     NavHost(
@@ -35,6 +41,7 @@ fun Navigation(nav: NavHostController, modifier: Modifier = Modifier) {
             MainView(
                 onMediaClick = navigateToMedia,
                 onAlbumClick = navigateToAlbum,
+                onDateClick = navigateToDate,
                 onSettingsClick = navigateToSettings,
             )
         }
@@ -68,6 +75,43 @@ fun Navigation(nav: NavHostController, modifier: Modifier = Modifier) {
             "album/{albumId}/pager/{imageId}/{filters}",
             arguments = listOf(
                 navArgument("albumId") { type = NavType.LongType },
+                navArgument("imageId") { type = NavType.LongType },
+                navArgument("filters") { type = NavType.StringType; defaultValue = "" }
+            )
+        ) {
+            PagerView(
+                onAlbumClick = navigateToAlbum,
+                onClose = nav::navigateUp
+            )
+        }
+
+        composable(
+            "dateView/{year}/{month}/{day}",
+            arguments = listOf(
+                navArgument("year") { type = NavType.IntType },
+                navArgument("month") { type = NavType.IntType },
+                navArgument("day") { type = NavType.IntType }
+            )
+        ) { route ->
+            val year = route.arguments?.getInt("year") ?: 0
+            val month = route.arguments?.getInt("month") ?: 0
+            val day = route.arguments?.getInt("day") ?: 0
+
+            DateView(
+                year = year,
+                month = month,
+                day = day,
+                onMediaClick = { media, filters -> navigateToDateMedia(year, month, day, media, filters) },
+                onClose = nav::navigateUp
+            )
+        }
+
+        composable(
+            "dateView/{year}/{month}/{day}/pager/{imageId}/{filters}",
+            arguments = listOf(
+                navArgument("year") { type = NavType.IntType },
+                navArgument("month") { type = NavType.IntType },
+                navArgument("day") { type = NavType.IntType },
                 navArgument("imageId") { type = NavType.LongType },
                 navArgument("filters") { type = NavType.StringType; defaultValue = "" }
             )

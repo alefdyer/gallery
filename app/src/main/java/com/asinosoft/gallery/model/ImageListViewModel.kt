@@ -135,6 +135,49 @@ class ImageListViewModel @Inject constructor(
         }
     }
 
+    fun getAdjacentDateFilter(direction: Int): DateFilter? {
+        val current = activeDateFilter.value ?: return null
+        val allImages = images.value
+        if (allImages.isEmpty()) return null
+
+        val periods: List<DateFilter> = when {
+            current.day != null -> {
+                allImages.map { DateFilter(it.date.year, it.date.monthValue, it.date.dayOfMonth) }
+                    .distinct()
+                    .sortedWith(compareByDescending<DateFilter> { it.year }.thenByDescending { it.month }.thenByDescending { it.day })
+            }
+            current.month != null -> {
+                allImages.map { DateFilter(it.date.year, it.date.monthValue, null) }
+                    .distinct()
+                    .sortedWith(compareByDescending<DateFilter> { it.year }.thenByDescending { it.month })
+            }
+            current.year != null -> {
+                allImages.map { DateFilter(it.date.year, null, null) }
+                    .distinct()
+                    .sortedByDescending { it.year }
+            }
+            else -> return null
+        }
+
+        val currentIndex = periods.indexOf(current)
+        if (currentIndex != -1) {
+            val nextIndex = currentIndex + direction
+            if (nextIndex in periods.indices) {
+                return periods[nextIndex]
+            }
+        }
+        return null
+    }
+
+    fun closeFolderExplorer() {
+        isFolderExplorerOpen.value = false
+    }
+
+    fun clearDateFilter() {
+        activeDateFilter.value = null
+        isFolderExplorerOpen.value = false
+    }
+
     fun toggleFolderExplorer() {
         if (activeDateFilter.value != null) {
             activeDateFilter.value = null

@@ -57,6 +57,7 @@ import kotlin.time.Duration.Companion.milliseconds
 fun MainView(
     onMediaClick: (Media, Set<String>) -> Unit,
     onAlbumClick: (Album) -> Unit,
+    onDateClick: (Int, Int, Int) -> Unit,
     onSettingsClick: () -> Unit,
     modifier: Modifier = Modifier,
     model: ImageListViewModel = hiltViewModel()
@@ -67,7 +68,6 @@ fun MainView(
     val coroutineScope = rememberCoroutineScope()
     val selection by model.selection.collectAsState()
     val isFolderExplorerOpen by model.isFolderExplorerOpen.collectAsState()
-    val activeDateFilter by model.activeDateFilter.collectAsState()
 
     var navbarHeight by remember { mutableFloatStateOf(0f) }
     var navbarOffset by remember { mutableFloatStateOf(0f) }
@@ -162,7 +162,9 @@ fun MainView(
                             model.treeListIndex = idx
                             model.treeListOffset = off
                         },
-                        onSelectDateFilter = model::setDateFilter,
+                        onSelectDateFilter = { filter ->
+                            onDateClick(filter.year ?: 0, filter.month ?: 0, filter.day ?: 0)
+                        },
                         contentPadding = contentPadding
                     )
                 } else {
@@ -205,13 +207,12 @@ fun MainView(
                             .padding(8.dp)
                             .size(32.dp)
                     ) {
-                        val showBack = isFolderExplorerOpen || activeDateFilter != null
                         Icon(
                             painter = painterResource(
-                                if (showBack) R.drawable.arrow_back else R.drawable.folder_yellow
+                                if (isFolderExplorerOpen) R.drawable.arrow_back else R.drawable.folder_yellow
                             ),
-                            contentDescription = if (showBack) "Назад в список" else "Папка",
-                            tint = if (showBack) MaterialTheme.colorScheme.onSurface else androidx.compose.ui.graphics.Color.Unspecified
+                            contentDescription = if (isFolderExplorerOpen) "Закрыть проводник" else "Папка",
+                            tint = if (isFolderExplorerOpen) MaterialTheme.colorScheme.onSurface else androidx.compose.ui.graphics.Color.Unspecified
                         )
                     }
                 }
