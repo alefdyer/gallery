@@ -131,28 +131,28 @@ dependencies {
     implementation("androidx.work:work-runtime-ktx:2.11.2")
 
     // Compose
-    implementation(platform("androidx.compose:compose-bom:2026.06.01"))
+    implementation(platform("androidx.compose:compose-bom:2026.08.00"))
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.ui:ui-graphics")
     implementation("androidx.compose.ui:ui-tooling-preview")
     implementation("androidx.compose.material3:material3")
-    implementation("androidx.navigation:navigation-compose:2.9.8")
+    implementation("androidx.navigation:navigation-compose:2.10.0")
     implementation("com.google.accompanist:accompanist-permissions:0.37.3")
 
     // ExoPlayer
-    implementation("androidx.media3:media3-exoplayer:1.10.1")
-    implementation("androidx.media3:media3-ui:1.10.1")
-    implementation("androidx.media3:media3-datasource-okhttp:1.10.1")
+    implementation("androidx.media3:media3-exoplayer:1.11.0")
+    implementation("androidx.media3:media3-ui:1.11.0")
+    implementation("androidx.media3:media3-datasource-okhttp:1.11.0")
 
     // WebDAV
     implementation("com.github.thegrizzlylabs:sardine-android:0.9")
 
     // Coil
-    implementation("io.coil-kt.coil3:coil-compose:3.5.0")
-    implementation("io.coil-kt.coil3:coil-gif:3.5.0")
-    implementation("io.coil-kt.coil3:coil-svg:3.5.0")
-    implementation("io.coil-kt.coil3:coil-network-okhttp:3.5.0")
-    implementation("io.coil-kt.coil3:coil-video:3.5.0")
+    implementation("io.coil-kt.coil3:coil-compose:3.6.2")
+    implementation("io.coil-kt.coil3:coil-gif:3.6.2")
+    implementation("io.coil-kt.coil3:coil-svg:3.6.2")
+    implementation("io.coil-kt.coil3:coil-network-okhttp:3.6.2")
+    implementation("io.coil-kt.coil3:coil-video:3.6.2")
 
     // DI
     implementation("com.google.dagger:hilt-android:2.60.1")
@@ -166,7 +166,7 @@ dependencies {
     ksp("androidx.room:room-compiler:$roomVersion")
 
     // KtLint
-    ktlintRuleset("io.nlopez.compose.rules:ktlint:0.6.3")
+    ktlintRuleset("io.nlopez.compose.rules:ktlint:0.6.6")
 
     // Test
     testImplementation("junit:junit:4.13.2")
@@ -175,8 +175,8 @@ dependencies {
     androidTestImplementation("androidx.test.ext:junit:1.3.0")
     androidTestImplementation("androidx.test.espresso:espresso-core:3.7.0")
     androidTestImplementation("androidx.room:room-testing:$roomVersion")
-    androidTestImplementation(platform("androidx.compose:compose-bom:2026.06.01"))
+    androidTestImplementation(platform("androidx.compose:compose-bom:2026.08.00"))
     androidTestImplementation("androidx.compose.ui:ui-test-junit4")
     debugImplementation("androidx.compose.ui:ui-tooling")
-    debugImplementation("androidx.compose.ui:ui-test-manifest:1.11.4")
+    debugImplementation("androidx.compose.ui:ui-test-manifest:1.12.0")
 }
