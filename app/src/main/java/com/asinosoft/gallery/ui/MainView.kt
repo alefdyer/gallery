@@ -20,7 +20,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
@@ -36,7 +35,6 @@ import com.asinosoft.gallery.data.Album
 import com.asinosoft.gallery.data.Media
 import com.asinosoft.gallery.model.ImageListViewModel
 import com.asinosoft.gallery.ui.component.CachingProgressIndicator
-import com.asinosoft.gallery.ui.component.FilterBar
 import com.asinosoft.gallery.ui.component.ViewModeBar
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -52,15 +50,12 @@ fun MainView(
     model: ImageListViewModel = hiltViewModel()
 ) {
     val isFetching by model.isFetching.collectAsState(false)
-    val filters by model.filters.collectAsState(listOf())
     val pagerState = rememberPagerState { 2 }
     val coroutineScope = rememberCoroutineScope()
     val selection by model.selection.collectAsState()
 
     var navbarHeight by remember { mutableFloatStateOf(0f) }
     var navbarOffset by remember { mutableFloatStateOf(0f) }
-    var topbarHeight by remember { mutableFloatStateOf(0f) }
-    var topbarOffset by remember { mutableFloatStateOf(0f) }
     var lastScrollTime by remember { mutableStateOf(0L) }
 
     LaunchedEffect(lastScrollTime) {
@@ -71,24 +66,14 @@ fun MainView(
                 navbarOffset = v
             }
         }
-        launch {
-            animate(initialValue = topbarOffset, targetValue = 0f) { v, _ ->
-                topbarOffset = v
-            }
-        }
     }
 
     val syncPanelsScrollConnection = remember {
         object : NestedScrollConnection {
             override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
                 lastScrollTime = System.currentTimeMillis()
-                val delta = available.y
-
-                val newNavbarOffset = navbarOffset - delta
+                val newNavbarOffset = navbarOffset - available.y
                 navbarOffset = newNavbarOffset.coerceIn(0f, navbarHeight)
-
-                val newTopbarOffset = topbarOffset - delta
-                topbarOffset = newTopbarOffset.coerceIn(0f, topbarHeight)
 
                 return Offset.Zero
             }
@@ -96,7 +81,6 @@ fun MainView(
             override suspend fun onPostFling(consumed: Velocity, available: Velocity): Velocity {
                 lastScrollTime = System.currentTimeMillis()
                 val targetNavbarOffset = if (navbarOffset > navbarHeight / 2f) navbarHeight else 0f
-                val targetTopbarOffset = if (topbarOffset > topbarHeight / 2f) topbarHeight else 0f
 
                 coroutineScope.launch {
                     animate(
@@ -107,15 +91,6 @@ fun MainView(
                         navbarOffset = y
                     }
                 }
-                coroutineScope.launch {
-                    animate(
-                        initialValue = topbarOffset,
-                        targetValue = targetTopbarOffset,
-                        initialVelocity = 10f
-                    ) { y, _ ->
-                        topbarOffset = y
-                    }
-                }
 
                 return super.onPostFling(consumed, available)
             }
@@ -123,7 +98,6 @@ fun MainView(
     }
 
     val density = LocalDensity.current
-    val topBarPadding = 8.dp
 
     Scaffold(
         modifier = modifier.nestedScroll(syncPanelsScrollConnection)
@@ -154,23 +128,6 @@ fun MainView(
                         )
                     }
                 }
-
-                FilterBar(
-                    visible = selection.isEmpty() && pagerState.currentPage == 0,
-                    filters = filters,
-                    onToggleFilter = model::toggleFilter,
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .padding(
-                            top = topBarPadding + 8.dp + paddingValues.calculateTopPadding(),
-                            end = 8.dp
-                        )
-                        .offset { IntOffset(0, -topbarOffset.toInt()) },
-                    onMeasuredHeight = {
-                        topbarHeight =
-                            it + with(density) { (topBarPadding + 8.dp + paddingValues.calculateTopPadding()).toPx() }
-                    }
-                )
             }
 
             CachingProgressIndicator(paddingValues)
