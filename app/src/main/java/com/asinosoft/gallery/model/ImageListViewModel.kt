@@ -62,13 +62,20 @@ class ImageListViewModel @Inject constructor(
             initialValue = emptyList()
         )
 
-    private lateinit var applications: List<Application>
+    private val applications = MutableStateFlow<List<Application>>(listOf())
     private val activeFilters = MutableStateFlow<Set<String>>(setOf())
 
     val activeFilterPackages: StateFlow<Set<String>> = activeFilters
 
     @OptIn(ExperimentalCoroutinesApi::class)
-    var filters = MutableStateFlow<List<Filter>>(listOf())
+    var filters = combine(activeFilters, applications) { activeFilters, applications ->
+        applications.map {
+            Filter(
+                it,
+                activeFilters.isEmpty() or activeFilters.contains(it.pkg)
+            )
+        }
+    }
 
     val filteredImages = images.combine(activeFilters) { images, filters ->
         if (filters.isEmpty()) images
@@ -89,19 +96,15 @@ class ImageListViewModel @Inject constructor(
                 if (owners != lastOwners) {
                     lastOwners = owners
                     kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                        applications = applicationDao.getApplications(owners).sortedBy { it.name }
-                        filters.emit(
-                            applications.map {
-                                Filter(
-                                    it,
-                                    activeFilters.value.isEmpty() or activeFilters.value.contains(it.pkg)
-                                )
-                            }
-                        )
+                        applications.emit(applicationDao.getApplications(owners).sortedBy { it.name })
                     }
                 }
             }
         }
+    }
+
+    fun clearFilters() = viewModelScope.launch {
+        activeFilters.emit(setOf())
     }
 
     fun toggleFilter(filter: Filter) = viewModelScope.launch {
@@ -112,14 +115,6 @@ class ImageListViewModel @Inject constructor(
             newFilters.add(filter.application.pkg)
         }
         activeFilters.emit(newFilters)
-        filters.emit(
-            applications.map {
-                Filter(
-                    it,
-                    activeFilters.value.isEmpty() or newFilters.contains(it.pkg)
-                )
-            }
-        )
     }
 
     fun fetch() = viewModelScope.launchAndCatch {

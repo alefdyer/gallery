@@ -52,6 +52,7 @@ fun ImageListView(
     model: ImageListViewModel = hiltViewModel()
 ) {
     val images by model.filteredImages.collectAsState(listOf())
+    val filters by model.filters.collectAsState(listOf())
     val selection by model.selection.collectAsState()
 
     var closeOnEmptyList by remember { mutableStateOf(false) }
@@ -75,6 +76,8 @@ fun ImageListView(
     }
 
     BackHandler(selection.isNotEmpty(), model::clearSelection)
+
+    BackHandler(filters.any { !it.enabled }, model::clearFilters)
 
     Box(modifier.fillMaxSize()) {
         LazyVerticalGrid(
