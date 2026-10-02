@@ -52,7 +52,7 @@ fun ImageListView(
     contentPadding: PaddingValues = PaddingValues(0.dp),
     model: ImageListViewModel = hiltViewModel()
 ) {
-    val images by model.filteredImages.collectAsState(listOf())
+    val images by model.images.collectAsState(listOf())
     val selection by model.selection.collectAsState()
 
     var closeOnEmptyList by remember { mutableStateOf(false) }

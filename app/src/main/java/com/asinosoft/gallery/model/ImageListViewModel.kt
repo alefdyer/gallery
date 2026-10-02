@@ -59,7 +59,7 @@ class ImageListViewModel @Inject constructor(
 
     val isFetching = storageService.isFetching
 
-    val images: StateFlow<List<Media>> = (
+    private val allImages: StateFlow<List<Media>> = (
             albumId?.let { albumDao.getMediaInAlbum(albumId) }
                 ?: mediaDao.getImages()
             ).stateIn(
@@ -80,23 +80,43 @@ class ImageListViewModel @Inject constructor(
     var treeListOffset = 0
 
     @OptIn(ExperimentalCoroutinesApi::class)
-    var filters = MutableStateFlow<List<Filter>>(listOf())
+    private var allFilters = MutableStateFlow<List<Filter>>(listOf())
 
-    val filteredImages: StateFlow<List<Media>> = combine(images, activeFilters, activeDateFilter) { images, filters, dateFilter ->
-        var result = if (filters.isEmpty()) images else images.filter { filters.contains(it.owner) }
-        if (dateFilter != null) {
-            result = result.filter { media ->
-                (dateFilter.year == null || media.date.year == dateFilter.year) &&
-                (dateFilter.month == null || media.date.monthValue == dateFilter.month) &&
-                (dateFilter.day == null || media.date.dayOfMonth == dateFilter.day)
-            }
+    val images: StateFlow<List<Media>> = combine(allImages, activeFilters, activeDateFilter) { images, filters, dateFilter ->
+        images.filter { image ->
+            (filters.isEmpty() || filters.contains(image.owner)) &&
+            (dateFilter?.year == null || image.date.year == dateFilter.year) &&
+            (dateFilter?.month == null || image.date.monthValue == dateFilter.month) &&
+            (dateFilter?.day == null || image.date.dayOfMonth == dateFilter.day)
         }
-        result
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.Eagerly,
         initialValue = emptyList()
     )
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val filters = combine(allFilters, activeDateFilter, allImages) { filters, dateFilter, images ->
+        val apps = images.filter { image ->
+            (dateFilter?.year == null || image.date.year == dateFilter.year) &&
+            (dateFilter?.month == null || image.date.monthValue == dateFilter.month) &&
+            (dateFilter?.day == null || image.date.dayOfMonth == dateFilter.day)
+        }.map { it.owner }.toSet()
+        filters.filter { apps.contains(it.application.pkg) }
+    }
+
+    // Группировка: Year -> Month -> Day -> List<Int>
+    val dateGroups = combine(activeFilters, allImages) { filters, images ->
+        images
+            .filter { filters.isEmpty() || filters.contains(it.owner) }
+            .groupBy { it.date.year }
+            .mapValues { (_, yearImages) ->
+                yearImages.groupBy { it.date.monthValue }
+                    .mapValues { (_, monthImages) ->
+                        monthImages.groupBy { it.date.dayOfMonth }.mapValues { it.value.size }
+                    }
+            }
+    }
 
     init {
         viewModelScope.launch {
@@ -107,14 +127,14 @@ class ImageListViewModel @Inject constructor(
 
 
             var lastOwners: List<String>? = null
-            images.collect { images ->
+            allImages.collect { images ->
                 val ownersInOrder = images.mapNotNull { it.owner }.distinct()
                 if (ownersInOrder != lastOwners) {
                     lastOwners = ownersInOrder
                     kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                         val fetchedApps = applicationDao.getApplications(ownersInOrder.toSet()).associateBy { it.pkg }
                         applications = ownersInOrder.mapNotNull { fetchedApps[it] }
-                        filters.emit(
+                        allFilters.emit(
                             applications.map {
                                 Filter(
                                     it,
@@ -137,7 +157,7 @@ class ImageListViewModel @Inject constructor(
 
     fun getAdjacentDateFilter(direction: Int): DateFilter? {
         val current = activeDateFilter.value ?: return null
-        val allImages = images.value
+        val allImages = allImages.value
         if (allImages.isEmpty()) return null
 
         val periods: List<DateFilter> = when {
@@ -179,14 +199,7 @@ class ImageListViewModel @Inject constructor(
     }
 
     fun toggleFolderExplorer() {
-        if (activeDateFilter.value != null) {
-            activeDateFilter.value = null
-            isFolderExplorerOpen.value = true
-        } else if (isFolderExplorerOpen.value) {
-            isFolderExplorerOpen.value = false
-        } else {
-            isFolderExplorerOpen.value = true
-        }
+        isFolderExplorerOpen.value = !isFolderExplorerOpen.value
     }
 
     fun toggleFilter(filter: Filter) = viewModelScope.launch {
@@ -197,7 +210,7 @@ class ImageListViewModel @Inject constructor(
             newFilters.add(filter.application.pkg)
         }
         activeFilters.emit(newFilters)
-        filters.emit(
+        allFilters.emit(
             applications.map {
                 Filter(
                     it,

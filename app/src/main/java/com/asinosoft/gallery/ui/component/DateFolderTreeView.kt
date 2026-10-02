@@ -12,32 +12,31 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.snapshots.SnapshotStateMap
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import com.asinosoft.gallery.R
-import com.asinosoft.gallery.data.Media
 import com.asinosoft.gallery.model.DateFilter
-
-import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.snapshotFlow
-import androidx.compose.runtime.snapshots.SnapshotStateMap
+import com.asinosoft.gallery.ui.theme.Golden
 
 private val monthNames = DateFormatSymbols().months
 
 @Composable
 fun DateFolderTreeView(
-    images: List<Media>,
+    yearGroups: Map<Int, Map<Int, Map<Int, Int>>>,
+    selectedDate: DateFilter?,
     expandedNodes: SnapshotStateMap<String, Boolean>,
     onSelectDateFilter: (DateFilter) -> Unit,
     modifier: Modifier = Modifier,
@@ -58,17 +57,6 @@ fun DateFolderTreeView(
             }
     }
 
-    // Группировка: Year -> Month -> Day -> List<Media>
-    val yearGroups = remember(images) {
-        images.groupBy { it.date.year }
-            .mapValues { (_, yearImages) ->
-                yearImages.groupBy { it.date.monthValue }
-                    .mapValues { (_, monthImages) ->
-                        monthImages.groupBy { it.date.dayOfMonth }
-                    }
-            }
-    }
-
     Surface(
         modifier = modifier.fillMaxSize(),
         color = MaterialTheme.colorScheme.background
@@ -86,7 +74,7 @@ fun DateFolderTreeView(
                 yearGroups.forEach { (year, monthGroups) ->
                     val yearKey = "Y_$year"
                     val isYearExpanded = expandedNodes[yearKey] ?: false
-                    val yearTotalCount = monthGroups.values.flatMap { it.values }.sumOf { it.size }
+                    val yearTotalCount = monthGroups.values.flatMap { it.values }.sum()
 
                     item(key = yearKey) {
                         FolderTreeItem(
@@ -94,6 +82,7 @@ fun DateFolderTreeView(
                             itemCount = yearTotalCount,
                             level = 0,
                             isExpanded = isYearExpanded,
+                            isSelected = DateFilter(year) == selectedDate,
                             onToggleExpand = { expandedNodes[yearKey] = !isYearExpanded },
                             onClick = { onSelectDateFilter(DateFilter(year = year)) }
                         )
@@ -103,7 +92,7 @@ fun DateFolderTreeView(
                         monthGroups.forEach { (month, dayGroups) ->
                             val monthKey = "M_${year}_$month"
                             val isMonthExpanded = expandedNodes[monthKey] ?: false
-                            val monthTotalCount = dayGroups.values.sumOf { it.size }
+                            val monthTotalCount = dayGroups.values.sum()
                             val monthName = monthNames.getOrNull(month - 1) ?: "$month"
 
                             item(key = monthKey) {
@@ -112,21 +101,23 @@ fun DateFolderTreeView(
                                     itemCount = monthTotalCount,
                                     level = 1,
                                     isExpanded = isMonthExpanded,
+                                    isSelected = DateFilter(year, month) == selectedDate,
                                     onToggleExpand = { expandedNodes[monthKey] = !isMonthExpanded },
                                     onClick = { onSelectDateFilter(DateFilter(year = year, month = month)) }
                                 )
                             }
 
                             if (isMonthExpanded) {
-                                dayGroups.forEach { (day, dayImages) ->
+                                dayGroups.forEach { (day, count) ->
                                     val dayKey = "D_${year}_${month}_$day"
 
                                     item(key = dayKey) {
                                         FolderTreeItem(
                                             title = "$day число",
-                                            itemCount = dayImages.size,
+                                            itemCount = count,
                                             level = 2,
                                             isExpanded = false,
+                                            isSelected = DateFilter(year, month, day) == selectedDate,
                                             hasChildren = false,
                                             onToggleExpand = {},
                                             onClick = { onSelectDateFilter(DateFilter(year = year, month = month, day = day)) }
@@ -148,6 +139,7 @@ private fun FolderTreeItem(
     itemCount: Int,
     level: Int,
     isExpanded: Boolean,
+    isSelected: Boolean = false,
     hasChildren: Boolean = true,
     onToggleExpand: () -> Unit,
     onClick: () -> Unit
@@ -193,16 +185,16 @@ private fun FolderTreeItem(
             Spacer(modifier = Modifier.width(4.dp))
 
             Icon(
-                painter = painterResource(R.drawable.folder_yellow),
+                painter = painterResource(if (isSelected) R.drawable.folder_check else R.drawable.folder),
                 contentDescription = null,
-                tint = Color.Unspecified,
+                tint = if (isSelected) MaterialTheme.colorScheme.primary else Golden,
                 modifier = Modifier.size(24.dp)
             )
 
             Spacer(modifier = Modifier.width(12.dp))
 
             Text(
-                text = title,
+                text = if (isSelected) "* $title" else title,
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.weight(1f)

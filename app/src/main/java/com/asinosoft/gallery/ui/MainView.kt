@@ -64,6 +64,7 @@ fun MainView(
 ) {
     val isFetching by model.isFetching.collectAsState(false)
     val filters by model.filters.collectAsState(listOf())
+    val dateFilter by model.activeDateFilter.collectAsState()
     val pagerState = rememberPagerState { 2 }
     val coroutineScope = rememberCoroutineScope()
     val selection by model.selection.collectAsState()
@@ -152,9 +153,11 @@ fun MainView(
                 )
 
                 if (isFolderExplorerOpen) {
-                    val images by model.images.collectAsState()
+                    val yearGroups by model.dateGroups.collectAsState(mapOf())
+                    val selectedDate by model.activeDateFilter.collectAsState()
                     DateFolderTreeView(
-                        images = images,
+                        yearGroups = yearGroups,
+                        selectedDate = selectedDate,
                         expandedNodes = model.expandedFolderNodes,
                         initialScrollIndex = model.treeListIndex,
                         initialScrollOffset = model.treeListOffset,
@@ -162,9 +165,7 @@ fun MainView(
                             model.treeListIndex = idx
                             model.treeListOffset = off
                         },
-                        onSelectDateFilter = { filter ->
-                            onDateClick(filter.year ?: 0, filter.month ?: 0, filter.day ?: 0)
-                        },
+                        onSelectDateFilter = model::setDateFilter,
                         contentPadding = contentPadding
                     )
                 } else {
@@ -209,10 +210,12 @@ fun MainView(
                     ) {
                         Icon(
                             painter = painterResource(
-                                if (isFolderExplorerOpen) R.drawable.arrow_back else R.drawable.folder_yellow
+                                if (isFolderExplorerOpen) R.drawable.arrow_back
+                                else if (dateFilter != null) R.drawable.calendar_month
+                                else R.drawable.calendar_today
                             ),
                             contentDescription = if (isFolderExplorerOpen) "Закрыть проводник" else "Папка",
-                            tint = if (isFolderExplorerOpen) MaterialTheme.colorScheme.onSurface else androidx.compose.ui.graphics.Color.Unspecified
+                            tint = MaterialTheme.colorScheme.onSurface
                         )
                     }
                 }
