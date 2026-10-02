@@ -12,21 +12,19 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.snapshots.SnapshotStateMap
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
 import com.asinosoft.gallery.R
 import com.asinosoft.gallery.model.DateFilter
 import com.asinosoft.gallery.ui.theme.Golden
@@ -35,93 +33,71 @@ private val monthNames = DateFormatSymbols().months
 
 @Composable
 fun DateFolderTreeView(
+    onClose: () -> Unit,
     yearGroups: Map<Int, Map<Int, Map<Int, Int>>>,
     selectedDate: DateFilter?,
     expandedNodes: SnapshotStateMap<String, Boolean>,
-    onSelectDateFilter: (DateFilter) -> Unit,
-    modifier: Modifier = Modifier,
-    initialScrollIndex: Int = 0,
-    initialScrollOffset: Int = 0,
-    onUpdateScrollPosition: (Int, Int) -> Unit = { _, _ -> },
-    contentPadding: PaddingValues = PaddingValues(0.dp)
+    onSelectDateFilter: (DateFilter) -> Unit
 ) {
-    val listState = rememberLazyListState(
-        initialFirstVisibleItemIndex = initialScrollIndex,
-        initialFirstVisibleItemScrollOffset = initialScrollOffset
-    )
+    Dialog(onDismissRequest = onClose) {
+        Surface{
+            Column {
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(top = 28.dp, bottom = 24.dp)
+                ) {
+                    yearGroups.forEach { (year, monthGroups) ->
+                        val yearKey = "Y_$year"
+                        val isYearExpanded = expandedNodes[yearKey] ?: false
+                        val yearTotalCount = monthGroups.values.flatMap { it.values }.sum()
 
-    LaunchedEffect(listState) {
-        snapshotFlow { listState.firstVisibleItemIndex to listState.firstVisibleItemScrollOffset }
-            .collect { (index, offset) ->
-                onUpdateScrollPosition(index, offset)
-            }
-    }
+                        item(key = yearKey) {
+                            FolderTreeItem(
+                                title = "$year год",
+                                itemCount = yearTotalCount,
+                                level = 0,
+                                isExpanded = isYearExpanded,
+                                isSelected = DateFilter(year) == selectedDate,
+                                onToggleExpand = { expandedNodes[yearKey] = !isYearExpanded },
+                                onClick = { onSelectDateFilter(DateFilter(year = year)) }
+                            )
+                        }
 
-    Surface(
-        modifier = modifier.fillMaxSize(),
-        color = MaterialTheme.colorScheme.background
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(contentPadding)
-        ) {
-            LazyColumn(
-                state = listState,
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(top = 28.dp, bottom = 24.dp)
-            ) {
-                yearGroups.forEach { (year, monthGroups) ->
-                    val yearKey = "Y_$year"
-                    val isYearExpanded = expandedNodes[yearKey] ?: false
-                    val yearTotalCount = monthGroups.values.flatMap { it.values }.sum()
+                        if (isYearExpanded) {
+                            monthGroups.forEach { (month, dayGroups) ->
+                                val monthKey = "M_${year}_$month"
+                                val isMonthExpanded = expandedNodes[monthKey] ?: false
+                                val monthTotalCount = dayGroups.values.sum()
+                                val monthName = monthNames.getOrNull(month - 1) ?: "$month"
 
-                    item(key = yearKey) {
-                        FolderTreeItem(
-                            title = "$year год",
-                            itemCount = yearTotalCount,
-                            level = 0,
-                            isExpanded = isYearExpanded,
-                            isSelected = DateFilter(year) == selectedDate,
-                            onToggleExpand = { expandedNodes[yearKey] = !isYearExpanded },
-                            onClick = { onSelectDateFilter(DateFilter(year = year)) }
-                        )
-                    }
+                                item(key = monthKey) {
+                                    FolderTreeItem(
+                                        title = monthName,
+                                        itemCount = monthTotalCount,
+                                        level = 1,
+                                        isExpanded = isMonthExpanded,
+                                        isSelected = DateFilter(year, month) == selectedDate,
+                                        onToggleExpand = { expandedNodes[monthKey] = !isMonthExpanded },
+                                        onClick = { onSelectDateFilter(DateFilter(year = year, month = month)) }
+                                    )
+                                }
 
-                    if (isYearExpanded) {
-                        monthGroups.forEach { (month, dayGroups) ->
-                            val monthKey = "M_${year}_$month"
-                            val isMonthExpanded = expandedNodes[monthKey] ?: false
-                            val monthTotalCount = dayGroups.values.sum()
-                            val monthName = monthNames.getOrNull(month - 1) ?: "$month"
+                                if (isMonthExpanded) {
+                                    dayGroups.forEach { (day, count) ->
+                                        val dayKey = "D_${year}_${month}_$day"
 
-                            item(key = monthKey) {
-                                FolderTreeItem(
-                                    title = monthName,
-                                    itemCount = monthTotalCount,
-                                    level = 1,
-                                    isExpanded = isMonthExpanded,
-                                    isSelected = DateFilter(year, month) == selectedDate,
-                                    onToggleExpand = { expandedNodes[monthKey] = !isMonthExpanded },
-                                    onClick = { onSelectDateFilter(DateFilter(year = year, month = month)) }
-                                )
-                            }
-
-                            if (isMonthExpanded) {
-                                dayGroups.forEach { (day, count) ->
-                                    val dayKey = "D_${year}_${month}_$day"
-
-                                    item(key = dayKey) {
-                                        FolderTreeItem(
-                                            title = "$day число",
-                                            itemCount = count,
-                                            level = 2,
-                                            isExpanded = false,
-                                            isSelected = DateFilter(year, month, day) == selectedDate,
-                                            hasChildren = false,
-                                            onToggleExpand = {},
-                                            onClick = { onSelectDateFilter(DateFilter(year = year, month = month, day = day)) }
-                                        )
+                                        item(key = dayKey) {
+                                            FolderTreeItem(
+                                                title = "$day число",
+                                                itemCount = count,
+                                                level = 2,
+                                                isExpanded = false,
+                                                isSelected = DateFilter(year, month, day) == selectedDate,
+                                                hasChildren = false,
+                                                onToggleExpand = {},
+                                                onClick = { onSelectDateFilter(DateFilter(year = year, month = month, day = day)) }
+                                            )
+                                        }
                                     }
                                 }
                             }

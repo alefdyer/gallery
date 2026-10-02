@@ -18,7 +18,6 @@ import com.asinosoft.gallery.data.storage.StorageDao
 import com.asinosoft.gallery.data.storage.StorageService
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -32,7 +31,18 @@ data class DateFilter(
     val year: Int? = null,
     val month: Int? = null,
     val day: Int? = null
-)
+) {
+    override fun toString(): String = "$year-$month-$day"
+}
+
+fun String?.toDateFilter() = this?.split("-")?.let {
+
+    DateFilter(
+        it.getOrNull(0)?.toIntOrNull(),
+        it.getOrNull(1)?.toIntOrNull(),
+        it.getOrNull(2)?.toIntOrNull()
+    )
+}
 
 @HiltViewModel
 class ImageListViewModel @Inject constructor(
@@ -74,33 +84,28 @@ class ImageListViewModel @Inject constructor(
     val activeFilterPackages: StateFlow<Set<String>> = activeFilters
 
     val activeDateFilter = MutableStateFlow<DateFilter?>(null)
-    val isFolderExplorerOpen = MutableStateFlow(false)
     val expandedFolderNodes = androidx.compose.runtime.mutableStateMapOf<String, Boolean>()
-    var treeListIndex = 0
-    var treeListOffset = 0
-
-    @OptIn(ExperimentalCoroutinesApi::class)
     private var allFilters = MutableStateFlow<List<Filter>>(listOf())
 
-    val images: StateFlow<List<Media>> = combine(allImages, activeFilters, activeDateFilter) { images, filters, dateFilter ->
-        images.filter { image ->
-            (filters.isEmpty() || filters.contains(image.owner)) &&
-            (dateFilter?.year == null || image.date.year == dateFilter.year) &&
-            (dateFilter?.month == null || image.date.monthValue == dateFilter.month) &&
-            (dateFilter?.day == null || image.date.dayOfMonth == dateFilter.day)
-        }
-    }.stateIn(
-        scope = viewModelScope,
-        started = SharingStarted.Eagerly,
-        initialValue = emptyList()
-    )
+    val images: StateFlow<List<Media>> =
+        combine(allImages, activeFilters, activeDateFilter) { images, filters, dateFilter ->
+            images.filter { image ->
+                (filters.isEmpty() || filters.contains(image.owner)) &&
+                        (dateFilter?.year == null || image.date.year == dateFilter.year) &&
+                        (dateFilter?.month == null || image.date.monthValue == dateFilter.month) &&
+                        (dateFilter?.day == null || image.date.dayOfMonth == dateFilter.day)
+            }
+        }.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.Eagerly,
+            initialValue = emptyList()
+        )
 
-    @OptIn(ExperimentalCoroutinesApi::class)
     val filters = combine(allFilters, activeDateFilter, allImages) { filters, dateFilter, images ->
         val apps = images.filter { image ->
             (dateFilter?.year == null || image.date.year == dateFilter.year) &&
-            (dateFilter?.month == null || image.date.monthValue == dateFilter.month) &&
-            (dateFilter?.day == null || image.date.dayOfMonth == dateFilter.day)
+                    (dateFilter?.month == null || image.date.monthValue == dateFilter.month) &&
+                    (dateFilter?.day == null || image.date.dayOfMonth == dateFilter.day)
         }.map { it.owner }.toSet()
         filters.filter { apps.contains(it.application.pkg) }
     }
@@ -132,7 +137,8 @@ class ImageListViewModel @Inject constructor(
                 if (ownersInOrder != lastOwners) {
                     lastOwners = ownersInOrder
                     kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                        val fetchedApps = applicationDao.getApplications(ownersInOrder.toSet()).associateBy { it.pkg }
+                        val fetchedApps = applicationDao.getApplications(ownersInOrder.toSet())
+                            .associateBy { it.pkg }
                         applications = ownersInOrder.mapNotNull { fetchedApps[it] }
                         allFilters.emit(
                             applications.map {
@@ -150,56 +156,10 @@ class ImageListViewModel @Inject constructor(
 
     fun setDateFilter(filter: DateFilter?) {
         activeDateFilter.value = filter
-        if (filter != null) {
-            isFolderExplorerOpen.value = false
-        }
-    }
-
-    fun getAdjacentDateFilter(direction: Int): DateFilter? {
-        val current = activeDateFilter.value ?: return null
-        val allImages = allImages.value
-        if (allImages.isEmpty()) return null
-
-        val periods: List<DateFilter> = when {
-            current.day != null -> {
-                allImages.map { DateFilter(it.date.year, it.date.monthValue, it.date.dayOfMonth) }
-                    .distinct()
-                    .sortedWith(compareByDescending<DateFilter> { it.year }.thenByDescending { it.month }.thenByDescending { it.day })
-            }
-            current.month != null -> {
-                allImages.map { DateFilter(it.date.year, it.date.monthValue, null) }
-                    .distinct()
-                    .sortedWith(compareByDescending<DateFilter> { it.year }.thenByDescending { it.month })
-            }
-            current.year != null -> {
-                allImages.map { DateFilter(it.date.year, null, null) }
-                    .distinct()
-                    .sortedByDescending { it.year }
-            }
-            else -> return null
-        }
-
-        val currentIndex = periods.indexOf(current)
-        if (currentIndex != -1) {
-            val nextIndex = currentIndex + direction
-            if (nextIndex in periods.indices) {
-                return periods[nextIndex]
-            }
-        }
-        return null
-    }
-
-    fun closeFolderExplorer() {
-        isFolderExplorerOpen.value = false
     }
 
     fun clearDateFilter() {
         activeDateFilter.value = null
-        isFolderExplorerOpen.value = false
-    }
-
-    fun toggleFolderExplorer() {
-        isFolderExplorerOpen.value = !isFolderExplorerOpen.value
     }
 
     fun toggleFilter(filter: Filter) = viewModelScope.launch {

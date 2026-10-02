@@ -12,21 +12,16 @@ import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
 import com.asinosoft.gallery.data.Album
 import com.asinosoft.gallery.data.Media
+import com.asinosoft.gallery.model.DateFilter
 
 @Composable
 fun Navigation(nav: NavHostController, modifier: Modifier = Modifier) {
-    val navigateToMedia = { media: Media, filters: Set<String> ->
-        nav.navigate("pager/${media.id}/${filters.joinToString(",")}")
+    val navigateToMedia = { media: Media, filters: Set<String>, date: DateFilter? ->
+        nav.navigate("pager/${media.id}/${filters.joinToString(",")}/$date")
     }
     val navigateToAlbum = { album: Album -> nav.navigate("album/${album.id}") }
-    val navigateToAlbumMedia = { albumId: Long, media: Media, filters: Set<String> ->
-        nav.navigate("album/$albumId/pager/${media.id}/${filters.joinToString(",")}")
-    }
-    val navigateToDate = { year: Int, month: Int, day: Int ->
-        nav.navigate("dateView/$year/$month/$day")
-    }
-    val navigateToDateMedia = { year: Int, month: Int, day: Int, media: Media, filters: Set<String> ->
-        nav.navigate("dateView/$year/$month/$day/pager/${media.id}/${filters.joinToString(",")}")
+    val navigateToAlbumMedia = { albumId: Long, media: Media, filters: Set<String>, date: DateFilter? ->
+        nav.navigate("album/$albumId/pager/${media.id}/${filters.joinToString(",")}/$date")
     }
     val navigateToSettings = { nav.navigate("settings") }
 
@@ -41,13 +36,12 @@ fun Navigation(nav: NavHostController, modifier: Modifier = Modifier) {
             MainView(
                 onMediaClick = navigateToMedia,
                 onAlbumClick = navigateToAlbum,
-                onDateClick = navigateToDate,
                 onSettingsClick = navigateToSettings,
             )
         }
 
         composable(
-            "pager/{imageId}/{filters}",
+            "pager/{imageId}/{filters}/{date}",
             arguments = listOf(
                 navArgument("imageId") { type = NavType.LongType },
                 navArgument("filters") { type = NavType.StringType; defaultValue = "" }
@@ -66,56 +60,25 @@ fun Navigation(nav: NavHostController, modifier: Modifier = Modifier) {
             val albumId = route.arguments?.getLong("albumId")!!
 
             AlbumView(
-                onMediaClick = { media, filters -> navigateToAlbumMedia(albumId, media, filters) },
-                onClose = nav::navigateUp
-            )
-        }
-
-        composable(
-            "album/{albumId}/pager/{imageId}/{filters}",
-            arguments = listOf(
-                navArgument("albumId") { type = NavType.LongType },
-                navArgument("imageId") { type = NavType.LongType },
-                navArgument("filters") { type = NavType.StringType; defaultValue = "" }
-            )
-        ) {
-            PagerView(
-                onAlbumClick = navigateToAlbum,
-                onClose = nav::navigateUp
-            )
-        }
-
-        composable(
-            "dateView/{year}/{month}/{day}",
-            arguments = listOf(
-                navArgument("year") { type = NavType.IntType },
-                navArgument("month") { type = NavType.IntType },
-                navArgument("day") { type = NavType.IntType }
-            )
-        ) { route ->
-            val year = route.arguments?.getInt("year") ?: 0
-            val month = route.arguments?.getInt("month") ?: 0
-            val day = route.arguments?.getInt("day") ?: 0
-
-            DateView(
-                year = year,
-                month = month,
-                day = day,
-                onMediaClick = { curYear, curMonth, curDay, media, filters ->
-                    navigateToDateMedia(curYear, curMonth, curDay, media, filters)
+                onMediaClick = { media, filters, date ->
+                    navigateToAlbumMedia(
+                        albumId,
+                        media,
+                        filters,
+                        date
+                    )
                 },
                 onClose = nav::navigateUp
             )
         }
 
         composable(
-            "dateView/{year}/{month}/{day}/pager/{imageId}/{filters}",
+            "album/{albumId}/pager/{imageId}/{filters}/{date}",
             arguments = listOf(
-                navArgument("year") { type = NavType.IntType },
-                navArgument("month") { type = NavType.IntType },
-                navArgument("day") { type = NavType.IntType },
+                navArgument("albumId") { type = NavType.LongType },
                 navArgument("imageId") { type = NavType.LongType },
-                navArgument("filters") { type = NavType.StringType; defaultValue = "" }
+                navArgument("filters") { type = NavType.StringType; defaultValue = "" },
+                navArgument("date") { type = NavType.StringType; nullable = true }
             )
         ) {
             PagerView(

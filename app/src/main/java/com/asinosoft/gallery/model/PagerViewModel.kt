@@ -11,14 +11,13 @@ import com.asinosoft.gallery.data.MediaService
 import com.asinosoft.gallery.data.launchAndCatch
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
-import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import javax.inject.Inject
 
 @HiltViewModel
 class PagerViewModel @Inject constructor(
@@ -35,13 +34,20 @@ class PagerViewModel @Inject constructor(
         ?.filter(String::isNotEmpty)
         ?.toSet()
         ?: emptySet()
+    private val activeDateFilter: DateFilter? = state.get<String?>("date")?.toDateFilter()
 
     val images: StateFlow<List<Media>> = (
             albumId?.let { albumDao.getMediaInAlbum(albumId) }
                 ?: mediaDao.getImages()
             )
-        .combine(flowOf(activeFilterPackages)) { images, filters ->
-            if (filters.isEmpty()) images else images.filter { filters.contains(it.owner) }
+        .map { images ->
+            images
+                .filter {
+                    (activeFilterPackages.isEmpty() || activeFilterPackages.contains(it.owner)) &&
+                            (activeDateFilter?.year == null || it.date.year == activeDateFilter.year) &&
+                            (activeDateFilter?.month == null || it.date.monthValue == activeDateFilter.month) &&
+                            (activeDateFilter?.day == null || it.date.dayOfMonth == activeDateFilter.day)
+                }
         }
         .stateIn(
             scope = viewModelScope,

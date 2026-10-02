@@ -32,6 +32,7 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.asinosoft.gallery.data.Media
+import com.asinosoft.gallery.model.DateFilter
 import com.asinosoft.gallery.model.ImageListViewModel
 import com.asinosoft.gallery.ui.component.AddToAlbumDialog
 import com.asinosoft.gallery.ui.component.DragSelectionState
@@ -45,7 +46,7 @@ import com.asinosoft.gallery.ui.component.dragSelection
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ImageListView(
-    onMediaClick: (Media, Set<String>) -> Unit,
+    onMediaClick: (Media, Set<String>, DateFilter?) -> Unit,
     onClose: () -> Unit,
     modifier: Modifier = Modifier,
     scrollBehavior: TopAppBarScrollBehavior? = null,
@@ -102,7 +103,7 @@ fun ImageListView(
                     media = media,
                     selectionMode = selection.isNotEmpty(),
                     selected = selection,
-                    onClick = { media -> onMediaClick(media, model.activeFilterPackages.value) },
+                    onClick = { media -> onMediaClick(media, model.activeFilterPackages.value, model.activeDateFilter.value) },
                     onSelect = { image ->
                         if (!dragSelectionState.active) {
                             model.toggleSelection(image)
