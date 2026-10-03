@@ -18,7 +18,6 @@ import com.asinosoft.gallery.data.storage.StorageDao
 import com.asinosoft.gallery.data.storage.StorageService
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -27,6 +26,23 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
+
+data class DateFilter(
+    val year: Int? = null,
+    val month: Int? = null,
+    val day: Int? = null
+) {
+    override fun toString(): String = "$year-$month-$day"
+}
+
+fun String?.toDateFilter() = this?.split("-")?.let {
+
+    DateFilter(
+        it.getOrNull(0)?.toIntOrNull(),
+        it.getOrNull(1)?.toIntOrNull(),
+        it.getOrNull(2)?.toIntOrNull()
+    )
+}
 
 @HiltViewModel
 class ImageListViewModel @Inject constructor(
@@ -53,7 +69,7 @@ class ImageListViewModel @Inject constructor(
 
     val isFetching = storageService.isFetching
 
-    val images: StateFlow<List<Media>> = (
+    private val allImages: StateFlow<List<Media>> = (
             albumId?.let { albumDao.getMediaInAlbum(albumId) }
                 ?: mediaDao.getImages()
             ).stateIn(
@@ -67,19 +83,43 @@ class ImageListViewModel @Inject constructor(
 
     val activeFilterPackages: StateFlow<Set<String>> = activeFilters
 
-    @OptIn(ExperimentalCoroutinesApi::class)
-    var filters = combine(activeFilters, applications) { activeFilters, applications ->
-        applications.map {
-            Filter(
-                it,
-                activeFilters.isEmpty() or activeFilters.contains(it.pkg)
-            )
-        }
+    val activeDateFilter = MutableStateFlow<DateFilter?>(null)
+    private var allFilters = MutableStateFlow<List<Filter>>(listOf())
+
+    val images: StateFlow<List<Media>> =
+        combine(allImages, activeFilters, activeDateFilter) { images, filters, dateFilter ->
+            images.filter { image ->
+                (filters.isEmpty() || filters.contains(image.owner)) &&
+                        (dateFilter?.year == null || image.date.year == dateFilter.year) &&
+                        (dateFilter?.month == null || image.date.monthValue == dateFilter.month) &&
+                        (dateFilter?.day == null || image.date.dayOfMonth == dateFilter.day)
+            }
+        }.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.Eagerly,
+            initialValue = emptyList()
+        )
+
+    val filters = combine(allFilters, activeDateFilter, allImages) { filters, dateFilter, images ->
+        val apps = images.filter { image ->
+            (dateFilter?.year == null || image.date.year == dateFilter.year) &&
+                    (dateFilter?.month == null || image.date.monthValue == dateFilter.month) &&
+                    (dateFilter?.day == null || image.date.dayOfMonth == dateFilter.day)
+        }.map { it.owner }.toSet()
+        filters.filter { apps.contains(it.application.pkg) }
     }
 
-    val filteredImages = images.combine(activeFilters) { images, filters ->
-        if (filters.isEmpty()) images
-        else images.filter { filters.contains(it.owner) }
+    // Группировка: Year -> Month -> Day -> List<Int>
+    val dateGroups = combine(activeFilters, allImages) { filters, images ->
+        images
+            .filter { filters.isEmpty() || filters.contains(it.owner) }
+            .groupBy { it.date.year }
+            .mapValues { (_, yearImages) ->
+                yearImages.groupBy { it.date.monthValue }
+                    .mapValues { (_, monthImages) ->
+                        monthImages.groupBy { it.date.dayOfMonth }.mapValues { it.value.size }
+                    }
+            }
     }
 
     init {
@@ -90,13 +130,23 @@ class ImageListViewModel @Inject constructor(
             }
 
 
-            var lastOwners: Set<String>? = null
-            images.collect { images ->
-                val owners = images.mapNotNull { it.owner }.toSet()
-                if (owners != lastOwners) {
-                    lastOwners = owners
+            var lastOwners: List<String>? = null
+            allImages.collect { images ->
+                val ownersInOrder = images.mapNotNull { it.owner }.distinct()
+                if (ownersInOrder != lastOwners) {
+                    lastOwners = ownersInOrder
                     kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                        applications.emit(applicationDao.getApplications(owners).sortedBy { it.name })
+                        val fetchedApps = applicationDao.getApplications(ownersInOrder.toSet())
+                            .associateBy { it.pkg }
+                        applications.value = ownersInOrder.mapNotNull { fetchedApps[it] }
+                        allFilters.emit(
+                            applications.value.map {
+                                Filter(
+                                    it,
+                                    activeFilters.value.isEmpty() or activeFilters.value.contains(it.pkg)
+                                )
+                            }
+                        )
                     }
                 }
             }
@@ -107,6 +157,15 @@ class ImageListViewModel @Inject constructor(
         activeFilters.emit(setOf())
     }
 
+
+    fun setDateFilter(filter: DateFilter?) {
+        activeDateFilter.value = filter
+    }
+
+    fun clearDateFilter() {
+        activeDateFilter.value = null
+    }
+
     fun toggleFilter(filter: Filter) = viewModelScope.launch {
         val newFilters = activeFilters.value.toMutableSet()
         if (activeFilters.value.contains(filter.application.pkg)) {
@@ -115,6 +174,14 @@ class ImageListViewModel @Inject constructor(
             newFilters.add(filter.application.pkg)
         }
         activeFilters.emit(newFilters)
+        allFilters.emit(
+            applications.value.map {
+                Filter(
+                    it,
+                    activeFilters.value.isEmpty() or newFilters.contains(it.pkg)
+                )
+            }
+        )
     }
 
     fun fetch() = viewModelScope.launchAndCatch {

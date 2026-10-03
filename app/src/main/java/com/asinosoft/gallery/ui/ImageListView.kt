@@ -6,6 +6,7 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animate
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
@@ -41,6 +42,7 @@ import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.asinosoft.gallery.data.Media
+import com.asinosoft.gallery.model.DateFilter
 import com.asinosoft.gallery.model.ImageListViewModel
 import com.asinosoft.gallery.ui.component.AddToAlbumDialog
 import com.asinosoft.gallery.ui.component.DragSelectionState
@@ -58,14 +60,14 @@ import kotlin.time.Duration.Companion.milliseconds
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ImageListView(
-    onMediaClick: (Media, Set<String>) -> Unit,
+    onMediaClick: (Media, Set<String>, DateFilter?) -> Unit,
     onClose: () -> Unit,
     modifier: Modifier = Modifier,
     scrollBehavior: TopAppBarScrollBehavior? = null,
     contentPadding: PaddingValues = PaddingValues(0.dp),
     model: ImageListViewModel = hiltViewModel()
 ) {
-    val images by model.filteredImages.collectAsState(listOf())
+    val images by model.images.collectAsState(listOf())
     val filters by model.filters.collectAsState(listOf())
     val selection by model.selection.collectAsState()
 
@@ -148,6 +150,8 @@ fun ImageListView(
         LazyVerticalGrid(
             state = lazyGridState,
             columns = GridCells.Fixed(3),
+            horizontalArrangement = Arrangement.spacedBy(2.dp),
+            verticalArrangement = Arrangement.spacedBy(2.dp),
             contentPadding = contentPadding,
             modifier = Modifier
                 .nestedScroll(nestedScrollConnection)
@@ -168,7 +172,7 @@ fun ImageListView(
                     media = media,
                     selectionMode = selection.isNotEmpty(),
                     selected = selection,
-                    onClick = { media -> onMediaClick(media, model.activeFilterPackages.value) },
+                    onClick = { media -> onMediaClick(media, model.activeFilterPackages.value, model.activeDateFilter.value) },
                     onSelect = { image ->
                         if (!dragSelectionState.active) {
                             model.toggleSelection(image)
@@ -222,8 +226,7 @@ fun ImageListView(
 
         val density = LocalDensity.current.density
         FilterBar(
-            filters = filters,
-            onToggleFilter = model::toggleFilter,
+            visible = selection.isEmpty(),
             modifier = Modifier
                 .align(Alignment.TopEnd)
                 .padding(top = 8.dp, end = 8.dp)

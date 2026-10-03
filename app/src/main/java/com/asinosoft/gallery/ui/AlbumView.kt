@@ -30,12 +30,13 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.asinosoft.gallery.R
 import com.asinosoft.gallery.data.Media
+import com.asinosoft.gallery.model.DateFilter
 import com.asinosoft.gallery.model.ImageListViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AlbumView(
-    onMediaClick: (Media, Set<String>) -> Unit,
+    onMediaClick: (Media, Set<String>, DateFilter?) -> Unit,
     onClose: () -> Unit,
     modifier: Modifier = Modifier,
     model: ImageListViewModel = hiltViewModel()
@@ -64,8 +65,11 @@ fun AlbumView(
             AnimatedVisibility(
                 visible = true,
                 modifier = Modifier
-                    .align(Alignment.TopCenter)
-                    .padding(top = topBarPadding + paddingValues.calculateTopPadding())
+                    .align(Alignment.TopStart)
+                    .padding(
+                        top = topBarPadding + paddingValues.calculateTopPadding(),
+                        start = 12.dp
+                    )
                     .onGloballyPositioned {
                         topScroll.state.heightOffsetLimit =
                             -it.size.height.toFloat() - with(density) { (topBarPadding + paddingValues.calculateTopPadding()).toPx() }

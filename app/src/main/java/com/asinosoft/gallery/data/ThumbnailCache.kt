@@ -3,6 +3,7 @@ package com.asinosoft.gallery.data
 import android.content.Context
 import android.graphics.Bitmap
 import android.net.Uri
+import android.os.Build
 import coil3.Image
 import coil3.SingletonImageLoader
 import coil3.request.ImageRequest
@@ -11,10 +12,14 @@ import coil3.size.Size
 import coil3.toBitmap
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileOutputStream
@@ -32,9 +37,16 @@ object ThumbnailCache {
     private val _progress = MutableStateFlow(PreloadProgress())
     val progress: StateFlow<PreloadProgress> = _progress.asStateFlow()
 
+    private fun getDir(context: Context): File {
+        return File(context.cacheDir, "thumbnails").apply { if (!exists()) mkdirs() }
+    }
+
     fun getFile(context: Context, mediaId: Long): File {
-        val dir = File(context.cacheDir, "thumbnails").apply { if (!exists()) mkdirs() }
-        return File(dir, "thumb_$mediaId.jpg")
+        return File(getDir(context), "thumb_$mediaId.jpg")
+    }
+
+    private fun getExistingFiles(context: Context): Set<String> {
+        return getDir(context).list()?.toSet() ?: emptySet()
     }
 
     suspend fun save(context: Context, mediaId: Long, image: Image) = withContext(Dispatchers.IO) {
@@ -42,31 +54,47 @@ object ThumbnailCache {
             val file = getFile(context, mediaId)
             if (!file.exists()) {
                 val bitmap = image.toBitmap()
-                FileOutputStream(file).use { out ->
-                    bitmap.compress(Bitmap.CompressFormat.JPEG, 85, out)
-                }
+                saveBitmap(file, bitmap)
             }
         } catch (_: Throwable) {
         }
     }
 
-    suspend fun preload(context: Context, mediaId: Long, uri: Uri?) = withContext(Dispatchers.IO) {
+    private fun saveBitmap(file: File, bitmap: Bitmap) {
+        try {
+            FileOutputStream(file).use { out ->
+                bitmap.compress(Bitmap.CompressFormat.JPEG, 75, out)
+            }
+        } catch (_: Throwable) {
+        }
+    }
+
+    suspend fun preload(context: Context, mediaId: Long, uri: Uri?, existingFiles: Set<String>? = null) = withContext(Dispatchers.IO) {
         if (uri == null) return@withContext
+        val fileName = "thumb_$mediaId.jpg"
+        if (existingFiles?.contains(fileName) == true) return@withContext
+
         val file = getFile(context, mediaId)
         if (file.exists() && file.length() > 0) return@withContext
 
         try {
-            val imageLoader = SingletonImageLoader.get(context)
-            val request = ImageRequest.Builder(context)
-                .data(uri)
-                .size(getThumbnailSize(context))
-                .memoryCacheKey("media-$mediaId")
-                .diskCacheKey("media-$mediaId")
-                .allowHardware(false)
-                .build()
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && uri.scheme == "content") {
+                val size = android.util.Size(300, 300)
+                val bitmap = context.contentResolver.loadThumbnail(uri, size, null)
+                saveBitmap(file, bitmap)
+            } else {
+                val imageLoader = SingletonImageLoader.get(context)
+                val request = ImageRequest.Builder(context)
+                    .data(uri)
+                    .size(getThumbnailSize(context))
+                    .memoryCacheKey("media-$mediaId")
+                    .diskCacheKey("media-$mediaId")
+                    .allowHardware(false)
+                    .build()
 
-            val result = imageLoader.execute(request)
-            result.image?.let { save(context, mediaId, it) }
+                val result = imageLoader.execute(request)
+                result.image?.let { save(context, mediaId, it) }
+            }
         } catch (_: Throwable) {
         }
     }
@@ -74,6 +102,8 @@ object ThumbnailCache {
     suspend fun preloadBatch(context: Context, items: List<Pair<Long, Uri?>>) =
         withContext(Dispatchers.IO) {
             if (items.isEmpty()) return@withContext
+
+            val existingFiles = getExistingFiles(context)
 
             _progress.update { curr ->
                 PreloadProgress(
@@ -83,33 +113,26 @@ object ThumbnailCache {
                 )
             }
 
-            var processed = 0
-            try {
+            val semaphore = Semaphore(20)
+            coroutineScope {
                 items.forEach { (mediaId, uri) ->
-                    preload(context, mediaId, uri)
-                    processed++
-                    _progress.update { curr ->
-                        val updatedCurrent = curr.current + 1
-                        val isDone = updatedCurrent >= curr.total
-                        PreloadProgress(
-                            isPreloading = !isDone,
-                            current = updatedCurrent,
-                            total = curr.total
-                        )
-                    }
-                }
-            } finally {
-                withContext(NonCancellable) {
-                    val remaining = items.size - processed
-                    if (remaining > 0) {
-                        _progress.update { curr ->
-                            val updatedCurrent = curr.current + remaining
-                            val isDone = updatedCurrent >= curr.total
-                            PreloadProgress(
-                                isPreloading = !isDone,
-                                current = updatedCurrent,
-                                total = curr.total
-                            )
+                    launch {
+                        semaphore.withPermit {
+                            try {
+                                preload(context, mediaId, uri, existingFiles)
+                            } finally {
+                                withContext(NonCancellable) {
+                                    _progress.update { curr ->
+                                        val updatedCurrent = curr.current + 1
+                                        val isDone = updatedCurrent >= curr.total
+                                        PreloadProgress(
+                                            isPreloading = !isDone,
+                                            current = updatedCurrent,
+                                            total = curr.total
+                                        )
+                                    }
+                                }
+                            }
                         }
                     }
                 }

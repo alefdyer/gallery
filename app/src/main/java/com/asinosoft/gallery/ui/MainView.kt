@@ -15,8 +15,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableFloatStateOf
-import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -33,6 +34,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.asinosoft.gallery.data.Album
 import com.asinosoft.gallery.data.Media
+import com.asinosoft.gallery.model.DateFilter
 import com.asinosoft.gallery.model.ImageListViewModel
 import com.asinosoft.gallery.ui.component.CachingProgressIndicator
 import com.asinosoft.gallery.ui.component.ViewModeBar
@@ -43,7 +45,7 @@ import kotlin.time.Duration.Companion.milliseconds
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MainView(
-    onMediaClick: (Media, Set<String>) -> Unit,
+    onMediaClick: (Media, Set<String>, DateFilter?) -> Unit,
     onAlbumClick: (Album) -> Unit,
     onSettingsClick: () -> Unit,
     modifier: Modifier = Modifier,
@@ -56,7 +58,7 @@ fun MainView(
 
     var navbarHeight by remember { mutableFloatStateOf(0f) }
     var navbarOffset by remember { mutableFloatStateOf(0f) }
-    var lastScrollTime by remember { mutableStateOf(0L) }
+    var lastScrollTime by remember { mutableLongStateOf(0L) }
 
     LaunchedEffect(lastScrollTime) {
         if (lastScrollTime == 0L) return@LaunchedEffect
@@ -112,20 +114,23 @@ fun MainView(
                     top = 36.dp + paddingValues.calculateTopPadding(),
                     bottom = paddingValues.calculateBottomPadding()
                 )
-                HorizontalPager(state = pagerState) {
-                    when (it) {
-                        0 -> ImageListView(
-                            onMediaClick = onMediaClick,
-                            onClose = {},
-                            scrollBehavior = null,
-                            contentPadding = contentPadding
-                        )
 
-                        1 -> AlbumListView(
-                            onAlbumClick = onAlbumClick,
-                            nestedScroll = syncPanelsScrollConnection,
-                            contentPadding = contentPadding
-                        )
+                HorizontalPager(state = pagerState) { page ->
+                    key(page) {
+                        when (page) {
+                            0 -> ImageListView(
+                                onMediaClick = onMediaClick,
+                                onClose = {},
+                                scrollBehavior = null,
+                                contentPadding = contentPadding
+                            )
+
+                            1 -> AlbumListView(
+                                onAlbumClick = onAlbumClick,
+                                nestedScroll = syncPanelsScrollConnection,
+                                contentPadding = contentPadding
+                            )
+                        }
                     }
                 }
             }

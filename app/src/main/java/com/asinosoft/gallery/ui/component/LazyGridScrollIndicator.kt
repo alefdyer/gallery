@@ -1,7 +1,10 @@
 package com.asinosoft.gallery.ui.component
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.MutatePriority
 import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.draggable
 import androidx.compose.foundation.gestures.rememberDraggableState
@@ -30,29 +33,16 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.asinosoft.gallery.R
 import com.asinosoft.gallery.data.Media
-import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
-import kotlin.math.abs
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.time.Duration.Companion.milliseconds
-
-private fun getIndicatorDate(
-    listItems: List<Media>,
-    lazyGridState: LazyGridState,
-    scrollOffset: Int
-): LocalDate? {
-    val nearestItem = lazyGridState.layoutInfo.visibleItemsInfo
-        .minByOrNull { abs(it.offset.y - scrollOffset) }
-
-    val index = nearestItem?.index ?: lazyGridState.firstVisibleItemIndex
-    return listItems.getOrNull(index)?.date
-}
 
 private val shortDateFormatter: DateTimeFormatter =
     DateTimeFormatter.ofLocalizedDate(FormatStyle.SHORT)
@@ -79,7 +69,8 @@ fun LazyGridVerticalScrollIndicator(
         scrollOffset == Int.MAX_VALUE ||
         contentSize == Int.MAX_VALUE ||
         viewportSize == Int.MAX_VALUE ||
-        contentSize <= viewportSize
+        contentSize <= viewportSize ||
+        listItems.isEmpty()
     ) {
         return
     }
@@ -90,7 +81,7 @@ fun LazyGridVerticalScrollIndicator(
     var showLabel by remember { mutableStateOf(false) }
     var hideJob by remember { mutableStateOf<Job?>(null) }
     var isDragged by remember { mutableStateOf(false) }
-    var dragOffset by remember { mutableFloatStateOf(0f) }
+    var dragOffsetPx by remember { mutableFloatStateOf(0f) }
 
     LaunchedEffect(lazyGridState.isScrollInProgress, isDragged) {
         if (lazyGridState.isScrollInProgress || isDragged) {
@@ -99,45 +90,51 @@ fun LazyGridVerticalScrollIndicator(
             hideJob = null
         } else {
             hideJob = scope.launch {
-                delay(1000.milliseconds)
+                delay(1200.milliseconds)
                 showThumb = false
                 showLabel = false
             }
         }
     }
 
-    if (showThumb) {
-        BoxWithConstraints(modifier = modifier.fillMaxHeight()) {
-            val thumbSize = 32.dp
-            val thumbTravel = maxHeight - thumbSize
-            val thumbOffset = thumbTravel * scrollOffset / contentSize
+    val animatedThumbSize by animateDpAsState(
+        targetValue = if (isDragged) 44.dp else 36.dp,
+        label = "thumbSize"
+    )
+
+    AnimatedVisibility(
+        visible = showThumb,
+        enter = fadeIn(),
+        exit = fadeOut(),
+        modifier = modifier
+    ) {
+        BoxWithConstraints(modifier = Modifier.fillMaxHeight()) {
+            val thumbTravelPx = (constraints.maxHeight.toFloat() - with(density) { animatedThumbSize.toPx() }).coerceAtLeast(1f)
+            val thumbOffset = (maxHeight - animatedThumbSize) * scrollOffset / contentSize
 
             val draggableState = rememberDraggableState { dragAmount ->
-                dragOffset += dragAmount
-                val offset =
-                    dragOffset * contentSize / constraints.maxHeight -
-                        (with(density) { thumbSize.toPx() })
+                dragOffsetPx = (dragOffsetPx + dragAmount).coerceIn(0f, thumbTravelPx)
+                val fraction = dragOffsetPx / thumbTravelPx
+                val targetIndex = (fraction * (listItems.size - 1)).toInt().coerceIn(0, listItems.size - 1)
+
                 scope.launch {
-                    lazyGridState.scroll(MutatePriority.UserInput) {
-                        scrollBy(offset - scrollOffset)
-                    }
+                    lazyGridState.scrollToItem(targetIndex)
                 }
             }
 
             Surface(
                 shape = CircleShape,
-                shadowElevation = 16.dp,
-                color = MaterialTheme.colorScheme.surface,
-                border = BorderStroke(2.dp, MaterialTheme.colorScheme.surfaceContainer),
+                shadowElevation = 8.dp,
+                color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.95f),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
                 modifier = Modifier
                     .align(Alignment.TopEnd)
-                    .offset(x = 16.dp, y = thumbOffset)
+                    .offset(x = 12.dp, y = thumbOffset)
                     .draggable(
                         draggableState,
                         Orientation.Vertical,
                         onDragStarted = {
-                            dragOffset =
-                                scrollOffset.toFloat() * constraints.maxHeight / contentSize
+                            dragOffsetPx = (scrollOffset.toFloat() / contentSize * thumbTravelPx).coerceIn(0f, thumbTravelPx)
                             isDragged = true
                             showLabel = true
                         },
@@ -145,19 +142,20 @@ fun LazyGridVerticalScrollIndicator(
                     )
             ) {
                 Icon(
-                    painterResource(R.drawable.height),
+                    painter = painterResource(R.drawable.height),
                     contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
                     modifier = Modifier
                         .padding(8.dp)
-                        .size(thumbSize)
+                        .size(animatedThumbSize - 16.dp)
                 )
             }
 
             if (showLabel) {
-                val dateLabel by remember(listItems, lazyGridState, scrollOffset) {
+                val dateLabel by remember(listItems, lazyGridState) {
                     derivedStateOf {
-                        val indicatorOffset = scrollOffset + (maxHeight * scrollOffset / contentSize).value.toInt()
-                        getIndicatorDate(listItems, lazyGridState, indicatorOffset)?.format(shortDateFormatter)
+                        val index = lazyGridState.firstVisibleItemIndex.coerceIn(0, listItems.size - 1)
+                        listItems.getOrNull(index)?.date?.format(shortDateFormatter)
                     }
                 }
 
@@ -165,18 +163,19 @@ fun LazyGridVerticalScrollIndicator(
                     Surface(
                         modifier = Modifier
                             .align(Alignment.TopEnd)
-                            .padding(top = 8.dp, end = 64.dp)
+                            .padding(top = 2.dp, end = 56.dp)
                             .offset(y = thumbOffset),
-                        border = BorderStroke(2.dp, MaterialTheme.colorScheme.surfaceContainer),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
                         shape = RoundedCornerShape(50),
-                        shadowElevation = 16.dp,
-                        color = MaterialTheme.colorScheme.surface
+                        shadowElevation = 8.dp,
+                        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.95f)
                     ) {
                         Text(
                             text = label,
-                            style = MaterialTheme.typography.labelLarge,
-                            color = MaterialTheme.colorScheme.onSurface,
-                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 4.dp)
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.Medium,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer,
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
                         )
                     }
                 }

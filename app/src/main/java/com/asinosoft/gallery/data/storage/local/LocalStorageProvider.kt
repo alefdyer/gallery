@@ -17,7 +17,7 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import java.time.ZoneId
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emitAll
-import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.flow
 
 class LocalStorageProvider(
@@ -31,14 +31,26 @@ class LocalStorageProvider(
 
     override suspend fun checkConnection() = StorageCheckResult.Success
 
-    override suspend fun fetchOne(uri: Uri): Media? =
-        if (uri.toString().startsWith(Images.Media.EXTERNAL_CONTENT_URI.toString())) {
-            fetchImages("${Images.Media._ID} = ${uri.lastPathSegment}").first()
-        } else if (uri.toString().startsWith(Videos.Media.EXTERNAL_CONTENT_URI.toString())) {
-            fetchVideos("${Videos.Media._ID} = ${uri.lastPathSegment}").first()
+    override suspend fun fetchOne(uri: Uri): Media? {
+        val id = uri.lastPathSegment?.toLongOrNull()
+        return if (id != null) {
+            if (uri.toString().startsWith(Images.Media.EXTERNAL_CONTENT_URI.toString())) {
+                fetchImages("${Images.Media._ID} = $id").firstOrNull()
+            } else if (uri.toString().startsWith(Videos.Media.EXTERNAL_CONTENT_URI.toString())) {
+                fetchVideos("${Videos.Media._ID} = $id").firstOrNull()
+            } else {
+                null
+            }
         } else {
-            null
+            if (uri.toString().startsWith(Images.Media.EXTERNAL_CONTENT_URI.toString())) {
+                fetchImages("").firstOrNull()
+            } else if (uri.toString().startsWith(Videos.Media.EXTERNAL_CONTENT_URI.toString())) {
+                fetchVideos("").firstOrNull()
+            } else {
+                null
+            }
         }
+    }
 
     override suspend fun getMediaUri(media: Media): Uri = ContentUris.withAppendedId(
         if (media.image !=
