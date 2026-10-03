@@ -58,14 +58,17 @@ fun FilterBar(
 
     if (showDateFilterDialog) {
         val yearGroups by model.dateGroups.collectAsState(mapOf())
-        DateFolderTreeView(
+        DateFilterDialog(
             onClose = { showDateFilterDialog = false },
             yearGroups = yearGroups,
             selectedDate = dateFilter,
-            expandedNodes = model.expandedFolderNodes,
             onSelectDateFilter = { date ->
                 showDateFilterDialog = false
                 model.setDateFilter(date)
+            },
+            onClearDateFilter = {
+                showDateFilterDialog = false
+                model.clearDateFilter()
             }
         )
     }

@@ -3,7 +3,6 @@ package com.asinosoft.gallery.ui.component
 import android.icu.text.DateFormatSymbols
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -12,43 +11,97 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.snapshots.SnapshotStateMap
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateSetOf
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import com.asinosoft.gallery.R
 import com.asinosoft.gallery.model.DateFilter
 import com.asinosoft.gallery.ui.theme.Golden
 
-private val monthNames = DateFormatSymbols().months
+private val monthNames = DateFormatSymbols().getMonths(
+    DateFormatSymbols.STANDALONE,
+    DateFormatSymbols.WIDE
+)
+
+private val formatMonthNames = DateFormatSymbols().getMonths(
+    DateFormatSymbols.FORMAT,
+    DateFormatSymbols.WIDE
+)
 
 @Composable
-fun DateFolderTreeView(
+fun DateFilterDialog(
     onClose: () -> Unit,
     yearGroups: Map<Int, Map<Int, Map<Int, Int>>>,
     selectedDate: DateFilter?,
-    expandedNodes: SnapshotStateMap<String, Boolean>,
-    onSelectDateFilter: (DateFilter) -> Unit
+    onSelectDateFilter: (DateFilter) -> Unit,
+    onClearDateFilter: () -> Unit
 ) {
+    val expandedNodes = remember { mutableStateSetOf<String>() }
+    val listState = rememberLazyListState()
+
+    LaunchedEffect(selectedDate, yearGroups) {
+        if (selectedDate == null || yearGroups.isEmpty()) return@LaunchedEffect
+
+        selectedDate.month?.let { expandedNodes.add("Y_${selectedDate.year}") }
+        selectedDate.day?.let { expandedNodes.add("M_${selectedDate.year}_${selectedDate.month}") }
+
+        var selectedIndex = 0
+        selectedDate.year?.let { year ->
+            selectedIndex += yearGroups.count { it.key >= year }
+            selectedDate.month?.let { month ->
+                yearGroups.get(year)?.let { monthGroups ->
+                    selectedIndex += monthGroups.count { it.key >= month }
+
+                    selectedDate.day?.let { day ->
+                        monthGroups.get(month)?.let { dayGroups ->
+                            selectedIndex += dayGroups.count { it.key >= day }
+                        }
+                    }
+                }
+            }
+        }
+
+        listState.scrollToItem(selectedIndex)
+    }
+
     Dialog(onDismissRequest = onClose) {
-        Surface{
+        Surface {
             Column {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(onClose) {
+                        Icon(painterResource(R.drawable.arrow_back), stringResource(R.string.back))
+                    }
+                    Spacer(Modifier.width(4.dp))
+                    Text(stringResource(R.string.date_filter), Modifier.weight(1f))
+                    Spacer(Modifier.width(4.dp))
+                    if (selectedDate != null) {
+                        IconButton(onClearDateFilter) {
+                            Icon(painterResource(R.drawable.close), stringResource(R.string.close))
+                        }
+                    }
+                }
+
                 LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(top = 28.dp, bottom = 24.dp)
+                    state = listState,
+                    modifier = Modifier.fillMaxSize()
                 ) {
                     yearGroups.forEach { (year, monthGroups) ->
                         val yearKey = "Y_$year"
-                        val isYearExpanded = expandedNodes[yearKey] ?: false
                         val yearTotalCount = monthGroups.values.flatMap { it.values }.sum()
 
                         item(key = yearKey) {
@@ -56,17 +109,21 @@ fun DateFolderTreeView(
                                 title = "$year год",
                                 itemCount = yearTotalCount,
                                 level = 0,
-                                isExpanded = isYearExpanded,
+                                isExpanded = year == selectedDate?.year,
                                 isSelected = DateFilter(year) == selectedDate,
-                                onToggleExpand = { expandedNodes[yearKey] = !isYearExpanded },
+                                onToggleExpand = {
+                                    if (expandedNodes.contains(yearKey))
+                                        expandedNodes.remove(yearKey)
+                                    else
+                                        expandedNodes.add(yearKey)
+                                },
                                 onClick = { onSelectDateFilter(DateFilter(year = year)) }
                             )
                         }
 
-                        if (isYearExpanded) {
+                        if (expandedNodes.contains(yearKey)) {
                             monthGroups.forEach { (month, dayGroups) ->
                                 val monthKey = "M_${year}_$month"
-                                val isMonthExpanded = expandedNodes[monthKey] ?: false
                                 val monthTotalCount = dayGroups.values.sum()
                                 val monthName = monthNames.getOrNull(month - 1) ?: "$month"
 
@@ -75,27 +132,45 @@ fun DateFolderTreeView(
                                         title = monthName,
                                         itemCount = monthTotalCount,
                                         level = 1,
-                                        isExpanded = isMonthExpanded,
+                                        isExpanded = expandedNodes.contains(monthKey),
                                         isSelected = DateFilter(year, month) == selectedDate,
-                                        onToggleExpand = { expandedNodes[monthKey] = !isMonthExpanded },
-                                        onClick = { onSelectDateFilter(DateFilter(year = year, month = month)) }
+                                        onToggleExpand = {
+                                            if (expandedNodes.contains(monthKey))
+                                                expandedNodes.remove(monthKey)
+                                            else
+                                                expandedNodes.add(monthKey)
+                                        },
+                                        onClick = {
+                                            onSelectDateFilter(
+                                                DateFilter(year, month)
+                                            )
+                                        }
                                     )
                                 }
 
-                                if (isMonthExpanded) {
+                                if (expandedNodes.contains(monthKey)) {
                                     dayGroups.forEach { (day, count) ->
                                         val dayKey = "D_${year}_${month}_$day"
+                                        val monthName = formatMonthNames.getOrNull(month - 1)
 
                                         item(key = dayKey) {
                                             FolderTreeItem(
-                                                title = "$day число",
+                                                title = "$day $monthName",
                                                 itemCount = count,
                                                 level = 2,
                                                 isExpanded = false,
-                                                isSelected = DateFilter(year, month, day) == selectedDate,
+                                                isSelected = DateFilter(
+                                                    year,
+                                                    month,
+                                                    day
+                                                ) == selectedDate,
                                                 hasChildren = false,
                                                 onToggleExpand = {},
-                                                onClick = { onSelectDateFilter(DateFilter(year = year, month = month, day = day)) }
+                                                onClick = {
+                                                    onSelectDateFilter(
+                                                        DateFilter(year, month, day)
+                                                    )
+                                                }
                                             )
                                         }
                                     }
@@ -170,7 +245,7 @@ private fun FolderTreeItem(
             Spacer(modifier = Modifier.width(12.dp))
 
             Text(
-                text = if (isSelected) "* $title" else title,
+                text = title,
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.weight(1f)

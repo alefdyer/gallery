@@ -52,4 +52,7 @@
     <string name="dropbox">Dropbox</string>
     <string name="yandex">Яндекс Диск</string>
     <string name="webdav">WebDAV</string>
+    <string name="reset">Сбросить</string>
+    <string name="date_filter">Фильтр по дате</string>
+    <string name="back">Назад</string>
 </resources>

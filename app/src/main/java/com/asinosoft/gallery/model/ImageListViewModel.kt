@@ -84,7 +84,6 @@ class ImageListViewModel @Inject constructor(
     val activeFilterPackages: StateFlow<Set<String>> = activeFilters
 
     val activeDateFilter = MutableStateFlow<DateFilter?>(null)
-    val expandedFolderNodes = androidx.compose.runtime.mutableStateMapOf<String, Boolean>()
     private var allFilters = MutableStateFlow<List<Filter>>(listOf())
 
     val images: StateFlow<List<Media>> =
