@@ -19,8 +19,7 @@ import com.asinosoft.gallery.ui.Navigation
 import com.asinosoft.gallery.ui.PermissionDisclaimer
 import com.asinosoft.gallery.ui.theme.GalleryTheme
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
-import com.google.accompanist.permissions.isGranted
-import com.google.accompanist.permissions.rememberPermissionState
+import com.google.accompanist.permissions.rememberMultiplePermissionsState
 import dagger.hilt.android.AndroidEntryPoint
 
 @AndroidEntryPoint
@@ -28,27 +27,31 @@ class MainActivity : ComponentActivity() {
     private val model: MainViewModel by viewModels()
     private val intentHelper = IntentHelper
 
+    private val mediaPermissions =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            listOf(Manifest.permission.READ_MEDIA_IMAGES, Manifest.permission.READ_MEDIA_VIDEO)
+        } else {
+            listOf(Manifest.permission.READ_EXTERNAL_STORAGE)
+        }
+
+    private fun hasMediaPermissions() = mediaPermissions.all {
+        PackageManager.PERMISSION_GRANTED == checkSelfPermission(it)
+    }
+
     @OptIn(ExperimentalPermissionsApi::class)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
         lifecycle.addObserver(intentHelper)
 
-        val permission =
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-                Manifest.permission.READ_MEDIA_IMAGES
-            } else {
-                Manifest.permission.READ_EXTERNAL_STORAGE
-            }
-
-        if (PackageManager.PERMISSION_GRANTED == checkSelfPermission(permission)) {
+        if (hasMediaPermissions()) {
             model.start()
         }
 
         setContent {
-            val storagePermission =
-                rememberPermissionState(permission) { granted ->
-                    if (granted) model.start()
+            val storagePermissions =
+                rememberMultiplePermissionsState(mediaPermissions) { result ->
+                    if (result.values.all { it }) model.start()
                 }
 
             val navController = rememberNavController()
@@ -60,14 +63,14 @@ class MainActivity : ComponentActivity() {
             }
 
             GalleryTheme {
-                when (storagePermission.status.isGranted) {
+                when (storagePermissions.allPermissionsGranted) {
                     true -> {
                         Navigation(navController)
                     }
 
                     else -> {
                         Box {
-                            PermissionDisclaimer(storagePermission)
+                            PermissionDisclaimer(storagePermissions)
                         }
                     }
                 }
@@ -79,14 +82,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
-        val permission =
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-                Manifest.permission.READ_MEDIA_IMAGES
-            } else {
-                Manifest.permission.READ_EXTERNAL_STORAGE
-            }
-
-        if (PackageManager.PERMISSION_GRANTED == checkSelfPermission(permission)) {
+        if (hasMediaPermissions()) {
             model.start()
         }
     }

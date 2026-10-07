@@ -18,20 +18,19 @@ import androidx.compose.ui.unit.dp
 import com.asinosoft.gallery.R
 import com.asinosoft.gallery.ui.theme.Typography
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
+import com.google.accompanist.permissions.MultiplePermissionsState
 import com.google.accompanist.permissions.PermissionState
-import com.google.accompanist.permissions.PermissionStatus
-import com.google.accompanist.permissions.shouldShowRationale
 
 @Composable
 @OptIn(ExperimentalPermissionsApi::class)
-fun PermissionDisclaimer(permission: PermissionState, modifier: Modifier = Modifier) {
+fun PermissionDisclaimer(permissions: MultiplePermissionsState, modifier: Modifier = Modifier) {
     Column(
         modifier = modifier.fillMaxSize(1f),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
         val text =
-            if (permission.status.shouldShowRationale) {
+            if (permissions.shouldShowRationale) {
                 R.string.permission_disclaimer
             } else {
                 R.string.permission_denied
@@ -46,7 +45,7 @@ fun PermissionDisclaimer(permission: PermissionState, modifier: Modifier = Modif
                     .padding(16.dp, 16.dp)
                     .width(200.dp)
         )
-        Button(onClick = { permission.launchPermissionRequest() }) {
+        Button(onClick = { permissions.launchMultiplePermissionRequest() }) {
             Text(text = stringResource(id = R.string.grant))
         }
     }
@@ -58,11 +57,13 @@ fun PermissionDisclaimer(permission: PermissionState, modifier: Modifier = Modif
 private fun Preview() {
     val state =
         remember {
-            object : PermissionState {
-                override val permission = ""
-                override val status = PermissionStatus.Denied(true)
+            object : MultiplePermissionsState {
+                override val permissions = emptyList<PermissionState>()
+                override val revokedPermissions = emptyList<PermissionState>()
+                override val allPermissionsGranted = false
+                override val shouldShowRationale = true
 
-                override fun launchPermissionRequest() {}
+                override fun launchMultiplePermissionRequest() {}
             }
         }
 

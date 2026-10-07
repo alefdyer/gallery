@@ -49,6 +49,12 @@ class LocalStorageObserver : JobService() {
                             JobInfo.TriggerContentUri.FLAG_NOTIFY_FOR_DESCENDANTS
                         )
                     )
+                    addTriggerContentUri(
+                        JobInfo.TriggerContentUri(
+                            MediaStore.Video.Media.EXTERNAL_CONTENT_URI,
+                            JobInfo.TriggerContentUri.FLAG_NOTIFY_FOR_DESCENDANTS
+                        )
+                    )
                     addTriggerContentUri(JobInfo.TriggerContentUri(MEDIA_URI, 0))
                 }
                     .setExtras(
