@@ -55,4 +55,5 @@
     <string name="reset">Сбросить</string>
     <string name="date_filter">Фильтр по дате</string>
     <string name="back">Назад</string>
+    <string name="all_photos">Все фото</string>
 </resources>

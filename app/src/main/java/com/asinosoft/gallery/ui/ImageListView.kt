@@ -7,11 +7,18 @@ import androidx.compose.animation.core.animate
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.calculateEndPadding
+import androidx.compose.foundation.layout.calculateStartPadding
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
@@ -32,21 +39,26 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import com.asinosoft.gallery.R
 import com.asinosoft.gallery.data.Media
 import com.asinosoft.gallery.model.DateFilter
 import com.asinosoft.gallery.model.ImageListViewModel
 import com.asinosoft.gallery.ui.component.AddToAlbumDialog
 import com.asinosoft.gallery.ui.component.DragSelectionState
 import com.asinosoft.gallery.ui.component.FilterBar
+import com.asinosoft.gallery.ui.component.ImageListHeader
 import com.asinosoft.gallery.ui.component.LazyGridVerticalScrollIndicator
 import com.asinosoft.gallery.ui.component.MediaThumbnail
 import com.asinosoft.gallery.ui.component.SelectionControlBar
@@ -80,6 +92,12 @@ fun ImageListView(
             images.getOrNull(lazyGridState.firstVisibleItemIndex)?.date?.let {
                 "${months[it.monthValue - 1]} ${it.year}"
             }
+        }
+    }
+
+    val headerVisible by remember(images, lazyGridState) {
+        derivedStateOf {
+            images.isNotEmpty() && lazyGridState.layoutInfo.visibleItemsInfo.firstOrNull()?.index == 0
         }
     }
 
@@ -146,13 +164,50 @@ fun ImageListView(
         }
     }
 
-    Box(modifier.fillMaxSize()) {
+    val album by model.album.collectAsState()
+    val title = album?.name ?: stringResource(R.string.all_photos)
+    val cover = images.firstOrNull()
+    val videoCount = remember(images) { images.count { null != it.video } }
+    val layoutDirection = LocalLayoutDirection.current
+
+    BoxWithConstraints(modifier.fillMaxSize()) {
+        val gap = 2.dp
+        val rowHeight = (maxWidth - gap * 2) / 3
+        val headerHeight = contentPadding.calculateTopPadding() + rowHeight
+        val gridPadding = if (null == cover) contentPadding else PaddingValues(
+            start = contentPadding.calculateStartPadding(layoutDirection),
+            top = headerHeight + gap,
+            end = contentPadding.calculateEndPadding(layoutDirection),
+            bottom = contentPadding.calculateBottomPadding()
+        )
+
+        cover?.let {
+            ImageListHeader(
+                cover = it,
+                title = title,
+                photoCount = images.size - videoCount,
+                videoCount = videoCount,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(headerHeight)
+                    .graphicsLayer {
+                        val info = lazyGridState.layoutInfo
+                        val first = info.visibleItemsInfo.firstOrNull()
+                        translationY = if (first?.index == 0) {
+                            (first.offset.y - info.viewportStartOffset) - size.height - gap.toPx()
+                        } else {
+                            -size.height - gap.toPx()
+                        }
+                    }
+            )
+        }
+
         LazyVerticalGrid(
             state = lazyGridState,
             columns = GridCells.Fixed(3),
             horizontalArrangement = Arrangement.spacedBy(2.dp),
             verticalArrangement = Arrangement.spacedBy(2.dp),
-            contentPadding = contentPadding,
+            contentPadding = gridPadding,
             modifier = Modifier
                 .nestedScroll(nestedScrollConnection)
                 .dragSelection(
@@ -161,7 +216,7 @@ fun ImageListView(
                     currentSelection = { selection },
                     dragSelectionState = dragSelectionState,
                     onSelectedChange = model::setSelection,
-                    contentPadding = contentPadding
+                    contentPadding = gridPadding
                 )
                 .let {
                     if (scrollBehavior == null) it else it.nestedScroll(scrollBehavior.nestedScrollConnection)
@@ -182,7 +237,7 @@ fun ImageListView(
             }
         }
 
-        date?.let { ShadowedHeader(it) }
+        if (!headerVisible) date?.let { ShadowedHeader(it) }
 
         LazyGridVerticalScrollIndicator(
             lazyGridState = lazyGridState,
@@ -195,6 +250,7 @@ fun ImageListView(
         AnimatedVisibility(
             modifier = Modifier
                 .align(Alignment.TopStart)
+                .statusBarsPadding()
                 .padding(8.dp)
                 .offset {
                     IntOffset(
@@ -224,14 +280,18 @@ fun ImageListView(
             )
         }
 
-        val density = LocalDensity.current.density
+        val density = LocalDensity.current
+        val statusBarHeight = WindowInsets.statusBars.getTop(density)
         FilterBar(
             visible = selection.isEmpty(),
             modifier = Modifier
                 .align(Alignment.TopEnd)
+                .statusBarsPadding()
                 .padding(top = 8.dp, end = 8.dp)
                 .offset { IntOffset(0, -filtersOffset.toInt()) }
-                .onGloballyPositioned { filtersHeight = it.size.height + 8 * density }
+                .onGloballyPositioned {
+                    filtersHeight = it.size.height + statusBarHeight + 8 * density.density
+                }
         )
 
         if (showTagDialog) {

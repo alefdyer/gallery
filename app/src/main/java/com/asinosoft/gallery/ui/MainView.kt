@@ -115,7 +115,7 @@ fun MainView(
                     bottom = paddingValues.calculateBottomPadding()
                 )
 
-                HorizontalPager(state = pagerState) { page ->
+                HorizontalPager(state = pagerState, userScrollEnabled = false) { page ->
                     key(page) {
                         when (page) {
                             0 -> ImageListView(
