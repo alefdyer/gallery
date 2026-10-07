@@ -36,6 +36,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -53,6 +54,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.asinosoft.gallery.R
 import com.asinosoft.gallery.data.Media
+import com.asinosoft.gallery.data.storage.StorageType
 import com.asinosoft.gallery.model.DateFilter
 import com.asinosoft.gallery.model.ImageListViewModel
 import com.asinosoft.gallery.ui.component.AddToAlbumDialog
@@ -98,6 +100,23 @@ fun ImageListView(
     val headerVisible by remember(images, lazyGridState) {
         derivedStateOf {
             images.isNotEmpty() && lazyGridState.layoutInfo.visibleItemsInfo.firstOrNull()?.index == 0
+        }
+    }
+
+    var previewIds by remember { mutableStateOf(emptySet<Long>()) }
+    LaunchedEffect(images, lazyGridState) {
+        snapshotFlow {
+            val visibleVideos = lazyGridState.layoutInfo.visibleItemsInfo
+                .mapNotNull { images.getOrNull(it.index) }
+                .filter { null != it.video && it.storageType == StorageType.LOCAL }
+                .map { it.id }
+            visibleVideos to lazyGridState.isScrollInProgress
+        }.collect { (visibleVideos, isScrolling) ->
+            previewIds = if (isScrolling) {
+                previewIds intersect visibleVideos.toSet()
+            } else {
+                visibleVideos.take(MAX_VIDEO_PREVIEWS).toSet()
+            }
         }
     }
 
@@ -227,6 +246,7 @@ fun ImageListView(
                     media = media,
                     selectionMode = selection.isNotEmpty(),
                     selected = selection,
+                    playPreview = media.id in previewIds,
                     onClick = { media -> onMediaClick(media, model.activeFilterPackages.value, model.activeDateFilter.value) },
                     onSelect = { image ->
                         if (!dragSelectionState.active) {
@@ -309,6 +329,8 @@ fun ImageListView(
         }
     }
 }
+
+private const val MAX_VIDEO_PREVIEWS = 4
 
 private val months = DateFormatSymbols
     .getInstance()
