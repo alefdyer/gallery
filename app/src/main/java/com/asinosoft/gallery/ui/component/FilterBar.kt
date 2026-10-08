@@ -59,6 +59,7 @@ import com.asinosoft.gallery.model.ImageListViewModel
 fun FilterBar(
     visible: Boolean,
     modifier: Modifier = Modifier,
+    onBack: (() -> Unit)? = null,
     onAppsLongPress: () -> Unit = {},
     onMeasuredHeight: (Float) -> Unit = {},
     model: ImageListViewModel = hiltViewModel()
@@ -114,6 +115,21 @@ fun FilterBar(
                 tonalElevation = 4.dp,
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (onBack != null) {
+                        Box(
+                            contentAlignment = Alignment.CenterEnd,
+                            modifier = Modifier
+                                .size(width = 40.dp, height = 48.dp)
+                                .clickable(onClick = onBack)
+                        ) {
+                            Icon(
+                                painter = painterResource(R.drawable.arrow_back),
+                                contentDescription = stringResource(R.string.back),
+                                tint = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                    }
+
                     if (dateFilter == null) {
                         IconButton(
                             onClick = { showDateFilterDialog = true },

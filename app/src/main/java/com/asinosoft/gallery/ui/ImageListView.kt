@@ -100,6 +100,7 @@ fun ImageListView(
     scrollBehavior: TopAppBarScrollBehavior? = null,
     contentPadding: PaddingValues = PaddingValues(0.dp),
     bottomPanelHeight: Dp = 0.dp,
+    onBack: (() -> Unit)? = null,
     model: ImageListViewModel = hiltViewModel()
 ) {
     val images by model.images.collectAsState(listOf())
@@ -211,8 +212,8 @@ fun ImageListView(
 
     val album by model.album.collectAsState()
     val dateFilter by model.activeDateFilter.collectAsState()
-    val title = album?.name
-        ?: dateFilter?.let { dateFilterTitle(it) }
+    val title = dateFilter?.let { dateFilterTitle(it) }
+        ?: album?.name
         ?: stringResource(R.string.all_photos)
     val cover = images.firstOrNull()
     val photoCount by model.photoCount.collectAsState()
@@ -314,7 +315,7 @@ fun ImageListView(
         previewDate?.let { target ->
             DatePreviewPage(
                 images = remember(target, images) { model.imagesForDate(target) },
-                title = album?.name ?: dateFilterTitle(target).orEmpty(),
+                title = dateFilterTitle(target) ?: album?.name.orEmpty(),
                 showPhotos = showPhotos,
                 showVideos = showVideos,
                 headerHeight = headerHeight,
@@ -434,6 +435,7 @@ fun ImageListView(
         val statusBarHeight = WindowInsets.statusBars.getTop(density)
         FilterBar(
             visible = selection.isEmpty(),
+            onBack = onBack,
             onAppsLongPress = { showAppsPanel = true },
             modifier = Modifier
                 .align(Alignment.TopEnd)
