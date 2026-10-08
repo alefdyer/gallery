@@ -82,7 +82,6 @@ import com.asinosoft.gallery.ui.component.LazyGridVerticalScrollIndicator
 import com.asinosoft.gallery.ui.component.MediaThumbnail
 import com.asinosoft.gallery.ui.component.SelectionControlBar
 import com.asinosoft.gallery.ui.component.SelectionInfoBar
-import com.asinosoft.gallery.ui.component.ShadowedHeader
 import com.asinosoft.gallery.ui.component.dragSelection
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
@@ -111,20 +110,6 @@ fun ImageListView(
     val lazyGridState = rememberLazyGridState()
     var showTagDialog by remember { mutableStateOf(false) }
     val dragSelectionState = remember { DragSelectionState() }
-    val date by remember(images, lazyGridState) {
-        derivedStateOf {
-            images.getOrNull(lazyGridState.firstVisibleItemIndex)?.date?.let {
-                "${months[it.monthValue - 1]} ${it.year}"
-            }
-        }
-    }
-
-    val headerVisible by remember(images, lazyGridState) {
-        derivedStateOf {
-            images.isNotEmpty() && lazyGridState.layoutInfo.visibleItemsInfo.firstOrNull()?.index == 0
-        }
-    }
-
     var previewIds by remember { mutableStateOf(emptySet<Long>()) }
     LaunchedEffect(images, lazyGridState) {
         val appearedAt = mutableMapOf<Long, Long>()
@@ -235,6 +220,14 @@ fun ImageListView(
     val showPhotos by model.showPhotos.collectAsState()
     val showVideos by model.showVideos.collectAsState()
     val canToggleMediaType = photoCount > 0 && videoCount > 0
+
+    val scrollToTopOnUpdate = remember { PendingFlag() }
+    remember(images) {
+        if (scrollToTopOnUpdate.pending) {
+            scrollToTopOnUpdate.pending = false
+            lazyGridState.requestScrollToItem(0)
+        }
+    }
     val layoutDirection = LocalLayoutDirection.current
 
     val swipeOffset = remember { Animatable(0f) }
@@ -378,13 +371,17 @@ fun ImageListView(
                 videoCount = videoCount,
                 photosEnabled = showPhotos,
                 videosEnabled = showVideos,
-                onPhotosClick = model::togglePhotos.takeIf { canToggleMediaType },
-                onVideosClick = model::toggleVideos.takeIf { canToggleMediaType },
+                onPhotosClick = {
+                    scrollToTopOnUpdate.pending = true
+                    model.togglePhotos()
+                }.takeIf { canToggleMediaType },
+                onVideosClick = {
+                    scrollToTopOnUpdate.pending = true
+                    model.toggleVideos()
+                }.takeIf { canToggleMediaType },
                 modifier = headerModifier
             )
         }
-
-        if (!headerVisible) date?.let { ShadowedHeader(it) }
 
         LazyGridVerticalScrollIndicator(
             lazyGridState = lazyGridState,
@@ -492,6 +489,8 @@ fun ImageListView(
         }
     }
 }
+
+private class PendingFlag(var pending: Boolean = false)
 
 private const val MAX_VIDEO_PREVIEWS = 4
 private val DATE_SWIPE_THRESHOLD = 80.dp
