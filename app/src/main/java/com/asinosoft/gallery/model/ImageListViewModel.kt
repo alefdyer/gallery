@@ -23,6 +23,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -86,7 +87,10 @@ class ImageListViewModel @Inject constructor(
     val activeDateFilter = MutableStateFlow<DateFilter?>(null)
     private var allFilters = MutableStateFlow<List<Filter>>(listOf())
 
-    val images: StateFlow<List<Media>> =
+    val showPhotos = MutableStateFlow(true)
+    val showVideos = MutableStateFlow(true)
+
+    private val filteredImages: StateFlow<List<Media>> =
         combine(allImages, activeFilters, activeDateFilter) { images, filters, dateFilter ->
             images.filter { image ->
                 (filters.isEmpty() || filters.contains(image.owner)) &&
@@ -99,6 +103,21 @@ class ImageListViewModel @Inject constructor(
             started = SharingStarted.Eagerly,
             initialValue = emptyList()
         )
+
+    val images: StateFlow<List<Media>> =
+        combine(filteredImages, showPhotos, showVideos) { images, photos, videos ->
+            if (photos && videos) images else images.filter { if (null == it.video) photos else videos }
+        }.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.Eagerly,
+            initialValue = emptyList()
+        )
+
+    val photoCount: StateFlow<Int> = filteredImages.map { list -> list.count { null == it.video } }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, 0)
+
+    val videoCount: StateFlow<Int> = filteredImages.map { list -> list.count { null != it.video } }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, 0)
 
     val filters = combine(allFilters, activeDateFilter, allImages) { filters, dateFilter, images ->
         val apps = images.filter { image ->
@@ -123,6 +142,16 @@ class ImageListViewModel @Inject constructor(
     }
 
     init {
+        viewModelScope.launch {
+            combine(photoCount, videoCount) { photos, videos -> photos > 0 && videos > 0 }
+                .collect { hasBothTypes ->
+                    if (!hasBothTypes) {
+                        showPhotos.value = true
+                        showVideos.value = true
+                    }
+                }
+        }
+
         viewModelScope.launch {
             albumId?.let { albumId ->
                 val value = albumDao.getAlbumById(albumId)
@@ -157,6 +186,24 @@ class ImageListViewModel @Inject constructor(
         activeFilters.emit(setOf())
     }
 
+
+    fun togglePhotos() {
+        if (showPhotos.value) {
+            showPhotos.value = false
+            showVideos.value = true
+        } else {
+            showPhotos.value = true
+        }
+    }
+
+    fun toggleVideos() {
+        if (showVideos.value) {
+            showVideos.value = false
+            showPhotos.value = true
+        } else {
+            showVideos.value = true
+        }
+    }
 
     fun setDateFilter(filter: DateFilter?) {
         activeDateFilter.value = filter

@@ -1,7 +1,9 @@
 package com.asinosoft.gallery.ui.component
 
 import androidx.annotation.DrawableRes
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
@@ -14,9 +16,12 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -37,11 +42,8 @@ import com.asinosoft.gallery.data.ThumbnailCache
 private val textShadow = Shadow(color = Color.Black.copy(alpha = 0.5f), blurRadius = 8f)
 
 @Composable
-fun ImageListHeader(
+fun ImageListHeaderBackground(
     cover: Media,
-    title: String,
-    photoCount: Int,
-    videoCount: Int,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -74,7 +76,21 @@ fun ImageListHeader(
                     )
                 )
         )
+    }
+}
 
+@Composable
+fun ImageListHeaderInfo(
+    title: String,
+    photoCount: Int,
+    videoCount: Int,
+    modifier: Modifier = Modifier,
+    photosEnabled: Boolean = true,
+    videosEnabled: Boolean = true,
+    onPhotosClick: (() -> Unit)? = null,
+    onVideosClick: (() -> Unit)? = null
+) {
+    Box(modifier) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -95,23 +111,35 @@ fun ImageListHeader(
 
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
                 modifier = Modifier
                     .background(Color.White.copy(alpha = 0.18f), RoundedCornerShape(50))
-                    .padding(horizontal = 12.dp, vertical = 4.dp)
+                    .padding(horizontal = 4.dp, vertical = 2.dp)
             ) {
-                Counter(R.drawable.photo, photoCount)
-                Counter(R.drawable.videocam, videoCount)
+                Counter(R.drawable.photo, photoCount, photosEnabled, onPhotosClick)
+                Counter(R.drawable.videocam, videoCount, videosEnabled, onVideosClick)
             }
         }
     }
 }
 
 @Composable
-private fun Counter(@DrawableRes icon: Int, count: Int) {
+private fun Counter(
+    @DrawableRes icon: Int,
+    count: Int,
+    enabled: Boolean,
+    onClick: (() -> Unit)?
+) {
+    val alpha by animateFloatAsState(if (enabled) 1f else 0.4f, label = "counterAlpha")
+
     Row(
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(6.dp)
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        modifier = Modifier
+            .clip(RoundedCornerShape(50))
+            .let { if (null == onClick) it else it.clickable(onClick = onClick) }
+            .padding(horizontal = 8.dp, vertical = 2.dp)
+            .alpha(alpha)
     ) {
         Icon(
             painter = painterResource(icon),

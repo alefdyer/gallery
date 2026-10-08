@@ -1,6 +1,7 @@
 package com.asinosoft.gallery.ui
 
 import android.icu.text.DateFormatSymbols
+import android.os.SystemClock
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animate
@@ -10,6 +11,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.calculateEndPadding
 import androidx.compose.foundation.layout.calculateStartPadding
 import androidx.compose.foundation.layout.fillMaxSize
@@ -49,6 +51,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -60,7 +63,8 @@ import com.asinosoft.gallery.model.ImageListViewModel
 import com.asinosoft.gallery.ui.component.AddToAlbumDialog
 import com.asinosoft.gallery.ui.component.DragSelectionState
 import com.asinosoft.gallery.ui.component.FilterBar
-import com.asinosoft.gallery.ui.component.ImageListHeader
+import com.asinosoft.gallery.ui.component.ImageListHeaderBackground
+import com.asinosoft.gallery.ui.component.ImageListHeaderInfo
 import com.asinosoft.gallery.ui.component.LazyGridVerticalScrollIndicator
 import com.asinosoft.gallery.ui.component.MediaThumbnail
 import com.asinosoft.gallery.ui.component.SelectionControlBar
@@ -68,6 +72,7 @@ import com.asinosoft.gallery.ui.component.SelectionInfoBar
 import com.asinosoft.gallery.ui.component.ShadowedHeader
 import com.asinosoft.gallery.ui.component.dragSelection
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import kotlin.time.Duration.Companion.milliseconds
 
@@ -79,6 +84,7 @@ fun ImageListView(
     modifier: Modifier = Modifier,
     scrollBehavior: TopAppBarScrollBehavior? = null,
     contentPadding: PaddingValues = PaddingValues(0.dp),
+    bottomPanelHeight: Dp = 0.dp,
     model: ImageListViewModel = hiltViewModel()
 ) {
     val images by model.images.collectAsState(listOf())
@@ -105,18 +111,33 @@ fun ImageListView(
 
     var previewIds by remember { mutableStateOf(emptySet<Long>()) }
     LaunchedEffect(images, lazyGridState) {
+        val appearedAt = mutableMapOf<Long, Long>()
         snapshotFlow {
             val visibleVideos = lazyGridState.layoutInfo.visibleItemsInfo
                 .mapNotNull { images.getOrNull(it.index) }
                 .filter { null != it.video && it.storageType == StorageType.LOCAL }
                 .map { it.id }
             visibleVideos to lazyGridState.isScrollInProgress
-        }.collect { (visibleVideos, isScrolling) ->
-            previewIds = if (isScrolling) {
-                previewIds intersect visibleVideos.toSet()
-            } else {
-                visibleVideos.take(MAX_VIDEO_PREVIEWS).toSet()
+        }.collectLatest { (visibleVideos, isScrolling) ->
+            val now = SystemClock.uptimeMillis()
+            appearedAt.keys.retainAll(visibleVideos.toSet())
+            visibleVideos.forEach { appearedAt.getOrPut(it) { now } }
+
+            if (isScrolling) {
+                previewIds = previewIds intersect visibleVideos.toSet()
+                return@collectLatest
             }
+
+            val candidates = visibleVideos.take(MAX_VIDEO_PREVIEWS)
+            previewIds = previewIds intersect candidates.toSet()
+            candidates
+                .filterNot { it in previewIds }
+                .sortedBy { appearedAt.getValue(it) }
+                .forEach { id ->
+                    val wait = appearedAt.getValue(id) + VIDEO_PREVIEW_DELAY_MS - SystemClock.uptimeMillis()
+                    if (wait > 0) delay(wait)
+                    previewIds = previewIds + id
+                }
         }
     }
 
@@ -186,7 +207,11 @@ fun ImageListView(
     val album by model.album.collectAsState()
     val title = album?.name ?: stringResource(R.string.all_photos)
     val cover = images.firstOrNull()
-    val videoCount = remember(images) { images.count { null != it.video } }
+    val photoCount by model.photoCount.collectAsState()
+    val videoCount by model.videoCount.collectAsState()
+    val showPhotos by model.showPhotos.collectAsState()
+    val showVideos by model.showVideos.collectAsState()
+    val canToggleMediaType = photoCount > 0 && videoCount > 0
     val layoutDirection = LocalLayoutDirection.current
 
     BoxWithConstraints(modifier.fillMaxSize()) {
@@ -200,26 +225,20 @@ fun ImageListView(
             bottom = contentPadding.calculateBottomPadding()
         )
 
-        cover?.let {
-            ImageListHeader(
-                cover = it,
-                title = title,
-                photoCount = images.size - videoCount,
-                videoCount = videoCount,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(headerHeight)
-                    .graphicsLayer {
-                        val info = lazyGridState.layoutInfo
-                        val first = info.visibleItemsInfo.firstOrNull()
-                        translationY = if (first?.index == 0) {
-                            (first.offset.y - info.viewportStartOffset) - size.height - gap.toPx()
-                        } else {
-                            -size.height - gap.toPx()
-                        }
-                    }
-            )
-        }
+        val headerModifier = Modifier
+            .fillMaxWidth()
+            .height(headerHeight)
+            .graphicsLayer {
+                val info = lazyGridState.layoutInfo
+                val first = info.visibleItemsInfo.firstOrNull()
+                translationY = if (first?.index == 0) {
+                    (first.offset.y - info.viewportStartOffset) - size.height - gap.toPx()
+                } else {
+                    -size.height - gap.toPx()
+                }
+            }
+
+        cover?.let { ImageListHeaderBackground(cover = it, modifier = headerModifier) }
 
         LazyVerticalGrid(
             state = lazyGridState,
@@ -257,6 +276,19 @@ fun ImageListView(
             }
         }
 
+        if (null != cover) {
+            ImageListHeaderInfo(
+                title = title,
+                photoCount = photoCount,
+                videoCount = videoCount,
+                photosEnabled = showPhotos,
+                videosEnabled = showVideos,
+                onPhotosClick = model::togglePhotos.takeIf { canToggleMediaType },
+                onVideosClick = model::toggleVideos.takeIf { canToggleMediaType },
+                modifier = headerModifier
+            )
+        }
+
         if (!headerVisible) date?.let { ShadowedHeader(it) }
 
         LazyGridVerticalScrollIndicator(
@@ -264,7 +296,13 @@ fun ImageListView(
             listItems = images,
             modifier = Modifier
                 .align(Alignment.CenterEnd)
-                .padding(top = contentPadding.calculateTopPadding(), end = 4.dp)
+                .padding(
+                    top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() +
+                        TOP_PANEL_MARGIN + TOP_PANEL_HEIGHT + SCROLL_INDICATOR_GAP,
+                    bottom = maxOf(contentPadding.calculateBottomPadding(), bottomPanelHeight) +
+                        SCROLL_INDICATOR_GAP,
+                    end = 4.dp
+                )
         )
 
         AnimatedVisibility(
@@ -331,6 +369,10 @@ fun ImageListView(
 }
 
 private const val MAX_VIDEO_PREVIEWS = 4
+private val TOP_PANEL_MARGIN = 8.dp
+private val TOP_PANEL_HEIGHT = 48.dp
+private val SCROLL_INDICATOR_GAP = 8.dp
+private const val VIDEO_PREVIEW_DELAY_MS = 2000L
 
 private val months = DateFormatSymbols
     .getInstance()

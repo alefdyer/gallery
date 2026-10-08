@@ -86,13 +86,15 @@ fun LazyGridVerticalScrollIndicator(
     LaunchedEffect(lazyGridState.isScrollInProgress, isDragged) {
         if (lazyGridState.isScrollInProgress || isDragged) {
             showThumb = true
+            showLabel = true
             hideJob?.cancel()
             hideJob = null
         } else {
             hideJob = scope.launch {
-                delay(1200.milliseconds)
-                showThumb = false
+                delay(700.milliseconds)
                 showLabel = false
+                delay(500.milliseconds)
+                showThumb = false
             }
         }
     }
@@ -136,7 +138,6 @@ fun LazyGridVerticalScrollIndicator(
                         onDragStarted = {
                             dragOffsetPx = (scrollOffset.toFloat() / contentSize * thumbTravelPx).coerceIn(0f, thumbTravelPx)
                             isDragged = true
-                            showLabel = true
                         },
                         onDragStopped = { isDragged = false }
                     )
@@ -151,33 +152,34 @@ fun LazyGridVerticalScrollIndicator(
                 )
             }
 
-            if (showLabel) {
-                val dateLabel by remember(listItems, lazyGridState) {
-                    derivedStateOf {
-                        val index = lazyGridState.firstVisibleItemIndex.coerceIn(0, listItems.size - 1)
-                        listItems.getOrNull(index)?.date?.format(shortDateFormatter)
-                    }
+            val dateLabel by remember(listItems, lazyGridState) {
+                derivedStateOf {
+                    val index = lazyGridState.firstVisibleItemIndex.coerceIn(0, listItems.size - 1)
+                    listItems.getOrNull(index)?.date?.format(shortDateFormatter)
                 }
+            }
 
-                dateLabel?.let { label ->
-                    Surface(
-                        modifier = Modifier
-                            .align(Alignment.TopEnd)
-                            .padding(top = 2.dp, end = 56.dp)
-                            .offset(y = thumbOffset),
-                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-                        shape = RoundedCornerShape(50),
-                        shadowElevation = 8.dp,
-                        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.95f)
-                    ) {
-                        Text(
-                            text = label,
-                            style = MaterialTheme.typography.labelMedium,
-                            fontWeight = FontWeight.Medium,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer,
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
-                        )
-                    }
+            AnimatedVisibility(
+                visible = showLabel && null != dateLabel,
+                enter = fadeIn(),
+                exit = fadeOut(),
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(top = 2.dp, end = 56.dp)
+                    .offset(y = thumbOffset)
+            ) {
+                Surface(
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)),
+                    shape = RoundedCornerShape(50),
+                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.75f)
+                ) {
+                    Text(
+                        text = dateLabel.orEmpty(),
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                    )
                 }
             }
         }

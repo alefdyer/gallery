@@ -122,7 +122,8 @@ fun MainView(
                                 onMediaClick = onMediaClick,
                                 onClose = {},
                                 scrollBehavior = null,
-                                contentPadding = contentPadding
+                                contentPadding = contentPadding,
+                                bottomPanelHeight = with(density) { navbarHeight.toDp() } - 24.dp
                             )
 
                             1 -> AlbumListView(
