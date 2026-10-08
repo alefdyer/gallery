@@ -17,6 +17,8 @@ import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
@@ -39,11 +41,18 @@ fun PagerView(
     onAlbumClick: (Album) -> Unit,
     onClose: () -> Unit,
     modifier: Modifier = Modifier,
+    onCurrentMediaChange: (Long) -> Unit = {},
     model: PagerViewModel = hiltViewModel()
 ) {
     val items by model.images.collectAsState(listOf())
     val offset by model.offset.collectAsState(0)
     val pagerState: PagerState = key(items, offset) { rememberPagerState(offset) { items.size } }
+
+    LaunchedEffect(pagerState, items) {
+        snapshotFlow { pagerState.currentPage }.collect { page ->
+            items.getOrNull(page)?.let { onCurrentMediaChange(it.id) }
+        }
+    }
 
     Box(
         modifier =

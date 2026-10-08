@@ -4,7 +4,10 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.navigation.NavBackStackEntry
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -24,6 +27,9 @@ fun Navigation(nav: NavHostController, modifier: Modifier = Modifier) {
         nav.navigate("album/$albumId/pager/${media.id}/${filters.joinToString(",")}/$date")
     }
     val navigateToSettings = { nav.navigate("settings") }
+    val reportCurrentMedia: (Long) -> Unit = { mediaId ->
+        nav.previousBackStackEntry?.savedStateHandle?.set(RETURN_MEDIA_ID, mediaId)
+    }
 
     NavHost(
         modifier = modifier,
@@ -32,11 +38,14 @@ fun Navigation(nav: NavHostController, modifier: Modifier = Modifier) {
         enterTransition = { fadeIn(animationSpec = tween(300)) },
         exitTransition = { fadeOut(animationSpec = tween(300)) }
     ) {
-        composable("main") {
+        composable("main") { entry ->
+            val returnMediaId by entry.returnMediaId()
             MainView(
                 onMediaClick = navigateToMedia,
                 onAlbumClick = navigateToAlbum,
                 onSettingsClick = navigateToSettings,
+                returnMediaId = returnMediaId,
+                onReturnHandled = { entry.clearReturnMediaId() }
             )
         }
 
@@ -49,7 +58,8 @@ fun Navigation(nav: NavHostController, modifier: Modifier = Modifier) {
         ) {
             PagerView(
                 onAlbumClick = navigateToAlbum,
-                onClose = nav::navigateUp
+                onClose = nav::navigateUp,
+                onCurrentMediaChange = reportCurrentMedia
             )
         }
 
@@ -58,6 +68,7 @@ fun Navigation(nav: NavHostController, modifier: Modifier = Modifier) {
             arguments = listOf(navArgument("albumId") { type = NavType.LongType })
         ) { route ->
             val albumId = route.arguments?.getLong("albumId")!!
+            val returnMediaId by route.returnMediaId()
 
             AlbumView(
                 onMediaClick = { media, filters, date ->
@@ -68,7 +79,9 @@ fun Navigation(nav: NavHostController, modifier: Modifier = Modifier) {
                         date
                     )
                 },
-                onClose = nav::navigateUp
+                onClose = nav::navigateUp,
+                returnMediaId = returnMediaId,
+                onReturnHandled = { route.clearReturnMediaId() }
             )
         }
 
@@ -83,7 +96,8 @@ fun Navigation(nav: NavHostController, modifier: Modifier = Modifier) {
         ) {
             PagerView(
                 onAlbumClick = navigateToAlbum,
-                onClose = nav::navigateUp
+                onClose = nav::navigateUp,
+                onCurrentMediaChange = reportCurrentMedia
             )
         }
 
@@ -92,3 +106,13 @@ fun Navigation(nav: NavHostController, modifier: Modifier = Modifier) {
         }
     }
 }
+
+@Composable
+private fun NavBackStackEntry.returnMediaId() =
+    savedStateHandle.getStateFlow<Long?>(RETURN_MEDIA_ID, null).collectAsState()
+
+private fun NavBackStackEntry.clearReturnMediaId() {
+    savedStateHandle.set<Long?>(RETURN_MEDIA_ID, null)
+}
+
+private const val RETURN_MEDIA_ID = "returnMediaId"

@@ -49,6 +49,8 @@ fun MainView(
     onAlbumClick: (Album) -> Unit,
     onSettingsClick: () -> Unit,
     modifier: Modifier = Modifier,
+    returnMediaId: Long? = null,
+    onReturnHandled: () -> Unit = {},
     model: ImageListViewModel = hiltViewModel()
 ) {
     val isFetching by model.isFetching.collectAsState(false)
@@ -123,7 +125,9 @@ fun MainView(
                                 onClose = {},
                                 scrollBehavior = null,
                                 contentPadding = contentPadding,
-                                bottomPanelHeight = with(density) { navbarHeight.toDp() } - 24.dp
+                                bottomPanelHeight = with(density) { navbarHeight.toDp() } - 24.dp,
+                                returnMediaId = returnMediaId,
+                                onReturnHandled = onReturnHandled
                             )
 
                             1 -> AlbumListView(

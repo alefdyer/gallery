@@ -15,6 +15,7 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -101,6 +102,8 @@ fun ImageListView(
     contentPadding: PaddingValues = PaddingValues(0.dp),
     bottomPanelHeight: Dp = 0.dp,
     onBack: (() -> Unit)? = null,
+    returnMediaId: Long? = null,
+    onReturnHandled: () -> Unit = {},
     model: ImageListViewModel = hiltViewModel()
 ) {
     val images by model.images.collectAsState(listOf())
@@ -243,8 +246,47 @@ fun ImageListView(
         else -> null
     }
 
+    var shownDateFilter by remember { mutableStateOf(dateFilter) }
     LaunchedEffect(dateFilter) {
-        lazyGridState.scrollToItem(0)
+        if (dateFilter != shownDateFilter) {
+            shownDateFilter = dateFilter
+            lazyGridState.scrollToItem(0)
+        }
+    }
+
+    val density = LocalDensity.current
+    val visibleTop = with(density) {
+        (WindowInsets.statusBars.asPaddingValues().calculateTopPadding() +
+            TOP_PANEL_MARGIN + TOP_PANEL_HEIGHT).toPx()
+    }
+    val visibleBottom = with(density) {
+        maxOf(contentPadding.calculateBottomPadding(), bottomPanelHeight).toPx()
+    }
+    LaunchedEffect(returnMediaId, images) {
+        val mediaId = returnMediaId ?: return@LaunchedEffect
+        val index = images.indexOfFirst { it.id == mediaId }
+        if (index < 0) {
+            if (images.isNotEmpty()) onReturnHandled()
+            return@LaunchedEffect
+        }
+
+        val layout = snapshotFlow { lazyGridState.layoutInfo }.first { it.totalItemsCount > 0 }
+        val viewportHeight = layout.viewportSize.height
+        val fullyVisible = layout.visibleItemsInfo.firstOrNull { it.index == index }?.let { item ->
+            val itemTop = item.offset.y - layout.viewportStartOffset
+            itemTop >= visibleTop && itemTop + item.size.height <= viewportHeight - visibleBottom
+        } ?: false
+
+        if (!fullyVisible) {
+            lazyGridState.scrollToItem(index)
+            val updated = lazyGridState.layoutInfo
+            updated.visibleItemsInfo.firstOrNull { it.index == index }?.let { scrolled ->
+                val top = scrolled.offset.y - updated.viewportStartOffset
+                val centeredTop = (visibleTop + viewportHeight - visibleBottom - scrolled.size.height) / 2
+                lazyGridState.scrollBy(top - centeredTop)
+            }
+        }
+        onReturnHandled()
     }
 
     BoxWithConstraints(
@@ -431,7 +473,6 @@ fun ImageListView(
             )
         }
 
-        val density = LocalDensity.current
         val statusBarHeight = WindowInsets.statusBars.getTop(density)
         FilterBar(
             visible = selection.isEmpty(),

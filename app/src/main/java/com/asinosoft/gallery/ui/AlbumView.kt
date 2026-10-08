@@ -18,6 +18,8 @@ fun AlbumView(
     onMediaClick: (Media, Set<String>, DateFilter?) -> Unit,
     onClose: () -> Unit,
     modifier: Modifier = Modifier,
+    returnMediaId: Long? = null,
+    onReturnHandled: () -> Unit = {},
     model: ImageListViewModel = hiltViewModel()
 ) {
     Scaffold(
@@ -31,6 +33,8 @@ fun AlbumView(
                 bottom = paddingValues.calculateBottomPadding()
             ),
             onBack = onClose,
+            returnMediaId = returnMediaId,
+            onReturnHandled = onReturnHandled,
             model = model
         )
     }
