@@ -57,4 +57,6 @@
     <string name="back">Назад</string>
     <string name="all_photos">Все фото</string>
     <string name="date_filter_year">%1$d год</string>
+    <string name="filter_hide_all">Скрыть все</string>
+    <string name="filter_show_all">Показать все</string>
 </resources>

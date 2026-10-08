@@ -45,6 +45,8 @@ fun String?.toDateFilter() = this?.split("-")?.let {
     )
 }
 
+private const val NO_APPS = ""
+
 @HiltViewModel
 class ImageListViewModel @Inject constructor(
     state: SavedStateHandle,
@@ -78,6 +80,9 @@ class ImageListViewModel @Inject constructor(
             started = SharingStarted.Eagerly,
             initialValue = emptyList()
         )
+
+    val hasMedia: StateFlow<Boolean> = allImages.map { it.isNotEmpty() }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
 
     private val applications = MutableStateFlow<List<Application>>(listOf())
     private val activeFilters = MutableStateFlow<Set<String>>(setOf())
@@ -183,7 +188,37 @@ class ImageListViewModel @Inject constructor(
     }
 
     fun clearFilters() = viewModelScope.launch {
-        activeFilters.emit(setOf())
+        applyActiveFilters(setOf())
+    }
+
+    fun hideAllFilters() = viewModelScope.launch {
+        applyActiveFilters(setOf(NO_APPS))
+    }
+
+    fun setFilterEnabled(filter: Filter, enabled: Boolean) = viewModelScope.launch {
+        val all = applications.value.map { it.pkg }.toSet()
+        val current = activeFilters.value.ifEmpty { all } - NO_APPS
+        val updated = if (enabled) {
+            current + filter.application.pkg
+        } else {
+            current - filter.application.pkg
+        }
+        applyActiveFilters(
+            when {
+                updated.isEmpty() -> setOf(NO_APPS)
+                updated.containsAll(all) -> setOf()
+                else -> updated
+            }
+        )
+    }
+
+    private suspend fun applyActiveFilters(newFilters: Set<String>) {
+        activeFilters.emit(newFilters)
+        allFilters.emit(
+            applications.value.map {
+                Filter(it, newFilters.isEmpty() || newFilters.contains(it.pkg))
+            }
+        )
     }
 
 

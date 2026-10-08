@@ -7,9 +7,14 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.animate
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -47,6 +52,7 @@ import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
@@ -67,6 +73,7 @@ import com.asinosoft.gallery.data.storage.StorageType
 import com.asinosoft.gallery.model.DateFilter
 import com.asinosoft.gallery.model.ImageListViewModel
 import com.asinosoft.gallery.ui.component.AddToAlbumDialog
+import com.asinosoft.gallery.ui.component.AppsFilterPanel
 import com.asinosoft.gallery.ui.component.DragSelectionState
 import com.asinosoft.gallery.ui.component.FilterBar
 import com.asinosoft.gallery.ui.component.ImageListHeaderBackground
@@ -150,8 +157,9 @@ fun ImageListView(
         }
     }
 
-    LaunchedEffect(model.albumId, images, onClose) {
-        if (closeOnEmptyList && images.isEmpty()) {
+    val hasMedia by model.hasMedia.collectAsState()
+    LaunchedEffect(model.albumId, hasMedia, onClose) {
+        if (closeOnEmptyList && !hasMedia) {
             onClose()
         } else {
             closeOnEmptyList = null != model.albumId
@@ -161,6 +169,9 @@ fun ImageListView(
     BackHandler(selection.isNotEmpty(), model::clearSelection)
 
     BackHandler(filters.any { !it.enabled }, model::clearFilters)
+
+    var showAppsPanel by remember { mutableStateOf(false) }
+    BackHandler(showAppsPanel) { showAppsPanel = false }
 
     var filtersHeight by remember { mutableFloatStateOf(0f) }
     var filtersOffset by remember { mutableFloatStateOf(0f) }
@@ -426,6 +437,7 @@ fun ImageListView(
         val statusBarHeight = WindowInsets.statusBars.getTop(density)
         FilterBar(
             visible = selection.isEmpty(),
+            onAppsLongPress = { showAppsPanel = true },
             modifier = Modifier
                 .align(Alignment.TopEnd)
                 .statusBarsPadding()
@@ -435,6 +447,35 @@ fun ImageListView(
                     filtersHeight = it.size.height + statusBarHeight + 8 * density.density
                 }
         )
+
+        if (showAppsPanel) {
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .pointerInput(Unit) { detectTapGestures { showAppsPanel = false } }
+            )
+        }
+
+        AnimatedVisibility(
+            visible = showAppsPanel,
+            enter = fadeIn() + scaleIn(initialScale = 0.9f, transformOrigin = TransformOrigin(0.5f, 0f)),
+            exit = fadeOut() + scaleOut(targetScale = 0.9f, transformOrigin = TransformOrigin(0.5f, 0f)),
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .statusBarsPadding()
+                .padding(
+                    top = TOP_PANEL_MARGIN + TOP_PANEL_HEIGHT + SCROLL_INDICATOR_GAP,
+                    bottom = maxOf(contentPadding.calculateBottomPadding(), bottomPanelHeight) +
+                        SCROLL_INDICATOR_GAP
+                )
+        ) {
+            AppsFilterPanel(
+                filters = filters,
+                onToggle = model::setFilterEnabled,
+                onShowAll = model::clearFilters,
+                onHideAll = model::hideAllFilters
+            )
+        }
 
         if (showTagDialog) {
             AddToAlbumDialog(
