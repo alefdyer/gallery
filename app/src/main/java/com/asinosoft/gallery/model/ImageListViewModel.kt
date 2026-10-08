@@ -209,6 +209,42 @@ class ImageListViewModel @Inject constructor(
         activeDateFilter.value = filter
     }
 
+    fun imagesForDate(filter: DateFilter): List<Media> {
+        val owners = activeFilters.value
+        return allImages.value.filter { image ->
+            (owners.isEmpty() || owners.contains(image.owner)) &&
+                    (filter.year == null || image.date.year == filter.year) &&
+                    (filter.month == null || image.date.monthValue == filter.month) &&
+                    (filter.day == null || image.date.dayOfMonth == filter.day)
+        }
+    }
+
+    fun adjacentDateFilter(older: Boolean): DateFilter? {
+        val filter = activeDateFilter.value ?: return null
+        if (null == filter.year) return null
+        val owners = activeFilters.value
+        val comparator = compareBy<DateFilter>({ it.year }, { it.month }, { it.day })
+
+        val dates = allImages.value.asSequence()
+            .filter { owners.isEmpty() || owners.contains(it.owner) }
+            .map {
+                when {
+                    null != filter.day -> DateFilter(it.date.year, it.date.monthValue, it.date.dayOfMonth)
+                    null != filter.month -> DateFilter(it.date.year, it.date.monthValue)
+                    else -> DateFilter(it.date.year)
+                }
+            }
+            .distinct()
+            .sortedWith(comparator)
+            .toList()
+
+        return if (older) {
+            dates.lastOrNull { comparator.compare(it, filter) < 0 }
+        } else {
+            dates.firstOrNull { comparator.compare(it, filter) > 0 }
+        }
+    }
+
     fun clearDateFilter() {
         activeDateFilter.value = null
     }

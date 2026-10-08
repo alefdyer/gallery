@@ -4,10 +4,14 @@ import android.icu.text.DateFormatSymbols
 import android.os.SystemClock
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.animate
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.WindowInsets
@@ -39,6 +43,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -46,6 +51,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
@@ -73,7 +79,10 @@ import com.asinosoft.gallery.ui.component.ShadowedHeader
 import com.asinosoft.gallery.ui.component.dragSelection
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlin.math.abs
+import kotlin.math.sign
 import kotlin.time.Duration.Companion.milliseconds
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -205,7 +214,10 @@ fun ImageListView(
     }
 
     val album by model.album.collectAsState()
-    val title = album?.name ?: stringResource(R.string.all_photos)
+    val dateFilter by model.activeDateFilter.collectAsState()
+    val title = album?.name
+        ?: dateFilter?.let { dateFilterTitle(it) }
+        ?: stringResource(R.string.all_photos)
     val cover = images.firstOrNull()
     val photoCount by model.photoCount.collectAsState()
     val videoCount by model.videoCount.collectAsState()
@@ -214,7 +226,63 @@ fun ImageListView(
     val canToggleMediaType = photoCount > 0 && videoCount > 0
     val layoutDirection = LocalLayoutDirection.current
 
-    BoxWithConstraints(modifier.fillMaxSize()) {
+    val swipeOffset = remember { Animatable(0f) }
+    val swipeThreshold = with(LocalDensity.current) { DATE_SWIPE_THRESHOLD.toPx() }
+    val swipeDirection by remember { derivedStateOf { sign(swipeOffset.value) } }
+    val olderDate = remember(dateFilter, images) { model.adjacentDateFilter(older = true) }
+    val newerDate = remember(dateFilter, images) { model.adjacentDateFilter(older = false) }
+    var committingDate by remember { mutableStateOf<DateFilter?>(null) }
+    val previewDate = committingDate ?: when {
+        swipeDirection > 0 -> olderDate
+        swipeDirection < 0 -> newerDate
+        else -> null
+    }
+
+    LaunchedEffect(dateFilter) {
+        lazyGridState.scrollToItem(0)
+    }
+
+    BoxWithConstraints(
+        modifier
+            .fillMaxSize()
+            .pointerInput(null != dateFilter, selection.isEmpty()) {
+                if (null == dateFilter || selection.isNotEmpty()) return@pointerInput
+                detectHorizontalDragGestures(
+                    onHorizontalDrag = { change, dragAmount ->
+                        change.consume()
+                        coroutineScope.launch { swipeOffset.snapTo(swipeOffset.value + dragAmount) }
+                    },
+                    onDragCancel = {
+                        coroutineScope.launch { swipeOffset.animateTo(0f) }
+                    },
+                    onDragEnd = {
+                        coroutineScope.launch {
+                            val offset = swipeOffset.value
+                            val swipedRight = offset > 0
+                            val target = if (abs(offset) > swipeThreshold) {
+                                model.adjacentDateFilter(older = swipedRight)
+                            } else {
+                                null
+                            }
+
+                            if (null == target) {
+                                swipeOffset.animateTo(0f)
+                                return@launch
+                            }
+
+                            val width = size.width.toFloat()
+                            committingDate = target
+                            swipeOffset.animateTo(if (swipedRight) width else -width, tween(200))
+                            model.setDateFilter(target)
+                            model.images.first { list -> list.all { target.matches(it) } }
+                            repeat(2) { withFrameNanos { } }
+                            swipeOffset.snapTo(0f)
+                            committingDate = null
+                        }
+                    }
+                )
+            }
+    ) {
         val gap = 2.dp
         val rowHeight = (maxWidth - gap * 2) / 3
         val headerHeight = contentPadding.calculateTopPadding() + rowHeight
@@ -229,6 +297,7 @@ fun ImageListView(
             .fillMaxWidth()
             .height(headerHeight)
             .graphicsLayer {
+                translationX = swipeOffset.value
                 val info = lazyGridState.layoutInfo
                 val first = info.visibleItemsInfo.firstOrNull()
                 translationY = if (first?.index == 0) {
@@ -237,6 +306,20 @@ fun ImageListView(
                     -size.height - gap.toPx()
                 }
             }
+
+        previewDate?.let { target ->
+            DatePreviewPage(
+                images = remember(target, images) { model.imagesForDate(target) },
+                title = album?.name ?: dateFilterTitle(target).orEmpty(),
+                showPhotos = showPhotos,
+                showVideos = showVideos,
+                headerHeight = headerHeight,
+                contentPadding = gridPadding,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .graphicsLayer { translationX = swipeOffset.value - swipeDirection * size.width }
+            )
+        }
 
         cover?.let { ImageListHeaderBackground(cover = it, modifier = headerModifier) }
 
@@ -247,6 +330,7 @@ fun ImageListView(
             verticalArrangement = Arrangement.spacedBy(2.dp),
             contentPadding = gridPadding,
             modifier = Modifier
+                .graphicsLayer { translationX = swipeOffset.value }
                 .nestedScroll(nestedScrollConnection)
                 .dragSelection(
                     items = images,
@@ -369,6 +453,7 @@ fun ImageListView(
 }
 
 private const val MAX_VIDEO_PREVIEWS = 4
+private val DATE_SWIPE_THRESHOLD = 80.dp
 private val TOP_PANEL_MARGIN = 8.dp
 private val TOP_PANEL_HEIGHT = 48.dp
 private val SCROLL_INDICATOR_GAP = 8.dp
@@ -377,3 +462,69 @@ private const val VIDEO_PREVIEW_DELAY_MS = 2000L
 private val months = DateFormatSymbols
     .getInstance()
     .getMonths(DateFormatSymbols.STANDALONE, DateFormatSymbols.WIDE)
+
+private val monthsGenitive = DateFormatSymbols
+    .getInstance()
+    .getMonths(DateFormatSymbols.FORMAT, DateFormatSymbols.WIDE)
+
+@Composable
+private fun DatePreviewPage(
+    images: List<Media>,
+    title: String,
+    showPhotos: Boolean,
+    showVideos: Boolean,
+    headerHeight: Dp,
+    contentPadding: PaddingValues,
+    modifier: Modifier = Modifier
+) {
+    val videoCount = remember(images) { images.count { null != it.video } }
+    val photoCount = images.size - videoCount
+    val typeFilterActive = photoCount > 0 && videoCount > 0 && !(showPhotos && showVideos)
+    val visibleImages = remember(images, typeFilterActive, showPhotos, showVideos) {
+        if (typeFilterActive) images.filter { if (null == it.video) showPhotos else showVideos } else images
+    }
+
+    Box(modifier) {
+        visibleImages.firstOrNull()?.let {
+            ImageListHeaderBackground(cover = it, modifier = Modifier.fillMaxWidth().height(headerHeight))
+        }
+
+        LazyVerticalGrid(
+            columns = GridCells.Fixed(3),
+            horizontalArrangement = Arrangement.spacedBy(2.dp),
+            verticalArrangement = Arrangement.spacedBy(2.dp),
+            contentPadding = contentPadding,
+            userScrollEnabled = false
+        ) {
+            items(visibleImages, key = { it.id }) { media ->
+                MediaThumbnail(media = media)
+            }
+        }
+
+        ImageListHeaderInfo(
+            title = title,
+            photoCount = photoCount,
+            videoCount = videoCount,
+            photosEnabled = !typeFilterActive || showPhotos,
+            videosEnabled = !typeFilterActive || showVideos,
+            modifier = Modifier.fillMaxWidth().height(headerHeight)
+        )
+    }
+}
+
+private fun DateFilter.matches(media: Media) =
+    (year == null || media.date.year == year) &&
+        (month == null || media.date.monthValue == month) &&
+        (day == null || media.date.dayOfMonth == day)
+
+@Composable
+private fun dateFilterTitle(filter: DateFilter): String? {
+    val year = filter.year ?: return null
+    val month = filter.month?.let { it - 1 }
+    val day = filter.day
+    return when {
+        null != month && null != day -> "$day ${monthsGenitive[month]} $year"
+        null != month -> "${months[month].replaceFirstChar { it.titlecase() }} $year"
+        else -> stringResource(R.string.date_filter_year, year)
+    }
+}

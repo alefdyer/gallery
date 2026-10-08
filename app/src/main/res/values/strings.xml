@@ -56,4 +56,5 @@
     <string name="date_filter">Фильтр по дате</string>
     <string name="back">Назад</string>
     <string name="all_photos">Все фото</string>
+    <string name="date_filter_year">%1$d год</string>
 </resources>

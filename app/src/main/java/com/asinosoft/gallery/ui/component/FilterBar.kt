@@ -4,6 +4,7 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -88,25 +89,44 @@ fun FilterBar(
                 color = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f),
                 tonalElevation = 4.dp,
             ) {
-                Row {
-                    IconButton(
-                        onClick = { showDateFilterDialog = true },
-                    ) {
-                        Icon(
-                            painter = painterResource(
-                                if (dateFilter != null) R.drawable.calendar_month
-                                else R.drawable.calendar_today
-                            ),
-                            contentDescription = "Дата",
-                            tint = MaterialTheme.colorScheme.onSurface
-                        )
-                    }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (dateFilter == null) {
+                        IconButton(
+                            onClick = { showDateFilterDialog = true },
+                        ) {
+                            Icon(
+                                painter = painterResource(R.drawable.calendar_today),
+                                contentDescription = "Дата",
+                                tint = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                    } else {
+                        Box(
+                            contentAlignment = Alignment.CenterEnd,
+                            modifier = Modifier
+                                .size(width = 44.dp, height = 48.dp)
+                                .clickable { showDateFilterDialog = true }
+                                .padding(end = 4.dp)
+                        ) {
+                            Icon(
+                                painter = painterResource(R.drawable.calendar_month),
+                                contentDescription = "Дата",
+                                tint = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
 
-                    if (dateFilter != null) {
-                        IconButton(model::clearDateFilter) {
+                        Box(
+                            contentAlignment = Alignment.CenterStart,
+                            modifier = Modifier
+                                .size(width = 36.dp, height = 48.dp)
+                                .clickable(onClick = model::clearDateFilter)
+                                .padding(start = 4.dp)
+                        ) {
                             Icon(
                                 painter = painterResource(R.drawable.close),
-                                contentDescription = stringResource(R.string.close)
+                                contentDescription = stringResource(R.string.close),
+                                tint = MaterialTheme.colorScheme.onSurface,
+                                modifier = Modifier.size(20.dp)
                             )
                         }
                     }
