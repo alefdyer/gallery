@@ -347,6 +347,12 @@ class ImageListViewModel @Inject constructor(
             clearSelection()
         }
 
+    fun addSelectionToNewAlbumInNewCategory(name: String, categoryName: String) =
+        viewModelScope.launchAndCatch {
+            mediaService.addToNewAlbumInNewCategory(selection.value, name, categoryName)
+            clearSelection()
+        }
+
     fun removeSelectionFromAlbum(albumId: Long) = viewModelScope.launchAndCatch {
         mediaService.removeFromAlbum(selection.value, albumId)
         clearSelection()

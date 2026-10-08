@@ -484,6 +484,10 @@ fun ImageListView(
                     model.addSelectionToNewAlbum(name, category)
                     showTagDialog = false
                 },
+                onCreateAlbumInNewCategory = { name, categoryName ->
+                    model.addSelectionToNewAlbumInNewCategory(name, categoryName)
+                    showTagDialog = false
+                },
                 onDismiss = { showTagDialog = false }
             )
         }

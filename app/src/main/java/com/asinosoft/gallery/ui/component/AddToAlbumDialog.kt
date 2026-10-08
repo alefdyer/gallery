@@ -46,50 +46,74 @@ import com.asinosoft.gallery.model.ImageListViewModel
 fun AddToAlbumDialog(
     onPickAlbum: (Album) -> Unit,
     onCreateAlbum: (String, AlbumCategory) -> Unit,
+    onCreateAlbumInNewCategory: (String, String) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    var newAlbumMode by remember { mutableStateOf(false) }
+    var mode by remember { mutableStateOf(AddToAlbumMode.SELECT) }
     val newAlbumName = rememberTextFieldState()
     val newAlbumCategory = remember { mutableStateOf(AlbumCategory.OTHER) }
+    val newCategoryName = rememberTextFieldState()
 
+    val canSubmit = when (mode) {
+        AddToAlbumMode.SELECT -> false
+        AddToAlbumMode.NEW_ALBUM -> newAlbumName.text.isNotBlank()
+        AddToAlbumMode.NEW_CATEGORY ->
+            newAlbumName.text.isNotBlank() && newCategoryName.text.isNotBlank()
+    }
 
-    BackHandler(newAlbumMode) { newAlbumMode = false }
+    val submit = {
+        when (mode) {
+            AddToAlbumMode.SELECT -> Unit
+            AddToAlbumMode.NEW_ALBUM ->
+                onCreateAlbum(newAlbumName.text.toString(), newAlbumCategory.value)
+
+            AddToAlbumMode.NEW_CATEGORY ->
+                onCreateAlbumInNewCategory(
+                    newAlbumName.text.toString(),
+                    newCategoryName.text.toString()
+                )
+        }
+        onDismiss()
+    }
+
+    BackHandler(mode != AddToAlbumMode.SELECT) { mode = AddToAlbumMode.SELECT }
 
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.add_to_album)) },
         text = {
-            if (newAlbumMode) {
-                NewAlbumDialog(
-                    newAlbumName,
-                    newAlbumCategory,
-                    onSubmit = {
-                        onCreateAlbum(newAlbumName.text.toString(), newAlbumCategory.value)
-                        onDismiss()
-                    },
-                )
-            } else {
-                AlbumSelector(
+            when (mode) {
+                AddToAlbumMode.SELECT -> AlbumSelector(
                     onAlbumClick = { album ->
                         onPickAlbum(album)
                         onDismiss()
                     },
                     onNewAlbumClick = {
                         newAlbumCategory.value = it
-                        newAlbumMode = true
+                        mode = AddToAlbumMode.NEW_ALBUM
                     },
+                    onNewCategoryClick = { mode = AddToAlbumMode.NEW_CATEGORY },
                     modifier = Modifier.fillMaxWidth()
+                )
+
+                AddToAlbumMode.NEW_ALBUM -> NewAlbumDialog(
+                    newAlbumName,
+                    newAlbumCategory,
+                    onSubmit = submit,
+                )
+
+                AddToAlbumMode.NEW_CATEGORY -> NewCategoryAlbumDialog(
+                    newAlbumName,
+                    newCategoryName,
+                    onSubmit = { if (canSubmit) submit() },
                 )
             }
         },
         confirmButton = {
-            if (newAlbumMode) {
+            if (mode != AddToAlbumMode.SELECT) {
                 TextButton(
-                    enabled = newAlbumName.text.isNotBlank(),
-                    onClick = {
-                        onCreateAlbum(newAlbumName.text.toString(), newAlbumCategory.value)
-                        onDismiss()
-                    }
+                    enabled = canSubmit,
+                    onClick = submit
                 ) {
                     Text(stringResource(R.string.add))
                 }
@@ -172,3 +196,47 @@ fun NewAlbumDialog(
         }
     }
 }
+
+@Composable
+private fun NewCategoryAlbumDialog(
+    newAlbumName: TextFieldState,
+    newCategoryName: TextFieldState,
+    onSubmit: () -> Unit,
+) {
+    val albumFocus = remember { FocusRequester() }
+    val categoryFocus = remember { FocusRequester() }
+
+    LaunchedEffect(Unit) {
+        albumFocus.requestFocus()
+    }
+
+    Column {
+        OutlinedTextField(
+            label = { Text(stringResource(R.string.name)) },
+            state = newAlbumName,
+            lineLimits = TextFieldLineLimits.SingleLine,
+            keyboardOptions = KeyboardOptions(
+                keyboardType = KeyboardType.Text,
+                imeAction = ImeAction.Next
+            ),
+            onKeyboardAction = { categoryFocus.requestFocus() },
+            modifier = Modifier.focusRequester(albumFocus)
+        )
+
+        Spacer(Modifier.height(4.dp))
+
+        OutlinedTextField(
+            label = { Text(stringResource(R.string.category)) },
+            state = newCategoryName,
+            lineLimits = TextFieldLineLimits.SingleLine,
+            keyboardOptions = KeyboardOptions(
+                keyboardType = KeyboardType.Text,
+                imeAction = ImeAction.Done
+            ),
+            onKeyboardAction = { onSubmit() },
+            modifier = Modifier.focusRequester(categoryFocus)
+        )
+    }
+}
+
+private enum class AddToAlbumMode { SELECT, NEW_ALBUM, NEW_CATEGORY }

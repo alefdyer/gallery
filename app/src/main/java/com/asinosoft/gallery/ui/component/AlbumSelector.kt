@@ -15,8 +15,10 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalWindowInfo
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import com.asinosoft.gallery.R
 import com.asinosoft.gallery.data.Album
 import com.asinosoft.gallery.data.AlbumCategory
 import com.asinosoft.gallery.data.name
@@ -27,6 +29,7 @@ fun AlbumSelector(
     modifier: Modifier = Modifier,
     onAlbumClick: (Album) -> Unit,
     onNewAlbumClick: (AlbumCategory) -> Unit,
+    onNewCategoryClick: () -> Unit,
     model: AlbumsViewModel = hiltViewModel()
 ) {
     val size = LocalWindowInfo.current.containerDpSize.width / 3.5f
@@ -57,6 +60,19 @@ fun AlbumSelector(
                     )
                 }
             }
+        }
+
+        Column {
+            Text(
+                text = stringResource(R.string.new_category),
+                style = MaterialTheme.typography.titleSmall,
+                modifier = Modifier.padding(8.dp)
+            )
+
+            NewAlbumPlaceholder(
+                Modifier.size(size)
+                    .clickable { onNewCategoryClick() }
+            )
         }
     }
 }

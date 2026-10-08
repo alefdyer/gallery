@@ -99,6 +99,22 @@ class MediaService @Inject constructor(
         addToAlbum(mediaIds, albumId)
     }
 
+    suspend fun addToNewAlbumInNewCategory(
+        mediaIds: Collection<Long>,
+        albumName: String,
+        categoryName: String
+    ) {
+        val categoryName = categoryName.trim()
+        require(categoryName.isNotEmpty()) { "Category name must not be empty" }
+
+        val category = albumDao.findCategoryByName(categoryName)
+            ?: AlbumCategory(
+                id = albumDao.createCategory(AlbumCategory(name = categoryName)),
+                name = categoryName
+            )
+        addToNewAlbum(mediaIds, albumName, category)
+    }
+
     suspend fun removeFromAlbum(mediaIds: Collection<Long>, albumId: Long) {
         if (mediaIds.isEmpty()) {
             return
