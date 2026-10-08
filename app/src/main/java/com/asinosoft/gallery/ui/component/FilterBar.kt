@@ -29,6 +29,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.res.painterResource
@@ -82,7 +83,7 @@ fun FilterBar(
     ) {
         Row(
             Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             Surface(
                 shape = RoundedCornerShape(50),
@@ -95,23 +96,25 @@ fun FilterBar(
                             onClick = { showDateFilterDialog = true },
                         ) {
                             Icon(
-                                painter = painterResource(R.drawable.calendar_today),
+                                painter = painterResource(R.drawable.calendar_color),
                                 contentDescription = "Дата",
-                                tint = MaterialTheme.colorScheme.onSurface
+                                tint = Color.Unspecified,
+                                modifier = Modifier.size(32.dp)
                             )
                         }
                     } else {
                         Box(
                             contentAlignment = Alignment.CenterEnd,
                             modifier = Modifier
-                                .size(width = 44.dp, height = 48.dp)
+                                .size(width = 48.dp, height = 48.dp)
                                 .clickable { showDateFilterDialog = true }
                                 .padding(end = 4.dp)
                         ) {
                             Icon(
-                                painter = painterResource(R.drawable.calendar_month),
+                                painter = painterResource(R.drawable.calendar_color_selected),
                                 contentDescription = "Дата",
-                                tint = MaterialTheme.colorScheme.onSurface
+                                tint = Color.Unspecified,
+                                modifier = Modifier.size(32.dp)
                             )
                         }
 
@@ -133,33 +136,38 @@ fun FilterBar(
                 }
             }
 
-            Surface(
-                shape = RoundedCornerShape(50),
-                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f),
-                tonalElevation = 4.dp
+            Box(
+                contentAlignment = Alignment.CenterEnd,
+                modifier = Modifier.weight(1f)
             ) {
-                Row(
-                    modifier = Modifier.padding(vertical = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                Surface(
+                    shape = RoundedCornerShape(50),
+                    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f),
+                    tonalElevation = 4.dp
                 ) {
-                    if (filters.isNotEmpty()) {
-                        LazyRow(
-                            state = lazyListState,
-                            modifier = Modifier.widthIn(max = 285.dp),
-                            contentPadding = PaddingValues(horizontal = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            items(filters, key = { it.application.pkg }) { filter ->
-                                filter.application.icon?.let { icon ->
-                                    Image(
-                                        bitmap = icon.toBitmap().asImageBitmap(),
-                                        contentDescription = filter.application.name,
-                                        modifier = Modifier
-                                            .padding(4.dp)
-                                            .size(32.dp)
-                                            .alpha(if (filter.enabled) 1f else 0.3f)
-                                            .clickable { model.toggleFilter(filter) }
-                                    )
+                    Row(
+                        modifier = Modifier.padding(vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        if (filters.isNotEmpty()) {
+                            LazyRow(
+                                state = lazyListState,
+                                modifier = Modifier.widthIn(max = 285.dp),
+                                contentPadding = PaddingValues(horizontal = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                items(filters, key = { it.application.pkg }) { filter ->
+                                    filter.application.icon?.let { icon ->
+                                        Image(
+                                            bitmap = icon.toBitmap().asImageBitmap(),
+                                            contentDescription = filter.application.name,
+                                            modifier = Modifier
+                                                .padding(4.dp)
+                                                .size(32.dp)
+                                                .alpha(if (filter.enabled) 1f else 0.3f)
+                                                .clickable { model.toggleFilter(filter) }
+                                        )
+                                    }
                                 }
                             }
                         }
