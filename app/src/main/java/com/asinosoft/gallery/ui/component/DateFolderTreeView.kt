@@ -2,16 +2,23 @@ package com.asinosoft.gallery.ui.component
 
 import android.icu.text.DateFormatSymbols
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -29,6 +36,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import com.asinosoft.gallery.R
 import com.asinosoft.gallery.model.DateFilter
 import com.asinosoft.gallery.ui.theme.Golden
@@ -79,25 +87,23 @@ fun DateFilterDialog(
         listState.scrollToItem(selectedIndex)
     }
 
-    Dialog(onDismissRequest = onClose) {
-        Surface {
-            Column {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(onClose) {
-                        Icon(painterResource(R.drawable.arrow_back), stringResource(R.string.back))
-                    }
-                    Spacer(Modifier.width(4.dp))
-                    Text(stringResource(R.string.date_filter), Modifier.weight(1f))
-                    Spacer(Modifier.width(4.dp))
-                    if (selectedDate != null) {
-                        IconButton(onClearDateFilter) {
-                            Icon(painterResource(R.drawable.close), stringResource(R.string.close))
-                        }
-                    }
-                }
+    Dialog(
+        onDismissRequest = onClose,
+        properties = DialogProperties(
+            usePlatformDefaultWidth = false,
+            decorFitsSystemWindows = false
+        )
+    ) {
+        val systemBars = WindowInsets.systemBars.asPaddingValues()
 
+        Surface(Modifier.fillMaxSize()) {
+            Box(Modifier.fillMaxSize()) {
                 LazyColumn(
                     state = listState,
+                    contentPadding = PaddingValues(
+                        top = systemBars.calculateTopPadding() + HEADER_HEIGHT + 16.dp,
+                        bottom = systemBars.calculateBottomPadding() + 8.dp
+                    ),
                     modifier = Modifier.fillMaxSize()
                 ) {
                     yearGroups.forEach { (year, monthGroups) ->
@@ -179,10 +185,60 @@ fun DateFilterDialog(
                         }
                     }
                 }
+
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = systemBars.calculateTopPadding())
+                        .padding(horizontal = 12.dp, vertical = 8.dp)
+                ) {
+                    Surface(
+                        shape = CircleShape,
+                        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f),
+                        tonalElevation = 4.dp,
+                        shadowElevation = 2.dp
+                    ) {
+                        IconButton(onClose) {
+                            Icon(painterResource(R.drawable.arrow_back), stringResource(R.string.back))
+                        }
+                    }
+
+                    if (selectedDate != null) {
+                        Surface(
+                            onClick = onClearDateFilter,
+                            shape = RoundedCornerShape(50),
+                            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f),
+                            tonalElevation = 4.dp,
+                            shadowElevation = 2.dp
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                modifier = Modifier
+                                    .height(HEADER_HEIGHT)
+                                    .padding(start = 14.dp, end = 18.dp)
+                            ) {
+                                Icon(
+                                    painter = painterResource(R.drawable.close),
+                                    contentDescription = null,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Text(
+                                    text = stringResource(R.string.clear),
+                                    style = MaterialTheme.typography.labelLarge
+                                )
+                            }
+                        }
+                    }
+                }
             }
         }
     }
 }
+
+private val HEADER_HEIGHT = 48.dp
 
 @Composable
 private fun FolderTreeItem(
