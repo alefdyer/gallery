@@ -122,8 +122,7 @@ fun PagerView(
         ) {
             PagerViewBar(
                 onBack = onClose,
-                onShowInfo = { showInfo = true },
-                contentColor = if (lightTheme) MaterialTheme.colorScheme.onBackground else Color.White
+                onShowInfo = { showInfo = true }
             )
         }
 
