@@ -16,6 +16,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.asinosoft.gallery.ui.theme.floatingPanelSelectedColor
 
 @Composable
 fun EllipseButton(
@@ -25,10 +26,12 @@ fun EllipseButton(
     label: String,
     modifier: Modifier = Modifier
 ) {
+    val contentColor = MaterialTheme.colorScheme.onSurface
+
     Surface(
         modifier = modifier,
         shape = RoundedCornerShape(50),
-        color = if (selected) Color.Black.copy(alpha = .15f) else Color.Transparent
+        color = if (selected) floatingPanelSelectedColor() else Color.Transparent
     ) {
         TextButton(
             onClick = onClick,
@@ -38,14 +41,14 @@ fun EllipseButton(
                 Icon(
                     painter = icon,
                     contentDescription = label,
-                    tint = Color.Black,
+                    tint = contentColor,
                     modifier = Modifier.size(20.dp)
                 )
                 Text(
                     text = label,
                     style = MaterialTheme.typography.labelSmall,
                     fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
-                    color = Color.Black
+                    color = contentColor
                 )
             }
         }

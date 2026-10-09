@@ -20,6 +20,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.asinosoft.gallery.R
+import com.asinosoft.gallery.ui.theme.floatingPanelColor
 
 @Composable
 fun BoxScope.ViewModeBar(
@@ -39,7 +40,7 @@ fun BoxScope.ViewModeBar(
         Surface(
             modifier = modifier.padding(16.dp),
             shape = RoundedCornerShape(50),
-            color = MaterialTheme.colorScheme.surface.copy(alpha = .95f),
+            color = floatingPanelColor(),
         ) {
             val size = Modifier.width(80.dp)
             Row(Modifier.padding(2.dp), verticalAlignment = Alignment.CenterVertically) {

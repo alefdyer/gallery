@@ -22,6 +22,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.asinosoft.gallery.R
+import com.asinosoft.gallery.ui.theme.floatingPanelColor
 
 @Composable
 fun ScrollToTopButton(
@@ -38,7 +39,7 @@ fun ScrollToTopButton(
         Surface(
             onClick = onClick,
             shape = RoundedCornerShape(50),
-            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f),
+            color = floatingPanelColor(),
             tonalElevation = 4.dp,
             shadowElevation = 4.dp
         ) {

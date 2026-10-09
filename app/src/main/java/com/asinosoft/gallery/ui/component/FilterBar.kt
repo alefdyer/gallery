@@ -56,6 +56,7 @@ import com.asinosoft.gallery.R
 import com.asinosoft.gallery.data.Filter
 import com.asinosoft.gallery.model.DateFilter
 import com.asinosoft.gallery.model.ImageListViewModel
+import com.asinosoft.gallery.ui.theme.floatingPanelColor
 
 @Composable
 fun FilterBar(
@@ -123,7 +124,7 @@ fun FilterBar(
         ) {
             Surface(
                 shape = RoundedCornerShape(50),
-                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f),
+                color = floatingPanelColor(),
                 tonalElevation = 4.dp,
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -193,7 +194,7 @@ fun FilterBar(
             ) {
                 Surface(
                     shape = RoundedCornerShape(50),
-                    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f),
+                    color = floatingPanelColor(),
                     tonalElevation = 4.dp
                 ) {
                     Row(

@@ -15,6 +15,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.asinosoft.gallery.R
 import com.asinosoft.gallery.ui.theme.GalleryTheme
+import com.asinosoft.gallery.ui.theme.floatingPanelColor
 
 @Composable
 fun SelectionInfoBar(
@@ -22,7 +23,7 @@ fun SelectionInfoBar(
     selection: Set<Long> = setOf(),
     onCancel: () -> Unit = {},
 ) {
-    Surface(modifier, RoundedCornerShape(50)) {
+    Surface(modifier, RoundedCornerShape(50), color = floatingPanelColor()) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             IconButton(onCancel) {
                 Icon(

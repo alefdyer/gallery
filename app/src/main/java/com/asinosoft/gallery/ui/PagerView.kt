@@ -2,6 +2,7 @@ package com.asinosoft.gallery.ui
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.slideInVertically
@@ -16,6 +17,7 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.snapshotFlow
@@ -28,6 +30,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -54,13 +57,20 @@ fun PagerView(
         }
     }
 
+    var showControls by remember { mutableStateOf(true) }
+    val lightTheme = MaterialTheme.colorScheme.background.luminance() > 0.5f
+    val lightBackground = lightTheme && showControls
+    val backgroundColor by animateColorAsState(
+        targetValue = if (lightBackground) MaterialTheme.colorScheme.background else Color.Black,
+        label = "pagerBackground"
+    )
+
     Box(
         modifier =
             modifier
                 .fillMaxSize()
-                .background(Color.Black)
+                .background(backgroundColor)
     ) {
-        var showControls by remember { mutableStateOf(true) }
         var showInfo by remember { mutableStateOf(false) }
 
         if (showInfo) {
@@ -112,7 +122,8 @@ fun PagerView(
         ) {
             PagerViewBar(
                 onBack = onClose,
-                onShowInfo = { showInfo = true }
+                onShowInfo = { showInfo = true },
+                contentColor = if (lightTheme) MaterialTheme.colorScheme.onBackground else Color.White
             )
         }
 

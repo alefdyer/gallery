@@ -44,6 +44,7 @@ import androidx.compose.ui.window.DialogProperties
 import com.asinosoft.gallery.R
 import com.asinosoft.gallery.model.DateFilter
 import com.asinosoft.gallery.ui.theme.Golden
+import com.asinosoft.gallery.ui.theme.floatingPanelColor
 
 private val monthNames = DateFormatSymbols().getMonths(
     DateFormatSymbols.STANDALONE,
@@ -205,7 +206,7 @@ fun DateFilterDialog(
                 ) {
                     Surface(
                         shape = CircleShape,
-                        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f),
+                        color = floatingPanelColor(),
                         tonalElevation = 4.dp,
                         shadowElevation = 2.dp
                     ) {
@@ -230,7 +231,7 @@ fun DateFilterDialog(
                     if (selectedDate != null) {
                         Surface(
                             shape = CircleShape,
-                            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f),
+                            color = floatingPanelColor(),
                             tonalElevation = 4.dp,
                             shadowElevation = 2.dp
                         ) {
@@ -284,7 +285,7 @@ private fun RecentDateChip(
     Surface(
         onClick = onClick,
         shape = RoundedCornerShape(50),
-        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f),
+        color = floatingPanelColor(),
         tonalElevation = 4.dp,
         shadowElevation = 2.dp
     ) {

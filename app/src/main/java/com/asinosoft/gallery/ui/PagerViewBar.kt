@@ -17,24 +17,35 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import com.asinosoft.gallery.R
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun PagerViewBar(onBack: () -> Unit, onShowInfo: () -> Unit, modifier: Modifier = Modifier) {
+fun PagerViewBar(
+    onBack: () -> Unit,
+    onShowInfo: () -> Unit,
+    modifier: Modifier = Modifier,
+    contentColor: Color = Color.White
+) {
     TopAppBar(
         title = { },
         modifier =
             modifier.background(
-                Brush.verticalGradient(listOf(Color.Transparent.copy(0.5f), Color.Transparent))
+                Brush.verticalGradient(
+                    listOf(
+                        (if (contentColor.luminance() > 0.5f) Color.Black else Color.White).copy(alpha = 0.5f),
+                        Color.Transparent
+                    )
+                )
             ),
         colors =
             TopAppBarDefaults.topAppBarColors(
                 containerColor = Color.Transparent,
-                actionIconContentColor = Color.White,
-                navigationIconContentColor = Color.White
+                actionIconContentColor = contentColor,
+                navigationIconContentColor = contentColor
             ),
         navigationIcon = {
             IconButton(onClick = onBack) {
