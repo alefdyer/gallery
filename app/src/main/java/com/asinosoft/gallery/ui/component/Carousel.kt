@@ -1,29 +1,44 @@
 package com.asinosoft.gallery.ui.component
 
-import androidx.compose.foundation.gestures.snapping.SnapPosition
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.interaction.collectIsDraggedAsState
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.pager.HorizontalPager
-import androidx.compose.foundation.pager.PageSize
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.pager.PagerState
-import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Surface
+import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.key
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.asinosoft.gallery.R
 import com.asinosoft.gallery.data.Media
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.launch
+import kotlin.math.abs
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun Carousel(
     items: List<Media>,
@@ -31,84 +46,121 @@ fun Carousel(
     modifier: Modifier = Modifier,
 ) {
     val scope = rememberCoroutineScope()
-    val carouselState: PagerState = key(items, pagerState) { rememberPagerState(pagerState.currentPage) { items.size } }
+    val density = LocalDensity.current
+    val listState = rememberLazyListState()
+    val isDragged by listState.interactionSource.collectIsDraggedAsState()
+    var userScroll by remember { mutableStateOf(false) }
 
-    // Synchronize pagers' state during scroll and settle
-    LaunchedEffect(pagerState, carouselState) {
-        snapshotFlow {
-            val (scrollingState, followingState) = if (pagerState.isScrollInProgress) {
-                pagerState to carouselState
-            } else if (carouselState.isScrollInProgress) {
-                carouselState to pagerState
+    fun centerOffset(index: Int): Int =
+        with(density) { items[index].carouselWidth().roundToPx() / 2 }
+
+    fun centerOn(index: Int, animate: Boolean) {
+        if (index !in items.indices) return
+        scope.launch {
+            if (animate) {
+                listState.animateScrollToItem(index, centerOffset(index))
             } else {
-                return@snapshotFlow null
+                listState.scrollToItem(index, centerOffset(index))
             }
-
-            Triple(
-                followingState,
-                scrollingState.currentPage,
-                scrollingState.currentPageOffsetFraction
-            )
         }
+    }
+
+    LaunchedEffect(isDragged) {
+        if (isDragged) userScroll = true
+    }
+
+    LaunchedEffect(items) {
+        centerOn(pagerState.currentPage, animate = false)
+    }
+
+    LaunchedEffect(pagerState, items) {
+        snapshotFlow { pagerState.currentPage }.collect { page ->
+            if (!userScroll) centerOn(page, animate = true)
+        }
+    }
+
+    LaunchedEffect(listState, pagerState) {
+        snapshotFlow { if (userScroll) listState.centeredIndex() else null }
             .filterNotNull()
-            .collect { (followingState, currentPage, currentPageOffsetFraction) ->
-                followingState.scrollToPage(
-                    page = currentPage,
-                    pageOffsetFraction = currentPageOffsetFraction
-                )
+            .distinctUntilChanged()
+            .collect { index ->
+                if (index != pagerState.currentPage) pagerState.scrollToPage(index)
             }
     }
 
-    HorizontalPager(
-        state = carouselState,
-        pageSize = PageSize.Fixed(28.dp),
-        pageSpacing = 6.dp,
-        contentPadding = PaddingValues(horizontal = 16.dp),
-        modifier = modifier,
-        snapPosition = CarouselSnapPosition
-    ) { page ->
-        val media = items[page]
-        val isSelected = page == pagerState.currentPage
-
-        val scale = if (isSelected) 1.25f else 1.0f
-
-        Surface(
-            shape = RoundedCornerShape(2.dp),
-            color = Color.Transparent,
-            modifier = Modifier.graphicsLayer {
-                scaleX = scale
-                scaleY = scale
+    LaunchedEffect(listState) {
+        snapshotFlow { listState.isScrollInProgress }.collect { scrolling ->
+            if (!scrolling && userScroll) {
+                userScroll = false
+                val index = listState.centeredIndex() ?: pagerState.currentPage
+                if (index != pagerState.currentPage) pagerState.scrollToPage(index)
+                centerOn(index, animate = true)
             }
+        }
+    }
+
+    BoxWithConstraints(modifier) {
+        LazyRow(
+            state = listState,
+            contentPadding = PaddingValues(horizontal = maxWidth / 2),
+            horizontalArrangement = Arrangement.spacedBy(ITEM_SPACING),
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.fillMaxSize()
         ) {
-            MediaThumbnail(
-                media = media,
-                modifier = Modifier.fillMaxWidth(),
-                aspectRatio = 0.75f,
-                onClick = { scope.launch { pagerState.animateScrollToPage(page) } },
-            )
+            itemsIndexed(items, key = { _, media -> media.id }) { page, media ->
+                val scale by animateFloatAsState(
+                    targetValue = if (page == pagerState.currentPage) ACTIVE_SCALE else 1f,
+                    label = "carouselScale"
+                )
+                val width = media.carouselWidth()
+
+                Box(
+                    Modifier
+                        .size(width, ITEM_HEIGHT)
+                        .graphicsLayer {
+                            scaleX = scale
+                            scaleY = scale
+                            shape = RoundedCornerShape(4.dp)
+                            clip = true
+                        }
+                ) {
+                    MediaThumbnail(
+                        media = media,
+                        aspectRatio = width / ITEM_HEIGHT,
+                        showVideoBadge = false,
+                        onClick = { scope.launch { pagerState.scrollToPage(page) } },
+                        modifier = Modifier.fillMaxSize()
+                    )
+
+                    if (null != media.video) {
+                        Icon(
+                            painter = painterResource(R.drawable.play_arrow),
+                            contentDescription = null,
+                            tint = Color.White,
+                            modifier = Modifier
+                                .align(Alignment.BottomEnd)
+                                .padding(2.dp)
+                                .size(14.dp)
+                        )
+                    }
+                }
+            }
         }
     }
 }
 
-private object CarouselSnapPosition : SnapPosition {
-    override fun position(
-        layoutSize: Int,
-        itemSize: Int,
-        beforeContentPadding: Int,
-        afterContentPadding: Int,
-        itemIndex: Int,
-        itemCount: Int
-    ): Int {
-        val availableLayoutSpace = layoutSize - beforeContentPadding - afterContentPadding
-        val center = availableLayoutSpace / 2 - itemSize / 2
+private fun Media.carouselWidth(): Dp = if (null != video) VIDEO_WIDTH else PHOTO_WIDTH
 
-        if (itemIndex !in 0..<itemCount) {
-            return center
-        }
-
-        val start = itemIndex * itemSize / 3
-        val end = availableLayoutSpace - itemSize - (itemCount - itemIndex - 1) * itemSize / 3
-
-        return center.coerceAtLeast(end).coerceAtMost(start)
-    }
+private fun LazyListState.centeredIndex(): Int? {
+    val info = layoutInfo
+    val center = (info.viewportStartOffset + info.viewportEndOffset) / 2
+    return info.visibleItemsInfo
+        .minByOrNull { abs(it.offset + it.size / 2 - center) }
+        ?.index
 }
+
+private val ITEM_HEIGHT = 44.dp
+private val PHOTO_WIDTH = 30.dp
+private val VIDEO_WIDTH = 66.dp
+private val ITEM_SPACING = 8.dp
+private const val ACTIVE_SCALE = 1.2f

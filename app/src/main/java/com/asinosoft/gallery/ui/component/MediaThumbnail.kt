@@ -45,6 +45,7 @@ fun MediaThumbnail(
     selected: Set<Long> = setOf(),
     selectionMode: Boolean = false,
     playPreview: Boolean = false,
+    showVideoBadge: Boolean = true,
     onClick: (Media) -> Unit = {},
     onSelect: (Media) -> Unit = {}
 ) {
@@ -94,7 +95,7 @@ fun MediaThumbnail(
             VideoPreview(media, Modifier.matchParentSize())
         }
 
-        media.video?.let { video ->
+        media.video?.takeIf { showVideoBadge }?.let { video ->
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(2.dp),
