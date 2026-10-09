@@ -61,6 +61,8 @@ class ImageListViewModel @Inject constructor(
     private val storageService: StorageService,
     @param:ApplicationContext private val context: Context
 ) : ViewModel() {
+    val storageId: Long = state["storageId"] ?: 1
+
     val albumId: Long? = state["albumId"]
 
     val album = MutableStateFlow<Album?>(null)
@@ -77,7 +79,7 @@ class ImageListViewModel @Inject constructor(
 
     private val allImages: StateFlow<List<Media>> = (
             albumId?.let { albumDao.getMediaInAlbum(albumId) }
-                ?: mediaDao.getImages()
+                ?: mediaDao.getImages(storageId)
             ).stateIn(
             scope = viewModelScope,
             started = SharingStarted.Eagerly,

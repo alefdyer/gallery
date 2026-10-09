@@ -27,6 +27,7 @@ class PagerViewModel @Inject constructor(
     @param:ApplicationContext private val context: Context,
     private val mediaService: MediaService
 ) : ViewModel() {
+    private val storageId: Long = state["storageId"] ?: 1
     private val albumId: Long? = state["albumId"]
     private val imageId: Long = state["imageId"]!!
     private val activeFilterPackages: Set<String> = state.get<String>("filters")
@@ -38,7 +39,7 @@ class PagerViewModel @Inject constructor(
 
     val images: StateFlow<List<Media>> = (
             albumId?.let { albumDao.getMediaInAlbum(albumId) }
-                ?: mediaDao.getImages()
+                ?: mediaDao.getImages(storageId)
             )
         .map { images ->
             images

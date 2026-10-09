@@ -1,9 +1,10 @@
 package com.asinosoft.gallery.data.storage
 
-import javax.inject.Inject
-import javax.inject.Singleton
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import okhttp3.Request
+import javax.inject.Inject
+import javax.inject.Singleton
 
 @Singleton
 class StorageAuthProvider @Inject constructor(
@@ -19,7 +20,7 @@ class StorageAuthProvider @Inject constructor(
     }
 
     suspend fun refresh() {
-        providers = storageDao.getStorages()
+        providers = storageDao.getStorages().first()
             .filterNot { it.type == StorageType.LOCAL }
             .map { storage -> storageProviderRegistry.getStorageProvider(storage.id) }
     }
@@ -32,18 +33,18 @@ class StorageAuthProvider @Inject constructor(
             if (
                 provider.storage.type == StorageType.YANDEX &&
                 (
-                    request.url.host == "downloader.disk.yandex.ru" ||
-                        request.url.host == "cloud-api.yandex.net"
-                    )
+                        request.url.host == "downloader.disk.yandex.ru" ||
+                                request.url.host == "cloud-api.yandex.net"
+                        )
             ) {
                 return provider.authorize(request)
             }
             if (
                 provider.storage.type == StorageType.DROPBOX &&
                 (
-                    request.url.host == "api.dropboxapi.com" ||
-                        request.url.host == "content.dropboxapi.com"
-                    )
+                        request.url.host == "api.dropboxapi.com" ||
+                                request.url.host == "content.dropboxapi.com"
+                        )
             ) {
                 return provider.authorize(request)
             }

@@ -1,6 +1,5 @@
 package com.asinosoft.gallery.ui.component
 
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -15,8 +14,12 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
@@ -27,7 +30,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import coil3.compose.rememberAsyncImagePainter
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import coil3.compose.AsyncImage
 import coil3.compose.rememberConstraintsSizeResolver
 import coil3.request.CachePolicy
 import coil3.request.ImageRequest
@@ -35,6 +39,7 @@ import coil3.request.allowHardware
 import com.asinosoft.gallery.R
 import com.asinosoft.gallery.data.Media
 import com.asinosoft.gallery.data.ThumbnailCache
+import com.asinosoft.gallery.model.MediaViewModel
 import kotlinx.coroutines.launch
 
 @Composable
@@ -47,7 +52,8 @@ fun MediaThumbnail(
     playPreview: Boolean = false,
     showVideoBadge: Boolean = true,
     onClick: (Media) -> Unit = {},
-    onSelect: (Media) -> Unit = {}
+    onSelect: (Media) -> Unit = {},
+    model: MediaViewModel = hiltViewModel()
 ) {
     Box(
         modifier = modifier
@@ -59,11 +65,13 @@ fun MediaThumbnail(
         val size = rememberConstraintsSizeResolver()
 
         val cacheKey = remember(media.id) { "media-${media.id}" }
-        val request = remember(media, context, cacheKey) {
-            val file = ThumbnailCache.getFile(context, media.id)
-            val data = if (file.exists() && file.length() > 0) file else media.uri
+        var request by remember { mutableStateOf<ImageRequest?>(null) }
 
-            ImageRequest.Builder(context)
+        LaunchedEffect (media, context, cacheKey) {
+            val file = ThumbnailCache.getFile(context, media.id)
+            val data = if (file.exists() && file.length() > 0) file else model.getThumbnailUri(media)
+
+            request = ImageRequest.Builder(context)
                 .data(data)
                 .size(size)
                 .memoryCacheKey(cacheKey)
@@ -82,10 +90,9 @@ fun MediaThumbnail(
                 .build()
         }
 
-        val painter = rememberAsyncImagePainter(model = request)
-
-        Image(
-            painter = painter,
+        AsyncImage(
+            model = request,
+            placeholder = painterResource(R.drawable.photo),
             contentDescription = null,
             contentScale = ContentScale.Crop,
             modifier = Modifier.aspectRatio(aspectRatio).then(size)

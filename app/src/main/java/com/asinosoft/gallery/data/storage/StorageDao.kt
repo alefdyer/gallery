@@ -15,7 +15,7 @@ interface StorageDao {
     fun getAccounts(): Flow<List<Storage>>
 
     @Query("SELECT * FROM storage")
-    suspend fun getStorages(): List<Storage>
+    fun getStorages(): Flow<List<Storage>>
 
     @Upsert
     suspend fun upsert(storage: Storage): Long

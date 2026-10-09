@@ -4,12 +4,13 @@ import android.net.Uri
 import androidx.room.Dao
 import androidx.room.Query
 import androidx.room.Upsert
+import com.asinosoft.gallery.data.storage.StorageStatistics
 import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface MediaDao {
-    @Query("SELECT * FROM media ORDER BY date DESC, time DESC")
-    fun getImages(): Flow<List<Media>>
+    @Query("SELECT * FROM media WHERE storageId=:storageId ORDER BY date DESC, time DESC")
+    fun getImages(storageId: Long): Flow<List<Media>>
 
     @Query("SELECT * FROM media WHERE storageId=:storageId AND storageItemId IN (:storageItemIds)")
     suspend fun getMediaByStorageItemIds(
@@ -19,6 +20,12 @@ interface MediaDao {
 
     @Query("SELECT id FROM media WHERE storageId = :storageId AND storageItemId = :storageItemId")
     suspend fun getMediaId(storageId: Long, storageItemId: String): Long?
+
+    @Query("SELECT * FROM media WHERE storageId = :storageId ORDER BY mimeType='image/jpeg' DESC, date, time LIMIT 1")
+    suspend fun getStorageCover(storageId: Long): Media?
+
+    @Query("SELECT COUNT(video) AS videoCount, COUNT(CASE WHEN video IS NULL THEN 1 ELSE NULL END) AS photoCount FROM media WHERE storageId = :storageId")
+    suspend fun getStorageStatistics(storageId: Long): StorageStatistics
 
     @Query("SELECT uri FROM media WHERE id = :mediaId")
     fun getUri(mediaId: Long): Uri

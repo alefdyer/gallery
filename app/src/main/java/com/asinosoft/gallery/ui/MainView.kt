@@ -34,6 +34,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.asinosoft.gallery.data.Album
 import com.asinosoft.gallery.data.Media
+import com.asinosoft.gallery.data.storage.Storage
 import com.asinosoft.gallery.model.DateFilter
 import com.asinosoft.gallery.model.ImageListViewModel
 import com.asinosoft.gallery.ui.component.CachingProgressIndicator
@@ -47,6 +48,7 @@ import kotlin.time.Duration.Companion.milliseconds
 fun MainView(
     onMediaClick: (Media, Set<String>, DateFilter?) -> Unit,
     onAlbumClick: (Album) -> Unit,
+    onStorageClick: (Storage) -> Unit,
     onSettingsClick: () -> Unit,
     modifier: Modifier = Modifier,
     returnMediaId: Long? = null,
@@ -132,6 +134,7 @@ fun MainView(
 
                             1 -> AlbumListView(
                                 onAlbumClick = onAlbumClick,
+                                onStorageClick = onStorageClick,
                                 nestedScroll = syncPanelsScrollConnection,
                                 contentPadding = contentPadding,
                                 bottomPanelHidden = navbarHeight > 0f && navbarOffset > navbarHeight / 2f

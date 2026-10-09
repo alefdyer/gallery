@@ -63,6 +63,7 @@ import com.asinosoft.gallery.model.MediaViewModel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlin.time.Duration.Companion.milliseconds
 
 @OptIn(UnstableApi::class)
 @Composable
@@ -104,8 +105,9 @@ fun VideoView(
     LaunchedEffect(media) {
         isLoading = true
         scope.launch {
-            val uri = model.getMediaUri(media)
-            player.setMediaItem(MediaItem.fromUri(uri))
+            model.getMediaUri(media).let { uri ->
+                player.setMediaItem(MediaItem.fromUri(uri))
+            }
         }
     }
 
@@ -113,7 +115,7 @@ fun VideoView(
         while (isActive) {
             position = player.currentPosition.coerceAtLeast(0L)
             duration = player.duration.takeIf { it > 0 } ?: 0L
-            delay(200)
+            delay(200.milliseconds)
         }
     }
 

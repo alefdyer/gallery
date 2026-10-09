@@ -24,12 +24,13 @@ data class Storage(
         password = password
     )
 
-    @Composable
-    fun title(): String = when(type) {
-        StorageType.LOCAL -> stringResource(R.string.phone)
-        StorageType.DROPBOX -> stringResource(R.string.dropbox)
-        StorageType.NEXTCLOUD -> stringResource(R.string.nextcloud)
-        StorageType.WEBDAV -> stringResource(R.string.webdav)
-        StorageType.YANDEX -> stringResource(R.string.yandex)
-    }
+    val title: String
+        @Composable
+        get() = when (type) {
+            StorageType.LOCAL -> stringResource(R.string.phone)
+            StorageType.DROPBOX -> stringResource(R.string.dropbox)
+            StorageType.NEXTCLOUD -> stringResource(R.string.nextcloud)
+            StorageType.WEBDAV -> stringResource(R.string.webdav)
+            StorageType.YANDEX -> stringResource(R.string.yandex)
+        }
 }

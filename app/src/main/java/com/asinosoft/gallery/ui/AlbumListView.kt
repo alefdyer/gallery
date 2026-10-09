@@ -53,10 +53,12 @@ import com.asinosoft.gallery.R
 import com.asinosoft.gallery.data.Album
 import com.asinosoft.gallery.data.CategoryWithAlbums
 import com.asinosoft.gallery.data.name
+import com.asinosoft.gallery.data.storage.Storage
 import com.asinosoft.gallery.model.AlbumsViewModel
 import com.asinosoft.gallery.ui.component.AlbumCover
 import com.asinosoft.gallery.ui.component.NewAlbumCategoryDialog
 import com.asinosoft.gallery.ui.component.ScrollToTopButton
+import com.asinosoft.gallery.ui.component.StorageCard
 import com.google.gson.Gson
 import kotlinx.coroutines.launch
 
@@ -64,13 +66,15 @@ import kotlinx.coroutines.launch
 fun AlbumListView(
     modifier: Modifier = Modifier,
     onAlbumClick: (Album) -> Unit = {},
+    onStorageClick: (Storage) -> Unit = {},
     nestedScroll: NestedScrollConnection,
     contentPadding: PaddingValues = PaddingValues(0.dp),
     bottomPanelHidden: Boolean = false,
     model: AlbumsViewModel = hiltViewModel()
 ) {
     val scope = rememberCoroutineScope()
-    val categories by model.albums.collectAsState(initial = listOf())
+    val categories by model.albums.collectAsState()
+    val storages by model.storages.collectAsState()
     val lazyListState = rememberLazyListState()
     var droppedAlbum by remember { mutableStateOf<Album?>(null) }
     var showNewCategoryDialog by remember { mutableStateOf(false) }
@@ -152,6 +156,13 @@ fun AlbumListView(
                     onAlbumClick,
                     if (category == dropCategory) Modifier.border(1.dp, Color.Red)
                     else Modifier
+                )
+            }
+
+            items(storages) { info ->
+                StorageCard(
+                    info = info,
+                    onClick = { onStorageClick(info.storage) }
                 )
             }
 

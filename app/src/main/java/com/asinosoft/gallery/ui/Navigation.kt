@@ -15,6 +15,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
 import com.asinosoft.gallery.data.Album
 import com.asinosoft.gallery.data.Media
+import com.asinosoft.gallery.data.storage.Storage
 import com.asinosoft.gallery.model.DateFilter
 
 @Composable
@@ -25,6 +26,10 @@ fun Navigation(nav: NavHostController, modifier: Modifier = Modifier) {
     val navigateToAlbum = { album: Album -> nav.navigate("album/${album.id}") }
     val navigateToAlbumMedia = { albumId: Long, media: Media, filters: Set<String>, date: DateFilter? ->
         nav.navigate("album/$albumId/pager/${media.id}/${filters.joinToString(",")}/$date")
+    }
+    val navigateToStorage = { storage: Storage -> nav.navigate("storage/${storage.id}") }
+    val navigateToStorageMedia = { storageId: Long, media: Media, filters: Set<String>, date: DateFilter? ->
+        nav.navigate("storage/$storageId/pager/${media.id}/${filters.joinToString(",")}/$date")
     }
     val navigateToSettings = { nav.navigate("settings") }
     val reportCurrentMedia: (Long) -> Unit = { mediaId ->
@@ -43,6 +48,7 @@ fun Navigation(nav: NavHostController, modifier: Modifier = Modifier) {
             MainView(
                 onMediaClick = navigateToMedia,
                 onAlbumClick = navigateToAlbum,
+                onStorageClick = navigateToStorage,
                 onSettingsClick = navigateToSettings,
                 returnMediaId = returnMediaId,
                 onReturnHandled = { entry.clearReturnMediaId() }
@@ -89,6 +95,35 @@ fun Navigation(nav: NavHostController, modifier: Modifier = Modifier) {
             "album/{albumId}/pager/{imageId}/{filters}/{date}",
             arguments = listOf(
                 navArgument("albumId") { type = NavType.LongType },
+                navArgument("imageId") { type = NavType.LongType },
+                navArgument("filters") { type = NavType.StringType; defaultValue = "" },
+                navArgument("date") { type = NavType.StringType; nullable = true }
+            )
+        ) {
+            PagerView(
+                onAlbumClick = navigateToAlbum,
+                onClose = nav::navigateUp,
+                onCurrentMediaChange = reportCurrentMedia
+            )
+        }
+
+        composable(
+            "storage/{storageId}",
+            arguments = listOf(
+                navArgument("storageId") { type = NavType.LongType }
+            )
+        ) {route ->
+            val storageId = route.arguments?.getLong("storageId")!!
+            StorageView(
+                onMediaClick = { media, filters, date -> navigateToStorageMedia(storageId, media, filters, date) },
+                onClose = nav::navigateUp
+            )
+        }
+
+        composable(
+            "storage/{storageId}/pager/{imageId}/{filters}/{date}",
+            arguments = listOf(
+                navArgument("storageId") { type = NavType.LongType },
                 navArgument("imageId") { type = NavType.LongType },
                 navArgument("filters") { type = NavType.StringType; defaultValue = "" },
                 navArgument("date") { type = NavType.StringType; nullable = true }
