@@ -81,6 +81,7 @@ import com.asinosoft.gallery.ui.component.ImageListHeaderBackground
 import com.asinosoft.gallery.ui.component.ImageListHeaderInfo
 import com.asinosoft.gallery.ui.component.LazyGridVerticalScrollIndicator
 import com.asinosoft.gallery.ui.component.MediaThumbnail
+import com.asinosoft.gallery.ui.component.ScrollToTopButton
 import com.asinosoft.gallery.ui.component.SelectionControlBar
 import com.asinosoft.gallery.ui.component.SelectionInfoBar
 import com.asinosoft.gallery.ui.component.dragSelection
@@ -429,6 +430,10 @@ fun ImageListView(
         LazyGridVerticalScrollIndicator(
             lazyGridState = lazyGridState,
             listItems = images,
+            showDateLabel = null == dateFilter?.day,
+            onDateClick = { date ->
+                model.pickDateFilter(DateFilter(date.year, date.monthValue, date.dayOfMonth))
+            },
             modifier = Modifier
                 .align(Alignment.CenterEnd)
                 .padding(
@@ -458,6 +463,28 @@ fun ImageListView(
                 onCancel = model::clearSelection
             )
         }
+
+        val panelsHidden by remember {
+            derivedStateOf { filtersHeight > 0f && filtersOffset > filtersHeight / 2f }
+        }
+        val scrolledAway by remember {
+            derivedStateOf { lazyGridState.firstVisibleItemIndex > 0 }
+        }
+        ScrollToTopButton(
+            visible = selection.isEmpty() && panelsHidden && scrolledAway,
+            onClick = {
+                lastScrollTime = System.currentTimeMillis()
+                coroutineScope.launch {
+                    if (lazyGridState.firstVisibleItemIndex > SCROLL_TO_TOP_JUMP) {
+                        lazyGridState.scrollToItem(SCROLL_TO_TOP_JUMP)
+                    }
+                    lazyGridState.animateScrollToItem(0)
+                }
+            },
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(bottom = contentPadding.calculateBottomPadding() + 24.dp)
+        )
 
         AnimatedVisibility(
             enter = slideInVertically { it * 2 },
@@ -540,6 +567,7 @@ fun ImageListView(
 private class PendingFlag(var pending: Boolean = false)
 
 private const val MAX_VIDEO_PREVIEWS = 4
+private const val SCROLL_TO_TOP_JUMP = 30
 private val DATE_SWIPE_THRESHOLD = 80.dp
 private val TOP_PANEL_MARGIN = 8.dp
 private val TOP_PANEL_HEIGHT = 48.dp

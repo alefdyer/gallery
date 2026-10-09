@@ -11,6 +11,7 @@ import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.gestures.waitForUpOrCancellation
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
@@ -26,11 +27,13 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draganddrop.DragAndDropEvent
 import androidx.compose.ui.draganddrop.DragAndDropTarget
@@ -53,6 +56,7 @@ import com.asinosoft.gallery.data.name
 import com.asinosoft.gallery.model.AlbumsViewModel
 import com.asinosoft.gallery.ui.component.AlbumCover
 import com.asinosoft.gallery.ui.component.NewAlbumCategoryDialog
+import com.asinosoft.gallery.ui.component.ScrollToTopButton
 import com.google.gson.Gson
 import kotlinx.coroutines.launch
 
@@ -62,6 +66,7 @@ fun AlbumListView(
     onAlbumClick: (Album) -> Unit = {},
     nestedScroll: NestedScrollConnection,
     contentPadding: PaddingValues = PaddingValues(0.dp),
+    bottomPanelHidden: Boolean = false,
     model: AlbumsViewModel = hiltViewModel()
 ) {
     val scope = rememberCoroutineScope()
@@ -127,36 +132,49 @@ fun AlbumListView(
         }
     }
 
-    LazyColumn(
-        state = lazyListState,
-        contentPadding = contentPadding,
-        modifier = modifier
-            .fillMaxSize()
-            .dragAndDropTarget(
-                shouldStartDragAndDrop = {
-                    it.mimeTypes().contains(ClipDescription.MIMETYPE_TEXT_INTENT)
-                },
-                target = dragAndDropTarget
-            )
-            .nestedScroll(nestedScroll)
-    ) {
-        items(categories) { category ->
-            AlbumCategoriesRow(
-                category,
-                onAlbumClick,
-                if (category == dropCategory) Modifier.border(1.dp, Color.Red)
-                else Modifier
-            )
-        }
-
-        if (isDragActive) {
-            item {
-                NewAlbumCategory(
-                    if (dropCategory == null) Modifier.border(1.dp, Color.Red)
+    Box(modifier.fillMaxSize()) {
+        LazyColumn(
+            state = lazyListState,
+            contentPadding = contentPadding,
+            modifier = Modifier
+                .fillMaxSize()
+                .dragAndDropTarget(
+                    shouldStartDragAndDrop = {
+                        it.mimeTypes().contains(ClipDescription.MIMETYPE_TEXT_INTENT)
+                    },
+                    target = dragAndDropTarget
+                )
+                .nestedScroll(nestedScroll)
+        ) {
+            items(categories) { category ->
+                AlbumCategoriesRow(
+                    category,
+                    onAlbumClick,
+                    if (category == dropCategory) Modifier.border(1.dp, Color.Red)
                     else Modifier
                 )
             }
+
+            if (isDragActive) {
+                item {
+                    NewAlbumCategory(
+                        if (dropCategory == null) Modifier.border(1.dp, Color.Red)
+                        else Modifier
+                    )
+                }
+            }
         }
+
+        val scrolledAway by remember {
+            derivedStateOf { lazyListState.firstVisibleItemIndex > 0 }
+        }
+        ScrollToTopButton(
+            visible = bottomPanelHidden && scrolledAway,
+            onClick = { scope.launch { lazyListState.animateScrollToItem(0) } },
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(bottom = contentPadding.calculateBottomPadding() + 24.dp)
+        )
     }
 
     if (showNewCategoryDialog) {

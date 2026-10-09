@@ -133,7 +133,8 @@ fun MainView(
                             1 -> AlbumListView(
                                 onAlbumClick = onAlbumClick,
                                 nestedScroll = syncPanelsScrollConnection,
-                                contentPadding = contentPadding
+                                contentPadding = contentPadding,
+                                bottomPanelHidden = navbarHeight > 0f && navbarOffset > navbarHeight / 2f
                             )
                         }
                     }

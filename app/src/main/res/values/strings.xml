@@ -60,4 +60,5 @@
     <string name="filter_hide_all">Скрыть все</string>
     <string name="clear">Очистить</string>
     <string name="filter_show_all">Показать все</string>
+    <string name="scroll_to_top">В начало</string>
 </resources>

@@ -81,8 +81,9 @@ fun FilterBar(
         }
     }
 
-    LaunchedEffect(filters) {
-        if (filters.isNotEmpty()) {
+    val filterPackages = remember(filters) { filters.map { it.application.pkg } }
+    LaunchedEffect(filterPackages) {
+        if (filterPackages.isNotEmpty()) {
             lazyListState.animateScrollToItem(0)
         }
     }

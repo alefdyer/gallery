@@ -5,6 +5,7 @@ import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.draggable
 import androidx.compose.foundation.gestures.rememberDraggableState
@@ -37,6 +38,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.asinosoft.gallery.R
 import com.asinosoft.gallery.data.Media
+import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
 import kotlinx.coroutines.Job
@@ -51,7 +53,9 @@ private val shortDateFormatter: DateTimeFormatter =
 fun LazyGridVerticalScrollIndicator(
     lazyGridState: LazyGridState,
     listItems: List<Media>,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    showDateLabel: Boolean = true,
+    onDateClick: (LocalDate) -> Unit = {}
 ) {
     val indicator = lazyGridState.scrollIndicatorState ?: return
     val scrollMetrics by remember(indicator) {
@@ -152,15 +156,15 @@ fun LazyGridVerticalScrollIndicator(
                 )
             }
 
-            val dateLabel by remember(listItems, lazyGridState) {
+            val labelDate by remember(listItems, lazyGridState) {
                 derivedStateOf {
                     val index = lazyGridState.firstVisibleItemIndex.coerceIn(0, listItems.size - 1)
-                    listItems.getOrNull(index)?.date?.format(shortDateFormatter)
+                    listItems.getOrNull(index)?.date
                 }
             }
 
             AnimatedVisibility(
-                visible = showLabel && null != dateLabel,
+                visible = showDateLabel && showLabel && null != labelDate,
                 enter = fadeIn(),
                 exit = fadeOut(),
                 modifier = Modifier
@@ -174,11 +178,13 @@ fun LazyGridVerticalScrollIndicator(
                     color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.75f)
                 ) {
                     Text(
-                        text = dateLabel.orEmpty(),
+                        text = labelDate?.format(shortDateFormatter).orEmpty(),
                         style = MaterialTheme.typography.labelMedium,
                         fontWeight = FontWeight.Medium,
                         color = MaterialTheme.colorScheme.onPrimaryContainer,
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                        modifier = Modifier
+                            .clickable { labelDate?.let(onDateClick) }
+                            .padding(horizontal = 12.dp, vertical = 6.dp)
                     )
                 }
             }
