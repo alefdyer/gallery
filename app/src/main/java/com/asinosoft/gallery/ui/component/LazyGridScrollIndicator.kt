@@ -1,23 +1,26 @@
 package com.asinosoft.gallery.ui.component
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.draggable
 import androidx.compose.foundation.gestures.rememberDraggableState
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.lazy.grid.LazyGridState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -33,10 +36,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.asinosoft.gallery.R
 import com.asinosoft.gallery.data.Media
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
@@ -103,9 +104,21 @@ fun LazyGridVerticalScrollIndicator(
         }
     }
 
-    val animatedThumbSize by animateDpAsState(
-        targetValue = if (isDragged) 44.dp else 36.dp,
-        label = "thumbSize"
+    val thumbWidth by animateDpAsState(
+        targetValue = if (isDragged) 6.dp else 4.dp,
+        label = "thumbWidth"
+    )
+    val labelEndPadding by animateDpAsState(
+        targetValue = if (isDragged) LABEL_END_PADDING_DRAGGED else LABEL_END_PADDING,
+        label = "labelEndPadding"
+    )
+    val thumbColor by animateColorAsState(
+        targetValue = if (isDragged) {
+            MaterialTheme.colorScheme.primary
+        } else {
+            MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f)
+        },
+        label = "thumbColor"
     )
 
     AnimatedVisibility(
@@ -115,8 +128,8 @@ fun LazyGridVerticalScrollIndicator(
         modifier = modifier
     ) {
         BoxWithConstraints(modifier = Modifier.fillMaxHeight()) {
-            val thumbTravelPx = (constraints.maxHeight.toFloat() - with(density) { animatedThumbSize.toPx() }).coerceAtLeast(1f)
-            val thumbOffset = (maxHeight - animatedThumbSize) * scrollOffset / contentSize
+            val thumbTravelPx = (constraints.maxHeight.toFloat() - with(density) { THUMB_TOUCH_HEIGHT.toPx() }).coerceAtLeast(1f)
+            val thumbOffset = (maxHeight - THUMB_TOUCH_HEIGHT) * scrollOffset / contentSize
 
             val draggableState = rememberDraggableState { dragAmount ->
                 dragOffsetPx = (dragOffsetPx + dragAmount).coerceIn(0f, thumbTravelPx)
@@ -128,14 +141,12 @@ fun LazyGridVerticalScrollIndicator(
                 }
             }
 
-            Surface(
-                shape = CircleShape,
-                shadowElevation = 8.dp,
-                color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.95f),
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+            Box(
+                contentAlignment = Alignment.CenterEnd,
                 modifier = Modifier
                     .align(Alignment.TopEnd)
-                    .offset(x = 12.dp, y = thumbOffset)
+                    .offset(y = thumbOffset)
+                    .size(width = THUMB_TOUCH_WIDTH, height = THUMB_TOUCH_HEIGHT)
                     .draggable(
                         draggableState,
                         Orientation.Vertical,
@@ -146,13 +157,10 @@ fun LazyGridVerticalScrollIndicator(
                         onDragStopped = { isDragged = false }
                     )
             ) {
-                Icon(
-                    painter = painterResource(R.drawable.height),
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier
-                        .padding(8.dp)
-                        .size(animatedThumbSize - 16.dp)
+                Box(
+                    Modifier
+                        .size(width = thumbWidth, height = THUMB_HEIGHT)
+                        .background(thumbColor, RoundedCornerShape(50))
                 )
             }
 
@@ -169,7 +177,7 @@ fun LazyGridVerticalScrollIndicator(
                 exit = fadeOut(),
                 modifier = Modifier
                     .align(Alignment.TopEnd)
-                    .padding(top = 2.dp, end = 56.dp)
+                    .padding(top = (THUMB_TOUCH_HEIGHT - LABEL_HEIGHT) / 2, end = labelEndPadding)
                     .offset(y = thumbOffset)
             ) {
                 Surface(
@@ -184,10 +192,19 @@ fun LazyGridVerticalScrollIndicator(
                         color = MaterialTheme.colorScheme.onPrimaryContainer,
                         modifier = Modifier
                             .clickable { labelDate?.let(onDateClick) }
-                            .padding(horizontal = 12.dp, vertical = 6.dp)
+                            .height(LABEL_HEIGHT)
+                            .wrapContentHeight()
+                            .padding(horizontal = 12.dp)
                     )
                 }
             }
         }
     }
 }
+
+private val THUMB_HEIGHT = 44.dp
+private val THUMB_TOUCH_HEIGHT = 56.dp
+private val THUMB_TOUCH_WIDTH = 36.dp
+private val LABEL_HEIGHT = 28.dp
+private val LABEL_END_PADDING = THUMB_TOUCH_WIDTH
+private val LABEL_END_PADDING_DRAGGED = 80.dp
