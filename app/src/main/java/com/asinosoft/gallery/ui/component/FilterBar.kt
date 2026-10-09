@@ -34,6 +34,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableStateSetOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -53,6 +54,7 @@ import androidx.core.graphics.drawable.toBitmap
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.asinosoft.gallery.R
 import com.asinosoft.gallery.data.Filter
+import com.asinosoft.gallery.model.DateFilter
 import com.asinosoft.gallery.model.ImageListViewModel
 
 @Composable
@@ -66,6 +68,9 @@ fun FilterBar(
 ) {
     val lazyListState = rememberLazyListState()
     var showDateFilterDialog by remember { mutableStateOf(false) }
+    val dateListState = rememberLazyListState()
+    val dateExpandedNodes = remember { mutableStateSetOf<String>() }
+    var dateListPositionFor by remember { mutableStateOf<DateFilter?>(null) }
     val dateFilter by model.activeDateFilter.collectAsState()
     val filters by model.filters.collectAsState(listOf())
     val haptic = LocalHapticFeedback.current
@@ -83,14 +88,20 @@ fun FilterBar(
     }
 
     if (showDateFilterDialog) {
-        val yearGroups by model.dateGroups.collectAsState(mapOf())
+        val yearGroups by model.dateGroups.collectAsState()
+        val recentDates = remember { model.recentDateFilters() }
         DateFilterDialog(
             onClose = { showDateFilterDialog = false },
             yearGroups = yearGroups,
             selectedDate = dateFilter,
+            recentDates = recentDates,
+            listState = dateListState,
+            expandedNodes = dateExpandedNodes,
+            restorePosition = null != dateFilter && dateFilter == dateListPositionFor,
             onSelectDateFilter = { date ->
                 showDateFilterDialog = false
-                model.setDateFilter(date)
+                dateListPositionFor = date
+                model.pickDateFilter(date)
             },
             onClearDateFilter = {
                 showDateFilterDialog = false

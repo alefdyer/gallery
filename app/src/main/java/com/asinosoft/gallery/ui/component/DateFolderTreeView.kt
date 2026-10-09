@@ -17,6 +17,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -29,6 +32,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateSetOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.snapshots.SnapshotStateSet
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -57,13 +61,18 @@ fun DateFilterDialog(
     yearGroups: Map<Int, Map<Int, Map<Int, Int>>>,
     selectedDate: DateFilter?,
     onSelectDateFilter: (DateFilter) -> Unit,
-    onClearDateFilter: () -> Unit
+    onClearDateFilter: () -> Unit,
+    recentDates: List<DateFilter> = emptyList(),
+    listState: LazyListState = rememberLazyListState(),
+    expandedNodes: SnapshotStateSet<String> = remember { mutableStateSetOf() },
+    restorePosition: Boolean = false
 ) {
-    val expandedNodes = remember { mutableStateSetOf<String>() }
-    val listState = rememberLazyListState()
+    val availableRecentDates = remember(recentDates, yearGroups, selectedDate) {
+        recentDates.filter { it != selectedDate && it.existsIn(yearGroups) }
+    }
 
     LaunchedEffect(selectedDate, yearGroups) {
-        if (selectedDate == null || yearGroups.isEmpty()) return@LaunchedEffect
+        if (restorePosition || selectedDate == null || yearGroups.isEmpty()) return@LaunchedEffect
 
         selectedDate.month?.let { expandedNodes.add("Y_${selectedDate.year}") }
         selectedDate.day?.let { expandedNodes.add("M_${selectedDate.year}_${selectedDate.month}") }
@@ -188,7 +197,7 @@ fun DateFilterDialog(
 
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(top = systemBars.calculateTopPadding())
@@ -205,29 +214,31 @@ fun DateFilterDialog(
                         }
                     }
 
+                    LazyRow(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.End),
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        items(availableRecentDates, key = { it.toString() }) { date ->
+                            RecentDateChip(
+                                date = date,
+                                onClick = { onSelectDateFilter(date) }
+                            )
+                        }
+                    }
+
                     if (selectedDate != null) {
                         Surface(
-                            onClick = onClearDateFilter,
-                            shape = RoundedCornerShape(50),
+                            shape = CircleShape,
                             color = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f),
                             tonalElevation = 4.dp,
                             shadowElevation = 2.dp
                         ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                                modifier = Modifier
-                                    .height(HEADER_HEIGHT)
-                                    .padding(start = 14.dp, end = 18.dp)
-                            ) {
+                            IconButton(onClearDateFilter) {
                                 Icon(
                                     painter = painterResource(R.drawable.close),
-                                    contentDescription = null,
+                                    contentDescription = stringResource(R.string.clear),
                                     modifier = Modifier.size(20.dp)
-                                )
-                                Text(
-                                    text = stringResource(R.string.clear),
-                                    style = MaterialTheme.typography.labelLarge
                                 )
                             }
                         }
@@ -239,6 +250,58 @@ fun DateFilterDialog(
 }
 
 private val HEADER_HEIGHT = 48.dp
+
+private val shortMonthNames = DateFormatSymbols().getMonths(
+    DateFormatSymbols.STANDALONE,
+    DateFormatSymbols.ABBREVIATED
+)
+
+private val shortFormatMonthNames = DateFormatSymbols().getMonths(
+    DateFormatSymbols.FORMAT,
+    DateFormatSymbols.ABBREVIATED
+)
+
+private fun DateFilter.existsIn(yearGroups: Map<Int, Map<Int, Map<Int, Int>>>): Boolean {
+    val monthGroups = yearGroups[year ?: return false] ?: return false
+    val dayGroups = month?.let { monthGroups[it] ?: return false } ?: return true
+    return day?.let { dayGroups.containsKey(it) } ?: true
+}
+
+private fun DateFilter.shortTitle(): String {
+    val month = month?.let { it - 1 }
+    return when {
+        null != month && null != day -> "$day ${shortFormatMonthNames[month].trimEnd('.')} $year"
+        null != month -> "${shortMonthNames[month].trimEnd('.').replaceFirstChar { it.titlecase() }} $year"
+        else -> "$year"
+    }
+}
+
+@Composable
+private fun RecentDateChip(
+    date: DateFilter,
+    onClick: () -> Unit
+) {
+    Surface(
+        onClick = onClick,
+        shape = RoundedCornerShape(50),
+        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f),
+        tonalElevation = 4.dp,
+        shadowElevation = 2.dp
+    ) {
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier
+                .height(40.dp)
+                .padding(horizontal = 14.dp)
+        ) {
+            Text(
+                text = date.shortTitle(),
+                style = MaterialTheme.typography.labelLarge,
+                maxLines = 1
+            )
+        }
+    }
+}
 
 @Composable
 private fun FolderTreeItem(

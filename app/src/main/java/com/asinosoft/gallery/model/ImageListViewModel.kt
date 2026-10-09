@@ -46,6 +46,9 @@ fun String?.toDateFilter() = this?.split("-")?.let {
 }
 
 private const val NO_APPS = ""
+private const val RECENT_DATES_PREFS = "date_filters"
+private const val RECENT_DATES_KEY = "recent"
+private const val MAX_RECENT_DATES = 10
 
 @HiltViewModel
 class ImageListViewModel @Inject constructor(
@@ -144,7 +147,7 @@ class ImageListViewModel @Inject constructor(
                         monthImages.groupBy { it.date.dayOfMonth }.mapValues { it.value.size }
                     }
             }
-    }
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyMap())
 
     init {
         viewModelScope.launch {
@@ -283,6 +286,25 @@ class ImageListViewModel @Inject constructor(
     fun clearDateFilter() {
         activeDateFilter.value = null
     }
+
+    fun recentDateFilters(): List<DateFilter> =
+        recentDatesPrefs.getString(RECENT_DATES_KEY, null)
+            ?.split(",")
+            ?.filter { it.isNotBlank() }
+            ?.mapNotNull { it.toDateFilter()?.takeIf { filter -> null != filter.year } }
+            .orEmpty()
+
+    fun pickDateFilter(filter: DateFilter) {
+        setDateFilter(filter)
+        val recent = (listOf(filter) + recentDateFilters().filter { it != filter })
+            .take(MAX_RECENT_DATES)
+        recentDatesPrefs.edit()
+            .putString(RECENT_DATES_KEY, recent.joinToString(","))
+            .apply()
+    }
+
+    private val recentDatesPrefs
+        get() = context.getSharedPreferences(RECENT_DATES_PREFS, Context.MODE_PRIVATE)
 
     fun toggleFilter(filter: Filter) = viewModelScope.launch {
         val newFilters = activeFilters.value.toMutableSet()
