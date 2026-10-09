@@ -91,7 +91,15 @@ fun PagerView(
                     }
                 }
             } else if (null != item.video) {
-                VideoView(item) { isPlaying -> showControls = !isPlaying }
+                VideoView(
+                    media = item,
+                    controlsVisible = showControls,
+                    onTap = {
+                        if (!pagerState.isScrollInProgress) {
+                            showControls = !showControls
+                        }
+                    }
+                )
             } else {
                 DummyView()
             }
