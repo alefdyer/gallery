@@ -226,21 +226,15 @@ class ImageListViewModel @Inject constructor(
 
 
     fun togglePhotos() {
-        if (showPhotos.value) {
-            showPhotos.value = false
-            showVideos.value = true
-        } else {
-            showPhotos.value = true
-        }
+        val onlyPhotos = showPhotos.value && !showVideos.value
+        showPhotos.value = true
+        showVideos.value = onlyPhotos
     }
 
     fun toggleVideos() {
-        if (showVideos.value) {
-            showVideos.value = false
-            showPhotos.value = true
-        } else {
-            showVideos.value = true
-        }
+        val onlyVideos = showVideos.value && !showPhotos.value
+        showVideos.value = true
+        showPhotos.value = onlyVideos
     }
 
     fun setDateFilter(filter: DateFilter?) {

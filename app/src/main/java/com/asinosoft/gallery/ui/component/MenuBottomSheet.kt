@@ -47,7 +47,7 @@ fun MenuBottomSheet(
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     val menuItems = listOf(
-        MenuItemData("Видео", R.drawable.play_circle) {},
+        MenuItemData("Поиск", R.drawable.search) {},
         MenuItemData("Избранное", R.drawable.favorite) {},
         MenuItemData("Последние", R.drawable.calendar_today) {},
         MenuItemData("Типы съемки", R.drawable.photo) {},
