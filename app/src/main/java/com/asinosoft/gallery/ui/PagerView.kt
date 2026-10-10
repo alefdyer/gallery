@@ -103,6 +103,7 @@ fun PagerView(
             } else if (null != item.video) {
                 VideoView(
                     media = item,
+                    isActive = n == pagerState.currentPage,
                     controlsVisible = showControls,
                     onTap = {
                         if (!pagerState.isScrollInProgress) {

@@ -125,7 +125,7 @@ fun DateFilterDialog(
                                 title = "$year год",
                                 itemCount = yearTotalCount,
                                 level = 0,
-                                isExpanded = year == selectedDate?.year,
+                                isExpanded = expandedNodes.contains(yearKey),
                                 isSelected = DateFilter(year) == selectedDate,
                                 onToggleExpand = {
                                     if (expandedNodes.contains(yearKey))

@@ -22,8 +22,11 @@ import com.asinosoft.gallery.R
 fun NewAlbumCategoryDialog(
     onCreateCategory: (String) -> Unit,
     onDismiss: () -> Unit,
+    title: String = stringResource(R.string.new_category),
+    initialName: String = "",
+    confirmText: String = stringResource(R.string.add),
 ) {
-    val newCategoryName = rememberTextFieldState()
+    val newCategoryName = rememberTextFieldState(initialName)
     val focus = remember { FocusRequester() }
 
     LaunchedEffect(Unit) {
@@ -32,7 +35,7 @@ fun NewAlbumCategoryDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.new_category)) },
+        title = { Text(title) },
         text = {
             OutlinedTextField(
                 state = newCategoryName,
@@ -59,7 +62,7 @@ fun NewAlbumCategoryDialog(
                     onDismiss()
                 }
             ) {
-                Text(stringResource(R.string.add))
+                Text(confirmText)
             }
         },
         dismissButton = {

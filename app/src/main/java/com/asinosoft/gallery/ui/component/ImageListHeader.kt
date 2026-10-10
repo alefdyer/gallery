@@ -124,6 +124,43 @@ fun ImageListHeaderInfo(
 }
 
 @Composable
+fun ImageListHeaderTitle(
+    title: String,
+    @DrawableRes icon: Int,
+    count: Int,
+    modifier: Modifier = Modifier
+) {
+    Box(modifier) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            modifier = Modifier
+                .align(Alignment.BottomStart)
+                .fillMaxWidth()
+                .padding(start = 16.dp, end = 16.dp, bottom = 14.dp)
+        ) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.headlineSmall.copy(shadow = textShadow),
+                fontWeight = FontWeight.Bold,
+                color = Color.White,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f)
+            )
+
+            Row(
+                modifier = Modifier
+                    .background(Color.White.copy(alpha = 0.18f), RoundedCornerShape(50))
+                    .padding(horizontal = 4.dp, vertical = 2.dp)
+            ) {
+                Counter(icon, count, enabled = true, onClick = null)
+            }
+        }
+    }
+}
+
+@Composable
 private fun Counter(
     @DrawableRes icon: Int,
     count: Int,

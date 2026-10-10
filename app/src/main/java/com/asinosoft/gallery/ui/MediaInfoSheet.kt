@@ -2,6 +2,9 @@ package com.asinosoft.gallery.ui
 
 import android.text.format.Formatter
 import androidx.compose.foundation.clickable
+import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyRow
@@ -52,7 +55,10 @@ fun MediaInfoSheet(
         onDismissRequest = onDismissRequest
     ) {
         val albums: List<AlbumWithCover> by model.albums.collectAsState()
-        LazyRow {
+        LazyRow(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            contentPadding = PaddingValues(horizontal = 12.dp)
+        ) {
             items(items = albums, key = { it.album.id }) { album ->
                 AlbumCover(
                     album,

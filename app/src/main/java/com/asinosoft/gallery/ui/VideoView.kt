@@ -48,6 +48,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
@@ -70,6 +73,7 @@ import kotlin.time.Duration.Companion.milliseconds
 fun VideoView(
     media: Media,
     modifier: Modifier = Modifier,
+    isActive: Boolean = true,
     controlsVisible: Boolean = true,
     onTap: () -> Unit = {},
     model: MediaViewModel = hiltViewModel(),
@@ -96,11 +100,25 @@ fun VideoView(
                 .setMediaSourceFactory(mediaSourceFactory)
                 .build()
                 .apply {
-                    playWhenReady = true
+                    playWhenReady = false
                     repeatMode = Player.REPEAT_MODE_ONE
                     prepare()
                 }
         }
+
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner, player) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (Lifecycle.Event.ON_PAUSE == event) player.pause()
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
+    LaunchedEffect(player, isActive) {
+        player.playWhenReady =
+            isActive && lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)
+    }
 
     LaunchedEffect(media) {
         isLoading = true

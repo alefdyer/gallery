@@ -88,22 +88,13 @@ interface AlbumDao {
         SELECT
             COUNT(m.id) AS count,
             IFNULL(SUM(m.size), 0) AS size,
-            COALESCE(
-                (
-                    SELECT m2.id
-                    FROM media_album ma2
-                    INNER JOIN media m2 ON m2.id = ma2.mediaId
-                    WHERE ma2.albumId = a.id AND m2.id = a.coverId
-                    LIMIT 1
-                ),
-                (
-                    SELECT m2.id
-                    FROM media_album ma2
-                    INNER JOIN media m2 ON m2.id = ma2.mediaId
-                    WHERE ma2.albumId = a.id
-                    ORDER BY m2.date DESC, m2.time DESC
-                    LIMIT 1
-                )
+            (
+                SELECT m2.id
+                FROM media_album ma2
+                INNER JOIN media m2 ON m2.id = ma2.mediaId
+                WHERE ma2.albumId = a.id
+                ORDER BY m2.date DESC, m2.time DESC
+                LIMIT 1
             ) AS coverId,
             IFNULL(MAX(m.date), a.date) AS date
         FROM album a
@@ -134,6 +125,9 @@ interface AlbumDao {
 
     @Insert
     suspend fun createCategory(albumCategory: AlbumCategory): Long
+
+    @Query("UPDATE album_category SET name = :name WHERE id = :id")
+    suspend fun renameCategory(id: Long, name: String)
 
     suspend fun moveAlbumIntoCategory(album: Album, category: AlbumCategory) {
         upsert(album.copy(categoryId = category.id))

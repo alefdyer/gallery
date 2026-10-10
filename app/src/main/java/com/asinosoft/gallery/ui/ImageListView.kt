@@ -181,7 +181,7 @@ fun ImageListView(
     val nestedScrollConnection = remember {
         object : NestedScrollConnection {
             override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
-                filtersOffset = (filtersOffset - available.y).coerceIn(0f, filtersHeight)
+                filtersOffset = (filtersOffset + abs(available.y)).coerceIn(0f, filtersHeight)
 
                 return Offset.Zero
             }

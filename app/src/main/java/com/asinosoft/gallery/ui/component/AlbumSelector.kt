@@ -2,6 +2,7 @@ package com.asinosoft.gallery.ui.component
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
@@ -44,7 +45,10 @@ fun AlbumSelector(
                     modifier = Modifier.padding(8.dp)
                 )
 
-                Row(modifier.horizontalScroll(rememberScrollState())) {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    modifier = modifier.horizontalScroll(rememberScrollState())
+                ) {
                     category.albums.forEach { album ->
                         AlbumCover(
                             album,

@@ -41,6 +41,7 @@ import com.asinosoft.gallery.ui.component.CachingProgressIndicator
 import com.asinosoft.gallery.ui.component.ViewModeBar
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlin.math.abs
 import kotlin.time.Duration.Companion.milliseconds
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -78,7 +79,7 @@ fun MainView(
         object : NestedScrollConnection {
             override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
                 lastScrollTime = System.currentTimeMillis()
-                val newNavbarOffset = navbarOffset - available.y
+                val newNavbarOffset = navbarOffset + abs(available.y)
                 navbarOffset = newNavbarOffset.coerceIn(0f, navbarHeight)
 
                 return Offset.Zero

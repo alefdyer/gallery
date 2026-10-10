@@ -32,6 +32,8 @@ data class CategoryWithAlbums(
     val albums: List<AlbumWithCover>
 )
 
+fun AlbumCategory.isSystem(): Boolean = name.startsWith(":")
+
 @Composable
 fun AlbumCategory.name(): String =
     if (":other" == name)
