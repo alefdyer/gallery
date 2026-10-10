@@ -91,7 +91,8 @@ fun StoragesView(modifier: Modifier = Modifier, model: StoragesViewModel = hiltV
                 model.addStorage(storage)
                 showStorageEditor.value = false
             },
-            onCancel = { showStorageEditor.value = false }
+            onCancel = { showStorageEditor.value = false },
+            modifier = modifier
         )
     } else {
         LazyColumn(

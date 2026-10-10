@@ -57,10 +57,13 @@ fun StorageCard(
     onClick: () -> Unit,
 ) {
     val height = LocalWindowInfo.current.containerDpSize.width / 3
+    val contentColor =
+        if (null == info.cover) MaterialTheme.colorScheme.onSurfaceVariant else Color.White
     Box(
         modifier = Modifier
             .height(height)
             .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.surfaceVariant)
             .clickable { onClick() }
     ) {
         info.cover?.let { StorageCover(it) }
@@ -76,7 +79,7 @@ fun StorageCard(
                 text = info.storage.title,
                 style = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.Bold,
-                color = Color.White,
+                color = contentColor,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f)
@@ -86,11 +89,11 @@ fun StorageCard(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(4.dp),
                 modifier = Modifier
-                    .background(Color.White.copy(alpha = 0.18f), RoundedCornerShape(50))
+                    .background(contentColor.copy(alpha = 0.18f), RoundedCornerShape(50))
                     .padding(horizontal = 4.dp, vertical = 2.dp)
             ) {
-                Counter(R.drawable.photo, info.statistics.photoCount)
-                Counter(R.drawable.videocam, info.statistics.videoCount)
+                Counter(R.drawable.photo, info.statistics.photoCount, contentColor)
+                Counter(R.drawable.videocam, info.statistics.videoCount, contentColor)
             }
         }
     }
@@ -153,7 +156,8 @@ private fun StorageCover(
 @Composable
 private fun Counter(
     @DrawableRes icon: Int,
-    count: Int
+    count: Int,
+    color: Color
 ) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
@@ -165,14 +169,14 @@ private fun Counter(
         Icon(
             painter = painterResource(icon),
             contentDescription = null,
-            tint = Color.White,
+            tint = color,
             modifier = Modifier.size(16.dp)
         )
         Text(
             text = "$count",
             style = MaterialTheme.typography.labelLarge,
             fontWeight = FontWeight.SemiBold,
-            color = Color.White
+            color = color
         )
     }
 }

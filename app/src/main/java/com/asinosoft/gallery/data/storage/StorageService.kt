@@ -30,14 +30,18 @@ class StorageService @Inject constructor(
         provider.checkConnection()
     }
 
-    suspend fun addStorage(storage: Storage): Storage = storage.withId(storageDao.upsert(storage))
-        .also {
-            storageAuthProvider.refresh()
-            fetch(it)
-        }
+    suspend fun addStorage(storage: Storage): Storage {
+        val insertedId = storageDao.upsert(storage)
+        val saved = if (insertedId > 0) storage.withId(insertedId) else storage
+        storageProviderRegistry.invalidate(saved.id)
+        storageAuthProvider.refresh()
+        fetch(saved)
+        return saved
+    }
 
     suspend fun deleteStorage(storage: Storage) {
         storageDao.delete(storage)
+        storageProviderRegistry.invalidate(storage.id)
         mediaDao.deleteStorage(storage.id)
         albumDao.deleteEmptyAlbums()
         storageAuthProvider.refresh()

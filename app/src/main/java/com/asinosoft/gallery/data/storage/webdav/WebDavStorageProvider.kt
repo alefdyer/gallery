@@ -2,6 +2,7 @@ package com.asinosoft.gallery.data.storage.webdav
 
 import android.net.Uri
 import android.util.Log
+import android.webkit.MimeTypeMap
 import androidx.core.net.toUri
 import com.asinosoft.gallery.data.Image
 import com.asinosoft.gallery.data.Media
@@ -12,6 +13,7 @@ import com.asinosoft.gallery.data.storage.StorageProvider
 import com.thegrizzlylabs.sardineandroid.impl.OkHttpSardine
 import java.net.ConnectException
 import java.net.SocketTimeoutException
+import java.net.URI
 import java.net.UnknownHostException
 import java.time.ZoneId
 import java.time.ZonedDateTime
@@ -35,7 +37,7 @@ class WebDavStorageProvider(override val storage: Storage) : StorageProvider {
     }
 
     override suspend fun checkConnection(): StorageCheckResult = try {
-        webdav.get(buildAbsoluteDavUrl("/"))
+        webdav.get(rootUrl())
         StorageCheckResult.Success
     } catch (ex: Throwable) {
         when {
@@ -56,7 +58,7 @@ class WebDavStorageProvider(override val storage: Storage) : StorageProvider {
 
     override suspend fun fetchAll(): Flow<Media> = flow {
         Log.i("webdav", "fetchAll")
-        emitAll(fetch(buildAbsoluteDavUrl("/")))
+        emitAll(fetch(rootUrl()))
     }
 
     override suspend fun fetchOne(uri: Uri): Media? {
@@ -69,29 +71,32 @@ class WebDavStorageProvider(override val storage: Storage) : StorageProvider {
 
     private fun fetch(path: String): Flow<Media> = flow {
         Log.d("webdav", "Fetch: $path")
+        val folderPath = runCatching { URI(path).path }.getOrNull()?.trimEnd('/')
         webdav.list(path).forEach { item ->
             Log.d("webdav", "Found: $item|${item.path}")
-            if (path.endsWith(item.path)) return@forEach
+            if (folderPath == item.path.trimEnd('/')) return@forEach
 
             if (item.isDirectory) {
-                emitAll(fetch(buildAbsoluteDavUrl(item.path)))
-            } else if (item.contentType.startsWith("image/") ||
-                item.contentType.startsWith("video/")
-            ) {
+                emitAll(fetch(resolve(item.href)))
+                return@forEach
+            }
+
+            val mimeType = mimeTypeOf(item.contentType, item.name)
+            if (mimeType.startsWith("image/") || mimeType.startsWith("video/")) {
                 Log.d("webdav", "Add: [${storage.id}, ${item.path}]")
                 val datetime =
                     item.modified?.toInstant()?.atZone(ZoneId.systemDefault())
                         ?: ZonedDateTime.now()
-                val isImage = item.contentType.startsWith("image/")
+                val isImage = mimeType.startsWith("image/")
                 emit(
                     Media(
-                        uri = buildAbsoluteDavUrl(item.href.toString()).toUri(),
+                        uri = resolve(item.href).toUri(),
                         date = datetime.toLocalDate(),
                         time = datetime.toLocalTime(),
                         path = item.path.dropLastWhile { it != '/' },
                         size = item.contentLength,
                         filename = item.name,
-                        mimeType = item.contentType,
+                        mimeType = mimeType,
                         storageId = storage.id,
                         storageType = storage.type,
                         storageItemId = item.path,
@@ -103,14 +108,22 @@ class WebDavStorageProvider(override val storage: Storage) : StorageProvider {
         }
     }
 
-    private fun buildAbsoluteDavUrl(path: String): String {
-        if (path.startsWith("http://") || path.startsWith("https://")) {
-            return path
+    private fun mimeTypeOf(contentType: String?, name: String?): String {
+        if (null != contentType && (contentType.startsWith("image/") || contentType.startsWith("video/"))) {
+            return contentType
         }
+        val extension = name?.substringAfterLast('.', "")?.lowercase().orEmpty()
+        return MimeTypeMap.getSingleton().getMimeTypeFromExtension(extension)
+            ?: contentType
+            ?: ""
+    }
 
+    private fun rootUrl(): String {
         val base = requireNotNull(storage.url) {
             "WebDAV storage.url must be configured."
         }
-        return (if (path.startsWith('/')) "$base$path" else "$base/$path")
+        return base.toString().trimEnd('/') + "/"
     }
+
+    private fun resolve(href: URI): String = URI(rootUrl()).resolve(href).toString()
 }

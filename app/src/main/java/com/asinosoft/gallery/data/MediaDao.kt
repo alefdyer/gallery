@@ -24,6 +24,9 @@ interface MediaDao {
     @Query("SELECT * FROM media WHERE storageId = :storageId ORDER BY mimeType='image/jpeg' DESC, date, time LIMIT 1")
     suspend fun getStorageCover(storageId: Long): Media?
 
+    @Query("SELECT COUNT(*) FROM media")
+    fun observeMediaCount(): Flow<Int>
+
     @Query("SELECT COUNT(video) AS videoCount, COUNT(CASE WHEN video IS NULL THEN 1 ELSE NULL END) AS photoCount FROM media WHERE storageId = :storageId")
     suspend fun getStorageStatistics(storageId: Long): StorageStatistics
 

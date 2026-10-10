@@ -23,6 +23,10 @@ class StorageProviderRegistry
         createStorageProvider(storage)
     }
 
+    fun invalidate(storageId: Long) {
+        cache.remove(storageId)
+    }
+
     fun createStorageProvider(storage: Storage): StorageProvider = when (storage.type) {
         StorageType.LOCAL -> LocalStorageProvider(storage, context)
         StorageType.DROPBOX -> DropboxStorageProvider(storage)

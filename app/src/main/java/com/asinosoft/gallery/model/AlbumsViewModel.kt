@@ -69,7 +69,10 @@ class AlbumsViewModel @Inject constructor(
             scope = viewModelScope, started = SharingStarted.Eagerly, initialValue = emptyList()
         )
 
-    val storages: StateFlow<List<StorageInfo>> = storageDao.getStorages().map { storages ->
+    val storages: StateFlow<List<StorageInfo>> = combine(
+        storageDao.getStorages(),
+        mediaDao.observeMediaCount()
+    ) { storages, _ -> storages }.map { storages ->
         storages.filterNot { it.type == StorageType.LOCAL }.map { storage ->
             StorageInfo(
                 storage,
