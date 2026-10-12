@@ -109,6 +109,7 @@ fun ImageListView(
 ) {
     val images by model.images.collectAsState(listOf())
     val filters by model.filters.collectAsState(listOf())
+    val dateFilter by model.activeDateFilter.collectAsState()
     val selection by model.selection.collectAsState()
 
     var closeOnEmptyList by remember { mutableStateOf(false) }
@@ -157,6 +158,8 @@ fun ImageListView(
     }
 
     BackHandler(selection.isNotEmpty(), model::clearSelection)
+
+    BackHandler(dateFilter != null, model::clearDateFilter)
 
     BackHandler(filters.any { !it.enabled }, model::clearFilters)
 
@@ -215,7 +218,6 @@ fun ImageListView(
     }
 
     val album by model.album.collectAsState()
-    val dateFilter by model.activeDateFilter.collectAsState()
     val title = dateFilter?.let { dateFilterTitle(it) }
         ?: album?.name
         ?: stringResource(R.string.all_photos)
