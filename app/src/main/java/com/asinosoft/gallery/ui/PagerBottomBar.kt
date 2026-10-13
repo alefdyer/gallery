@@ -26,7 +26,7 @@ fun PagerBottomBar(
     modifier: Modifier = Modifier
 ) {
     Surface(
-        modifier = modifier.padding(16.dp),
+        modifier = modifier,
         shape = RoundedCornerShape(50),
         color = floatingPanelColor(),
         contentColor = MaterialTheme.colorScheme.onSurface

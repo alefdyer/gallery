@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -40,11 +41,13 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.input.pointer.PointerInputScope
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -64,7 +67,6 @@ import com.asinosoft.gallery.R
 import com.asinosoft.gallery.data.Media
 import com.asinosoft.gallery.model.MediaViewModel
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlin.time.Duration.Companion.milliseconds
 
@@ -75,6 +77,8 @@ fun VideoView(
     modifier: Modifier = Modifier,
     isActive: Boolean = true,
     controlsVisible: Boolean = true,
+    controlsBottomPadding: Dp = VIDEO_CONTROLS_BOTTOM,
+    muted: Boolean = false,
     onTap: () -> Unit = {},
     model: MediaViewModel = hiltViewModel(),
 ) {
@@ -83,7 +87,6 @@ fun VideoView(
     val app = context.applicationContext as GalleryApp
     var isLoading by remember { mutableStateOf(false) }
     var isPlaying by remember { mutableStateOf(false) }
-    var isMuted by remember { mutableStateOf(false) }
     var position by remember { mutableLongStateOf(0L) }
     var duration by remember { mutableLongStateOf(0L) }
 
@@ -120,6 +123,10 @@ fun VideoView(
             isActive && lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)
     }
 
+    LaunchedEffect(player, muted) {
+        player.volume = if (muted) 0f else 1f
+    }
+
     LaunchedEffect(media) {
         isLoading = true
         scope.launch {
@@ -130,7 +137,7 @@ fun VideoView(
     }
 
     LaunchedEffect(player) {
-        while (isActive) {
+        while (true) {
             position = player.currentPosition.coerceAtLeast(0L)
             duration = player.duration.takeIf { it > 0 } ?: 0L
             delay(200.milliseconds)
@@ -184,18 +191,13 @@ fun VideoView(
             exit = fadeOut(),
             modifier = Modifier
                 .align(Alignment.BottomCenter)
-                .padding(start = 12.dp, end = 12.dp, bottom = VIDEO_CONTROLS_BOTTOM)
+                .padding(start = 12.dp, end = 12.dp, bottom = controlsBottomPadding)
         ) {
             VideoControls(
                 isPlaying = isPlaying,
-                isMuted = isMuted,
                 position = position,
                 duration = duration,
                 onPlayPause = { if (player.isPlaying) player.pause() else player.play() },
-                onMuteToggle = {
-                    isMuted = !isMuted
-                    player.volume = if (isMuted) 0f else 1f
-                },
                 onSeek = { target ->
                     position = target
                     player.seekTo(target)
@@ -208,11 +210,9 @@ fun VideoView(
 @Composable
 private fun VideoControls(
     isPlaying: Boolean,
-    isMuted: Boolean,
     position: Long,
     duration: Long,
     onPlayPause: () -> Unit,
-    onMuteToggle: () -> Unit,
     onSeek: (Long) -> Unit,
 ) {
     Surface(
@@ -221,40 +221,31 @@ private fun VideoControls(
         contentColor = Color.White,
         modifier = Modifier.fillMaxWidth()
     ) {
-        Column(Modifier.padding(horizontal = 8.dp, vertical = 4.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = onPlayPause) {
-                    Icon(
-                        painter = painterResource(if (isPlaying) R.drawable.pause_filled else R.drawable.play_arrow),
-                        contentDescription = if (isPlaying) "Pause" else "Play",
-                        modifier = Modifier.size(28.dp)
-                    )
-                }
-
-                Text(
-                    text = "${formatTime(position)} / ${formatTime(duration)}",
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.Medium,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.weight(1f)
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(start = 4.dp, end = 16.dp, top = 4.dp, bottom = 4.dp)
+        ) {
+            IconButton(onClick = onPlayPause) {
+                Icon(
+                    painter = painterResource(if (isPlaying) R.drawable.pause_filled else R.drawable.play_arrow),
+                    contentDescription = if (isPlaying) "Pause" else "Play",
+                    modifier = Modifier.size(28.dp)
                 )
-
-                IconButton(onClick = onMuteToggle) {
-                    Icon(
-                        painter = painterResource(if (isMuted) R.drawable.volume_off else R.drawable.volume_up),
-                        contentDescription = if (isMuted) "Unmute" else "Mute",
-                        modifier = Modifier.size(26.dp)
-                    )
-                }
             }
 
             SeekBar(
                 fraction = if (duration > 0) position.toFloat() / duration else 0f,
                 onSeek = { fraction -> if (duration > 0) onSeek((fraction * duration).toLong()) },
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 12.dp)
-                    .height(32.dp)
+                    .weight(1f)
+                    .height(40.dp)
+            )
+
+            Text(
+                text = "${formatTime(position)} / ${formatTime(duration)}",
+                style = MaterialTheme.typography.titleMedium,
+                maxLines = 1,
+                modifier = Modifier.padding(start = 16.dp)
             )
         }
     }
@@ -273,50 +264,47 @@ private fun SeekBar(
         modifier
             .pointerInput(Unit) {
                 detectTapGestures { offset ->
-                    onSeek((offset.x / size.width).coerceIn(0f, 1f))
+                    onSeek(fractionAt(offset.x))
                 }
             }
             .pointerInput(Unit) {
                 detectHorizontalDragGestures(
-                    onDragStart = { offset -> dragFraction = (offset.x / size.width).coerceIn(0f, 1f) },
+                    onDragStart = { offset -> dragFraction = fractionAt(offset.x) },
                     onDragEnd = { dragFraction = -1f },
                     onDragCancel = { dragFraction = -1f },
                     onHorizontalDrag = { change, _ ->
                         change.consume()
-                        dragFraction = (change.position.x / size.width).coerceIn(0f, 1f)
+                        dragFraction = fractionAt(change.position.x)
                         onSeek(dragFraction)
                     }
                 )
             }
     ) {
-        val trackHeight = 6.dp.toPx()
-        val gap = 3.dp.toPx()
-        val thumbX = size.width * shown
-        val top = (size.height - trackHeight) / 2
+        val trackHeight = 5.dp.toPx()
+        val thumbRadius = SEEK_THUMB_RADIUS.toPx()
+        val start = thumbRadius
+        val width = size.width - thumbRadius * 2
+        val thumbX = start + width * shown
+        val centerY = size.height / 2
+        val top = centerY - trackHeight / 2
         val radius = CornerRadius(trackHeight / 2)
 
-        if (thumbX - gap > 0f) {
-            drawRoundRect(
-                color = Color.White,
-                topLeft = Offset(0f, top),
-                size = Size(thumbX - gap, trackHeight),
-                cornerRadius = radius
-            )
-        }
-        if (thumbX + gap < size.width) {
-            drawRoundRect(
-                color = Color.White.copy(alpha = 0.4f),
-                topLeft = Offset(thumbX + gap, top),
-                size = Size(size.width - thumbX - gap, trackHeight),
-                cornerRadius = radius
-            )
-        }
-        drawLine(
+        drawRoundRect(
+            color = Color.White.copy(alpha = 0.35f),
+            topLeft = Offset(start, top),
+            size = Size(width, trackHeight),
+            cornerRadius = radius
+        )
+        drawRoundRect(
             color = Color.White,
-            start = Offset(thumbX, 0f),
-            end = Offset(thumbX, size.height),
-            strokeWidth = 3.dp.toPx(),
-            cap = StrokeCap.Round
+            topLeft = Offset(start, top),
+            size = Size(thumbX - start, trackHeight),
+            cornerRadius = radius
+        )
+        drawCircle(
+            color = Color.White,
+            radius = thumbRadius,
+            center = Offset(thumbX, centerY)
         )
     }
 }
@@ -329,8 +317,15 @@ private fun formatTime(millis: Long): String {
     return if (hours > 0) {
         "%d:%02d:%02d".format(hours, minutes, seconds)
     } else {
-        "%d:%02d".format(minutes, seconds)
+        "%02d:%02d".format(minutes, seconds)
     }
 }
 
+private fun PointerInputScope.fractionAt(x: Float): Float {
+    val radius = SEEK_THUMB_RADIUS.toPx()
+    val width = (size.width - radius * 2).coerceAtLeast(1f)
+    return ((x - radius) / width).coerceIn(0f, 1f)
+}
+
 private val VIDEO_CONTROLS_BOTTOM = 160.dp
+private val SEEK_THUMB_RADIUS = 9.dp

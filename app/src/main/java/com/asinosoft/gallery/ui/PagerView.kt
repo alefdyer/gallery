@@ -1,10 +1,13 @@
 package com.asinosoft.gallery.ui
 
+import android.content.res.Configuration
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
@@ -13,10 +16,16 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.Surface
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -32,8 +41,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import com.asinosoft.gallery.R
 import com.asinosoft.gallery.data.Album
 import com.asinosoft.gallery.model.PagerViewModel
 import com.asinosoft.gallery.ui.component.Carousel
@@ -64,6 +76,25 @@ fun PagerView(
         targetValue = if (lightBackground) MaterialTheme.colorScheme.background else Color.Black,
         label = "pagerBackground"
     )
+
+    val isLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
+    var isMuted by remember { mutableStateOf(true) }
+    val currentIsVideo = null != items.getOrNull(pagerState.currentPage)?.video
+
+    val actionsBar = @Composable {
+        PagerBottomBar(
+            onShare = { model.share(items[pagerState.currentPage]) },
+            onEdit = { model.edit(items[pagerState.currentPage]) },
+            onSearch = {},
+            onDelete = {
+                model.delete(items[pagerState.currentPage]) {
+                    if (1 == items.count()) {
+                        onClose()
+                    }
+                }
+            }
+        )
+    }
 
     Box(
         modifier =
@@ -105,6 +136,8 @@ fun PagerView(
                     media = item,
                     isActive = n == pagerState.currentPage,
                     controlsVisible = showControls,
+                    controlsBottomPadding = if (isLandscape) 96.dp else 160.dp,
+                    muted = isMuted,
                     onTap = {
                         if (!pagerState.isScrollInProgress) {
                             showControls = !showControls
@@ -123,15 +156,39 @@ fun PagerView(
         ) {
             PagerViewBar(
                 onBack = onClose,
-                onShowInfo = { showInfo = true }
+                onShowInfo = { showInfo = true },
+                actions = { if (isLandscape) actionsBar() }
             )
+        }
+
+        AnimatedVisibility(
+            visible = showControls && currentIsVideo,
+            enter = fadeIn(),
+            exit = fadeOut(),
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .statusBarsPadding()
+                .padding(top = 64.dp, end = 12.dp)
+        ) {
+            Surface(
+                shape = CircleShape,
+                color = Color.Black.copy(alpha = 0.45f),
+                contentColor = Color.White
+            ) {
+                IconButton(onClick = { isMuted = !isMuted }) {
+                    Icon(
+                        painter = painterResource(if (isMuted) R.drawable.volume_off else R.drawable.volume_up),
+                        contentDescription = if (isMuted) "Unmute" else "Mute"
+                    )
+                }
+            }
         }
 
         AnimatedVisibility(
             modifier = Modifier
                 .height(64.dp)
                 .align(Alignment.BottomCenter)
-                .offset(y = (-85).dp),
+                .offset(y = if (isLandscape) (-16).dp else (-85).dp),
             visible = showControls,
             enter = slideInVertically(tween(easing = LinearEasing)) { it / 2 },
             exit = slideOutVertically(tween(easing = LinearEasing)) { it / 2 }
@@ -145,23 +202,13 @@ fun PagerView(
         AnimatedVisibility(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
-                .offset(y = (-8).dp),
-            visible = showControls,
+                .offset(y = (-8).dp)
+                .padding(16.dp),
+            visible = showControls && !isLandscape,
             enter = slideInVertically(tween(easing = LinearEasing)) { it / 2 },
             exit = slideOutVertically(tween(easing = LinearEasing)) { it / 2 }
         ) {
-            PagerBottomBar(
-                onShare = { model.share(items[pagerState.currentPage]) },
-                onEdit = { model.edit(items[pagerState.currentPage]) },
-                onSearch = {},
-                onDelete = {
-                    model.delete(items[pagerState.currentPage]) {
-                        if (1 == items.count()) {
-                            onClose()
-                        }
-                    }
-                }
-            )
+            actionsBar()
         }
 
         BackHandler(onBack = onClose)

@@ -18,6 +18,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -30,9 +31,11 @@ fun PagerViewBar(
     onBack: () -> Unit,
     onShowInfo: () -> Unit,
     modifier: Modifier = Modifier,
+    actions: @Composable () -> Unit = {},
 ) {
     Row(
         horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
         modifier = modifier
             .fillMaxWidth()
             .statusBarsPadding()
@@ -47,15 +50,23 @@ fun PagerViewBar(
             }
         }
 
-        FloatingCircle {
-            MenuButton(onShowInfo)
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            actions()
+
+            FloatingCircle {
+                MenuButton(onShowInfo)
+            }
         }
     }
 }
 
 @Composable
-private fun FloatingCircle(content: @Composable () -> Unit) {
+internal fun FloatingCircle(modifier: Modifier = Modifier, content: @Composable () -> Unit) {
     Surface(
+        modifier = modifier,
         shape = CircleShape,
         color = floatingPanelColor(),
         contentColor = MaterialTheme.colorScheme.onSurface,
