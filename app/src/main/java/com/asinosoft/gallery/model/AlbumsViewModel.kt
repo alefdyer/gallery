@@ -45,6 +45,8 @@ class AlbumsViewModel @Inject constructor(
 ) : ViewModel() {
     private val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
     private val categoryOrder = MutableStateFlow(loadCategoryOrder())
+    private val expandedCategoriesFlow = MutableStateFlow(loadExpandedCategories())
+    val expandedCategories: StateFlow<Set<Long>> = expandedCategoriesFlow
 
     val albums: StateFlow<List<CategoryWithAlbums>> =
         combine(albumDao.getAlbums(), categoryOrder) { albums, order ->
@@ -105,6 +107,25 @@ class AlbumsViewModel @Inject constructor(
         prefs.edit { putString(KEY_ORDER, ids.joinToString(",")) }
     }
 
+    fun toggleCategoryExpanded(id: Long, persist: Boolean) {
+        val current = expandedCategoriesFlow.value
+        val expand = id !in current
+        expandedCategoriesFlow.value = if (expand) current + id else current - id
+
+        if (persist) {
+            val saved = loadExpandedCategories()
+            val updated = if (expand) saved + id else saved - id
+            prefs.edit { putString(KEY_EXPANDED, updated.joinToString(",")) }
+        }
+    }
+
+    private fun loadExpandedCategories(): Set<Long> =
+        prefs.getString(KEY_EXPANDED, null)
+            ?.split(',')
+            ?.mapNotNull { it.toLongOrNull() }
+            ?.toSet()
+            ?: emptySet()
+
     private fun loadCategoryOrder(): List<Long> =
         prefs.getString(KEY_ORDER, null)
             ?.split(',')
@@ -114,5 +135,6 @@ class AlbumsViewModel @Inject constructor(
     private companion object {
         const val PREFS_NAME = "album_categories"
         const val KEY_ORDER = "order"
+        const val KEY_EXPANDED = "expanded"
     }
 }

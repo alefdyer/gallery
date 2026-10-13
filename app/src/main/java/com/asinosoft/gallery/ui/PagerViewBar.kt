@@ -24,6 +24,8 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.asinosoft.gallery.R
+import com.asinosoft.gallery.ui.component.FloatingDropdownMenu
+import com.asinosoft.gallery.ui.component.FloatingMenuItem
 import com.asinosoft.gallery.ui.theme.floatingPanelColor
 
 @Composable
@@ -83,21 +85,15 @@ fun MenuButton(onShowInfo: () -> Unit, modifier: Modifier = Modifier) {
             painter = painterResource(R.drawable.menu),
             contentDescription = null
         )
-        DropdownMenu(
+        FloatingDropdownMenu(
             expanded = showMenu,
             onDismissRequest = { showMenu = false }
         ) {
-            DropdownMenuItem(
-                text = { Text(stringResource(R.string.info)) },
+            FloatingMenuItem(
+                text = stringResource(R.string.info),
                 onClick = {
                     onShowInfo()
                     showMenu = false
-                },
-                leadingIcon = {
-                    Icon(
-                        painter = painterResource(R.drawable.info),
-                        contentDescription = stringResource(R.string.info)
-                    )
                 }
             )
         }

@@ -81,6 +81,8 @@ import com.asinosoft.gallery.data.name
 import com.asinosoft.gallery.data.storage.Storage
 import com.asinosoft.gallery.model.AlbumsViewModel
 import com.asinosoft.gallery.ui.component.AlbumCover
+import com.asinosoft.gallery.ui.component.FloatingDropdownMenu
+import com.asinosoft.gallery.ui.component.FloatingMenuItem
 import com.asinosoft.gallery.ui.component.ImageListHeaderBackground
 import com.asinosoft.gallery.ui.component.ImageListHeaderTitle
 import com.asinosoft.gallery.ui.component.NewAlbumCategoryDialog
@@ -91,6 +93,7 @@ import com.google.gson.Gson
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.math.abs
+import kotlin.math.sign
 
 @Composable
 fun AlbumListView(
@@ -118,8 +121,9 @@ fun AlbumListView(
     var draggingId by remember { mutableStateOf<Long?>(null) }
     var dragDelta by remember { mutableFloatStateOf(0f) }
     var dragMoved by remember { mutableStateOf(false) }
+    var dragDirection by remember { mutableFloatStateOf(0f) }
     var menuCategoryId by remember { mutableStateOf<Long?>(null) }
-    var expandedCategoryIds by remember { mutableStateOf(emptySet<Long>()) }
+    val expandedCategoryIds by model.expandedCategories.collectAsState()
     var renamingCategory by remember { mutableStateOf<AlbumCategory?>(null) }
 
     val shownCategories = dragOrder
@@ -137,10 +141,12 @@ fun AlbumListView(
         draggingId = id
         dragDelta = 0f
         dragMoved = false
+        dragDirection = 0f
         dragOrder = categories.map { it.category.id }
     }
 
     fun onCategoryDrag(dy: Float) {
+        if (0f != dy) dragDirection = sign(dy)
         dragDelta += dy
         if (abs(dragDelta) > moveThreshold) dragMoved = true
 
@@ -199,10 +205,12 @@ fun AlbumListView(
             val bottomLimit = layoutInfo.viewportSize.height - autoScrollBottom
 
             val speed = when {
-                top < autoScrollTop ->
+                !dragMoved -> 0f
+
+                dragDirection < 0f && top < autoScrollTop ->
                     -autoScrollMaxSpeed * ((autoScrollTop - top) / autoScrollEdge).coerceAtMost(1f)
 
-                top + titleHeight > bottomLimit ->
+                dragDirection > 0f && top + titleHeight > bottomLimit ->
                     autoScrollMaxSpeed * ((top + titleHeight - bottomLimit) / autoScrollEdge).coerceAtMost(1f)
 
                 else -> 0f
@@ -331,10 +339,9 @@ fun AlbumListView(
                     highlighted = isDragActive && category == dropCategory,
                     onAlbumClick = onAlbumClick,
                     expanded = id in expandedCategoryIds,
-                    onToggleExpand = {
-                        expandedCategoryIds =
-                            if (id in expandedCategoryIds) expandedCategoryIds - id
-                            else expandedCategoryIds + id
+                    onToggleExpand = { persist ->
+                        menuCategoryId = null
+                        model.toggleCategoryExpanded(id, persist)
                     },
                     menuExpanded = id == menuCategoryId,
                     onMenuDismiss = { menuCategoryId = null },
@@ -436,7 +443,7 @@ private fun AlbumCategoriesRow(
     highlighted: Boolean,
     onAlbumClick: (Album) -> Unit,
     expanded: Boolean,
-    onToggleExpand: () -> Unit,
+    onToggleExpand: (persist: Boolean) -> Unit,
     menuExpanded: Boolean,
     onMenuDismiss: () -> Unit,
     onRenameClick: () -> Unit,
@@ -459,7 +466,7 @@ private fun AlbumCategoriesRow(
                 title = category.category.name(),
                 count = category.albums.size,
                 expanded = expanded.takeIf { expandable },
-                onToggleExpand = onToggleExpand,
+                onToggleExpand = { onToggleExpand(false) },
                 modifier = Modifier.pointerInput(category.category.id) {
                     detectDragGesturesAfterLongPress(
                         onDragStart = { onDragStart() },
@@ -473,18 +480,21 @@ private fun AlbumCategoriesRow(
                 }
             )
 
-            DropdownMenu(
+            FloatingDropdownMenu(
                 expanded = menuExpanded,
                 onDismissRequest = onMenuDismiss
             ) {
-                DropdownMenuItem(
-                    text = { Text(stringResource(R.string.rename)) },
+                FloatingMenuItem(
+                    text = stringResource(R.string.rename),
                     enabled = !category.category.isSystem(),
-                    leadingIcon = {
-                        Icon(painterResource(R.drawable.edit), contentDescription = null)
-                    },
                     onClick = onRenameClick
                 )
+                if (expandable) {
+                    FloatingMenuItem(
+                        text = stringResource(if (expanded) R.string.collapse else R.string.expand),
+                        onClick = { onToggleExpand(true) }
+                    )
+                }
             }
         }
 
