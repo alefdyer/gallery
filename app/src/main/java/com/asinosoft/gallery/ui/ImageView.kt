@@ -43,6 +43,7 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
 import coil3.request.allowHardware
+import com.asinosoft.gallery.data.EXTERNAL_STORAGE_ID
 import com.asinosoft.gallery.data.Media
 import com.asinosoft.gallery.model.MediaViewModel
 import kotlin.math.max
@@ -76,7 +77,7 @@ fun ImageView(
     LaunchedEffect(minScale) { scale = minScale }
 
     LaunchedEffect(media) {
-        val key = "media#${media.id}"
+        val key = if (EXTERNAL_STORAGE_ID == media.storageId) "external#${media.uri}" else "media#${media.id}"
         try {
             isLoading = true
             val uri = model.getMediaUri(media)

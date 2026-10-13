@@ -64,6 +64,7 @@ import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.ui.PlayerView
 import com.asinosoft.gallery.GalleryApp
 import com.asinosoft.gallery.R
+import com.asinosoft.gallery.data.EXTERNAL_STORAGE_ID
 import com.asinosoft.gallery.data.Media
 import com.asinosoft.gallery.model.MediaViewModel
 import kotlinx.coroutines.delay
@@ -93,7 +94,7 @@ fun VideoView(
     val player =
         remember(media) {
             val mediaSourceFactory = DefaultMediaSourceFactory(
-                if (1L == media.storageId) {
+                if (1L == media.storageId || EXTERNAL_STORAGE_ID == media.storageId) {
                     DefaultDataSource.Factory(context)
                 } else {
                     OkHttpDataSource.Factory(app.httpClient)

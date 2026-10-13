@@ -8,6 +8,8 @@ import com.asinosoft.gallery.data.storage.StorageType
 import java.time.LocalDate
 import java.time.LocalTime
 
+const val EXTERNAL_STORAGE_ID = 0L
+
 @Entity(
     tableName = "media",
     indices = [

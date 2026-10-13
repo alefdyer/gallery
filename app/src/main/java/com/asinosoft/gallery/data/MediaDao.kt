@@ -42,6 +42,12 @@ interface MediaDao {
     @Query("SELECT * FROM media WHERE id IN (:mediaIds)")
     suspend fun getByIds(mediaIds: Collection<Long>): List<Media>
 
+    @Query("SELECT * FROM media WHERE filename = :filename LIMIT 1")
+    suspend fun findByFilename(filename: String): Media?
+
+    @Query("SELECT * FROM media WHERE size = :size AND (filename = :name OR filename LIKE '%/' || :name) LIMIT 1")
+    suspend fun findByNameAndSize(name: String, size: Long): Media?
+
     @Upsert
     suspend fun upsert(media: Media): Long
 

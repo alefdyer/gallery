@@ -4,6 +4,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
@@ -19,7 +20,20 @@ import com.asinosoft.gallery.data.storage.Storage
 import com.asinosoft.gallery.model.DateFilter
 
 @Composable
-fun Navigation(nav: NavHostController, modifier: Modifier = Modifier) {
+fun Navigation(
+    nav: NavHostController,
+    modifier: Modifier = Modifier,
+    openAlbumId: Long? = null,
+    onAlbumOpened: () -> Unit = {},
+) {
+    LaunchedEffect(openAlbumId) {
+        val albumId = openAlbumId ?: return@LaunchedEffect
+        nav.navigate("album/$albumId") {
+            popUpTo("main")
+        }
+        onAlbumOpened()
+    }
+
     val navigateToMedia = { media: Media, filters: Set<String>, date: DateFilter? ->
         nav.navigate("pager/${media.id}/${filters.joinToString(",")}/$date")
     }

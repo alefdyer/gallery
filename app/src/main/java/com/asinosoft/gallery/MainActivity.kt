@@ -1,6 +1,7 @@
 package com.asinosoft.gallery
 
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
@@ -12,6 +13,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.navigation.compose.rememberNavController
 import com.asinosoft.gallery.di.IntentHelper
@@ -35,6 +37,8 @@ class MainActivity : ComponentActivity() {
             listOf(Manifest.permission.READ_EXTERNAL_STORAGE)
         }
 
+    private val openAlbumId = mutableStateOf<Long?>(null)
+
     private fun hasMediaPermissions() = mediaPermissions.all {
         PackageManager.PERMISSION_GRANTED == checkSelfPermission(it)
     }
@@ -45,6 +49,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
 
         lifecycle.addObserver(intentHelper)
+        handleIntent(intent)
 
         if (hasMediaPermissions()) {
             model.start()
@@ -67,7 +72,11 @@ class MainActivity : ComponentActivity() {
             GalleryTheme {
                 when (storagePermissions.allPermissionsGranted) {
                     true -> {
-                        Navigation(navController)
+                        Navigation(
+                            navController,
+                            openAlbumId = openAlbumId.value,
+                            onAlbumOpened = { openAlbumId.value = null }
+                        )
                     }
 
                     else -> {
@@ -82,10 +91,25 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        handleIntent(intent)
+    }
+
+    private fun handleIntent(intent: Intent?) {
+        intent?.getLongExtra(EXTRA_ALBUM_ID, -1L)
+            ?.takeIf { it > 0 }
+            ?.let { openAlbumId.value = it }
+    }
+
     override fun onResume() {
         super.onResume()
         if (hasMediaPermissions()) {
             model.start()
         }
+    }
+
+    companion object {
+        const val EXTRA_ALBUM_ID = "com.asinosoft.gallery.ALBUM_ID"
     }
 }
