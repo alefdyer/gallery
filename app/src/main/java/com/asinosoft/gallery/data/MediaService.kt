@@ -29,9 +29,11 @@ class MediaService @Inject constructor(
         if (mediaId <= 0) {
             mediaId = mediaDao.getMediaId(media.storageId, media.storageItemId) ?: return
         }
-        val albumName = media.path.split('/').last { it.isNotEmpty() }
-        val album = messengerAlbums.albumFor(albumName, messengerAlbums.isMessengerMedia(media))
-        addToAlbum(listOf(mediaId), album.id)
+        val albumName = media.path.split('/').lastOrNull { it.isNotEmpty() }
+        albumName?.let {
+            val album = messengerAlbums.albumFor(albumName, messengerAlbums.isMessengerMedia(media))
+            addToAlbum(listOf(mediaId), album.id)
+        }
 
         CoroutineScope(Dispatchers.IO).launch {
             ThumbnailCache.preload(context, mediaId, media.uri)
@@ -163,12 +165,17 @@ class MediaService @Inject constructor(
 
                 val chunkAlbums = HashMap<Pair<String, Boolean>, MutableSet<Long>>()
                 toInsert.forEachIndexed { index, media ->
-                    val albumName = media.path.split('/').last { it.isNotEmpty() }
-                    val rawId = rawMediaIds[index]
-                    val realId = if (rawId > 0) rawId else mediaDao.getMediaId(media.storageId, media.storageItemId) ?: -1L
-                    if (realId > 0) {
-                        val key = albumName to messengerAlbums.isMessengerMedia(media)
-                        chunkAlbums.getOrPut(key) { mutableSetOf() } += realId
+                    val albumName = media.path.split('/').lastOrNull { it.isNotEmpty() }
+                    albumName?.let {
+                        val rawId = rawMediaIds[index]
+                        val realId = if (rawId > 0) rawId else mediaDao.getMediaId(
+                            media.storageId,
+                            media.storageItemId
+                        ) ?: -1L
+                        if (realId > 0) {
+                            val key = albumName to messengerAlbums.isMessengerMedia(media)
+                            chunkAlbums.getOrPut(key) { mutableSetOf() } += realId
+                        }
                     }
                 }
 
