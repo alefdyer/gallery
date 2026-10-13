@@ -53,7 +53,8 @@ fun MediaThumbnail(
     playPreview: Boolean = false,
     showVideoBadge: Boolean = true,
     onClick: (Media) -> Unit = {},
-    onSelect: (Media) -> Unit = {}
+    onSelect: (Media) -> Unit = {},
+    onPreviewEnded: (Media) -> Unit = {}
 ) {
     Box(
         modifier = modifier
@@ -109,7 +110,7 @@ fun MediaThumbnail(
         )
 
         if (playPreview) {
-            VideoPreview(media, Modifier.matchParentSize())
+            VideoPreview(media, Modifier.matchParentSize(), onEnded = { onPreviewEnded(media) })
         }
 
         media.video?.takeIf { showVideoBadge }?.let { video ->

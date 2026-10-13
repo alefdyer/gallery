@@ -95,11 +95,13 @@ import com.asinosoft.gallery.ui.component.ScrollToTopButton
 import com.asinosoft.gallery.ui.component.SelectionControlBar
 import com.asinosoft.gallery.ui.component.SelectionInfoBar
 import com.asinosoft.gallery.ui.component.dragSelection
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.math.abs
 import kotlin.math.sign
 import kotlin.time.Duration.Companion.milliseconds
@@ -130,11 +132,17 @@ fun ImageListView(
     val lazyGridState = rememberLazyGridState()
     var showTagDialog by remember { mutableStateOf(false) }
     val dragSelectionState = remember { DragSelectionState() }
-    var previewIds by remember { mutableStateOf(emptySet<Long>()) }
+    var previewId by remember { mutableStateOf<Long?>(null) }
+    val previewEnded = remember { Channel<Long>(Channel.CONFLATED) }
     LaunchedEffect(images, lazyGridState) {
         val appearedAt = mutableMapOf<Long, Long>()
         snapshotFlow {
-            val visibleVideos = lazyGridState.layoutInfo.visibleItemsInfo
+            val layoutInfo = lazyGridState.layoutInfo
+            val visibleVideos = layoutInfo.visibleItemsInfo
+                .filter {
+                    it.offset.y >= layoutInfo.viewportStartOffset &&
+                        it.offset.y + it.size.height <= layoutInfo.viewportEndOffset
+                }
                 .mapNotNull { images.getOrNull(it.index) }
                 .filter { null != it.video && it.storageType == StorageType.LOCAL }
                 .map { it.id }
@@ -144,21 +152,36 @@ fun ImageListView(
             appearedAt.keys.retainAll(visibleVideos.toSet())
             visibleVideos.forEach { appearedAt.getOrPut(it) { now } }
 
-            if (isScrolling) {
-                previewIds = previewIds intersect visibleVideos.toSet()
+            if (isScrolling || visibleVideos.isEmpty()) {
+                if (previewId !in visibleVideos) previewId = null
                 return@collectLatest
             }
 
-            val candidates = visibleVideos.take(MAX_VIDEO_PREVIEWS)
-            previewIds = previewIds intersect candidates.toSet()
-            candidates
-                .filterNot { it in previewIds }
-                .sortedBy { appearedAt.getValue(it) }
-                .forEach { id ->
-                    val wait = appearedAt.getValue(id) + VIDEO_PREVIEW_DELAY_MS - SystemClock.uptimeMillis()
-                    if (wait > 0) delay(wait)
-                    previewIds = previewIds + id
+            var index = visibleVideos.indexOf(previewId)
+            if (index < 0) {
+                previewId = null
+                index = 0
+                val wait = appearedAt.getValue(visibleVideos[0]) + VIDEO_PREVIEW_DELAY_MS - now
+                if (wait > 0) delay(wait)
+            }
+
+            var restart = false
+            while (true) {
+                val id = visibleVideos[index]
+                if (restart || previewId != id) {
+                    if (previewId == id) {
+                        previewId = null
+                        withFrameNanos { }
+                    }
+                    while (previewEnded.tryReceive().isSuccess) Unit
+                    previewId = id
                 }
+                withTimeoutOrNull(VIDEO_PREVIEW_MAX_MS) {
+                    while (previewEnded.receive() != id) Unit
+                }
+                index = (index + 1) % visibleVideos.size
+                restart = true
+            }
         }
     }
 
@@ -484,7 +507,8 @@ fun ImageListView(
                     model = model,
                     selectionMode = selection.isNotEmpty(),
                     selected = selection,
-                    playPreview = media.id in previewIds,
+                    playPreview = media.id == previewId,
+                    onPreviewEnded = { previewEnded.trySend(it.id) },
                     onClick = { media -> onMediaClick(media, model.activeFilterPackages.value, model.activeDateFilter.value) },
                     onSelect = { image ->
                         if (!dragSelectionState.active) {
@@ -653,7 +677,7 @@ fun ImageListView(
 
 private class PendingFlag(var pending: Boolean = false)
 
-private const val MAX_VIDEO_PREVIEWS = 4
+private const val VIDEO_PREVIEW_MAX_MS = 10_000L
 private const val SCROLL_TO_TOP_JUMP = 30
 private val DATE_SWIPE_THRESHOLD = 80.dp
 private const val EDGE_RESISTANCE = 0.3f

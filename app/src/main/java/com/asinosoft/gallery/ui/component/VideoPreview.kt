@@ -7,6 +7,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
@@ -14,6 +15,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
+import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
@@ -23,9 +25,10 @@ import com.asinosoft.gallery.data.Media
 
 @OptIn(UnstableApi::class)
 @Composable
-fun VideoPreview(media: Media, modifier: Modifier = Modifier) {
+fun VideoPreview(media: Media, modifier: Modifier = Modifier, onEnded: () -> Unit = {}) {
     val context = LocalContext.current
     var firstFrameRendered by remember(media.id) { mutableStateOf(false) }
+    val currentOnEnded by rememberUpdatedState(onEnded)
 
     val player = remember(media.id) {
         ExoPlayer.Builder(context.applicationContext).build().apply {
@@ -33,7 +36,7 @@ fun VideoPreview(media: Media, modifier: Modifier = Modifier) {
                 .setTrackTypeDisabled(C.TRACK_TYPE_AUDIO, true)
                 .build()
             volume = 0f
-            repeatMode = Player.REPEAT_MODE_ONE
+            repeatMode = Player.REPEAT_MODE_OFF
             playWhenReady = true
             media.uri?.let {
                 setMediaItem(MediaItem.fromUri(it))
@@ -46,6 +49,14 @@ fun VideoPreview(media: Media, modifier: Modifier = Modifier) {
         val listener = object : Player.Listener {
             override fun onRenderedFirstFrame() {
                 firstFrameRendered = true
+            }
+
+            override fun onPlaybackStateChanged(playbackState: Int) {
+                if (Player.STATE_ENDED == playbackState) currentOnEnded()
+            }
+
+            override fun onPlayerError(error: PlaybackException) {
+                currentOnEnded()
             }
         }
         player.addListener(listener)
