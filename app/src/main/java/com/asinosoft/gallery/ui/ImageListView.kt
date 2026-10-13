@@ -47,6 +47,7 @@ import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.withFrameNanos
@@ -69,6 +70,7 @@ import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.asinosoft.gallery.R
+import com.asinosoft.gallery.data.Album
 import com.asinosoft.gallery.data.Media
 import com.asinosoft.gallery.data.storage.StorageType
 import com.asinosoft.gallery.model.DateFilter
@@ -89,6 +91,7 @@ import com.asinosoft.gallery.ui.component.dragSelection
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 import kotlin.math.abs
 import kotlin.math.sign
@@ -106,6 +109,9 @@ fun ImageListView(
     onBack: (() -> Unit)? = null,
     returnMediaId: Long? = null,
     onReturnHandled: () -> Unit = {},
+    previousAlbum: Album? = null,
+    nextAlbum: Album? = null,
+    onSwitchAlbum: (album: Album, forward: Boolean) -> Unit = { _, _ -> },
     model: ImageListViewModel = hiltViewModel()
 ) {
     val images by model.images.collectAsState(listOf())
@@ -250,6 +256,24 @@ fun ImageListView(
         else -> null
     }
 
+    val previousAlbumImages by remember(previousAlbum?.id) {
+        previousAlbum?.let { model.albumImages(it.id) } ?: flowOf(emptyList())
+    }.collectAsState(emptyList())
+    val nextAlbumImages by remember(nextAlbum?.id) {
+        nextAlbum?.let { model.albumImages(it.id) } ?: flowOf(emptyList())
+    }.collectAsState(emptyList())
+    val currentPreviousAlbum by rememberUpdatedState(previousAlbum)
+    val currentNextAlbum by rememberUpdatedState(nextAlbum)
+    val currentOnSwitchAlbum by rememberUpdatedState(onSwitchAlbum)
+    val albumSwipeEnabled = null == dateFilter && (null != previousAlbum || null != nextAlbum)
+    var committingAlbum by remember { mutableStateOf<Album?>(null) }
+    val previewAlbum = committingAlbum ?: when {
+        null != dateFilter -> null
+        swipeDirection > 0 -> previousAlbum
+        swipeDirection < 0 -> nextAlbum
+        else -> null
+    }
+
     var shownDateFilter by remember { mutableStateOf(dateFilter) }
     LaunchedEffect(dateFilter) {
         if (dateFilter != shownDateFilter) {
@@ -296,12 +320,17 @@ fun ImageListView(
     BoxWithConstraints(
         modifier
             .fillMaxSize()
-            .pointerInput(null != dateFilter, selection.isEmpty()) {
-                if (null == dateFilter || selection.isNotEmpty()) return@pointerInput
+            .pointerInput(null != dateFilter, albumSwipeEnabled, selection.isEmpty()) {
+                if ((null == dateFilter && !albumSwipeEnabled) || selection.isNotEmpty()) return@pointerInput
                 detectHorizontalDragGestures(
                     onHorizontalDrag = { change, dragAmount ->
                         change.consume()
-                        coroutineScope.launch { swipeOffset.snapTo(swipeOffset.value + dragAmount) }
+                        coroutineScope.launch {
+                            val offset = swipeOffset.value + dragAmount
+                            val blocked = null == model.activeDateFilter.value &&
+                                null == (if (offset > 0) currentPreviousAlbum else currentNextAlbum)
+                            swipeOffset.snapTo(if (blocked) offset * EDGE_RESISTANCE else offset)
+                        }
                     },
                     onDragCancel = {
                         coroutineScope.launch { swipeOffset.animateTo(0f) }
@@ -310,6 +339,25 @@ fun ImageListView(
                         coroutineScope.launch {
                             val offset = swipeOffset.value
                             val swipedRight = offset > 0
+
+                            if (null == model.activeDateFilter.value) {
+                                val targetAlbum = when {
+                                    abs(offset) <= swipeThreshold -> null
+                                    swipedRight -> currentPreviousAlbum
+                                    else -> currentNextAlbum
+                                }
+                                if (null == targetAlbum) {
+                                    swipeOffset.animateTo(0f)
+                                    return@launch
+                                }
+
+                                val width = size.width.toFloat()
+                                committingAlbum = targetAlbum
+                                swipeOffset.animateTo(if (swipedRight) width else -width, tween(200))
+                                currentOnSwitchAlbum(targetAlbum, !swipedRight)
+                                return@launch
+                            }
+
                             val target = if (abs(offset) > swipeThreshold) {
                                 model.adjacentDateFilter(older = swipedRight)
                             } else {
@@ -365,6 +413,21 @@ fun ImageListView(
                 title = dateFilterTitle(target) ?: album?.name.orEmpty(),
                 showPhotos = showPhotos,
                 showVideos = showVideos,
+                headerHeight = headerHeight,
+                contentPadding = gridPadding,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .graphicsLayer { translationX = swipeOffset.value - swipeDirection * size.width }
+            )
+        }
+
+        if (null == previewDate) previewAlbum?.let { target ->
+            DatePreviewPage(
+                model = model,
+                images = if (target.id == previousAlbum?.id) previousAlbumImages else nextAlbumImages,
+                title = target.name,
+                showPhotos = true,
+                showVideos = true,
                 headerHeight = headerHeight,
                 contentPadding = gridPadding,
                 modifier = Modifier
@@ -574,6 +637,7 @@ private class PendingFlag(var pending: Boolean = false)
 private const val MAX_VIDEO_PREVIEWS = 4
 private const val SCROLL_TO_TOP_JUMP = 30
 private val DATE_SWIPE_THRESHOLD = 80.dp
+private const val EDGE_RESISTANCE = 0.3f
 private val TOP_PANEL_MARGIN = 8.dp
 private val TOP_PANEL_HEIGHT = 48.dp
 private val SCROLL_INDICATOR_GAP = 8.dp

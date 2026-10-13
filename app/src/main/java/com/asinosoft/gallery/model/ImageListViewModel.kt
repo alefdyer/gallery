@@ -18,6 +18,7 @@ import com.asinosoft.gallery.data.storage.StorageProviderRegistry
 import com.asinosoft.gallery.data.storage.StorageService
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -53,7 +54,7 @@ private const val MAX_RECENT_DATES = 10
 @HiltViewModel
 class ImageListViewModel @Inject constructor(
     state: SavedStateHandle,
-    albumDao: AlbumDao,
+    private val albumDao: AlbumDao,
     mediaDao: MediaDao,
     applicationDao: ApplicationDao,
     storageProviderRegistry: StorageProviderRegistry,
@@ -253,6 +254,8 @@ class ImageListViewModel @Inject constructor(
                     (filter.day == null || image.date.dayOfMonth == filter.day)
         }
     }
+
+    fun albumImages(albumId: Long): Flow<List<Media>> = albumDao.getMediaInAlbum(albumId)
 
     fun adjacentDateFilter(older: Boolean): DateFilter? {
         val filter = activeDateFilter.value ?: return null
