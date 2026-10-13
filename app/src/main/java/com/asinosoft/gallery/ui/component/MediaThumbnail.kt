@@ -14,12 +14,10 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
@@ -36,12 +34,13 @@ import coil3.request.CachePolicy
 import coil3.request.ImageRequest
 import coil3.request.allowHardware
 import com.asinosoft.gallery.R
+import com.asinosoft.gallery.data.EXTERNAL_STORAGE_ID
 import com.asinosoft.gallery.data.Media
 import com.asinosoft.gallery.data.ThumbnailCache
 import com.asinosoft.gallery.model.MediaViewModel
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
+
+private const val LOCAL_STORAGE_ID = 1L
 
 @Composable
 fun MediaThumbnail(
@@ -66,16 +65,23 @@ fun MediaThumbnail(
         val size = rememberConstraintsSizeResolver()
 
         val cacheKey = remember(media.id) { "media-${media.id}" }
-        var request by remember { mutableStateOf<ImageRequest?>(null) }
-
-        LaunchedEffect (media, context, cacheKey) {
-            val (file, cached) = withContext(Dispatchers.IO) {
-                val file = ThumbnailCache.getFile(context, media.id)
-                file to (file.exists() && file.length() > 0)
+        val cacheFile = remember(media.id) { ThumbnailCache.getFile(context, media.id) }
+        val cached = remember(media.id) { cacheFile.exists() && cacheFile.length() > 0 }
+        val immediateData: Any? = remember(media, cached) {
+            when {
+                cached -> cacheFile
+                LOCAL_STORAGE_ID == media.storageId || EXTERNAL_STORAGE_ID == media.storageId -> media.uri
+                else -> null
             }
-            val data = if (cached) file else model.getThumbnailUri(media)
+        }
+        val remoteData by produceState<Any?>(null, media, immediateData) {
+            if (null == immediateData) value = model.getThumbnailUri(media)
+        }
+        val data = immediateData ?: remoteData
 
-            request = ImageRequest.Builder(context)
+        val request = remember(data, cacheKey) {
+            if (null == data) return@remember null
+            ImageRequest.Builder(context)
                 .data(data)
                 .size(size)
                 .memoryCacheKey(cacheKey)
