@@ -1,8 +1,12 @@
 package com.asinosoft.gallery.ui
 
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -55,9 +59,45 @@ fun Navigation(
         navController = nav,
         startDestination = "main",
         enterTransition = { fadeIn(animationSpec = tween(300)) },
-        exitTransition = { fadeOut(animationSpec = tween(300)) }
+        exitTransition = { fadeOut(animationSpec = tween(300)) },
+        predictivePopEnterTransition = { _ ->
+            if (initialState.destination.route == ALBUM_ROUTE) {
+                slideInHorizontally(tween(ALBUM_SLIDE_MS, easing = LinearEasing)) {
+                    -(it * ALBUM_PARALLAX).toInt()
+                }
+            } else {
+                fadeIn(animationSpec = tween(300))
+            }
+        },
+        predictivePopExitTransition = { _ ->
+            if (initialState.destination.route == ALBUM_ROUTE) {
+                slideOutHorizontally(tween(ALBUM_SLIDE_MS, easing = LinearEasing)) { it }
+            } else {
+                fadeOut(animationSpec = tween(300))
+            }
+        }
     ) {
-        composable("main") { entry ->
+        composable(
+            "main",
+            exitTransition = {
+                if (targetState.destination.route == ALBUM_ROUTE) {
+                    slideOutHorizontally(tween(ALBUM_SLIDE_MS, easing = FastOutSlowInEasing)) {
+                        -(it * ALBUM_PARALLAX).toInt()
+                    }
+                } else {
+                    fadeOut(animationSpec = tween(300))
+                }
+            },
+            popEnterTransition = {
+                if (initialState.destination.route == ALBUM_ROUTE) {
+                    slideInHorizontally(tween(ALBUM_SLIDE_MS, easing = FastOutSlowInEasing)) {
+                        -(it * ALBUM_PARALLAX).toInt()
+                    }
+                } else {
+                    fadeIn(animationSpec = tween(300))
+                }
+            }
+        ) { entry ->
             val returnMediaId by entry.returnMediaId()
             MainView(
                 onMediaClick = navigateToMedia,
@@ -90,7 +130,7 @@ fun Navigation(
                 if (initialState.destination.route == ALBUM_ROUTE) {
                     fadeIn(tween(ALBUM_SWAP_FADE_MS, delayMillis = ALBUM_SWAP_DELAY_MS))
                 } else {
-                    fadeIn(animationSpec = tween(300))
+                    slideInHorizontally(tween(ALBUM_SLIDE_MS, easing = FastOutSlowInEasing)) { it }
                 }
             },
             exitTransition = {
@@ -99,6 +139,10 @@ fun Navigation(
                 } else {
                     fadeOut(animationSpec = tween(300))
                 }
+            },
+            popEnterTransition = { fadeIn(animationSpec = tween(300)) },
+            popExitTransition = {
+                slideOutHorizontally(tween(ALBUM_SLIDE_MS, easing = FastOutSlowInEasing)) { it }
             }
         ) { route ->
             val albumId = route.arguments?.getLong("albumId")!!
@@ -187,3 +231,5 @@ private const val RETURN_MEDIA_ID = "returnMediaId"
 private const val ALBUM_ROUTE = "album/{albumId}"
 private const val ALBUM_SWAP_DELAY_MS = 200
 private const val ALBUM_SWAP_FADE_MS = 150
+private const val ALBUM_SLIDE_MS = 300
+private const val ALBUM_PARALLAX = 0.25f
