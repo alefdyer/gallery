@@ -8,7 +8,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 
 @HiltViewModel
-class MediaViewModel @Inject constructor(
+open class MediaViewModel @Inject constructor(
     private val storageProviderRegistry: StorageProviderRegistry
 ) : ViewModel() {
     suspend fun getMediaUri(media: Media): Uri =

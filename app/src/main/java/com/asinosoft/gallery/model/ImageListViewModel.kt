@@ -2,7 +2,6 @@ package com.asinosoft.gallery.model
 
 import android.content.Context
 import androidx.lifecycle.SavedStateHandle
-import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.asinosoft.gallery.data.Album
 import com.asinosoft.gallery.data.AlbumCategory
@@ -15,6 +14,7 @@ import com.asinosoft.gallery.data.MediaDao
 import com.asinosoft.gallery.data.MediaService
 import com.asinosoft.gallery.data.launchAndCatch
 import com.asinosoft.gallery.data.storage.StorageDao
+import com.asinosoft.gallery.data.storage.StorageProviderRegistry
 import com.asinosoft.gallery.data.storage.StorageService
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -56,11 +56,12 @@ class ImageListViewModel @Inject constructor(
     albumDao: AlbumDao,
     mediaDao: MediaDao,
     applicationDao: ApplicationDao,
+    storageProviderRegistry: StorageProviderRegistry,
     private val mediaService: MediaService,
     private val storageDao: StorageDao,
     private val storageService: StorageService,
     @param:ApplicationContext private val context: Context
-) : ViewModel() {
+) : MediaViewModel(storageProviderRegistry) {
     val storageId: Long = state["storageId"] ?: 1
 
     val albumId: Long? = state["albumId"]

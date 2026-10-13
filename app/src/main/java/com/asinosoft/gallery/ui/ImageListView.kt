@@ -73,6 +73,7 @@ import com.asinosoft.gallery.data.Media
 import com.asinosoft.gallery.data.storage.StorageType
 import com.asinosoft.gallery.model.DateFilter
 import com.asinosoft.gallery.model.ImageListViewModel
+import com.asinosoft.gallery.model.MediaViewModel
 import com.asinosoft.gallery.ui.component.AddToAlbumDialog
 import com.asinosoft.gallery.ui.component.AppsFilterPanel
 import com.asinosoft.gallery.ui.component.DragSelectionState
@@ -359,6 +360,7 @@ fun ImageListView(
 
         previewDate?.let { target ->
             DatePreviewPage(
+                model = model,
                 images = remember(target, images) { model.imagesForDate(target) },
                 title = dateFilterTitle(target) ?: album?.name.orEmpty(),
                 showPhotos = showPhotos,
@@ -397,6 +399,7 @@ fun ImageListView(
             items(images, key = { it.id }) { media ->
                 MediaThumbnail(
                     media = media,
+                    model = model,
                     selectionMode = selection.isNotEmpty(),
                     selected = selection,
                     playPreview = media.id in previewIds,
@@ -586,6 +589,7 @@ private val monthsGenitive = DateFormatSymbols
 
 @Composable
 private fun DatePreviewPage(
+    model: MediaViewModel,
     images: List<Media>,
     title: String,
     showPhotos: Boolean,
@@ -614,7 +618,7 @@ private fun DatePreviewPage(
             userScrollEnabled = false
         ) {
             items(visibleImages, key = { it.id }) { media ->
-                MediaThumbnail(media = media)
+                MediaThumbnail(media = media, model = model)
             }
         }
 

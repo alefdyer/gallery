@@ -1,6 +1,5 @@
 package com.asinosoft.gallery.ui.component
 
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -31,8 +30,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
-import coil3.compose.rememberAsyncImagePainter
+import coil3.compose.AsyncImage
 import coil3.compose.rememberConstraintsSizeResolver
 import coil3.request.CachePolicy
 import coil3.request.ImageRequest
@@ -46,6 +44,7 @@ import kotlinx.coroutines.launch
 @Composable
 fun MediaThumbnail(
     media: Media,
+    model: MediaViewModel,
     modifier: Modifier = Modifier,
     aspectRatio: Float = 1f,
     selected: Set<Long> = setOf(),
@@ -53,8 +52,7 @@ fun MediaThumbnail(
     playPreview: Boolean = false,
     showVideoBadge: Boolean = true,
     onClick: (Media) -> Unit = {},
-    onSelect: (Media) -> Unit = {},
-    model: MediaViewModel = hiltViewModel()
+    onSelect: (Media) -> Unit = {}
 ) {
     Box(
         modifier = modifier
@@ -91,10 +89,9 @@ fun MediaThumbnail(
                 .build()
         }
 
-        val painter = rememberAsyncImagePainter(model = request)
-
-        Image(
-            painter = painter,
+        AsyncImage(
+            model = request,
+            placeholder = painterResource(R.drawable.photo),
             contentDescription = null,
             contentScale = ContentScale.Crop,
             modifier = Modifier.aspectRatio(aspectRatio).then(size)

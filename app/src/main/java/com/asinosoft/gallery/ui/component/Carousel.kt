@@ -32,8 +32,10 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.asinosoft.gallery.R
 import com.asinosoft.gallery.data.Media
+import com.asinosoft.gallery.model.MediaViewModel
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.launch
@@ -44,6 +46,7 @@ fun Carousel(
     items: List<Media>,
     pagerState: PagerState,
     modifier: Modifier = Modifier,
+    model: MediaViewModel = hiltViewModel(),
 ) {
     val scope = rememberCoroutineScope()
     val density = LocalDensity.current
@@ -126,6 +129,7 @@ fun Carousel(
                 ) {
                     MediaThumbnail(
                         media = media,
+                        model = model,
                         aspectRatio = width / ITEM_HEIGHT,
                         showVideoBadge = false,
                         onClick = { scope.launch { pagerState.scrollToPage(page) } },
