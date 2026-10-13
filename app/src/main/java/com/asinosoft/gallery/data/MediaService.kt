@@ -19,6 +19,7 @@ import kotlinx.coroutines.withContext
 class MediaService @Inject constructor(
     private val albumDao: AlbumDao,
     private val mediaDao: MediaDao,
+    private val messengerAlbums: MessengerAlbums,
     @param:ApplicationContext private val context: Context
 ) {
     private val intentHelper = IntentHelper
@@ -29,7 +30,7 @@ class MediaService @Inject constructor(
             mediaId = mediaDao.getMediaId(media.storageId, media.storageItemId) ?: return
         }
         val albumName = media.path.split('/').last { it.isNotEmpty() }
-        val album = albumDao.getOrCreateAlbum(albumName, AlbumCategory.OTHER.id)
+        val album = messengerAlbums.albumFor(albumName, messengerAlbums.isMessengerMedia(media))
         addToAlbum(listOf(mediaId), album.id)
 
         CoroutineScope(Dispatchers.IO).launch {
@@ -137,6 +138,7 @@ class MediaService @Inject constructor(
     suspend fun update(provider: StorageProvider) = withContext(Dispatchers.IO) {
         Log.i("MediaService", "update: ${provider.storage}")
         val updated = mutableSetOf<Long>()
+        messengerAlbums.migrateOnce()
         provider.fetchAll().chunked(500).collect { fetched ->
             val media = mediaDao.getMediaByStorageItemIds(
                 provider.storage.id,
@@ -159,18 +161,19 @@ class MediaService @Inject constructor(
                     }
                 }
 
-                val chunkAlbums = HashMap<String, MutableSet<Long>>()
+                val chunkAlbums = HashMap<Pair<String, Boolean>, MutableSet<Long>>()
                 toInsert.forEachIndexed { index, media ->
                     val albumName = media.path.split('/').last { it.isNotEmpty() }
                     val rawId = rawMediaIds[index]
                     val realId = if (rawId > 0) rawId else mediaDao.getMediaId(media.storageId, media.storageItemId) ?: -1L
                     if (realId > 0) {
-                        chunkAlbums.getOrPut(albumName) { mutableSetOf() } += realId
+                        val key = albumName to messengerAlbums.isMessengerMedia(media)
+                        chunkAlbums.getOrPut(key) { mutableSetOf() } += realId
                     }
                 }
 
-                chunkAlbums.forEach { (name, ids) ->
-                    val album = albumDao.getOrCreateAlbum(name, AlbumCategory.OTHER.id)
+                chunkAlbums.forEach { (key, ids) ->
+                    val album = messengerAlbums.albumFor(key.first, key.second)
                     addToAlbum(ids, album.id)
                 }
 

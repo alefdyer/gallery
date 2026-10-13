@@ -10,6 +10,12 @@ import androidx.room.Upsert
 import kotlinx.coroutines.flow.Flow
 import java.time.LocalDate
 
+data class AlbumMediaSource(
+    val albumId: Long,
+    val path: String,
+    val owner: String?
+)
+
 @Dao
 interface AlbumDao {
     @Query("SELECT * FROM album WHERE id = :id")
@@ -17,6 +23,20 @@ interface AlbumDao {
 
     @Query("SELECT * FROM album WHERE name = :name AND categoryId = :categoryId")
     suspend fun getAlbumByName(name: String, categoryId: Long): Album?
+
+    @Query("SELECT * FROM album WHERE name = :name ORDER BY id LIMIT 1")
+    suspend fun findAlbumByName(name: String): Album?
+
+    @Query(
+        """
+        SELECT DISTINCT ma.albumId AS albumId, m.path AS path, m.owner AS owner
+        FROM media_album ma
+        INNER JOIN media m ON m.id = ma.mediaId
+        INNER JOIN album a ON a.id = ma.albumId
+        WHERE a.categoryId = :categoryId
+        """
+    )
+    suspend fun getAlbumMediaSources(categoryId: Long): List<AlbumMediaSource>
 
     suspend fun getOrCreateAlbum(name: String, categoryId: Long): Album =
         getAlbumByName(name, categoryId)
@@ -122,6 +142,9 @@ interface AlbumDao {
 
     @Query("SELECT * FROM album_category WHERE name = :name")
     suspend fun findCategoryByName(name: String): AlbumCategory?
+
+    @Query("SELECT * FROM album_category WHERE id = :id")
+    suspend fun getCategoryById(id: Long): AlbumCategory?
 
     @Insert
     suspend fun createCategory(albumCategory: AlbumCategory): Long
