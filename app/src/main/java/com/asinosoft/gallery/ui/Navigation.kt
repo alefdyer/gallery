@@ -149,6 +149,7 @@ fun Navigation(
             val returnMediaId by route.returnMediaId()
 
             AlbumView(
+                loadNeighbours = transition.currentState == transition.targetState,
                 onSwitchAlbum = { album, _ ->
                     nav.navigate("album/${album.id}") {
                         popUpTo(ALBUM_ROUTE) { inclusive = true }

@@ -39,7 +39,9 @@ import com.asinosoft.gallery.R
 import com.asinosoft.gallery.data.Media
 import com.asinosoft.gallery.data.ThumbnailCache
 import com.asinosoft.gallery.model.MediaViewModel
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 @Composable
 fun MediaThumbnail(
@@ -67,8 +69,11 @@ fun MediaThumbnail(
         var request by remember { mutableStateOf<ImageRequest?>(null) }
 
         LaunchedEffect (media, context, cacheKey) {
-            val file = ThumbnailCache.getFile(context, media.id)
-            val data = if (file.exists() && file.length() > 0) file else model.getThumbnailUri(media)
+            val (file, cached) = withContext(Dispatchers.IO) {
+                val file = ThumbnailCache.getFile(context, media.id)
+                file to (file.exists() && file.length() > 0)
+            }
+            val data = if (cached) file else model.getThumbnailUri(media)
 
             request = ImageRequest.Builder(context)
                 .data(data)
@@ -80,7 +85,7 @@ fun MediaThumbnail(
                 .diskCachePolicy(CachePolicy.ENABLED)
                 .allowHardware(true)
                 .listener(onSuccess = { _, result ->
-                    if (!file.exists()) {
+                    if (!cached) {
                         scope.launch {
                             ThumbnailCache.save(context, media.id, result.image)
                         }

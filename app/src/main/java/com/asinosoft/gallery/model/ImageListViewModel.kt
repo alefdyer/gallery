@@ -18,15 +18,18 @@ import com.asinosoft.gallery.data.storage.StorageProviderRegistry
 import com.asinosoft.gallery.data.storage.StorageService
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
 data class DateFilter(
@@ -110,7 +113,7 @@ class ImageListViewModel @Inject constructor(
                         (dateFilter?.month == null || image.date.monthValue == dateFilter.month) &&
                         (dateFilter?.day == null || image.date.dayOfMonth == dateFilter.day)
             }
-        }.stateIn(
+        }.flowOn(Dispatchers.Default).stateIn(
             scope = viewModelScope,
             started = SharingStarted.Eagerly,
             initialValue = emptyList()
@@ -119,16 +122,18 @@ class ImageListViewModel @Inject constructor(
     val images: StateFlow<List<Media>> =
         combine(filteredImages, showPhotos, showVideos) { images, photos, videos ->
             if (photos && videos) images else images.filter { if (null == it.video) photos else videos }
-        }.stateIn(
+        }.flowOn(Dispatchers.Default).stateIn(
             scope = viewModelScope,
             started = SharingStarted.Eagerly,
             initialValue = emptyList()
         )
 
     val photoCount: StateFlow<Int> = filteredImages.map { list -> list.count { null == it.video } }
+        .flowOn(Dispatchers.Default)
         .stateIn(viewModelScope, SharingStarted.Eagerly, 0)
 
     val videoCount: StateFlow<Int> = filteredImages.map { list -> list.count { null != it.video } }
+        .flowOn(Dispatchers.Default)
         .stateIn(viewModelScope, SharingStarted.Eagerly, 0)
 
     val filters = combine(allFilters, activeDateFilter, allImages) { filters, dateFilter, images ->
@@ -138,7 +143,7 @@ class ImageListViewModel @Inject constructor(
                     (dateFilter?.day == null || image.date.dayOfMonth == dateFilter.day)
         }.map { it.owner }.toSet()
         filters.filter { apps.contains(it.application.pkg) }
-    }
+    }.flowOn(Dispatchers.Default)
 
     // Группировка: Year -> Month -> Day -> List<Int>
     val dateGroups = combine(activeFilters, allImages) { filters, images ->
@@ -151,7 +156,7 @@ class ImageListViewModel @Inject constructor(
                         monthImages.groupBy { it.date.dayOfMonth }.mapValues { it.value.size }
                     }
             }
-    }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyMap())
+    }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.Eagerly, emptyMap())
 
     init {
         viewModelScope.launch {
@@ -173,7 +178,9 @@ class ImageListViewModel @Inject constructor(
 
             var lastOwners: List<String>? = null
             allImages.collect { images ->
-                val ownersInOrder = images.mapNotNull { it.owner }.distinct()
+                val ownersInOrder = withContext(Dispatchers.Default) {
+                    images.mapNotNull { it.owner }.distinct()
+                }
                 if (ownersInOrder != lastOwners) {
                     lastOwners = ownersInOrder
                     kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
