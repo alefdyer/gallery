@@ -40,8 +40,8 @@
     <string name="new_category">Новая категория</string>
     <string name="add_to_album">В Альбом</string>
     <string name="remove_from_album">Из Альбома</string>
-    <string name="expand">Развернуть</string>
-    <string name="collapse">Свернуть</string>
+    <string name="always_expanded">Всегда развернуто</string>
+    <string name="always_collapsed">Всегда свернуто</string>
     <string name="name">Название</string>
     <string name="new_album">Новый альбом</string>
     <string name="category">Категория</string>

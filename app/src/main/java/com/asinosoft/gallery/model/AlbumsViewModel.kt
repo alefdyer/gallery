@@ -45,7 +45,9 @@ class AlbumsViewModel @Inject constructor(
 ) : ViewModel() {
     private val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
     private val categoryOrder = MutableStateFlow(loadCategoryOrder())
-    private val expandedCategoriesFlow = MutableStateFlow(loadExpandedCategories())
+    private val alwaysExpandedCategoriesFlow = MutableStateFlow(loadExpandedCategories())
+    val alwaysExpandedCategories: StateFlow<Set<Long>> = alwaysExpandedCategoriesFlow
+    private val expandedCategoriesFlow = MutableStateFlow(alwaysExpandedCategoriesFlow.value)
     val expandedCategories: StateFlow<Set<Long>> = expandedCategoriesFlow
 
     val albums: StateFlow<List<CategoryWithAlbums>> =
@@ -107,16 +109,18 @@ class AlbumsViewModel @Inject constructor(
         prefs.edit { putString(KEY_ORDER, ids.joinToString(",")) }
     }
 
-    fun toggleCategoryExpanded(id: Long, persist: Boolean) {
+    fun toggleCategoryExpanded(id: Long) {
         val current = expandedCategoriesFlow.value
-        val expand = id !in current
-        expandedCategoriesFlow.value = if (expand) current + id else current - id
+        expandedCategoriesFlow.value = if (id in current) current - id else current + id
+    }
 
-        if (persist) {
-            val saved = loadExpandedCategories()
-            val updated = if (expand) saved + id else saved - id
-            prefs.edit { putString(KEY_EXPANDED, updated.joinToString(",")) }
-        }
+    fun setCategoryAlwaysExpanded(id: Long, expanded: Boolean) {
+        val updated = alwaysExpandedCategoriesFlow.value.let { if (expanded) it + id else it - id }
+        alwaysExpandedCategoriesFlow.value = updated
+        prefs.edit { putString(KEY_EXPANDED, updated.joinToString(",")) }
+
+        val current = expandedCategoriesFlow.value
+        expandedCategoriesFlow.value = if (expanded) current + id else current - id
     }
 
     private fun loadExpandedCategories(): Set<Long> =

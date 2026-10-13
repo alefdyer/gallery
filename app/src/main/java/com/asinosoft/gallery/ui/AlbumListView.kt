@@ -124,6 +124,7 @@ fun AlbumListView(
     var dragDirection by remember { mutableFloatStateOf(0f) }
     var menuCategoryId by remember { mutableStateOf<Long?>(null) }
     val expandedCategoryIds by model.expandedCategories.collectAsState()
+    val alwaysExpandedCategoryIds by model.alwaysExpandedCategories.collectAsState()
     var renamingCategory by remember { mutableStateOf<AlbumCategory?>(null) }
 
     val shownCategories = dragOrder
@@ -339,9 +340,11 @@ fun AlbumListView(
                     highlighted = isDragActive && category == dropCategory,
                     onAlbumClick = onAlbumClick,
                     expanded = id in expandedCategoryIds,
-                    onToggleExpand = { persist ->
+                    alwaysExpanded = id in alwaysExpandedCategoryIds,
+                    onToggleExpand = { model.toggleCategoryExpanded(id) },
+                    onAlwaysExpandedChange = { always ->
                         menuCategoryId = null
-                        model.toggleCategoryExpanded(id, persist)
+                        model.setCategoryAlwaysExpanded(id, always)
                     },
                     menuExpanded = id == menuCategoryId,
                     onMenuDismiss = { menuCategoryId = null },
@@ -443,7 +446,9 @@ private fun AlbumCategoriesRow(
     highlighted: Boolean,
     onAlbumClick: (Album) -> Unit,
     expanded: Boolean,
-    onToggleExpand: (persist: Boolean) -> Unit,
+    alwaysExpanded: Boolean,
+    onToggleExpand: () -> Unit,
+    onAlwaysExpandedChange: (Boolean) -> Unit,
     menuExpanded: Boolean,
     onMenuDismiss: () -> Unit,
     onRenameClick: () -> Unit,
@@ -466,7 +471,7 @@ private fun AlbumCategoriesRow(
                 title = category.category.name(),
                 count = category.albums.size,
                 expanded = expanded.takeIf { expandable },
-                onToggleExpand = { onToggleExpand(false) },
+                onToggleExpand = onToggleExpand,
                 modifier = Modifier.pointerInput(category.category.id) {
                     detectDragGesturesAfterLongPress(
                         onDragStart = { onDragStart() },
@@ -491,8 +496,10 @@ private fun AlbumCategoriesRow(
                 )
                 if (expandable) {
                     FloatingMenuItem(
-                        text = stringResource(if (expanded) R.string.collapse else R.string.expand),
-                        onClick = { onToggleExpand(true) }
+                        text = stringResource(
+                            if (alwaysExpanded) R.string.always_collapsed else R.string.always_expanded
+                        ),
+                        onClick = { onAlwaysExpandedChange(!alwaysExpanded) }
                     )
                 }
             }
