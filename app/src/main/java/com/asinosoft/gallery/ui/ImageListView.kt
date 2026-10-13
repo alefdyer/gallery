@@ -13,8 +13,11 @@ import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
-import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.awaitHorizontalTouchSlopOrCancellation
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.horizontalDrag
 import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -31,6 +34,7 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.systemGestures
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
@@ -59,7 +63,10 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.input.pointer.PointerInputChange
+import androidx.compose.ui.input.pointer.PointerInputScope
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
@@ -317,12 +324,24 @@ fun ImageListView(
         onReturnHandled()
     }
 
+    val systemGestures = WindowInsets.systemGestures
+    val leftGestureEdge = systemGestures.getLeft(density, layoutDirection).toFloat()
+    val rightGestureEdge = systemGestures.getRight(density, layoutDirection).toFloat()
+
     BoxWithConstraints(
         modifier
             .fillMaxSize()
-            .pointerInput(null != dateFilter, albumSwipeEnabled, selection.isEmpty()) {
+            .pointerInput(
+                null != dateFilter,
+                albumSwipeEnabled,
+                selection.isEmpty(),
+                leftGestureEdge,
+                rightGestureEdge
+            ) {
                 if ((null == dateFilter && !albumSwipeEnabled) || selection.isNotEmpty()) return@pointerInput
-                detectHorizontalDragGestures(
+                detectHorizontalDragGesturesAwayFromEdges(
+                    leftEdge = leftGestureEdge,
+                    rightEdge = rightGestureEdge,
                     onHorizontalDrag = { change, dragAmount ->
                         change.consume()
                         coroutineScope.launch {
@@ -695,6 +714,32 @@ private fun DatePreviewPage(
             modifier = Modifier.fillMaxWidth().height(headerHeight)
         )
     }
+}
+
+/**
+ * Как detectHorizontalDragGestures, но игнорирует касания в зонах системного жеста «назад» у краёв экрана
+ */
+private suspend fun PointerInputScope.detectHorizontalDragGesturesAwayFromEdges(
+    leftEdge: Float,
+    rightEdge: Float,
+    onDragEnd: () -> Unit,
+    onDragCancel: () -> Unit,
+    onHorizontalDrag: (change: PointerInputChange, dragAmount: Float) -> Unit,
+) = awaitEachGesture {
+    val down = awaitFirstDown(requireUnconsumed = false)
+    if (down.position.x < leftEdge || down.position.x > size.width - rightEdge) return@awaitEachGesture
+
+    var overSlop = 0f
+    val drag = awaitHorizontalTouchSlopOrCancellation(down.id) { change, over ->
+        change.consume()
+        overSlop = over
+    } ?: return@awaitEachGesture
+
+    onHorizontalDrag(drag, overSlop)
+    val completed = horizontalDrag(drag.id) { change ->
+        onHorizontalDrag(change, change.positionChange().x)
+    }
+    if (completed) onDragEnd() else onDragCancel()
 }
 
 private fun DateFilter.matches(media: Media) =
