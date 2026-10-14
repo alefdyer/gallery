@@ -186,7 +186,10 @@ fun VideoView(
                     this.player = player
                 }
             },
-            update = { it.player = player },
+            update = {
+                it.player = player
+                it.keepScreenOn = isPlaying
+            },
             modifier = Modifier.fillMaxSize()
         )
 
