@@ -18,6 +18,9 @@ interface MediaDao {
         storageItemIds: Collection<String>
     ): List<Media>
 
+    @Query("SELECT * FROM media WHERE storageId = :storageId AND id NOT IN (SELECT mediaId FROM media_album)")
+    suspend fun getMediaWithoutAlbum(storageId: Long): List<Media>
+
     @Query("SELECT id FROM media WHERE storageId = :storageId AND storageItemId = :storageItemId")
     suspend fun getMediaId(storageId: Long, storageItemId: String): Long?
 

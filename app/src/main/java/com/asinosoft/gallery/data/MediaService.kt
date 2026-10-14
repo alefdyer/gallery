@@ -3,6 +3,7 @@ package com.asinosoft.gallery.data
 import android.content.Context
 import android.content.Intent
 import android.util.Log
+import androidx.core.content.edit
 import com.asinosoft.gallery.GalleryApp
 import com.asinosoft.gallery.data.storage.StorageProvider
 import com.asinosoft.gallery.di.IntentHelper
@@ -23,6 +24,7 @@ class MediaService @Inject constructor(
     @param:ApplicationContext private val context: Context
 ) {
     private val intentHelper = IntentHelper
+    private val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
     suspend fun add(media: Media) {
         var mediaId = mediaDao.upsert(media)
@@ -198,6 +200,52 @@ class MediaService @Inject constructor(
         }
 
         mediaDao.deleteAllExcept(provider.storage.id, updated)
+        repairFolderAlbumsOnce(provider.storage.id)
+        mergeDuplicateAlbumsOnce()
         albumDao.deleteEmptyAlbums()
+    }
+
+    /**
+     * Раньше новые файлы искали альбом папки только в «Прочее», и если альбом
+     * перенесли в другую категорию, в «Прочее» появлялся его дубль.
+     */
+    private suspend fun mergeDuplicateAlbumsOnce() {
+        if (prefs.getBoolean(KEY_DUPLICATES_MERGED, false)) return
+
+        albumDao.getDuplicateAlbums().groupBy { it.name }.values.forEach { albums ->
+            val target = albums.first()
+            albums.drop(1)
+                .filter { AlbumCategory.OTHER.id == it.categoryId }
+                .forEach { albumDao.mergeAlbums(it.id, target.id) }
+        }
+
+        prefs.edit { putBoolean(KEY_DUPLICATES_MERGED, true) }
+    }
+
+    /**
+     * Сканирование, прерванное ошибкой, оставляло файлы в базе без альбомов,
+     * а повторные сканирования такие файлы не трогают. Восстанавливаем один раз,
+     * чтобы не возвращать в альбомы файлы, которые пользователь убрал сам.
+     */
+    private suspend fun repairFolderAlbumsOnce(storageId: Long) {
+        val prefsKey = "$KEY_ALBUMS_REPAIRED$storageId"
+        if (prefs.getBoolean(prefsKey, false)) return
+
+        val albums = HashMap<Pair<String, Boolean>, MutableSet<Long>>()
+        mediaDao.getMediaWithoutAlbum(storageId).forEach { media ->
+            val albumName = media.path.split('/').lastOrNull { it.isNotEmpty() } ?: return@forEach
+            albums.getOrPut(albumName to messengerAlbums.isMessengerMedia(media)) { mutableSetOf() } += media.id
+        }
+        albums.forEach { (key, ids) ->
+            addToAlbum(ids, messengerAlbums.albumFor(key.first, key.second).id)
+        }
+
+        prefs.edit { putBoolean(prefsKey, true) }
+    }
+
+    private companion object {
+        const val PREFS_NAME = "media_service"
+        const val KEY_ALBUMS_REPAIRED = "albums_repaired_"
+        const val KEY_DUPLICATES_MERGED = "duplicates_merged"
     }
 }

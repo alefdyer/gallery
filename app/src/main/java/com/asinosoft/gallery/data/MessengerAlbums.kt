@@ -27,11 +27,8 @@ class MessengerAlbums @Inject constructor(
     fun isMessengerMedia(media: Media): Boolean = isMessenger(media.path, media.owner)
 
     suspend fun albumFor(name: String, messenger: Boolean): Album =
-        if (messenger) {
-            albumDao.findAlbumByName(name) ?: albumDao.getOrCreateAlbum(name, categoryId())
-        } else {
-            albumDao.getOrCreateAlbum(name, AlbumCategory.OTHER.id)
-        }
+        albumDao.findAlbumByName(name)
+            ?: albumDao.getOrCreateAlbum(name, if (messenger) categoryId() else AlbumCategory.OTHER.id)
 
     suspend fun migrateOnce() {
         if (prefs.getBoolean(KEY_MIGRATED, false)) return

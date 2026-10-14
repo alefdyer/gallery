@@ -27,6 +27,19 @@ interface AlbumDao {
     @Query("SELECT * FROM album WHERE name = :name ORDER BY id LIMIT 1")
     suspend fun findAlbumByName(name: String): Album?
 
+    @Query("SELECT * FROM album WHERE name IN (SELECT name FROM album GROUP BY name HAVING COUNT(*) > 1) ORDER BY id")
+    suspend fun getDuplicateAlbums(): List<Album>
+
+    @Query("INSERT OR IGNORE INTO media_album (mediaId, albumId) SELECT mediaId, :toAlbumId FROM media_album WHERE albumId = :fromAlbumId")
+    suspend fun copyAlbumMedia(fromAlbumId: Long, toAlbumId: Long)
+
+    @Transaction
+    suspend fun mergeAlbums(fromAlbumId: Long, toAlbumId: Long) {
+        copyAlbumMedia(fromAlbumId, toAlbumId)
+        delete(fromAlbumId)
+        updateAlbumStats(toAlbumId)
+    }
+
     @Query(
         """
         SELECT DISTINCT ma.albumId AS albumId, m.path AS path, m.owner AS owner
