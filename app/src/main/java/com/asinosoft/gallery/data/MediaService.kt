@@ -2,12 +2,15 @@ package com.asinosoft.gallery.data
 
 import android.content.Context
 import android.content.Intent
+import android.os.Build
+import android.provider.MediaStore
 import android.util.Log
 import androidx.core.content.edit
 import com.asinosoft.gallery.GalleryApp
 import com.asinosoft.gallery.data.storage.StorageProvider
 import com.asinosoft.gallery.di.IntentHelper
 import dagger.hilt.android.qualifiers.ApplicationContext
+import java.io.File
 import javax.inject.Inject
 import kotlin.system.measureTimeMillis
 import kotlinx.coroutines.CoroutineScope
@@ -21,6 +24,7 @@ class MediaService @Inject constructor(
     private val albumDao: AlbumDao,
     private val mediaDao: MediaDao,
     private val messengerAlbums: MessengerAlbums,
+    private val privateAlbum: PrivateAlbum,
     @param:ApplicationContext private val context: Context
 ) {
     private val intentHelper = IntentHelper
@@ -95,6 +99,57 @@ class MediaService @Inject constructor(
     suspend fun setFavorite(mediaIds: Collection<Long>, favorite: Boolean) {
         mediaDao.setFavorite(mediaIds, favorite)
     }
+
+    /** Для файлов из MediaStore отметку меняет система после подтверждения пользователя */
+    suspend fun setFavoriteWithRequest(mediaIds: Collection<Long>, favorite: Boolean, callback: () -> Unit) {
+        val (local, other) = mediaDao.getByIds(mediaIds).partition { it.isInMediaStore() }
+        mediaDao.setFavorite(other.map { it.id }, favorite)
+        if (local.isEmpty() || Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
+            mediaDao.setFavorite(local.map { it.id }, favorite)
+            callback()
+            return
+        }
+        val request = MediaStore.createFavoriteRequest(context.contentResolver, local.mapNotNull { it.uri }, favorite)
+        intentHelper.launch(request.intentSender) { granted ->
+            if (granted) mediaDao.setFavorite(local.map { it.id }, favorite)
+            callback()
+        }
+    }
+
+    /**
+     * Файлы копируются в личный альбом, а оригиналы удаляются через системный запрос.
+     * Если пользователь откажется, копии удаляются.
+     */
+    suspend fun moveToPrivate(mediaIds: Collection<Long>, context: Context, callback: () -> Unit) {
+        val media = mediaDao.getByIds(mediaIds).filter { it.isInMediaStore() }
+        if (media.isEmpty()) return
+
+        val copies = mutableListOf<File>()
+        try {
+            media.forEach { copies += privateAlbum.copyIn(it) }
+        } catch (ex: Throwable) {
+            privateAlbum.discard(copies)
+            throw ex
+        }
+
+        intentHelper.deleteRequest(media.mapNotNull { it.uri }, context) { granted ->
+            if (!granted) {
+                privateAlbum.discard(copies)
+                return@deleteRequest
+            }
+            val ids = media.map { it.id }
+            val albums = albumDao.getMediaAlbumIds(ids)
+            mediaDao.deleteAll(ids)
+            albums.forEach { albumDao.updateAlbumStats(it) }
+            withContext(Dispatchers.IO) {
+                ids.forEach { ThumbnailCache.getFile(context, it).delete() }
+            }
+            privateAlbum.onMovedIn(ids.size)
+            callback()
+        }
+    }
+
+    private fun Media.isInMediaStore() = LOCAL_STORAGE_ID == storageId && null != uri
 
     suspend fun addToAlbum(mediaIds: Collection<Long>, albumId: Long) {
         albumDao.addMediaToAlbum(mediaIds, albumId)
@@ -259,6 +314,7 @@ class MediaService @Inject constructor(
     }
 
     private companion object {
+        const val LOCAL_STORAGE_ID = 1L
         const val PREFS_NAME = "media_service"
         const val KEY_ALBUMS_REPAIRED = "albums_repaired_"
         const val KEY_DUPLICATES_MERGED = "duplicates_merged"

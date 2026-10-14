@@ -10,6 +10,7 @@ import coil3.memory.MemoryCache
 import coil3.network.okhttp.OkHttpNetworkFetcherFactory
 import coil3.request.CachePolicy
 import coil3.svg.SvgDecoder
+import coil3.video.VideoFrameDecoder
 import com.asinosoft.gallery.data.storage.StorageAuthProvider
 import dagger.hilt.android.HiltAndroidApp
 import javax.inject.Inject
@@ -55,6 +56,7 @@ class GalleryApp : Application() {
                 .components {
                     add(GifDecoder.Factory())
                     add(SvgDecoder.Factory())
+                    add(VideoFrameDecoder.Factory())
                     add(OkHttpNetworkFetcherFactory({ httpClient }))
                 }.build()
         }

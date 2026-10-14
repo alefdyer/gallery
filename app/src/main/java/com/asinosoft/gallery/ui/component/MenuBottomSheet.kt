@@ -44,6 +44,7 @@ fun MenuBottomSheet(
     onDismissRequest: () -> Unit,
     onSettingsClick: () -> Unit,
     onFavoritesClick: () -> Unit,
+    onPrivateAlbumClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -56,7 +57,10 @@ fun MenuBottomSheet(
         },
         MenuItemData("Последние", R.drawable.calendar_today) {},
         MenuItemData("Типы съемки", R.drawable.photo) {},
-        MenuItemData("Личный альбом", R.drawable.lock) {},
+        MenuItemData(stringResource(R.string.private_album), R.drawable.lock_outline) {
+            onDismissRequest()
+            onPrivateAlbumClick()
+        },
         MenuItemData("Корзина", R.drawable.delete) {},
         MenuItemData("Настройки", R.drawable.settings) {
             onDismissRequest()

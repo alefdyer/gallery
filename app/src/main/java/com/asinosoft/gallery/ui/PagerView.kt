@@ -62,6 +62,7 @@ import com.asinosoft.gallery.data.Album
 import com.asinosoft.gallery.data.Media
 import com.asinosoft.gallery.model.PagerViewModel
 import com.asinosoft.gallery.ui.component.Carousel
+import com.asinosoft.gallery.ui.component.MoveToPrivateDialog
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -141,6 +142,18 @@ fun PagerView(
                 .background(backgroundColor)
     ) {
         var showInfo by remember { mutableStateOf(false) }
+        var confirmMoveToPrivate by remember { mutableStateOf<Media?>(null) }
+        confirmMoveToPrivate?.let { media ->
+            MoveToPrivateDialog(
+                onConfirm = {
+                    confirmMoveToPrivate = null
+                    model.moveToPrivate(media) {
+                        if (1 == items.size) onClose()
+                    }
+                },
+                onDismiss = { confirmMoveToPrivate = null }
+            )
+        }
         val density = LocalDensity.current
         val layoutDirection = LocalLayoutDirection.current
         val bottomGestureInset = WindowInsets.systemGestures.getBottom(density)
@@ -215,6 +228,7 @@ fun PagerView(
             PagerViewBar(
                 onBack = onClose,
                 onShowInfo = { showInfo = true },
+                onMoveToPrivate = { confirmMoveToPrivate = items.getOrNull(pagerState.currentPage) },
                 actions = { if (isLandscape) actionsBar() }
             )
         }

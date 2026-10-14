@@ -384,6 +384,14 @@ class ImageListViewModel @Inject constructor(
         }
     }
 
+    fun addSelectionToFavorites() = viewModelScope.launchAndCatch {
+        mediaService.setFavoriteWithRequest(selection.value, true, ::clearSelection)
+    }
+
+    fun moveSelectionToPrivate() = viewModelScope.launchAndCatch {
+        mediaService.moveToPrivate(selection.value, context, ::clearSelection)
+    }
+
     fun addSelectionToAlbum(albumId: Long) = viewModelScope.launchAndCatch {
         mediaService.addToAlbum(selection.value, albumId)
         clearSelection()

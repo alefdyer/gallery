@@ -7,11 +7,13 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MenuDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import com.asinosoft.gallery.ui.theme.floatingPanelColor
@@ -42,6 +44,7 @@ fun FloatingMenuItem(
     text: String,
     onClick: () -> Unit,
     enabled: Boolean = true,
+    icon: Painter? = null,
 ) {
     DropdownMenuItem(
         text = {
@@ -52,7 +55,11 @@ fun FloatingMenuItem(
         },
         onClick = onClick,
         enabled = enabled,
-        colors = MenuDefaults.itemColors(textColor = MaterialTheme.colorScheme.onSurface),
+        leadingIcon = icon?.let { { Icon(painter = it, contentDescription = null) } },
+        colors = MenuDefaults.itemColors(
+            textColor = MaterialTheme.colorScheme.onSurface,
+            leadingIconColor = MaterialTheme.colorScheme.onSurface
+        ),
         contentPadding = PaddingValues(horizontal = 24.dp),
         modifier = Modifier.heightIn(min = 52.dp)
     )

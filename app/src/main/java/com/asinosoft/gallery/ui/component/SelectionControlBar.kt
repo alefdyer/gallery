@@ -9,11 +9,16 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import com.asinosoft.gallery.R
 import com.asinosoft.gallery.ui.theme.GalleryTheme
@@ -25,7 +30,9 @@ fun SelectionControlBar(
     onShare: () -> Unit = {},
     onDelete: () -> Unit = {},
     onAddTag: () -> Unit = {},
-    onRemoveTag: (() -> Unit)? = null
+    onRemoveTag: (() -> Unit)? = null,
+    onAddToFavorites: () -> Unit = {},
+    onMoveToPrivate: () -> Unit = {}
 ) {
     Surface(
         modifier = modifier.fillMaxWidth(),
@@ -58,6 +65,34 @@ fun SelectionControlBar(
                 icon = painterResource(R.drawable.delete),
                 onClick = { onDelete() }
             )
+            Box {
+                var showOptions by remember { mutableStateOf(false) }
+                LabeledIconButton(
+                    label = stringResource(R.string.options),
+                    icon = painterResource(R.drawable.more_vert),
+                    onClick = { showOptions = true }
+                )
+                FloatingDropdownMenu(
+                    expanded = showOptions,
+                    onDismissRequest = { showOptions = false },
+                    offset = DpOffset(0.dp, (-8).dp)
+                ) {
+                    FloatingMenuItem(
+                        text = stringResource(R.string.add_to_favorites),
+                        onClick = {
+                            showOptions = false
+                            onAddToFavorites()
+                        }
+                    )
+                    FloatingMenuItem(
+                        text = stringResource(R.string.move_to_private),
+                        onClick = {
+                            showOptions = false
+                            onMoveToPrivate()
+                        }
+                    )
+                }
+            }
         }
     }
 }

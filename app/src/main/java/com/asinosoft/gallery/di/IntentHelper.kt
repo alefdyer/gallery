@@ -3,6 +3,7 @@ package com.asinosoft.gallery.di
 import android.app.Activity
 import android.content.Context
 import android.content.Intent
+import android.content.IntentSender
 import android.net.Uri
 import android.os.Build
 import android.provider.MediaStore
@@ -17,50 +18,46 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
 object IntentHelper : DefaultLifecycleObserver {
-    private var delete: ActivityResultLauncher<IntentSenderRequest>? = null
-    private var deleteCallback: (suspend () -> Unit)? = null
+    private var launcher: ActivityResultLauncher<IntentSenderRequest>? = null
+    private var resultCallback: (suspend (Boolean) -> Unit)? = null
 
     override fun onCreate(owner: LifecycleOwner) {
-        delete = (owner as ComponentActivity).activityResultRegistry.register(
+        launcher = (owner as ComponentActivity).activityResultRegistry.register(
             "key",
             owner,
             ActivityResultContracts.StartIntentSenderForResult()
         ) {
+            val callback = resultCallback
+            resultCallback = null
             CoroutineScope(Dispatchers.Main).launch {
-                launch {
-                    if (Activity.RESULT_OK == it.resultCode) {
-                        deleteCallback?.invoke()
-                    }
-                }
+                callback?.invoke(Activity.RESULT_OK == it.resultCode)
             }
         }
     }
 
     override fun onDestroy(owner: LifecycleOwner) {
         super.onDestroy(owner)
-        delete = null
+        launcher = null
     }
 
-    fun delete(uris: Collection<Uri>, context: Context, callback: suspend () -> Unit) {
-        deleteCallback = callback
+    fun delete(uris: Collection<Uri>, context: Context, callback: suspend () -> Unit) =
+        deleteRequest(uris, context) { granted -> if (granted) callback() }
 
+    fun deleteRequest(uris: Collection<Uri>, context: Context, onResult: suspend (Boolean) -> Unit) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            val sender =
-                MediaStore
-                    .createDeleteRequest(
-                        context.contentResolver,
-                        uris
-                    ).intentSender
-
-            val request =
-                IntentSenderRequest
-                    .Builder(sender)
-                    .setFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION, 0)
-                    .build()
-
-            delete?.launch(request)
+            launch(MediaStore.createDeleteRequest(context.contentResolver, uris).intentSender, onResult)
         } else {
             throw NotImplementedError()
         }
+    }
+
+    fun launch(sender: IntentSender, onResult: suspend (Boolean) -> Unit) {
+        resultCallback = onResult
+        launcher?.launch(
+            IntentSenderRequest
+                .Builder(sender)
+                .setFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION, 0)
+                .build()
+        )
     }
 }

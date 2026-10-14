@@ -1,7 +1,6 @@
 package com.asinosoft.gallery.ui
 
 import android.icu.text.DateFormatSymbols
-import android.os.SystemClock
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
@@ -79,7 +78,6 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.asinosoft.gallery.R
 import com.asinosoft.gallery.data.Album
 import com.asinosoft.gallery.data.Media
-import com.asinosoft.gallery.data.storage.StorageType
 import com.asinosoft.gallery.model.DateFilter
 import com.asinosoft.gallery.model.MediaType
 import com.asinosoft.gallery.model.ImageListViewModel
@@ -92,17 +90,16 @@ import com.asinosoft.gallery.ui.component.ImageListHeaderBackground
 import com.asinosoft.gallery.ui.component.ImageListHeaderInfo
 import com.asinosoft.gallery.ui.component.LazyGridVerticalScrollIndicator
 import com.asinosoft.gallery.ui.component.MediaThumbnail
+import com.asinosoft.gallery.ui.component.MoveToPrivateDialog
 import com.asinosoft.gallery.ui.component.ScrollToTopButton
 import com.asinosoft.gallery.ui.component.SelectionControlBar
 import com.asinosoft.gallery.ui.component.SelectionInfoBar
 import com.asinosoft.gallery.ui.component.dragSelection
-import kotlinx.coroutines.channels.Channel
+import com.asinosoft.gallery.ui.component.rememberVideoPreviewQueue
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.math.abs
 import kotlin.math.sign
 import kotlin.time.Duration.Companion.milliseconds
@@ -132,59 +129,9 @@ fun ImageListView(
     var closeOnEmptyList by remember { mutableStateOf(false) }
     val lazyGridState = rememberLazyGridState()
     var showTagDialog by remember { mutableStateOf(false) }
+    var showMoveToPrivate by remember { mutableStateOf(false) }
     val dragSelectionState = remember { DragSelectionState() }
-    var previewId by remember { mutableStateOf<Long?>(null) }
-    val previewEnded = remember { Channel<Long>(Channel.CONFLATED) }
-    LaunchedEffect(images, lazyGridState) {
-        val appearedAt = mutableMapOf<Long, Long>()
-        snapshotFlow {
-            val layoutInfo = lazyGridState.layoutInfo
-            val visibleVideos = layoutInfo.visibleItemsInfo
-                .filter {
-                    it.offset.y >= layoutInfo.viewportStartOffset &&
-                        it.offset.y + it.size.height <= layoutInfo.viewportEndOffset
-                }
-                .mapNotNull { images.getOrNull(it.index) }
-                .filter { null != it.video && it.storageType == StorageType.LOCAL }
-                .map { it.id }
-            visibleVideos to lazyGridState.isScrollInProgress
-        }.collectLatest { (visibleVideos, isScrolling) ->
-            val now = SystemClock.uptimeMillis()
-            appearedAt.keys.retainAll(visibleVideos.toSet())
-            visibleVideos.forEach { appearedAt.getOrPut(it) { now } }
-
-            if (isScrolling || visibleVideos.isEmpty()) {
-                if (previewId !in visibleVideos) previewId = null
-                return@collectLatest
-            }
-
-            var index = visibleVideos.indexOf(previewId)
-            if (index < 0) {
-                previewId = null
-                index = 0
-                val wait = appearedAt.getValue(visibleVideos[0]) + VIDEO_PREVIEW_DELAY_MS - now
-                if (wait > 0) delay(wait)
-            }
-
-            var restart = false
-            while (true) {
-                val id = visibleVideos[index]
-                if (restart || previewId != id) {
-                    if (previewId == id) {
-                        previewId = null
-                        withFrameNanos { }
-                    }
-                    while (previewEnded.tryReceive().isSuccess) Unit
-                    previewId = id
-                }
-                withTimeoutOrNull(VIDEO_PREVIEW_MAX_MS) {
-                    while (previewEnded.receive() != id) Unit
-                }
-                index = (index + 1) % visibleVideos.size
-                restart = true
-            }
-        }
-    }
+    val videoPreview = rememberVideoPreviewQueue(images, lazyGridState)
 
     val hasMedia by model.hasMedia.collectAsState()
     LaunchedEffect(model.albumId, hasMedia, onClose) {
@@ -508,8 +455,8 @@ fun ImageListView(
                     model = model,
                     selectionMode = selection.isNotEmpty(),
                     selected = selection,
-                    playPreview = media.id == previewId,
-                    onPreviewEnded = { previewEnded.trySend(it.id) },
+                    playPreview = media.id == videoPreview.previewId,
+                    onPreviewEnded = videoPreview::onEnded,
                     onClick = { media -> onMediaClick(media, model.activeFilterPackages.value, model.activeDateFilter.value, model.activeMediaType()) },
                     onSelect = { image ->
                         if (!dragSelectionState.active) {
@@ -608,7 +555,9 @@ fun ImageListView(
                 onShare = { model.shareSelection() },
                 onDelete = { model.deleteSelection() },
                 onAddTag = { showTagDialog = true },
-                onRemoveTag = model.albumId?.let { { model.removeSelectionFromAlbum(it) } }
+                onRemoveTag = model.albumId?.let { { model.removeSelectionFromAlbum(it) } },
+                onAddToFavorites = { model.addSelectionToFavorites() },
+                onMoveToPrivate = { showMoveToPrivate = true }
             )
         }
 
@@ -656,6 +605,16 @@ fun ImageListView(
             )
         }
 
+        if (showMoveToPrivate) {
+            MoveToPrivateDialog(
+                onConfirm = {
+                    showMoveToPrivate = false
+                    model.moveSelectionToPrivate()
+                },
+                onDismiss = { showMoveToPrivate = false }
+            )
+        }
+
         if (showTagDialog) {
             AddToAlbumDialog(
                 onPickAlbum = { album ->
@@ -678,14 +637,12 @@ fun ImageListView(
 
 private class PendingFlag(var pending: Boolean = false)
 
-private const val VIDEO_PREVIEW_MAX_MS = 10_000L
 private const val SCROLL_TO_TOP_JUMP = 30
 private val DATE_SWIPE_THRESHOLD = 80.dp
 private const val EDGE_RESISTANCE = 0.3f
 private val TOP_PANEL_MARGIN = 8.dp
 private val TOP_PANEL_HEIGHT = 48.dp
 private val SCROLL_INDICATOR_GAP = 8.dp
-private const val VIDEO_PREVIEW_DELAY_MS = 2000L
 
 private val months = DateFormatSymbols
     .getInstance()
@@ -773,7 +730,7 @@ private fun DateFilter.matches(media: Media) =
         (day == null || media.date.dayOfMonth == day)
 
 @Composable
-private fun dateFilterTitle(filter: DateFilter): String? {
+internal fun dateFilterTitle(filter: DateFilter): String? {
     val year = filter.year ?: return null
     val month = filter.month?.let { it - 1 }
     val day = filter.day

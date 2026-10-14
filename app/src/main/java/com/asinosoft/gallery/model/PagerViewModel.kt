@@ -95,6 +95,10 @@ class PagerViewModel @Inject constructor(
         mediaService.setFavorite(listOf(media.id), favorite)
     }
 
+    fun moveToPrivate(media: Media, callback: () -> Unit) = viewModelScope.launchAndCatch {
+        mediaService.moveToPrivate(listOf(media.id), context, callback)
+    }
+
     fun delete(media: Media, callback: () -> Unit) = viewModelScope.launchAndCatch {
         mediaService.delete(setOf(media.id), context, callback)
     }

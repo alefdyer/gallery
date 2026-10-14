@@ -30,6 +30,7 @@ fun BoxScope.ViewModeBar(
     onAlbums: () -> Unit,
     onSettings: () -> Unit,
     onFavorites: () -> Unit,
+    onPrivateAlbum: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     var menuExpanded by remember { mutableStateOf(false) }
@@ -73,7 +74,8 @@ fun BoxScope.ViewModeBar(
                     MenuBottomSheet(
                         onDismissRequest = { menuExpanded = false },
                         onSettingsClick = onSettings,
-                        onFavoritesClick = onFavorites
+                        onFavoritesClick = onFavorites,
+                        onPrivateAlbumClick = onPrivateAlbum
                     )
                 }
             }

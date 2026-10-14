@@ -53,6 +53,7 @@ fun MediaThumbnail(
     selectionMode: Boolean = false,
     playPreview: Boolean = false,
     showVideoBadge: Boolean = true,
+    persistentCache: Boolean = true,
     onClick: (Media) -> Unit = {},
     onSelect: (Media) -> Unit = {},
     onPreviewEnded: (Media) -> Unit = {}
@@ -68,7 +69,7 @@ fun MediaThumbnail(
 
         val cacheKey = remember(media.id) { "media-${media.id}" }
         val cacheFile = remember(media.id) { ThumbnailCache.getFile(context, media.id) }
-        val cached = remember(media.id) { cacheFile.exists() && cacheFile.length() > 0 }
+        val cached = remember(media.id) { persistentCache && cacheFile.exists() && cacheFile.length() > 0 }
         val immediateData: Any? = remember(media, cached) {
             when {
                 cached -> cacheFile
@@ -90,10 +91,10 @@ fun MediaThumbnail(
                 .diskCacheKey(cacheKey)
                 .placeholderMemoryCacheKey(cacheKey)
                 .memoryCachePolicy(CachePolicy.ENABLED)
-                .diskCachePolicy(CachePolicy.ENABLED)
+                .diskCachePolicy(if (persistentCache) CachePolicy.ENABLED else CachePolicy.DISABLED)
                 .allowHardware(true)
                 .listener(onSuccess = { _, result ->
-                    if (!cached) {
+                    if (persistentCache && !cached) {
                         scope.launch {
                             ThumbnailCache.save(context, media.id, result.image)
                         }

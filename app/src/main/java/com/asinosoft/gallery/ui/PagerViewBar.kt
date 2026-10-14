@@ -33,6 +33,7 @@ fun PagerViewBar(
     onBack: () -> Unit,
     onShowInfo: () -> Unit,
     modifier: Modifier = Modifier,
+    onMoveToPrivate: (() -> Unit)? = null,
     actions: @Composable () -> Unit = {},
 ) {
     Row(
@@ -59,7 +60,7 @@ fun PagerViewBar(
             actions()
 
             FloatingCircle {
-                MenuButton(onShowInfo)
+                MenuButton(onShowInfo, onMoveToPrivate = onMoveToPrivate)
             }
         }
     }
@@ -77,7 +78,11 @@ internal fun FloatingCircle(modifier: Modifier = Modifier, content: @Composable 
 }
 
 @Composable
-fun MenuButton(onShowInfo: () -> Unit, modifier: Modifier = Modifier) {
+fun MenuButton(
+    onShowInfo: () -> Unit,
+    modifier: Modifier = Modifier,
+    onMoveToPrivate: (() -> Unit)? = null,
+) {
     var showMenu by remember { mutableStateOf(false) }
 
     IconButton({ showMenu = true }, modifier) {
@@ -96,6 +101,15 @@ fun MenuButton(onShowInfo: () -> Unit, modifier: Modifier = Modifier) {
                     showMenu = false
                 }
             )
+            onMoveToPrivate?.let { onMove ->
+                FloatingMenuItem(
+                    text = stringResource(R.string.move_to_private),
+                    onClick = {
+                        showMenu = false
+                        onMove()
+                    }
+                )
+            }
         }
     }
 }
