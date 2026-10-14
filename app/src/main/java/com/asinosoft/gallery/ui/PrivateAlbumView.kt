@@ -55,6 +55,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
@@ -62,6 +63,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.asinosoft.gallery.R
 import com.asinosoft.gallery.data.Media
+import com.asinosoft.gallery.model.MediaFolderViewModel
 import com.asinosoft.gallery.model.MediaViewModel
 import com.asinosoft.gallery.model.PrivateAlbumViewModel
 import com.asinosoft.gallery.ui.component.DateFilterDialog
@@ -86,6 +88,26 @@ fun PrivateAlbumView(
     SecureWindow()
     CloseWhenHidden(onClose)
 
+    MediaFolderView(
+        title = stringResource(R.string.private_album),
+        emptyText = stringResource(R.string.private_album_empty),
+        restoreLabel = stringResource(R.string.restore),
+        onClose = onClose,
+        model = model,
+        modifier = modifier
+    )
+}
+
+/** Сетка файлов вне основной галереи с фильтрами, выделением и кнопками «вернуть» / «удалить» */
+@Composable
+internal fun MediaFolderView(
+    title: String,
+    emptyText: String,
+    restoreLabel: String,
+    onClose: () -> Unit,
+    model: MediaFolderViewModel,
+    modifier: Modifier = Modifier,
+) {
     val media by model.media.collectAsState()
     val items by model.visibleMedia.collectAsState()
     val selection by model.selection.collectAsState()
@@ -189,7 +211,7 @@ fun PrivateAlbumView(
 
         if (null != cover) {
             ImageListHeaderInfo(
-                title = dateFilter?.let { dateFilterTitle(it) } ?: stringResource(R.string.private_album),
+                title = dateFilter?.let { dateFilterTitle(it) } ?: title,
                 photoCount = photoCount,
                 videoCount = videoCount,
                 photosEnabled = !canToggleMediaType || showPhotos,
@@ -202,10 +224,13 @@ fun PrivateAlbumView(
 
         if (true == media?.isEmpty()) {
             Text(
-                text = stringResource(R.string.private_album_empty),
+                text = emptyText,
                 style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.align(Alignment.Center)
+                textAlign = TextAlign.Center,
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .padding(horizontal = 32.dp)
             )
         }
 
@@ -284,6 +309,7 @@ fun PrivateAlbumView(
                 .padding(16.dp)
         ) {
             PrivateActionsBar(
+                restoreLabel = restoreLabel,
                 onRestore = model::restoreSelection,
                 onDelete = { confirmDelete = true }
             )
@@ -295,6 +321,7 @@ fun PrivateAlbumView(
         openedIndex?.takeIf { items.isNotEmpty() }?.let { index ->
             PrivateMediaPager(
                 items = items,
+                restoreLabel = restoreLabel,
                 initialIndex = index.coerceAtMost(items.lastIndex),
                 onClose = { openedIndex = null },
                 onRestore = { model.restore(listOf(it)) },
@@ -316,7 +343,7 @@ fun PrivateAlbumView(
 }
 
 @Composable
-private fun PrivateActionsBar(onRestore: () -> Unit, onDelete: () -> Unit) {
+private fun PrivateActionsBar(restoreLabel: String, onRestore: () -> Unit, onDelete: () -> Unit) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(50),
@@ -327,7 +354,7 @@ private fun PrivateActionsBar(onRestore: () -> Unit, onDelete: () -> Unit) {
             horizontalArrangement = Arrangement.SpaceEvenly
         ) {
             LabeledIconButton(
-                label = stringResource(R.string.restore),
+                label = restoreLabel,
                 icon = painterResource(R.drawable.move),
                 onClick = onRestore
             )
@@ -358,6 +385,7 @@ private fun ConfirmDeleteDialog(text: String, onConfirm: () -> Unit, onDismiss: 
 @Composable
 private fun PrivateMediaPager(
     items: List<Media>,
+    restoreLabel: String,
     initialIndex: Int,
     onClose: () -> Unit,
     onRestore: (Media) -> Unit,
@@ -410,6 +438,7 @@ private fun PrivateMediaPager(
                 .padding(16.dp)
         ) {
             PrivateActionsBar(
+                restoreLabel = restoreLabel,
                 onRestore = { items.getOrNull(pagerState.currentPage)?.let(onRestore) },
                 onDelete = { confirmDelete = items.getOrNull(pagerState.currentPage) }
             )

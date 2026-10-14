@@ -63,6 +63,7 @@ import com.asinosoft.gallery.data.Media
 import com.asinosoft.gallery.model.PagerViewModel
 import com.asinosoft.gallery.ui.component.Carousel
 import com.asinosoft.gallery.ui.component.MoveToPrivateDialog
+import com.asinosoft.gallery.ui.component.rememberTrashIntro
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -107,6 +108,16 @@ fun PagerView(
         }
     }
 
+    val deleteCurrent = rememberTrashIntro {
+        items.getOrNull(pagerState.currentPage)?.let { media ->
+            model.delete(media) {
+                if (1 == items.count()) {
+                    onClose()
+                }
+            }
+        }
+    }
+
     val actionsBar = @Composable {
         val current = items.getOrNull(pagerState.currentPage)
         PagerBottomBar(
@@ -125,13 +136,7 @@ fun PagerView(
             onShare = { model.share(items[pagerState.currentPage]) },
             onEdit = { model.edit(items[pagerState.currentPage]) },
             onSearch = {},
-            onDelete = {
-                model.delete(items[pagerState.currentPage]) {
-                    if (1 == items.count()) {
-                        onClose()
-                    }
-                }
-            }
+            onDelete = deleteCurrent
         )
     }
 

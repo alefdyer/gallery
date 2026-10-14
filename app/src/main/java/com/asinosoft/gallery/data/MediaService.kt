@@ -25,6 +25,7 @@ class MediaService @Inject constructor(
     private val mediaDao: MediaDao,
     private val messengerAlbums: MessengerAlbums,
     private val privateAlbum: PrivateAlbum,
+    private val trash: Trash,
     @param:ApplicationContext private val context: Context
 ) {
     private val intentHelper = IntentHelper
@@ -47,14 +48,25 @@ class MediaService @Inject constructor(
         }
     }
 
+    /** На Android 11+ файлы попадают в системную корзину, откуда их можно восстановить в течение 30 дней */
     suspend fun delete(mediaIds: Collection<Long>, context: Context, callback: () -> Unit) {
         val uris = withContext(Dispatchers.IO) { mediaDao.getUris(mediaIds) }
-        intentHelper.delete(uris, context) {
+        val onDeleted: suspend () -> Unit = {
             val albums = albumDao.getMediaAlbumIds(mediaIds)
             mediaDao.deleteAll(mediaIds)
             albums.forEach {
                 albumDao.updateAlbumStats(it) }
             callback()
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            intentHelper.trashRequest(uris, context, trashed = true) { granted ->
+                if (granted) {
+                    onDeleted()
+                    trash.onTrashed(uris.size)
+                }
+            }
+        } else {
+            intentHelper.delete(uris, context, onDeleted)
         }
     }
 

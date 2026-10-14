@@ -35,6 +35,8 @@ import com.asinosoft.gallery.ui.component.ManageMediaDialog
 import com.asinosoft.gallery.ui.component.canAskManageMedia
 import com.asinosoft.gallery.ui.component.openManageMediaSettings
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.merge
 import androidx.navigation.NavBackStackEntry
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
@@ -83,31 +85,39 @@ fun Navigation(
     Box(modifier.fillMaxSize()) {
         AppNavHost(nav, navigateToMedia, navigateToAlbum, navigateToAlbumMedia, navigateToStorage,
             navigateToStorageMedia, navigateToSettings, reportCurrentMedia, openPrivateAlbum)
-        PrivateMoveNotifications(
+        MoveNotifications(
             onOpenPrivateAlbum = openPrivateAlbum,
+            onOpenTrash = { nav.navigate(TRASH_ROUTE) },
             modifier = Modifier.align(Alignment.BottomCenter)
         )
     }
 }
 
+/** Уведомления о переносе файлов в личную папку или корзину */
 @Composable
-private fun PrivateMoveNotifications(
+private fun MoveNotifications(
     onOpenPrivateAlbum: () -> Unit,
+    onOpenTrash: () -> Unit,
     modifier: Modifier = Modifier,
     model: PrivateMovesViewModel = hiltViewModel()
 ) {
     val context = LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
     var showManageMedia by remember { mutableStateOf(false) }
-    val message = stringResource(R.string.moved_to_private)
+    val privateMessage = stringResource(R.string.moved_to_private)
+    val trashMessage = stringResource(R.string.moved_to_trash)
     val action = stringResource(R.string.view)
-    val currentOnOpen by rememberUpdatedState(onOpenPrivateAlbum)
+    val currentOnOpenPrivate by rememberUpdatedState(onOpenPrivateAlbum)
+    val currentOnOpenTrash by rememberUpdatedState(onOpenTrash)
 
     LaunchedEffect(model) {
-        model.movedIn.collectLatest {
+        merge(
+            model.movedIn.map { privateMessage to currentOnOpenPrivate },
+            model.trashed.map { trashMessage to currentOnOpenTrash }
+        ).collectLatest { (message, onOpen) ->
             if (canAskManageMedia(context)) showManageMedia = true
             val result = snackbarHostState.showSnackbar(message, action, duration = SnackbarDuration.Long)
-            if (SnackbarResult.ActionPerformed == result) currentOnOpen()
+            if (SnackbarResult.ActionPerformed == result) onOpen()
         }
     }
 
@@ -192,6 +202,7 @@ private fun AppNavHost(
                 onSettingsClick = navigateToSettings,
                 onFavoritesClick = { nav.navigate("favorites") },
                 onPrivateAlbumClick = openPrivateAlbum,
+                onTrashClick = { nav.navigate(TRASH_ROUTE) },
                 returnMediaId = returnMediaId,
                 onReturnHandled = { entry.clearReturnMediaId() }
             )
@@ -231,6 +242,18 @@ private fun AppNavHost(
             }
         ) {
             PrivateAlbumView(onClose = nav::navigateUp)
+        }
+
+        composable(
+            TRASH_ROUTE,
+            enterTransition = {
+                slideInHorizontally(tween(ALBUM_SLIDE_MS, easing = FastOutSlowInEasing)) { it }
+            },
+            popExitTransition = {
+                slideOutHorizontally(tween(ALBUM_SLIDE_MS, easing = FastOutSlowInEasing)) { it }
+            }
+        ) {
+            TrashView(onClose = nav::navigateUp)
         }
 
         composable(
@@ -383,9 +406,10 @@ private val favoritesArgument = navArgument("favorites") { type = NavType.BoolTy
 private const val PAGER_ARGS = "{imageId}/{filters}/{date}?type={type}"
 private const val FAVORITES_ROUTE = "favorites"
 private const val PRIVATE_ROUTE = "private"
+private const val TRASH_ROUTE = "trash"
 private const val RETURN_MEDIA_ID = "returnMediaId"
 private const val ALBUM_ROUTE = "album/{albumId}"
-private val SLIDE_ROUTES = setOf(ALBUM_ROUTE, FAVORITES_ROUTE, PRIVATE_ROUTE)
+private val SLIDE_ROUTES = setOf(ALBUM_ROUTE, FAVORITES_ROUTE, PRIVATE_ROUTE, TRASH_ROUTE)
 private const val ALBUM_SWAP_DELAY_MS = 200
 private const val ALBUM_SWAP_FADE_MS = 150
 private const val ALBUM_SLIDE_MS = 300

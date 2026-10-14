@@ -54,6 +54,7 @@ fun MainView(
     onSettingsClick: () -> Unit,
     onFavoritesClick: () -> Unit,
     onPrivateAlbumClick: () -> Unit,
+    onTrashClick: () -> Unit,
     modifier: Modifier = Modifier,
     returnMediaId: Long? = null,
     onReturnHandled: () -> Unit = {},
@@ -158,6 +159,7 @@ fun MainView(
                 onSettings = onSettingsClick,
                 onFavorites = onFavoritesClick,
                 onPrivateAlbum = onPrivateAlbumClick,
+                onTrash = onTrashClick,
                 modifier = Modifier
                     .padding(bottom = paddingValues.calculateBottomPadding())
                     .offset(y = 8.dp)

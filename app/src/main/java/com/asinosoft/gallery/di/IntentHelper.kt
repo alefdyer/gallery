@@ -51,6 +51,15 @@ object IntentHelper : DefaultLifecycleObserver {
         }
     }
 
+    /** Перемещает файлы в системную корзину или восстанавливает из неё (Android 11+) */
+    fun trashRequest(uris: Collection<Uri>, context: Context, trashed: Boolean, onResult: suspend (Boolean) -> Unit) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            launch(MediaStore.createTrashRequest(context.contentResolver, uris, trashed).intentSender, onResult)
+        } else {
+            throw NotImplementedError()
+        }
+    }
+
     fun launch(sender: IntentSender, onResult: suspend (Boolean) -> Unit) {
         resultCallback = onResult
         launcher?.launch(

@@ -95,6 +95,7 @@ import com.asinosoft.gallery.ui.component.ScrollToTopButton
 import com.asinosoft.gallery.ui.component.SelectionControlBar
 import com.asinosoft.gallery.ui.component.SelectionInfoBar
 import com.asinosoft.gallery.ui.component.dragSelection
+import com.asinosoft.gallery.ui.component.rememberTrashIntro
 import com.asinosoft.gallery.ui.component.rememberVideoPreviewQueue
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
@@ -130,6 +131,7 @@ fun ImageListView(
     val lazyGridState = rememberLazyGridState()
     var showTagDialog by remember { mutableStateOf(false) }
     var showMoveToPrivate by remember { mutableStateOf(false) }
+    val deleteSelection = rememberTrashIntro { model.deleteSelection() }
     val dragSelectionState = remember { DragSelectionState() }
     val videoPreview = rememberVideoPreviewQueue(images, lazyGridState)
 
@@ -553,7 +555,7 @@ fun ImageListView(
         ) {
             SelectionControlBar(
                 onShare = { model.shareSelection() },
-                onDelete = { model.deleteSelection() },
+                onDelete = deleteSelection,
                 onAddTag = { showTagDialog = true },
                 onRemoveTag = model.albumId?.let { { model.removeSelectionFromAlbum(it) } },
                 onAddToFavorites = { model.addSelectionToFavorites() },

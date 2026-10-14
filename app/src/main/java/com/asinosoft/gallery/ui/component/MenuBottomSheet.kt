@@ -45,6 +45,7 @@ fun MenuBottomSheet(
     onSettingsClick: () -> Unit,
     onFavoritesClick: () -> Unit,
     onPrivateAlbumClick: () -> Unit,
+    onTrashClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -61,7 +62,10 @@ fun MenuBottomSheet(
             onDismissRequest()
             onPrivateAlbumClick()
         },
-        MenuItemData("Корзина", R.drawable.delete) {},
+        MenuItemData(stringResource(R.string.trash), R.drawable.delete) {
+            onDismissRequest()
+            onTrashClick()
+        },
         MenuItemData("Настройки", R.drawable.settings) {
             onDismissRequest()
             onSettingsClick()
