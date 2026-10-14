@@ -78,6 +78,8 @@ class ImageListViewModel @Inject constructor(
 
     val albumId: Long? = state["albumId"]
 
+    val favoritesOnly: Boolean = state["favorites"] ?: false
+
     val album = MutableStateFlow<Album?>(null)
 
     val selection = MutableStateFlow<Set<Long>>(setOf())
@@ -91,8 +93,11 @@ class ImageListViewModel @Inject constructor(
     val isFetching = storageService.isFetching
 
     private val allImages: StateFlow<List<Media>> = (
-            albumId?.let { albumDao.getMediaInAlbum(albumId) }
-                ?: mediaDao.getImages(storageId)
+            if (favoritesOnly) {
+                mediaDao.getFavorites()
+            } else {
+                albumId?.let { albumDao.getMediaInAlbum(albumId) } ?: mediaDao.getImages(storageId)
+            }
             ).stateIn(
             scope = viewModelScope,
             started = SharingStarted.Eagerly,

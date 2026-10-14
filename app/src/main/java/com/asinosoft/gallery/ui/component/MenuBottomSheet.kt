@@ -26,6 +26,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.asinosoft.gallery.R
@@ -42,13 +43,17 @@ private data class MenuItemData(
 fun MenuBottomSheet(
     onDismissRequest: () -> Unit,
     onSettingsClick: () -> Unit,
+    onFavoritesClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     val menuItems = listOf(
         MenuItemData("Поиск", R.drawable.search) {},
-        MenuItemData("Избранное", R.drawable.favorite) {},
+        MenuItemData(stringResource(R.string.favorites), R.drawable.favorite_border) {
+            onDismissRequest()
+            onFavoritesClick()
+        },
         MenuItemData("Последние", R.drawable.calendar_today) {},
         MenuItemData("Типы съемки", R.drawable.photo) {},
         MenuItemData("Личный альбом", R.drawable.lock) {},

@@ -26,10 +26,11 @@ class MediaService @Inject constructor(
     private val intentHelper = IntentHelper
     private val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
-    suspend fun add(media: Media) {
+    suspend fun add(media: Media, syncFavorite: Boolean = false) {
         var mediaId = mediaDao.upsert(media)
         if (mediaId <= 0) {
             mediaId = mediaDao.getMediaId(media.storageId, media.storageItemId) ?: return
+            if (syncFavorite) mediaDao.setFavorite(listOf(mediaId), media.favorite)
         }
         val albumName = media.path.split('/').lastOrNull { it.isNotEmpty() }
         albumName?.let {
@@ -89,6 +90,10 @@ class MediaService @Inject constructor(
         val chooser = Intent.createChooser(send, null)
         chooser.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         context.startActivity(chooser)
+    }
+
+    suspend fun setFavorite(mediaIds: Collection<Long>, favorite: Boolean) {
+        mediaDao.setFavorite(mediaIds, favorite)
     }
 
     suspend fun addToAlbum(mediaIds: Collection<Long>, albumId: Long) {
@@ -151,6 +156,16 @@ class MediaService @Inject constructor(
                 }
             )
             updated += media.map { it.id }
+
+            if (provider.syncsFavorites) {
+                val fetchedFavorites = fetched.associate { it.storageItemId to it.favorite }
+                media.filter { fetchedFavorites[it.storageItemId] == !it.favorite }
+                    .partition { it.favorite }
+                    .let { (unfavorited, favorited) ->
+                        mediaDao.setFavorite(unfavorited.map { it.id }, false)
+                        mediaDao.setFavorite(favorited.map { it.id }, true)
+                    }
+            }
 
             val current = media.map { it.storageItemId }.toSet()
             val toInsert = fetched.filterNot { current.contains(it.storageItemId) }

@@ -86,7 +86,7 @@ class LocalStorageObserver : JobService() {
                 it.forEach { uri ->
                     try {
                         localStorage.fetchOne(uri)?.let { media ->
-                            service.add(media)
+                            service.add(media, localStorage.syncsFavorites)
                         }
                     } catch (ex: Throwable) {
                         Log.d(GalleryApp.TAG, "Exception: $ex")

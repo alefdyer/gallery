@@ -38,6 +38,7 @@ import com.asinosoft.gallery.data.EXTERNAL_STORAGE_ID
 import com.asinosoft.gallery.data.Media
 import com.asinosoft.gallery.data.ThumbnailCache
 import com.asinosoft.gallery.model.MediaViewModel
+import com.asinosoft.gallery.ui.theme.FavoriteRed
 import kotlinx.coroutines.launch
 
 private const val LOCAL_STORAGE_ID = 1L
@@ -138,6 +139,18 @@ fun MediaThumbnail(
                     )
                 }
             }
+        }
+
+        if (media.favorite) {
+            Icon(
+                painterResource(R.drawable.favorite),
+                contentDescription = null,
+                tint = FavoriteRed,
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(4.dp)
+                    .size(16.dp)
+            )
         }
 
         if (selectionMode) {

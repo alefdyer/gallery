@@ -256,9 +256,9 @@ fun ImageListView(
     }
 
     val album by model.album.collectAsState()
-    val title = dateFilter?.let { dateFilterTitle(it) }
-        ?: album?.name
-        ?: stringResource(R.string.all_photos)
+    val listTitle = album?.name
+        ?: stringResource(if (model.favoritesOnly) R.string.favorites else R.string.all_photos)
+    val title = dateFilter?.let { dateFilterTitle(it) } ?: listTitle
     val cover = images.firstOrNull()
     val photoCount by model.photoCount.collectAsState()
     val videoCount by model.videoCount.collectAsState()
@@ -453,7 +453,7 @@ fun ImageListView(
             DatePreviewPage(
                 model = model,
                 images = remember(target, images) { model.imagesForDate(target) },
-                title = dateFilterTitle(target) ?: album?.name.orEmpty(),
+                title = dateFilterTitle(target) ?: listTitle,
                 showPhotos = showPhotos,
                 showVideos = showVideos,
                 headerHeight = headerHeight,

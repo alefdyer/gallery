@@ -1,6 +1,9 @@
 package com.asinosoft.gallery.model
 
 import android.content.Context
+import android.content.IntentSender
+import android.os.Build
+import android.provider.MediaStore
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -14,6 +17,7 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -39,9 +43,14 @@ class PagerViewModel @Inject constructor(
     private val activeMediaType: MediaType? = state.get<String?>("type")
         ?.let { type -> MediaType.entries.firstOrNull { it.name == type } }
 
+    val favoritesOnly: Boolean = state["favorites"] ?: false
+
     val images: StateFlow<List<Media>> = (
-            albumId?.let { albumDao.getMediaInAlbum(albumId) }
-                ?: mediaDao.getImages(storageId)
+            if (favoritesOnly) {
+                mediaDao.getFavorites()
+            } else {
+                albumId?.let { albumDao.getMediaInAlbum(albumId) } ?: mediaDao.getImages(storageId)
+            }
             )
         .map { images ->
             images
@@ -63,13 +72,27 @@ class PagerViewModel @Inject constructor(
 
     init {
         viewModelScope.launch {
-            images.collect { images ->
-                val index = images.indexOfFirst { image -> image.id == imageId }
-                if (index >= 0) {
-                    offset.emit(index)
-                }
-            }
+            offset.value = images
+                .first { images -> images.any { it.id == imageId } }
+                .indexOfFirst { it.id == imageId }
         }
+    }
+
+    /**
+     * Для файлов из MediaStore отметку меняет система: возвращается запрос,
+     * который надо показать пользователю, а база обновится после подтверждения.
+     */
+    fun favoriteRequest(media: Media, favorite: Boolean): IntentSender? {
+        val uri = media.uri
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R || LOCAL_STORAGE_ID != media.storageId || null == uri) {
+            setFavorite(media, favorite)
+            return null
+        }
+        return MediaStore.createFavoriteRequest(context.contentResolver, listOf(uri), favorite).intentSender
+    }
+
+    fun setFavorite(media: Media, favorite: Boolean) = viewModelScope.launchAndCatch {
+        mediaService.setFavorite(listOf(media.id), favorite)
     }
 
     fun delete(media: Media, callback: () -> Unit) = viewModelScope.launchAndCatch {
@@ -84,3 +107,5 @@ class PagerViewModel @Inject constructor(
         mediaService.share(setOf(media.id), context)
     }
 }
+
+private const val LOCAL_STORAGE_ID = 1L

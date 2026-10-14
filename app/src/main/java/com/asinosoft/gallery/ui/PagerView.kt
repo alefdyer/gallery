@@ -1,7 +1,11 @@
 package com.asinosoft.gallery.ui
 
+import android.app.Activity
 import android.content.res.Configuration
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.IntentSenderRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.LinearEasing
@@ -50,6 +54,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.asinosoft.gallery.R
 import com.asinosoft.gallery.data.Album
+import com.asinosoft.gallery.data.Media
 import com.asinosoft.gallery.model.PagerViewModel
 import com.asinosoft.gallery.ui.component.Carousel
 
@@ -64,7 +69,7 @@ fun PagerView(
 ) {
     val items by model.images.collectAsState(listOf())
     val offset by model.offset.collectAsState(0)
-    val pagerState: PagerState = key(items, offset) { rememberPagerState(offset) { items.size } }
+    val pagerState: PagerState = key(offset) { rememberPagerState(offset) { items.size } }
 
     LaunchedEffect(pagerState, items) {
         snapshotFlow { pagerState.currentPage }.collect { page ->
@@ -84,8 +89,33 @@ fun PagerView(
     var isMuted by remember { mutableStateOf(true) }
     val currentIsVideo = null != items.getOrNull(pagerState.currentPage)?.video
 
+    var pendingFavorite by remember { mutableStateOf<Pair<Media, Boolean>?>(null) }
+    val favoriteLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartIntentSenderForResult()
+    ) { result ->
+        val (media, favorite) = pendingFavorite ?: return@rememberLauncherForActivityResult
+        pendingFavorite = null
+        if (Activity.RESULT_OK == result.resultCode) {
+            model.setFavorite(media, favorite)
+            if (model.favoritesOnly && !favorite && 1 == items.size) onClose()
+        }
+    }
+
     val actionsBar = @Composable {
+        val current = items.getOrNull(pagerState.currentPage)
         PagerBottomBar(
+            favorite = true == current?.favorite,
+            onFavorite = {
+                val media = current ?: return@PagerBottomBar
+                val favorite = !media.favorite
+                val request = model.favoriteRequest(media, favorite)
+                if (null != request) {
+                    pendingFavorite = media to favorite
+                    favoriteLauncher.launch(IntentSenderRequest.Builder(request).build())
+                } else if (model.favoritesOnly && !favorite && 1 == items.size) {
+                    onClose()
+                }
+            },
             onShare = { model.share(items[pagerState.currentPage]) },
             onEdit = { model.edit(items[pagerState.currentPage]) },
             onSearch = {},

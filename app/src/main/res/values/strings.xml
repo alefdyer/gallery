@@ -37,6 +37,9 @@
     <string name="storage_check_unknown_error">Ошибка: %1$s</string>
     <string name="other">Прочее</string>
     <string name="messengers">Мессенджеры</string>
+    <string name="favorites">Избранное</string>
+    <string name="add_to_favorites">Добавить в избранное</string>
+    <string name="remove_from_favorites">Убрать из избранного</string>
     <string name="new_category">Новая категория</string>
     <string name="add_to_album">В Альбом</string>
     <string name="remove_from_album">Из Альбома</string>

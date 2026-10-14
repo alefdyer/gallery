@@ -52,6 +52,7 @@ fun MainView(
     onAlbumClick: (Album) -> Unit,
     onStorageClick: (Storage) -> Unit,
     onSettingsClick: () -> Unit,
+    onFavoritesClick: () -> Unit,
     modifier: Modifier = Modifier,
     returnMediaId: Long? = null,
     onReturnHandled: () -> Unit = {},
@@ -154,6 +155,7 @@ fun MainView(
                 onPhotos = { coroutineScope.launch { pagerState.scrollToPage(0) } },
                 onAlbums = { coroutineScope.launch { pagerState.scrollToPage(1) } },
                 onSettings = onSettingsClick,
+                onFavorites = onFavoritesClick,
                 modifier = Modifier
                     .padding(bottom = paddingValues.calculateBottomPadding())
                     .offset(y = 8.dp)

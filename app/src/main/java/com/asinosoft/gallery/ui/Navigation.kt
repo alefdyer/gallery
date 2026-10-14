@@ -62,7 +62,7 @@ fun Navigation(
         enterTransition = { fadeIn(animationSpec = tween(300)) },
         exitTransition = { fadeOut(animationSpec = tween(300)) },
         predictivePopEnterTransition = { _ ->
-            if (initialState.destination.route == ALBUM_ROUTE) {
+            if (initialState.destination.route in SLIDE_ROUTES) {
                 slideInHorizontally(tween(ALBUM_SLIDE_MS, easing = LinearEasing)) {
                     -(it * ALBUM_PARALLAX).toInt()
                 }
@@ -71,7 +71,7 @@ fun Navigation(
             }
         },
         predictivePopExitTransition = { _ ->
-            if (initialState.destination.route == ALBUM_ROUTE) {
+            if (initialState.destination.route in SLIDE_ROUTES) {
                 slideOutHorizontally(tween(ALBUM_SLIDE_MS, easing = LinearEasing)) { it }
             } else {
                 fadeOut(animationSpec = tween(300))
@@ -81,7 +81,7 @@ fun Navigation(
         composable(
             "main",
             exitTransition = {
-                if (targetState.destination.route == ALBUM_ROUTE) {
+                if (targetState.destination.route in SLIDE_ROUTES) {
                     slideOutHorizontally(tween(ALBUM_SLIDE_MS, easing = FastOutSlowInEasing)) {
                         -(it * ALBUM_PARALLAX).toInt()
                     }
@@ -90,7 +90,7 @@ fun Navigation(
                 }
             },
             popEnterTransition = {
-                if (initialState.destination.route == ALBUM_ROUTE) {
+                if (initialState.destination.route in SLIDE_ROUTES) {
                     slideInHorizontally(tween(ALBUM_SLIDE_MS, easing = FastOutSlowInEasing)) {
                         -(it * ALBUM_PARALLAX).toInt()
                     }
@@ -105,8 +105,50 @@ fun Navigation(
                 onAlbumClick = navigateToAlbum,
                 onStorageClick = navigateToStorage,
                 onSettingsClick = navigateToSettings,
+                onFavoritesClick = { nav.navigate("favorites") },
                 returnMediaId = returnMediaId,
                 onReturnHandled = { entry.clearReturnMediaId() }
+            )
+        }
+
+        composable(
+            FAVORITES_ROUTE,
+            arguments = listOf(favoritesArgument),
+            enterTransition = {
+                slideInHorizontally(tween(ALBUM_SLIDE_MS, easing = FastOutSlowInEasing)) { it }
+            },
+            exitTransition = { fadeOut(animationSpec = tween(300)) },
+            popEnterTransition = { fadeIn(animationSpec = tween(300)) },
+            popExitTransition = {
+                slideOutHorizontally(tween(ALBUM_SLIDE_MS, easing = FastOutSlowInEasing)) { it }
+            }
+        ) { entry ->
+            val returnMediaId by entry.returnMediaId()
+            AlbumView(
+                loadNeighbours = false,
+                onMediaClick = { media, filters, date, type ->
+                    nav.navigate("favorites/pager/${pagerArgs(media, filters, date, type)}")
+                },
+                onClose = nav::navigateUp,
+                returnMediaId = returnMediaId,
+                onReturnHandled = { entry.clearReturnMediaId() }
+            )
+        }
+
+        composable(
+            "favorites/pager/$PAGER_ARGS",
+            arguments = listOf(
+                favoritesArgument,
+                navArgument("imageId") { type = NavType.LongType },
+                navArgument("filters") { type = NavType.StringType; defaultValue = "" },
+                navArgument("date") { type = NavType.StringType; nullable = true },
+                typeArgument
+            )
+        ) {
+            PagerView(
+                onAlbumClick = navigateToAlbum,
+                onClose = nav::navigateUp,
+                onCurrentMediaChange = reportCurrentMedia
             )
         }
 
@@ -238,9 +280,13 @@ private fun pagerArgs(media: Media, filters: Set<String>, date: DateFilter?, typ
 
 private val typeArgument = navArgument("type") { type = NavType.StringType; nullable = true }
 
+private val favoritesArgument = navArgument("favorites") { type = NavType.BoolType; defaultValue = true }
+
 private const val PAGER_ARGS = "{imageId}/{filters}/{date}?type={type}"
+private const val FAVORITES_ROUTE = "favorites"
 private const val RETURN_MEDIA_ID = "returnMediaId"
 private const val ALBUM_ROUTE = "album/{albumId}"
+private val SLIDE_ROUTES = setOf(ALBUM_ROUTE, FAVORITES_ROUTE)
 private const val ALBUM_SWAP_DELAY_MS = 200
 private const val ALBUM_SWAP_FADE_MS = 150
 private const val ALBUM_SLIDE_MS = 300

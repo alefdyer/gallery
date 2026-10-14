@@ -4,6 +4,7 @@ import android.content.ContentUris
 import android.content.Context
 import android.net.Uri
 import android.os.Build
+import android.provider.MediaStore
 import android.provider.MediaStore.Images
 import androidx.core.database.getStringOrNull
 import android.provider.MediaStore.Video as Videos
@@ -24,6 +25,8 @@ class LocalStorageProvider(
     override val storage: Storage,
     @param:ApplicationContext private val context: Context
 ) : StorageProvider {
+    override val syncsFavorites: Boolean = Build.VERSION.SDK_INT >= Build.VERSION_CODES.R
+
     override suspend fun fetchAll(): Flow<Media> = flow {
         emitAll(fetchImages(""))
         emitAll(fetchVideos(""))
@@ -84,7 +87,9 @@ class LocalStorageProvider(
                 ) + if (Build.VERSION.SDK_INT >= 28) arrayOf(
                     Images.Media.RELATIVE_PATH,
                     Images.Media.OWNER_PACKAGE_NAME
-                ) else arrayOf(),
+                ) else {
+                    arrayOf()
+                } + if (syncsFavorites) arrayOf(MediaStore.MediaColumns.IS_FAVORITE) else arrayOf(),
                 selection,
                 arrayOf(),
                 sortOrder
@@ -105,6 +110,8 @@ class LocalStorageProvider(
                 if (Build.VERSION.SDK_INT < 28) null else cursor.getColumnIndexOrThrow(Images.Media.RELATIVE_PATH)
             val ownerColumn =
                 if (Build.VERSION.SDK_INT < 28) null else cursor.getColumnIndexOrThrow(Images.Media.OWNER_PACKAGE_NAME)
+            val favoriteColumn =
+                if (syncsFavorites) cursor.getColumnIndexOrThrow(MediaStore.MediaColumns.IS_FAVORITE) else null
 
             while (cursor.moveToNext()) {
                 val id = cursor.getLong(idColumn)
@@ -145,7 +152,8 @@ class LocalStorageProvider(
                                 width = width,
                                 height = height,
                                 orientation
-                            )
+                            ),
+                        favorite = favoriteColumn?.let { 1 == cursor.getInt(it) } ?: false
                     )
                 emit(image)
             }
@@ -168,7 +176,9 @@ class LocalStorageProvider(
                 ) + if (Build.VERSION.SDK_INT >= 28) arrayOf(
                     Videos.Media.RELATIVE_PATH,
                     Videos.Media.OWNER_PACKAGE_NAME,
-                ) else arrayOf(),
+                ) else {
+                    arrayOf()
+                } + if (syncsFavorites) arrayOf(MediaStore.MediaColumns.IS_FAVORITE) else arrayOf(),
                 selection,
                 null,
                 "${Videos.Media.DATE_TAKEN} DESC"
@@ -187,6 +197,8 @@ class LocalStorageProvider(
                 if (Build.VERSION.SDK_INT < 28) null else cursor.getColumnIndexOrThrow(Videos.Media.RELATIVE_PATH)
             val ownerColumn =
                 if (Build.VERSION.SDK_INT < 28) null else cursor.getColumnIndexOrThrow(Videos.Media.OWNER_PACKAGE_NAME)
+            val favoriteColumn =
+                if (syncsFavorites) cursor.getColumnIndexOrThrow(MediaStore.MediaColumns.IS_FAVORITE) else null
 
             while (cursor.moveToNext()) {
                 val id = cursor.getLong(idColumn)
@@ -220,7 +232,8 @@ class LocalStorageProvider(
                         storageType = storage.type,
                         storageItemId = id.toString(),
                         owner = owner,
-                        video = Video(duration)
+                        video = Video(duration),
+                        favorite = favoriteColumn?.let { 1 == cursor.getInt(it) } ?: false
                     )
 
                 emit(video)

@@ -1,6 +1,7 @@
 package com.asinosoft.gallery.data
 
 import android.net.Uri
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.Index
 import androidx.room.PrimaryKey
@@ -33,5 +34,7 @@ data class Media(
     val owner: String? = null,
     val thumbnail: Uri? = null,
     val image: Image? = null,
-    val video: Video? = null
+    val video: Video? = null,
+    @ColumnInfo(defaultValue = "0")
+    val favorite: Boolean = false
 )

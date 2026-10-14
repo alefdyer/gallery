@@ -9,6 +9,9 @@ interface StorageProvider {
 
     val storage: Storage
 
+    /** Отметка «Избранное» хранится в самом хранилище и приходит при сканировании */
+    val syncsFavorites: Boolean get() = false
+
     fun authorize(request: Request): Request = request
 
     suspend fun checkConnection(): StorageCheckResult

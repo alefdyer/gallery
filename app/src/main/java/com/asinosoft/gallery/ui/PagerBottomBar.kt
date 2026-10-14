@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
@@ -15,10 +16,13 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.asinosoft.gallery.R
+import com.asinosoft.gallery.ui.theme.FavoriteRed
 import com.asinosoft.gallery.ui.theme.floatingPanelColor
 
 @Composable
 fun PagerBottomBar(
+    favorite: Boolean,
+    onFavorite: () -> Unit,
     onShare: () -> Unit,
     onEdit: () -> Unit,
     onSearch: () -> Unit,
@@ -36,6 +40,15 @@ fun PagerBottomBar(
             horizontalArrangement = Arrangement.spacedBy(16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
+            IconButton(onClick = onFavorite) {
+                Icon(
+                    painter = painterResource(if (favorite) R.drawable.favorite else R.drawable.favorite_border),
+                    contentDescription = stringResource(
+                        if (favorite) R.string.remove_from_favorites else R.string.add_to_favorites
+                    ),
+                    tint = if (favorite) FavoriteRed else LocalContentColor.current
+                )
+            }
             IconButton(onClick = onShare) {
                 Icon(
                     painter = painterResource(R.drawable.share),

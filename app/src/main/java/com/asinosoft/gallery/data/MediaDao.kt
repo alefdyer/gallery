@@ -18,6 +18,12 @@ interface MediaDao {
         storageItemIds: Collection<String>
     ): List<Media>
 
+    @Query("SELECT * FROM media WHERE favorite = 1 ORDER BY date DESC, time DESC")
+    fun getFavorites(): Flow<List<Media>>
+
+    @Query("UPDATE media SET favorite = :favorite WHERE id IN (:mediaIds)")
+    suspend fun setFavorite(mediaIds: Collection<Long>, favorite: Boolean)
+
     @Query("SELECT * FROM media WHERE storageId = :storageId AND id NOT IN (SELECT mediaId FROM media_album)")
     suspend fun getMediaWithoutAlbum(storageId: Long): List<Media>
 
