@@ -15,6 +15,8 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.WindowInsets
@@ -46,7 +48,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.positionChanged
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
@@ -136,7 +141,11 @@ fun PagerView(
                 .background(backgroundColor)
     ) {
         var showInfo by remember { mutableStateOf(false) }
-        val bottomGestureInset = WindowInsets.systemGestures.getBottom(LocalDensity.current)
+        val density = LocalDensity.current
+        val layoutDirection = LocalLayoutDirection.current
+        val bottomGestureInset = WindowInsets.systemGestures.getBottom(density)
+        val leftGestureInset = WindowInsets.systemGestures.getLeft(density, layoutDirection)
+        val rightGestureInset = WindowInsets.systemGestures.getRight(density, layoutDirection)
 
         if (showInfo) {
             MediaInfoSheet(
@@ -151,6 +160,17 @@ fun PagerView(
             pageSpacing = 16.dp,
             modifier =
                 Modifier
+                    .pointerInput(leftGestureInset, rightGestureInset) {
+                        awaitEachGesture {
+                            val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+                            val x = down.position.x
+                            if (x >= leftGestureInset && x <= size.width - rightGestureInset) return@awaitEachGesture
+                            do {
+                                val event = awaitPointerEvent(PointerEventPass.Initial)
+                                event.changes.forEach { if (it.positionChanged()) it.consume() }
+                            } while (event.changes.any { it.pressed })
+                        }
+                    }
                     .pointerInput(bottomGestureInset) {
                         var fromSystemZone = false
                         detectVerticalDragGestures(
