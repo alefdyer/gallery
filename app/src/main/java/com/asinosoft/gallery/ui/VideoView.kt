@@ -93,7 +93,7 @@ fun VideoView(
     var duration by remember { mutableLongStateOf(0L) }
 
     val player =
-        remember(media) {
+        remember(media.id) {
             val mediaSourceFactory = DefaultMediaSourceFactory(
                 if (1L == media.storageId || EXTERNAL_STORAGE_ID == media.storageId) {
                     DefaultDataSource.Factory(context)
@@ -115,14 +115,14 @@ fun VideoView(
     val lifecycleState by lifecycleOwner.lifecycle.currentStateAsState()
     val resumed = lifecycleState.isAtLeast(Lifecycle.State.RESUMED)
 
-    var paused by remember(media) { mutableStateOf(false) }
+    var paused by remember(media.id) { mutableStateOf(false) }
     LaunchedEffect(isActive) {
         if (!isActive) paused = false
     }
 
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
-            if (Lifecycle.Event.ON_PAUSE == event) paused = true
+            if (Lifecycle.Event.ON_STOP == event) paused = true
         }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
@@ -136,7 +136,7 @@ fun VideoView(
         player.volume = if (muted) 0f else 1f
     }
 
-    LaunchedEffect(media) {
+    LaunchedEffect(player) {
         isLoading = true
         scope.launch {
             model.getMediaUri(media).let { uri ->

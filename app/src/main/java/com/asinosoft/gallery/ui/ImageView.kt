@@ -76,7 +76,7 @@ fun ImageView(
 
     LaunchedEffect(minScale) { scale = minScale }
 
-    LaunchedEffect(media) {
+    LaunchedEffect(media.id, media.uri) {
         val key = if (EXTERNAL_STORAGE_ID == media.storageId) "external#${media.uri}" else "media#${media.id}"
         try {
             isLoading = true
