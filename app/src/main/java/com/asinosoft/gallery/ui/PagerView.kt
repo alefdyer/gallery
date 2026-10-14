@@ -13,11 +13,13 @@ import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.systemGestures
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.PagerState
@@ -42,6 +44,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -103,6 +106,7 @@ fun PagerView(
                 .background(backgroundColor)
     ) {
         var showInfo by remember { mutableStateOf(false) }
+        val bottomGestureInset = WindowInsets.systemGestures.getBottom(LocalDensity.current)
 
         if (showInfo) {
             MediaInfoSheet(
@@ -117,8 +121,12 @@ fun PagerView(
             pageSpacing = 16.dp,
             modifier =
                 Modifier
-                    .pointerInput(Unit) {
-                        detectVerticalDragGestures { _, amount ->
+                    .pointerInput(bottomGestureInset) {
+                        var fromSystemZone = false
+                        detectVerticalDragGestures(
+                            onDragStart = { fromSystemZone = it.y >= size.height - bottomGestureInset }
+                        ) { _, amount ->
+                            if (fromSystemZone) return@detectVerticalDragGestures
                             if (amount > 10 && !showInfo) onClose()
                             if (amount < -10) showInfo = true
                         }

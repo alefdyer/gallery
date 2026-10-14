@@ -18,12 +18,13 @@ import com.asinosoft.gallery.data.Album
 import com.asinosoft.gallery.data.Media
 import com.asinosoft.gallery.model.AlbumsViewModel
 import com.asinosoft.gallery.model.DateFilter
+import com.asinosoft.gallery.model.MediaType
 import com.asinosoft.gallery.model.ImageListViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AlbumView(
-    onMediaClick: (Media, Set<String>, DateFilter?) -> Unit,
+    onMediaClick: (Media, Set<String>, DateFilter?, MediaType?) -> Unit,
     onClose: () -> Unit,
     modifier: Modifier = Modifier,
     onSwitchAlbum: (album: Album, forward: Boolean) -> Unit = { _, _ -> },

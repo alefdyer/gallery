@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -32,6 +33,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
 import coil3.request.crossfade
@@ -40,6 +42,7 @@ import com.asinosoft.gallery.data.Media
 import com.asinosoft.gallery.data.ThumbnailCache
 
 private val textShadow = Shadow(color = Color.Black.copy(alpha = 0.5f), blurRadius = 8f)
+private val MIN_TITLE_SIZE = 14.sp
 
 @Composable
 fun ImageListHeaderBackground(
@@ -99,13 +102,15 @@ fun ImageListHeaderInfo(
                 .fillMaxWidth()
                 .padding(start = 16.dp, end = 16.dp, bottom = 14.dp)
         ) {
+            val style = MaterialTheme.typography.headlineSmall
             Text(
                 text = title,
-                style = MaterialTheme.typography.headlineSmall.copy(shadow = textShadow),
+                style = style.copy(shadow = textShadow),
                 fontWeight = FontWeight.Bold,
                 color = Color.White,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
+                autoSize = TextAutoSize.StepBased(minFontSize = MIN_TITLE_SIZE, maxFontSize = style.fontSize),
                 modifier = Modifier.weight(1f)
             )
 

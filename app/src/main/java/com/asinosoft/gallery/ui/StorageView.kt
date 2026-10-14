@@ -9,11 +9,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.asinosoft.gallery.data.Media
 import com.asinosoft.gallery.model.DateFilter
+import com.asinosoft.gallery.model.MediaType
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun StorageView(
-    onMediaClick: (Media, Set<String>, DateFilter?) -> Unit,
+    onMediaClick: (Media, Set<String>, DateFilter?, MediaType?) -> Unit,
     onClose: () -> Unit,
     modifier: Modifier = Modifier
 ) {

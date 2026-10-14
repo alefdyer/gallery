@@ -54,6 +54,7 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.compose.currentStateAsState
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
@@ -111,17 +112,24 @@ fun VideoView(
         }
 
     val lifecycleOwner = LocalLifecycleOwner.current
-    DisposableEffect(lifecycleOwner, player) {
+    val lifecycleState by lifecycleOwner.lifecycle.currentStateAsState()
+    val resumed = lifecycleState.isAtLeast(Lifecycle.State.RESUMED)
+
+    var paused by remember(media) { mutableStateOf(false) }
+    LaunchedEffect(isActive) {
+        if (!isActive) paused = false
+    }
+
+    DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
-            if (Lifecycle.Event.ON_PAUSE == event) player.pause()
+            if (Lifecycle.Event.ON_PAUSE == event) paused = true
         }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
-    LaunchedEffect(player, isActive) {
-        player.playWhenReady =
-            isActive && lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)
+    LaunchedEffect(player, isActive, resumed, paused) {
+        player.playWhenReady = isActive && resumed && !paused
     }
 
     LaunchedEffect(player, muted) {
@@ -198,7 +206,7 @@ fun VideoView(
                 isPlaying = isPlaying,
                 position = position,
                 duration = duration,
-                onPlayPause = { if (player.isPlaying) player.pause() else player.play() },
+                onPlayPause = { paused = player.playWhenReady },
                 onSeek = { target ->
                     position = target
                     player.seekTo(target)

@@ -36,6 +36,8 @@ class PagerViewModel @Inject constructor(
         ?.toSet()
         ?: emptySet()
     private val activeDateFilter: DateFilter? = state.get<String?>("date")?.toDateFilter()
+    private val activeMediaType: MediaType? = state.get<String?>("type")
+        ?.let { type -> MediaType.entries.firstOrNull { it.name == type } }
 
     val images: StateFlow<List<Media>> = (
             albumId?.let { albumDao.getMediaInAlbum(albumId) }
@@ -47,7 +49,8 @@ class PagerViewModel @Inject constructor(
                     (activeFilterPackages.isEmpty() || activeFilterPackages.contains(it.owner)) &&
                             (activeDateFilter?.year == null || it.date.year == activeDateFilter.year) &&
                             (activeDateFilter?.month == null || it.date.monthValue == activeDateFilter.month) &&
-                            (activeDateFilter?.day == null || it.date.dayOfMonth == activeDateFilter.day)
+                            (activeDateFilter?.day == null || it.date.dayOfMonth == activeDateFilter.day) &&
+                            activeMediaType.matches(it)
                 }
         }
         .stateIn(

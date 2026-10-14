@@ -36,6 +36,7 @@ import com.asinosoft.gallery.data.Album
 import com.asinosoft.gallery.data.Media
 import com.asinosoft.gallery.data.storage.Storage
 import com.asinosoft.gallery.model.DateFilter
+import com.asinosoft.gallery.model.MediaType
 import com.asinosoft.gallery.model.ImageListViewModel
 import com.asinosoft.gallery.ui.component.CachingProgressIndicator
 import com.asinosoft.gallery.ui.component.ViewModeBar
@@ -47,7 +48,7 @@ import kotlin.time.Duration.Companion.milliseconds
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MainView(
-    onMediaClick: (Media, Set<String>, DateFilter?) -> Unit,
+    onMediaClick: (Media, Set<String>, DateFilter?, MediaType?) -> Unit,
     onAlbumClick: (Album) -> Unit,
     onStorageClick: (Storage) -> Unit,
     onSettingsClick: () -> Unit,

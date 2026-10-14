@@ -81,6 +81,7 @@ import com.asinosoft.gallery.data.Album
 import com.asinosoft.gallery.data.Media
 import com.asinosoft.gallery.data.storage.StorageType
 import com.asinosoft.gallery.model.DateFilter
+import com.asinosoft.gallery.model.MediaType
 import com.asinosoft.gallery.model.ImageListViewModel
 import com.asinosoft.gallery.model.MediaViewModel
 import com.asinosoft.gallery.ui.component.AddToAlbumDialog
@@ -109,7 +110,7 @@ import kotlin.time.Duration.Companion.milliseconds
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ImageListView(
-    onMediaClick: (Media, Set<String>, DateFilter?) -> Unit,
+    onMediaClick: (Media, Set<String>, DateFilter?, MediaType?) -> Unit,
     onClose: () -> Unit,
     modifier: Modifier = Modifier,
     scrollBehavior: TopAppBarScrollBehavior? = null,
@@ -509,7 +510,7 @@ fun ImageListView(
                     selected = selection,
                     playPreview = media.id == previewId,
                     onPreviewEnded = { previewEnded.trySend(it.id) },
-                    onClick = { media -> onMediaClick(media, model.activeFilterPackages.value, model.activeDateFilter.value) },
+                    onClick = { media -> onMediaClick(media, model.activeFilterPackages.value, model.activeDateFilter.value, model.activeMediaType()) },
                     onSelect = { image ->
                         if (!dragSelectionState.active) {
                             model.toggleSelection(image)
@@ -777,7 +778,7 @@ private fun dateFilterTitle(filter: DateFilter): String? {
     val month = filter.month?.let { it - 1 }
     val day = filter.day
     return when {
-        null != month && null != day -> "$day ${monthsGenitive[month]} $year"
+        null != month && null != day -> "$day ${monthsGenitive[month].replaceFirstChar { it.titlecase() }} $year"
         null != month -> "${months[month].replaceFirstChar { it.titlecase() }} $year"
         else -> stringResource(R.string.date_filter_year, year)
     }

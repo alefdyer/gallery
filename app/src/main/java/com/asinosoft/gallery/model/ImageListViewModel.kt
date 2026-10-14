@@ -49,6 +49,14 @@ fun String?.toDateFilter() = this?.split("-")?.let {
     )
 }
 
+enum class MediaType { PHOTO, VIDEO }
+
+fun MediaType?.matches(media: Media) = when (this) {
+    null -> true
+    MediaType.PHOTO -> null == media.video
+    MediaType.VIDEO -> null != media.video
+}
+
 private const val NO_APPS = ""
 private const val RECENT_DATES_PREFS = "date_filters"
 private const val RECENT_DATES_KEY = "recent"
@@ -235,6 +243,12 @@ class ImageListViewModel @Inject constructor(
         )
     }
 
+
+    fun activeMediaType(): MediaType? = when {
+        showPhotos.value == showVideos.value -> null
+        showVideos.value -> MediaType.VIDEO
+        else -> MediaType.PHOTO
+    }
 
     fun togglePhotos() {
         val onlyPhotos = showPhotos.value && !showVideos.value
