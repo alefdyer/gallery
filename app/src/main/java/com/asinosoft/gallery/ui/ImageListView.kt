@@ -22,7 +22,9 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.calculateEndPadding
 import androidx.compose.foundation.layout.calculateStartPadding
@@ -37,6 +39,7 @@ import androidx.compose.foundation.layout.systemGestures
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.TopAppBarScrollBehavior
@@ -272,6 +275,11 @@ fun ImageListView(
         maxOf(contentPadding.calculateBottomPadding(), bottomPanelHeight).toPx()
     }
     val configuration = LocalConfiguration.current
+    val nearItemsCount = remember(configuration.screenHeightDp, configuration.screenWidthDp) {
+        val visibleRows =
+            configuration.screenHeightDp * GRID_COLUMNS / configuration.screenWidthDp + 1
+        (visibleRows + NEAR_ROWS_BELOW) * GRID_COLUMNS
+    }
     remember(returnMediaId, images) {
         val index = images.indexOfFirst { it.id == returnMediaId }
         if (index < 0) return@remember
@@ -476,7 +484,17 @@ fun ImageListView(
                     if (scrollBehavior == null) it else it.nestedScroll(scrollBehavior.nestedScrollConnection)
                 }
         ) {
-            items(images, key = { it.id }) { media ->
+            itemsIndexed(images, key = { _, media -> media.id }) { index, media ->
+                // Под SharedTransitionLayout сетка при прокрутке вверх строит в предварительном
+                // проходе лишние ряды под экраном (linesRetainedForLookahead в Compose), при прыжке
+                // ползунком — целый экран. Их никогда не видно, поэтому вместо миниатюры пустышка.
+                val farBelow by remember(index, nearItemsCount) {
+                    derivedStateOf { index >= lazyGridState.firstVisibleItemIndex + nearItemsCount }
+                }
+                if (farBelow) {
+                    Spacer(Modifier.aspectRatio(1f))
+                    return@itemsIndexed
+                }
                 MediaThumbnail(
                     media = media,
                     model = model,
@@ -669,6 +687,9 @@ private class PendingFlag(var pending: Boolean = false)
 
 private const val SCROLL_TO_TOP_JUMP = 30
 private const val GRID_COLUMNS = 3
+
+/** Ряды под экраном, которые строятся полностью: сюда попадает обычная предзагрузка сетки */
+private const val NEAR_ROWS_BELOW = 2
 private val DATE_SWIPE_THRESHOLD = 80.dp
 private const val EDGE_RESISTANCE = 0.3f
 private val TOP_PANEL_MARGIN = 8.dp
