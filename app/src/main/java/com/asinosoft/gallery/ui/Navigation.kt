@@ -1,5 +1,12 @@
 package com.asinosoft.gallery.ui
 
+import androidx.compose.animation.AnimatedContentTransitionScope
+import androidx.compose.animation.AnimatedVisibilityScope
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.ExperimentalSharedTransitionApi
+import androidx.compose.animation.SharedTransitionLayout
+import androidx.compose.animation.core.EaseInCubic
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.tween
@@ -16,6 +23,7 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -31,7 +39,11 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.asinosoft.gallery.R
 import com.asinosoft.gallery.model.PrivateMovesViewModel
+import com.asinosoft.gallery.ui.component.LocalNavAnimatedScope
+import com.asinosoft.gallery.ui.component.LocalSharedElementsEnabled
+import com.asinosoft.gallery.ui.component.LocalSharedTransitionScope
 import com.asinosoft.gallery.ui.component.ManageMediaDialog
+import com.asinosoft.gallery.ui.component.SHARED_ELEMENT_MS
 import com.asinosoft.gallery.ui.component.canAskManageMedia
 import com.asinosoft.gallery.ui.component.openManageMediaSettings
 import kotlinx.coroutines.flow.collectLatest
@@ -50,6 +62,7 @@ import com.asinosoft.gallery.model.DateFilter
 import com.asinosoft.gallery.model.MediaType
 import com.asinosoft.gallery.ui.component.rememberDeviceAuth
 
+@OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
 fun Navigation(
     nav: NavHostController,
@@ -66,14 +79,17 @@ fun Navigation(
     }
 
     val navigateToMedia = { media: Media, filters: Set<String>, date: DateFilter?, type: MediaType? ->
+        OpenedMedia.media = media
         nav.navigate("pager/${pagerArgs(media, filters, date, type)}")
     }
     val navigateToAlbum = { album: Album -> nav.navigate("album/${album.id}") }
     val navigateToAlbumMedia = { albumId: Long, media: Media, filters: Set<String>, date: DateFilter?, type: MediaType? ->
+        OpenedMedia.media = media
         nav.navigate("album/$albumId/pager/${pagerArgs(media, filters, date, type)}")
     }
     val navigateToStorage = { storage: Storage -> nav.navigate("storage/${storage.id}") }
     val navigateToStorageMedia = { storageId: Long, media: Media, filters: Set<String>, date: DateFilter?, type: MediaType? ->
+        OpenedMedia.media = media
         nav.navigate("storage/$storageId/pager/${pagerArgs(media, filters, date, type)}")
     }
     val navigateToSettings = { nav.navigate("settings") }
@@ -82,9 +98,21 @@ fun Navigation(
     }
     val openPrivateAlbum = rememberDeviceAuth { nav.navigate(PRIVATE_ROUTE) }
 
+    val visibleEntries by nav.visibleEntries.collectAsState()
+    val sharedElementsEnabled = visibleEntries.size <= 1 || visibleEntries.any { it.isPager() }
+
     Box(modifier.fillMaxSize()) {
-        AppNavHost(nav, navigateToMedia, navigateToAlbum, navigateToAlbumMedia, navigateToStorage,
-            navigateToStorageMedia, navigateToSettings, reportCurrentMedia, openPrivateAlbum)
+        SharedTransitionLayout(Modifier.fillMaxSize()) {
+            CompositionLocalProvider(
+                LocalSharedTransitionScope provides this,
+                LocalSharedElementsEnabled provides sharedElementsEnabled
+            ) {
+                AppNavHost(
+                    nav, navigateToMedia, navigateToAlbum, navigateToAlbumMedia, navigateToStorage,
+                    navigateToStorageMedia, navigateToSettings, reportCurrentMedia, openPrivateAlbum
+                )
+            }
+        }
         MoveNotifications(
             onOpenPrivateAlbum = openPrivateAlbum,
             onOpenTrash = { nav.navigate(TRASH_ROUTE) },
@@ -155,14 +183,15 @@ private fun AppNavHost(
         navController = nav,
         startDestination = "main",
         enterTransition = { fadeIn(animationSpec = tween(300)) },
-        exitTransition = { fadeOut(animationSpec = tween(300)) },
+        exitTransition = { gridExit() },
+        popEnterTransition = { gridPopEnter() },
         predictivePopEnterTransition = { _ ->
             if (initialState.destination.route in SLIDE_ROUTES) {
                 slideInHorizontally(tween(ALBUM_SLIDE_MS, easing = LinearEasing)) {
                     -(it * ALBUM_PARALLAX).toInt()
                 }
             } else {
-                fadeIn(animationSpec = tween(300))
+                gridPopEnter()
             }
         },
         predictivePopExitTransition = { _ ->
@@ -181,7 +210,7 @@ private fun AppNavHost(
                         -(it * ALBUM_PARALLAX).toInt()
                     }
                 } else {
-                    fadeOut(animationSpec = tween(300))
+                    gridExit()
                 }
             },
             popEnterTransition = {
@@ -190,22 +219,24 @@ private fun AppNavHost(
                         -(it * ALBUM_PARALLAX).toInt()
                     }
                 } else {
-                    fadeIn(animationSpec = tween(300))
+                    gridPopEnter()
                 }
             }
         ) { entry ->
             val returnMediaId by entry.returnMediaId()
-            MainView(
-                onMediaClick = navigateToMedia,
-                onAlbumClick = navigateToAlbum,
-                onStorageClick = navigateToStorage,
-                onSettingsClick = navigateToSettings,
-                onFavoritesClick = { nav.navigate("favorites") },
-                onPrivateAlbumClick = openPrivateAlbum,
-                onTrashClick = { nav.navigate(TRASH_ROUTE) },
-                returnMediaId = returnMediaId,
-                onReturnHandled = { entry.clearReturnMediaId() }
-            )
+            WithNavScope {
+                MainView(
+                    onMediaClick = navigateToMedia,
+                    onAlbumClick = navigateToAlbum,
+                    onStorageClick = navigateToStorage,
+                    onSettingsClick = navigateToSettings,
+                    onFavoritesClick = { nav.navigate("favorites") },
+                    onPrivateAlbumClick = openPrivateAlbum,
+                    onTrashClick = { nav.navigate(TRASH_ROUTE) },
+                    returnMediaId = returnMediaId,
+                    onReturnHandled = { entry.clearReturnMediaId() }
+                )
+            }
         }
 
         composable(
@@ -214,22 +245,25 @@ private fun AppNavHost(
             enterTransition = {
                 slideInHorizontally(tween(ALBUM_SLIDE_MS, easing = FastOutSlowInEasing)) { it }
             },
-            exitTransition = { fadeOut(animationSpec = tween(300)) },
-            popEnterTransition = { fadeIn(animationSpec = tween(300)) },
+            exitTransition = { gridExit() },
+            popEnterTransition = { gridPopEnter() },
             popExitTransition = {
                 slideOutHorizontally(tween(ALBUM_SLIDE_MS, easing = FastOutSlowInEasing)) { it }
             }
         ) { entry ->
             val returnMediaId by entry.returnMediaId()
-            AlbumView(
-                loadNeighbours = false,
-                onMediaClick = { media, filters, date, type ->
-                    nav.navigate("favorites/pager/${pagerArgs(media, filters, date, type)}")
-                },
-                onClose = nav::navigateUp,
-                returnMediaId = returnMediaId,
-                onReturnHandled = { entry.clearReturnMediaId() }
-            )
+            WithNavScope {
+                AlbumView(
+                    loadNeighbours = false,
+                    onMediaClick = { media, filters, date, type ->
+                        OpenedMedia.media = media
+                        nav.navigate("favorites/pager/${pagerArgs(media, filters, date, type)}")
+                    },
+                    onClose = nav::navigateUp,
+                    returnMediaId = returnMediaId,
+                    onReturnHandled = { entry.clearReturnMediaId() }
+                )
+            }
         }
 
         composable(
@@ -264,13 +298,16 @@ private fun AppNavHost(
                 navArgument("filters") { type = NavType.StringType; defaultValue = "" },
                 navArgument("date") { type = NavType.StringType; nullable = true },
                 typeArgument
-            )
+            ),
+            enterTransition = { pagerEnter }
         ) {
-            PagerView(
-                onAlbumClick = navigateToAlbum,
-                onClose = nav::navigateUp,
-                onCurrentMediaChange = reportCurrentMedia
-            )
+            WithNavScope {
+                PagerView(
+                    onAlbumClick = navigateToAlbum,
+                    onClose = nav::navigateUp,
+                    onCurrentMediaChange = reportCurrentMedia
+                )
+            }
         }
 
         composable(
@@ -279,13 +316,16 @@ private fun AppNavHost(
                 navArgument("imageId") { type = NavType.LongType },
                 navArgument("filters") { type = NavType.StringType; defaultValue = "" },
                 typeArgument
-            )
+            ),
+            enterTransition = { pagerEnter }
         ) {
-            PagerView(
-                onAlbumClick = navigateToAlbum,
-                onClose = nav::navigateUp,
-                onCurrentMediaChange = reportCurrentMedia
-            )
+            WithNavScope {
+                PagerView(
+                    onAlbumClick = navigateToAlbum,
+                    onClose = nav::navigateUp,
+                    onCurrentMediaChange = reportCurrentMedia
+                )
+            }
         }
 
         composable(
@@ -302,10 +342,10 @@ private fun AppNavHost(
                 if (targetState.destination.route == ALBUM_ROUTE) {
                     fadeOut(tween(1, delayMillis = ALBUM_SWAP_DELAY_MS + ALBUM_SWAP_FADE_MS))
                 } else {
-                    fadeOut(animationSpec = tween(300))
+                    gridExit()
                 }
             },
-            popEnterTransition = { fadeIn(animationSpec = tween(300)) },
+            popEnterTransition = { gridPopEnter() },
             popExitTransition = {
                 slideOutHorizontally(tween(ALBUM_SLIDE_MS, easing = FastOutSlowInEasing)) { it }
             }
@@ -313,26 +353,28 @@ private fun AppNavHost(
             val albumId = route.arguments?.getLong("albumId")!!
             val returnMediaId by route.returnMediaId()
 
-            AlbumView(
-                loadNeighbours = transition.currentState == transition.targetState,
-                onSwitchAlbum = { album, _ ->
-                    nav.navigate("album/${album.id}") {
-                        popUpTo(ALBUM_ROUTE) { inclusive = true }
-                    }
-                },
-                onMediaClick = { media, filters, date, type ->
-                    navigateToAlbumMedia(
-                        albumId,
-                        media,
-                        filters,
-                        date,
-                        type
-                    )
-                },
-                onClose = nav::navigateUp,
-                returnMediaId = returnMediaId,
-                onReturnHandled = { route.clearReturnMediaId() }
-            )
+            WithNavScope {
+                AlbumView(
+                    loadNeighbours = transition.currentState == transition.targetState,
+                    onSwitchAlbum = { album, _ ->
+                        nav.navigate("album/${album.id}") {
+                            popUpTo(ALBUM_ROUTE) { inclusive = true }
+                        }
+                    },
+                    onMediaClick = { media, filters, date, type ->
+                        navigateToAlbumMedia(
+                            albumId,
+                            media,
+                            filters,
+                            date,
+                            type
+                        )
+                    },
+                    onClose = nav::navigateUp,
+                    returnMediaId = returnMediaId,
+                    onReturnHandled = { route.clearReturnMediaId() }
+                )
+            }
         }
 
         composable(
@@ -343,13 +385,16 @@ private fun AppNavHost(
                 navArgument("filters") { type = NavType.StringType; defaultValue = "" },
                 navArgument("date") { type = NavType.StringType; nullable = true },
                 typeArgument
-            )
+            ),
+            enterTransition = { pagerEnter }
         ) {
-            PagerView(
-                onAlbumClick = navigateToAlbum,
-                onClose = nav::navigateUp,
-                onCurrentMediaChange = reportCurrentMedia
-            )
+            WithNavScope {
+                PagerView(
+                    onAlbumClick = navigateToAlbum,
+                    onClose = nav::navigateUp,
+                    onCurrentMediaChange = reportCurrentMedia
+                )
+            }
         }
 
         composable(
@@ -373,19 +418,41 @@ private fun AppNavHost(
                 navArgument("filters") { type = NavType.StringType; defaultValue = "" },
                 navArgument("date") { type = NavType.StringType; nullable = true },
                 typeArgument
-            )
+            ),
+            enterTransition = { pagerEnter }
         ) {
-            PagerView(
-                onAlbumClick = navigateToAlbum,
-                onClose = nav::navigateUp,
-                onCurrentMediaChange = reportCurrentMedia
-            )
+            WithNavScope {
+                PagerView(
+                    onAlbumClick = navigateToAlbum,
+                    onClose = nav::navigateUp,
+                    onCurrentMediaChange = reportCurrentMedia
+                )
+            }
         }
 
         composable("settings") {
             SettingsView(onClose = nav::navigateUp)
         }
     }
+}
+
+private fun NavBackStackEntry.isPager() = true == destination.route?.contains(PAGER_SEGMENT)
+
+/** Сетка под открывающимся просмотром не тает: проявляется только фон просмотра */
+private fun AnimatedContentTransitionScope<NavBackStackEntry>.gridExit(): ExitTransition =
+    if (targetState.isPager()) ExitTransition.None else fadeOut(animationSpec = tween(300))
+
+/** При закрытии просмотра сетка уже на месте, тает только просмотр */
+private fun AnimatedContentTransitionScope<NavBackStackEntry>.gridPopEnter(): EnterTransition =
+    if (initialState.isPager()) EnterTransition.None else fadeIn(animationSpec = tween(300))
+
+/** Фон просмотра проявляется, когда фото уже почти вылетело из миниатюры */
+private val pagerEnter: EnterTransition =
+    fadeIn(tween(SHARED_ELEMENT_MS, delayMillis = SHARED_ELEMENT_MS / 3, easing = EaseInCubic))
+
+@Composable
+private fun AnimatedVisibilityScope.WithNavScope(content: @Composable () -> Unit) {
+    CompositionLocalProvider(LocalNavAnimatedScope provides this, content = content)
 }
 
 @Composable
@@ -403,6 +470,7 @@ private val typeArgument = navArgument("type") { type = NavType.StringType; null
 
 private val favoritesArgument = navArgument("favorites") { type = NavType.BoolType; defaultValue = true }
 
+private const val PAGER_SEGMENT = "pager/"
 private const val PAGER_ARGS = "{imageId}/{filters}/{date}?type={type}"
 private const val FAVORITES_ROUTE = "favorites"
 private const val PRIVATE_ROUTE = "private"

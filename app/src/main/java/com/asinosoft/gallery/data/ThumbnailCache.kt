@@ -6,10 +6,12 @@ import android.net.Uri
 import android.os.Build
 import coil3.Image
 import coil3.SingletonImageLoader
+import coil3.request.CachePolicy
 import coil3.request.ImageRequest
 import coil3.request.allowHardware
 import coil3.size.Size
 import coil3.toBitmap
+import coil3.video.videoFrameMillis
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.coroutineScope
@@ -78,7 +80,10 @@ object ThumbnailCache {
         if (file.exists() && file.length() > 0) return@withContext
 
         try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && uri.scheme == "content") {
+            val isContent = uri.scheme == "content"
+            val isVideo =
+                isContent && true == context.contentResolver.getType(uri)?.startsWith("video/")
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && isContent && !isVideo) {
                 val size = android.util.Size(300, 300)
                 val bitmap = context.contentResolver.loadThumbnail(uri, size, null)
                 saveBitmap(file, bitmap)
@@ -87,7 +92,8 @@ object ThumbnailCache {
                 val request = ImageRequest.Builder(context)
                     .data(uri)
                     .size(getThumbnailSize(context))
-                    .memoryCacheKey("media-$mediaId")
+                    .videoFrameMillis(0)
+                    .memoryCachePolicy(CachePolicy.DISABLED)
                     .diskCacheKey("media-$mediaId")
                     .allowHardware(false)
                     .build()

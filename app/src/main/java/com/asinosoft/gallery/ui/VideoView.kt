@@ -1,16 +1,21 @@
 package com.asinosoft.gallery.ui
 
+import android.view.LayoutInflater
 import androidx.annotation.OptIn
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -39,10 +44,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.geometry.isSpecified
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.input.pointer.PointerInputScope
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -57,9 +64,11 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.currentStateAsState
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
+import androidx.media3.common.VideoSize
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.datasource.okhttp.OkHttpDataSource
+import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.ui.PlayerView
@@ -68,6 +77,11 @@ import com.asinosoft.gallery.R
 import com.asinosoft.gallery.data.EXTERNAL_STORAGE_ID
 import com.asinosoft.gallery.data.Media
 import com.asinosoft.gallery.model.MediaViewModel
+import com.asinosoft.gallery.ui.component.LocalDismissDrag
+import com.asinosoft.gallery.ui.component.isOpeningTransition
+import com.asinosoft.gallery.ui.component.dismissDragTransform
+import com.asinosoft.gallery.ui.component.mediaSharedElement
+import com.asinosoft.gallery.ui.component.rememberCachedThumbnail
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.time.Duration.Companion.milliseconds
@@ -87,29 +101,63 @@ fun VideoView(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val app = context.applicationContext as GalleryApp
-    var isLoading by remember { mutableStateOf(false) }
     var isPlaying by remember { mutableStateOf(false) }
+    var buffering by remember(media.id) { mutableStateOf(false) }
+    var showProgress by remember(media.id) { mutableStateOf(false) }
+    LaunchedEffect(buffering) {
+        showProgress = false
+        if (buffering) {
+            delay(PROGRESS_DELAY_MS.milliseconds)
+            showProgress = true
+        }
+    }
     var position by remember { mutableLongStateOf(0L) }
     var duration by remember { mutableLongStateOf(0L) }
+    var videoRatio by remember(media.id) { mutableStateOf<Float?>(null) }
+    var firstFrameRendered by remember(media.id) { mutableStateOf(false) }
+    val thumbnail = rememberCachedThumbnail(media)
+    val thumbnailRatio = thumbnail?.intrinsicSize
+        ?.takeIf { it.isSpecified && !it.isEmpty() }
+        ?.let { it.width / it.height }
+    val opening = isOpeningTransition()
+    val thumbnailAlpha by animateFloatAsState(
+        targetValue = if (firstFrameRendered && !opening) 0f else 1f,
+        animationSpec = tween(THUMBNAIL_FADE_MS),
+        label = "videoThumbnail"
+    )
 
-    val player =
-        remember(media.id) {
-            val mediaSourceFactory = DefaultMediaSourceFactory(
-                if (1L == media.storageId || EXTERNAL_STORAGE_ID == media.storageId) {
-                    DefaultDataSource.Factory(context)
-                } else {
-                    OkHttpDataSource.Factory(app.httpClient)
-                }
+    /**
+     * Плеер создаётся сразу после первого кадра открытия: видео готовится, пока летит миниатюра,
+     * а запускается только после анимации
+     */
+    var player by remember(media.id) { mutableStateOf<ExoPlayer?>(null) }
+    LaunchedEffect(media.id) {
+        val mediaSourceFactory = DefaultMediaSourceFactory(
+            if (1L == media.storageId || EXTERNAL_STORAGE_ID == media.storageId) {
+                DefaultDataSource.Factory(context)
+            } else {
+                OkHttpDataSource.Factory(app.httpClient)
+            }
+        )
+        player = ExoPlayer.Builder(context.applicationContext)
+            .setMediaSourceFactory(mediaSourceFactory)
+            .setLoadControl(
+                DefaultLoadControl.Builder()
+                    .setBufferDurationsMs(
+                        MIN_BUFFER_MS,
+                        MAX_BUFFER_MS,
+                        BUFFER_FOR_PLAYBACK_MS,
+                        BUFFER_FOR_PLAYBACK_AFTER_REBUFFER_MS
+                    )
+                    .build()
             )
-            ExoPlayer.Builder(context.applicationContext)
-                .setMediaSourceFactory(mediaSourceFactory)
-                .build()
-                .apply {
-                    playWhenReady = false
-                    repeatMode = Player.REPEAT_MODE_ONE
-                    prepare()
-                }
-        }
+            .build()
+            .apply {
+                playWhenReady = false
+                repeatMode = Player.REPEAT_MODE_ONE
+                prepare()
+            }
+    }
 
     val lifecycleOwner = LocalLifecycleOwner.current
     val lifecycleState by lifecycleOwner.lifecycle.currentStateAsState()
@@ -128,47 +176,58 @@ fun VideoView(
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
-    LaunchedEffect(player, isActive, resumed, paused) {
-        player.playWhenReady = isActive && resumed && !paused
+    LaunchedEffect(player, isActive, resumed, paused, opening) {
+        player?.playWhenReady = isActive && resumed && !paused && !opening
     }
 
     LaunchedEffect(player, muted) {
-        player.volume = if (muted) 0f else 1f
+        player?.volume = if (muted) 0f else 1f
     }
 
     LaunchedEffect(player) {
-        isLoading = true
+        val current = player ?: return@LaunchedEffect
         scope.launch {
             model.getMediaUri(media).let { uri ->
-                player.setMediaItem(MediaItem.fromUri(uri))
+                current.setMediaItem(MediaItem.fromUri(uri))
             }
         }
     }
 
     LaunchedEffect(player) {
+        val current = player ?: return@LaunchedEffect
         while (true) {
-            position = player.currentPosition.coerceAtLeast(0L)
-            duration = player.duration.takeIf { it > 0 } ?: 0L
+            position = current.currentPosition.coerceAtLeast(0L)
+            duration = current.duration.takeIf { it > 0 } ?: 0L
             delay(200.milliseconds)
         }
     }
 
     DisposableEffect(player) {
+        val current = player
         val listener =
             object : Player.Listener {
-                override fun onIsLoadingChanged(loading: Boolean) {
-                    isLoading = isLoading and loading
+                override fun onPlaybackStateChanged(playbackState: Int) {
+                    buffering = Player.STATE_BUFFERING == playbackState
                 }
 
                 override fun onIsPlayingChanged(playing: Boolean) {
                     isPlaying = playing
                 }
+
+                override fun onVideoSizeChanged(videoSize: VideoSize) {
+                    videoRatio = videoSize.aspectRatio()
+                }
+
+                override fun onRenderedFirstFrame() {
+                    firstFrameRendered = true
+                }
             }
-        player.addListener(listener)
-        isPlaying = player.isPlaying
+        current?.addListener(listener)
+        isPlaying = true == current?.isPlaying
+        buffering = Player.STATE_BUFFERING == current?.playbackState
         onDispose {
-            player.removeListener(listener)
-            player.release()
+            current?.removeListener(listener)
+            current?.release()
         }
     }
 
@@ -179,21 +238,43 @@ fun VideoView(
                 .fillMaxSize()
                 .clickable(interactionSource = null, indication = null, onClick = onTap)
     ) {
-        AndroidView(
-            factory = { ctx ->
-                PlayerView(ctx).apply {
-                    useController = false
-                    this.player = player
-                }
-            },
-            update = {
-                it.player = player
-                it.keepScreenOn = isPlaying
-            },
-            modifier = Modifier.fillMaxSize()
-        )
+        Box(
+            modifier = Modifier
+                .then((videoRatio ?: thumbnailRatio)?.let { Modifier.aspectRatio(it) }
+                    ?: Modifier.fillMaxSize())
+                .dismissDragTransform(LocalDismissDrag.current)
+                .mediaSharedElement(media.id)
+        ) {
+            player?.let { current ->
+                AndroidView(
+                    factory = { ctx ->
+                        (LayoutInflater.from(ctx)
+                            .inflate(R.layout.video_player, null) as PlayerView).apply {
+                            this.player = current
+                        }
+                    },
+                    update = {
+                        it.player = current
+                        it.keepScreenOn = isPlaying
+                    },
+                    modifier = Modifier.fillMaxSize()
+                )
+            }
 
-        if (isLoading && !isPlaying) {
+            if (thumbnailAlpha > 0f) {
+                thumbnail?.let {
+                    Image(
+                        painter = it,
+                        contentDescription = null,
+                        contentScale = ContentScale.Crop,
+                        alpha = thumbnailAlpha,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
+            }
+        }
+
+        if (showProgress) {
             CircularProgressIndicator(color = Color.White)
         }
 
@@ -209,10 +290,10 @@ fun VideoView(
                 isPlaying = isPlaying,
                 position = position,
                 duration = duration,
-                onPlayPause = { paused = player.playWhenReady },
+                onPlayPause = { paused = true == player?.playWhenReady },
                 onSeek = { target ->
                     position = target
-                    player.seekTo(target)
+                    player?.seekTo(target)
                 }
             )
         }
@@ -339,5 +420,17 @@ private fun PointerInputScope.fractionAt(x: Float): Float {
     return ((x - radius) / width).coerceIn(0f, 1f)
 }
 
+private fun VideoSize.aspectRatio(): Float? {
+    if (width <= 0 || height <= 0) return null
+    val ratio = width * pixelWidthHeightRatio / height
+    return if (90 == unappliedRotationDegrees || 270 == unappliedRotationDegrees) 1f / ratio else ratio
+}
+
 private val VIDEO_CONTROLS_BOTTOM = 160.dp
+private const val THUMBNAIL_FADE_MS = 200
+private const val PROGRESS_DELAY_MS = 500
+private const val MIN_BUFFER_MS = 2_000
+private const val MAX_BUFFER_MS = 30_000
+private const val BUFFER_FOR_PLAYBACK_MS = 250
+private const val BUFFER_FOR_PLAYBACK_AFTER_REBUFFER_MS = 1_000
 private val SEEK_THUMB_RADIUS = 9.dp

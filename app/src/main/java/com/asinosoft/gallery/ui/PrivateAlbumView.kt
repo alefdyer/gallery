@@ -4,6 +4,9 @@ import android.app.Activity
 import android.view.WindowManager
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
@@ -24,6 +27,7 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.systemGestures
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.itemsIndexed
@@ -39,10 +43,13 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
@@ -50,9 +57,11 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
@@ -67,17 +76,24 @@ import com.asinosoft.gallery.model.MediaFolderViewModel
 import com.asinosoft.gallery.model.MediaViewModel
 import com.asinosoft.gallery.model.PrivateAlbumViewModel
 import com.asinosoft.gallery.ui.component.DateFilterDialog
+import com.asinosoft.gallery.ui.component.DismissDragState
 import com.asinosoft.gallery.ui.component.DragSelectionState
 import com.asinosoft.gallery.ui.component.ImageListHeaderBackground
 import com.asinosoft.gallery.ui.component.ImageListHeaderInfo
 import com.asinosoft.gallery.ui.component.LabeledIconButton
+import com.asinosoft.gallery.ui.component.LocalDismissDrag
+import com.asinosoft.gallery.ui.component.LocalSharedElementVisible
+import com.asinosoft.gallery.ui.component.MediaSharedTransitionLayout
 import com.asinosoft.gallery.ui.component.MediaThumbnail
+import com.asinosoft.gallery.ui.component.SHARED_ELEMENT_MS
 import com.asinosoft.gallery.ui.component.SelectionInfoBar
 import com.asinosoft.gallery.ui.component.dragSelection
+import com.asinosoft.gallery.ui.component.dragToDismiss
 import com.asinosoft.gallery.ui.component.rememberVideoPreviewQueue
 import com.asinosoft.gallery.ui.theme.floatingPanelColor
 
 private val HEADER_TOP = 36.dp
+private const val GRID_COLUMNS = 3
 
 @Composable
 fun PrivateAlbumView(
@@ -108,6 +124,20 @@ internal fun MediaFolderView(
     model: MediaFolderViewModel,
     modifier: Modifier = Modifier,
 ) {
+    MediaSharedTransitionLayout(modifier.fillMaxSize()) {
+        MediaFolderContent(title, emptyText, restoreLabel, onClose, model)
+    }
+}
+
+@Composable
+private fun MediaFolderContent(
+    title: String,
+    emptyText: String,
+    restoreLabel: String,
+    onClose: () -> Unit,
+    model: MediaFolderViewModel,
+    modifier: Modifier = Modifier,
+) {
     val media by model.media.collectAsState()
     val items by model.visibleMedia.collectAsState()
     val selection by model.selection.collectAsState()
@@ -116,7 +146,9 @@ internal fun MediaFolderView(
     val showVideos by model.showVideos.collectAsState()
     val photoCount by model.photoCount.collectAsState()
     val videoCount by model.videoCount.collectAsState()
-    var openedIndex by rememberSaveable { mutableStateOf<Int?>(null) }
+    var pagerOpen by rememberSaveable { mutableStateOf(false) }
+    var pagerIndex by rememberSaveable { mutableIntStateOf(0) }
+    var pagerMediaId by rememberSaveable { mutableStateOf<Long?>(null) }
     var confirmDelete by remember { mutableStateOf(false) }
     var showDateDialog by remember { mutableStateOf(false) }
     val thumbnailModel: MediaViewModel = hiltViewModel()
@@ -153,7 +185,17 @@ internal fun MediaFolderView(
         )
     }
 
-    BoxWithConstraints(modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+    val closePager = { page: Int ->
+        if (lazyGridState.layoutInfo.visibleItemsInfo.none { it.index == page }) {
+            lazyGridState.requestScrollToItem((page - GRID_COLUMNS).coerceAtLeast(0))
+        }
+        pagerMediaId = items.getOrNull(page)?.id
+        pagerOpen = false
+    }
+
+    BoxWithConstraints(modifier
+        .fillMaxSize()
+        .background(MaterialTheme.colorScheme.background)) {
         val videoPreview = rememberVideoPreviewQueue(items, lazyGridState)
         val cover = items.firstOrNull()
 
@@ -195,17 +237,24 @@ internal fun MediaFolderView(
                 )
         ) {
             itemsIndexed(items, key = { _, item -> item.id }) { index, item ->
-                MediaThumbnail(
-                    media = item,
-                    model = thumbnailModel,
-                    persistentCache = false,
-                    selectionMode = selection.isNotEmpty(),
-                    selected = selection,
-                    playPreview = null == openedIndex && item.id == videoPreview.previewId,
-                    onPreviewEnded = videoPreview::onEnded,
-                    onClick = { openedIndex = index },
-                    onSelect = { if (!dragSelectionState.active) model.toggleSelection(it) }
-                )
+                CompositionLocalProvider(LocalSharedElementVisible provides !(pagerOpen && item.id == pagerMediaId)) {
+                    MediaThumbnail(
+                        media = item,
+                        model = thumbnailModel,
+                        persistentCache = false,
+                        selectionMode = selection.isNotEmpty(),
+                        selected = selection,
+                        playPreview = !pagerOpen && item.id == videoPreview.previewId,
+                        sharedElement = true,
+                        onPreviewEnded = videoPreview::onEnded,
+                        onClick = {
+                            pagerIndex = index
+                            pagerMediaId = item.id
+                            pagerOpen = true
+                        },
+                        onSelect = { if (!dragSelectionState.active) model.toggleSelection(it) }
+                    )
+                }
             }
         }
 
@@ -316,17 +365,23 @@ internal fun MediaFolderView(
         }
 
         LaunchedEffect(media) {
-            if (null != media && items.isEmpty()) openedIndex = null
+            if (null != media && items.isEmpty()) pagerOpen = false
         }
-        openedIndex?.takeIf { items.isNotEmpty() }?.let { index ->
-            PrivateMediaPager(
-                items = items,
-                restoreLabel = restoreLabel,
-                initialIndex = index.coerceAtMost(items.lastIndex),
-                onClose = { openedIndex = null },
-                onRestore = { model.restore(listOf(it)) },
-                onDelete = { model.delete(listOf(it)) }
-            )
+        AnimatedVisibility(
+            visible = pagerOpen && items.isNotEmpty(),
+            enter = fadeIn(tween(SHARED_ELEMENT_MS)),
+            exit = fadeOut(tween(SHARED_ELEMENT_MS))
+        ) {
+            CompositionLocalProvider(LocalSharedElementVisible provides pagerOpen) {
+                PrivateMediaPager(
+                    items = items,
+                    restoreLabel = restoreLabel,
+                    initialIndex = pagerIndex.coerceIn(0, (items.size - 1).coerceAtLeast(0)),
+                    onClose = closePager,
+                    onRestore = { model.restore(listOf(it)) },
+                    onDelete = { model.delete(listOf(it)) }
+                )
+            }
         }
     }
 
@@ -387,39 +442,57 @@ private fun PrivateMediaPager(
     items: List<Media>,
     restoreLabel: String,
     initialIndex: Int,
-    onClose: () -> Unit,
+    onClose: (page: Int) -> Unit,
     onRestore: (Media) -> Unit,
     onDelete: (Media) -> Unit,
 ) {
     val pagerState = rememberPagerState(initialIndex) { items.size }
+    val dismissDrag = remember { DismissDragState() }
+    val dragging by remember { derivedStateOf { dismissDrag.isDragging } }
     var showControls by remember { mutableStateOf(true) }
+    val controlsVisible = showControls && !dragging
     var confirmDelete by remember { mutableStateOf<Media?>(null) }
+    val close = { onClose(pagerState.currentPage) }
+    val bottomGestureInset = WindowInsets.systemGestures.getBottom(LocalDensity.current)
 
-    BackHandler(onBack = onClose)
+    BackHandler(onBack = close)
 
-    Box(Modifier.fillMaxSize().background(Color.Black)) {
-        HorizontalPager(state = pagerState, pageSpacing = 16.dp) { page ->
-            val item = items[page]
-            if (null != item.video) {
-                VideoView(
-                    media = item,
-                    isActive = page == pagerState.currentPage,
-                    controlsVisible = showControls,
-                    controlsBottomPadding = 160.dp,
-                    onTap = { showControls = !showControls }
+    Box(
+        Modifier
+            .fillMaxSize()
+            .drawBehind { drawRect(Color.Black.copy(alpha = 1f - dismissDrag.progress)) }) {
+        CompositionLocalProvider(LocalDismissDrag provides dismissDrag) {
+            HorizontalPager(
+                state = pagerState,
+                pageSpacing = 16.dp,
+                modifier = Modifier.dragToDismiss(
+                    state = dismissDrag,
+                    onDismiss = close,
+                    ignoreBottom = bottomGestureInset
                 )
-            } else {
-                ImageView(item) { showControls = !showControls }
+            ) { page ->
+                val item = items[page]
+                if (null != item.video) {
+                    VideoView(
+                        media = item,
+                        isActive = page == pagerState.currentPage,
+                        controlsVisible = controlsVisible,
+                        controlsBottomPadding = 160.dp,
+                        onTap = { showControls = !showControls }
+                    )
+                } else {
+                    ImageView(item) { showControls = !showControls }
+                }
             }
         }
 
-        if (showControls) {
+        if (controlsVisible) {
             FloatingCircle(
                 Modifier
                     .statusBarsPadding()
                     .padding(horizontal = 12.dp, vertical = 8.dp)
             ) {
-                IconButton(onClick = onClose) {
+                IconButton(onClick = close) {
                     Icon(
                         painter = painterResource(R.drawable.arrow_back),
                         contentDescription = stringResource(R.string.back)
@@ -429,7 +502,7 @@ private fun PrivateMediaPager(
         }
 
         AnimatedVisibility(
-            visible = showControls,
+            visible = controlsVisible,
             enter = slideInVertically { it / 2 },
             exit = slideOutVertically { it / 2 },
             modifier = Modifier

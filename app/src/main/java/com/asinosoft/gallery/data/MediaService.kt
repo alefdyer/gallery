@@ -6,6 +6,8 @@ import android.os.Build
 import android.provider.MediaStore
 import android.util.Log
 import androidx.core.content.edit
+import coil3.SingletonImageLoader
+import coil3.memory.MemoryCache
 import com.asinosoft.gallery.GalleryApp
 import com.asinosoft.gallery.data.storage.StorageProvider
 import com.asinosoft.gallery.di.IntentHelper
@@ -284,7 +286,24 @@ class MediaService @Inject constructor(
         mediaDao.deleteAllExcept(provider.storage.id, updated)
         repairFolderAlbumsOnce(provider.storage.id)
         mergeDuplicateAlbumsOnce()
+        resetVideoThumbnailsOnce()
         albumDao.deleteEmptyAlbums()
+    }
+
+    /**
+     * Системные миниатюры видео берут кадр из середины ролика, а просмотр
+     * начинается с первого кадра. Удаляем их, чтобы пересоздать по первому кадру.
+     */
+    private suspend fun resetVideoThumbnailsOnce() {
+        if (prefs.getBoolean(KEY_VIDEO_THUMBNAILS_RESET, false)) return
+
+        val memoryCache = SingletonImageLoader.get(context).memoryCache
+        mediaDao.getVideoIds().forEach { id ->
+            ThumbnailCache.getFile(context, id).delete()
+            memoryCache?.remove(MemoryCache.Key("media-$id"))
+        }
+
+        prefs.edit { putBoolean(KEY_VIDEO_THUMBNAILS_RESET, true) }
     }
 
     /**
@@ -330,5 +349,6 @@ class MediaService @Inject constructor(
         const val PREFS_NAME = "media_service"
         const val KEY_ALBUMS_REPAIRED = "albums_repaired_"
         const val KEY_DUPLICATES_MERGED = "duplicates_merged"
+        const val KEY_VIDEO_THUMBNAILS_RESET = "video_thumbnails_reset"
     }
 }

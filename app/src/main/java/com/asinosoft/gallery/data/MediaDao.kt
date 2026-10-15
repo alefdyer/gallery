@@ -39,6 +39,9 @@ interface MediaDao {
     @Query("SELECT COUNT(video) AS videoCount, COUNT(CASE WHEN video IS NULL THEN 1 ELSE NULL END) AS photoCount FROM media WHERE storageId = :storageId")
     suspend fun getStorageStatistics(storageId: Long): StorageStatistics
 
+    @Query("SELECT id FROM media WHERE video IS NOT NULL")
+    suspend fun getVideoIds(): List<Long>
+
     @Query("SELECT uri FROM media WHERE id = :mediaId")
     fun getUri(mediaId: Long): Uri
 

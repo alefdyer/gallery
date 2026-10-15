@@ -36,9 +36,11 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
@@ -46,6 +48,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.input.pointer.PointerEventPass
@@ -62,8 +65,17 @@ import com.asinosoft.gallery.data.Album
 import com.asinosoft.gallery.data.Media
 import com.asinosoft.gallery.model.PagerViewModel
 import com.asinosoft.gallery.ui.component.Carousel
+import com.asinosoft.gallery.ui.component.isOpeningTransition
+import com.asinosoft.gallery.ui.component.DismissDragState
+import com.asinosoft.gallery.ui.component.LocalDismissDrag
+import com.asinosoft.gallery.ui.component.dragToDismiss
 import com.asinosoft.gallery.ui.component.MoveToPrivateDialog
 import com.asinosoft.gallery.ui.component.rememberTrashIntro
+
+/** Нажатое фото: просмотр показывает его сразу, пока из базы грузится весь список */
+internal object OpenedMedia {
+    var media: Media? = null
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -74,9 +86,22 @@ fun PagerView(
     onCurrentMediaChange: (Long) -> Unit = {},
     model: PagerViewModel = hiltViewModel()
 ) {
-    val items by model.images.collectAsState(listOf())
+    val loadedItems by model.images.collectAsState(listOf())
     val offset by model.offset.collectAsState(0)
-    val pagerState: PagerState = key(offset) { rememberPagerState(offset) { items.size } }
+
+    val opening = remember { OpenedMedia.media?.takeIf { it.id == model.imageId } }
+    var listReady by remember { mutableStateOf(null == opening) }
+    val openingTransition = isOpeningTransition()
+    LaunchedEffect(loadedItems, offset, openingTransition) {
+        if (openingTransition || loadedItems.isEmpty()) return@LaunchedEffect
+        val openingId = opening?.id
+        if (loadedItems.getOrNull(offset)?.id == openingId || loadedItems.none { it.id == openingId }) listReady =
+            true
+    }
+    val items = if (listReady || null == opening) loadedItems else listOf(opening)
+    val pagerState: PagerState = key(listReady, offset) {
+        rememberPagerState(if (listReady) offset else 0) { items.size }
+    }
 
     LaunchedEffect(pagerState, items) {
         snapshotFlow { pagerState.currentPage }.collect { page ->
@@ -84,7 +109,10 @@ fun PagerView(
         }
     }
 
+    val dismissDrag = remember { DismissDragState() }
     var showControls by remember { mutableStateOf(true) }
+    val dragging by remember { derivedStateOf { dismissDrag.isDragging } }
+    val controlsVisible = showControls && !dragging && !openingTransition
     val lightTheme = MaterialTheme.colorScheme.background.luminance() > 0.5f
     val lightBackground = lightTheme && showControls
     val backgroundColor by animateColorAsState(
@@ -144,7 +172,7 @@ fun PagerView(
         modifier =
             modifier
                 .fillMaxSize()
-                .background(backgroundColor)
+                .drawBehind { drawRect(backgroundColor.copy(alpha = 1f - dismissDrag.progress)) }
     ) {
         var showInfo by remember { mutableStateOf(false) }
         var confirmMoveToPrivate by remember { mutableStateOf<Media?>(null) }
@@ -173,34 +201,7 @@ fun PagerView(
             )
         }
 
-        HorizontalPager(
-            state = pagerState,
-            pageSpacing = 16.dp,
-            modifier =
-                Modifier
-                    .pointerInput(leftGestureInset, rightGestureInset) {
-                        awaitEachGesture {
-                            val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
-                            val x = down.position.x
-                            if (x >= leftGestureInset && x <= size.width - rightGestureInset) return@awaitEachGesture
-                            do {
-                                val event = awaitPointerEvent(PointerEventPass.Initial)
-                                event.changes.forEach { if (it.positionChanged()) it.consume() }
-                            } while (event.changes.any { it.pressed })
-                        }
-                    }
-                    .pointerInput(bottomGestureInset) {
-                        var fromSystemZone = false
-                        detectVerticalDragGestures(
-                            onDragStart = { fromSystemZone = it.y >= size.height - bottomGestureInset }
-                        ) { _, amount ->
-                            if (fromSystemZone) return@detectVerticalDragGestures
-                            if (amount > 10 && !showInfo) onClose()
-                            if (amount < -10) showInfo = true
-                        }
-                    }
-        ) { n ->
-            val item = items[n]
+        val pageContent: @Composable (Media, Boolean) -> Unit = { item, active ->
             if (null !== item.image) {
                 ImageView(item) {
                     if (!pagerState.isScrollInProgress) {
@@ -210,8 +211,8 @@ fun PagerView(
             } else if (null != item.video) {
                 VideoView(
                     media = item,
-                    isActive = n == pagerState.currentPage,
-                    controlsVisible = showControls,
+                    isActive = active,
+                    controlsVisible = controlsVisible,
                     controlsBottomPadding = if (isLandscape) 96.dp else 160.dp,
                     muted = isMuted,
                     onTap = {
@@ -225,8 +226,40 @@ fun PagerView(
             }
         }
 
+        CompositionLocalProvider(LocalDismissDrag provides dismissDrag) {
+            HorizontalPager(
+                state = pagerState,
+                pageSpacing = 16.dp,
+                key = { items[it].id },
+                modifier =
+                    Modifier
+                        .pointerInput(leftGestureInset, rightGestureInset) {
+                            awaitEachGesture {
+                                val down = awaitFirstDown(
+                                    requireUnconsumed = false,
+                                    pass = PointerEventPass.Initial
+                                )
+                                val x = down.position.x
+                                if (x >= leftGestureInset && x <= size.width - rightGestureInset) return@awaitEachGesture
+                                do {
+                                    val event = awaitPointerEvent(PointerEventPass.Initial)
+                                    event.changes.forEach { if (it.positionChanged()) it.consume() }
+                                } while (event.changes.any { it.pressed })
+                            }
+                        }
+                        .dragToDismiss(
+                            state = dismissDrag,
+                            onDismiss = onClose,
+                            onSwipeUp = { showInfo = true },
+                            ignoreBottom = bottomGestureInset
+                        )
+            ) { n ->
+                pageContent(items[n], n == pagerState.currentPage)
+            }
+        }
+
         AnimatedVisibility(
-            visible = showControls,
+            visible = controlsVisible,
             enter = slideInVertically(tween(easing = LinearEasing)),
             exit = slideOutVertically(tween(easing = LinearEasing))
         ) {
@@ -239,7 +272,7 @@ fun PagerView(
         }
 
         AnimatedVisibility(
-            visible = showControls && currentIsVideo,
+            visible = controlsVisible && currentIsVideo,
             enter = fadeIn(),
             exit = fadeOut(),
             modifier = Modifier
@@ -266,7 +299,7 @@ fun PagerView(
                 .height(64.dp)
                 .align(Alignment.BottomCenter)
                 .offset(y = if (isLandscape) (-16).dp else (-85).dp),
-            visible = showControls,
+            visible = controlsVisible,
             enter = slideInVertically(tween(easing = LinearEasing)) { it / 2 },
             exit = slideOutVertically(tween(easing = LinearEasing)) { it / 2 }
         ) {
@@ -281,7 +314,7 @@ fun PagerView(
                 .align(Alignment.BottomCenter)
                 .offset(y = (-8).dp)
                 .padding(16.dp),
-            visible = showControls && !isLandscape,
+            visible = controlsVisible && !isLandscape,
             enter = slideInVertically(tween(easing = LinearEasing)) { it / 2 },
             exit = slideOutVertically(tween(easing = LinearEasing)) { it / 2 }
         ) {

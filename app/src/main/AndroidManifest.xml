@@ -86,6 +86,8 @@
         <service
             android:name=".data.storage.local.LocalStorageObserver"
             android:permission="android.permission.BIND_JOB_SERVICE" />
+
+        <profileable android:shell="true" />
     </application>
 
 </manifest>

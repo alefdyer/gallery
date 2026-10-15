@@ -14,7 +14,9 @@ import com.asinosoft.gallery.data.MediaService
 import com.asinosoft.gallery.data.launchAndCatch
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
@@ -33,7 +35,7 @@ class PagerViewModel @Inject constructor(
 ) : ViewModel() {
     private val storageId: Long = state["storageId"] ?: 1
     private val albumId: Long? = state["albumId"]
-    private val imageId: Long = state["imageId"]!!
+    val imageId: Long = state["imageId"]!!
     private val activeFilterPackages: Set<String> = state.get<String>("filters")
         ?.split(",")
         ?.filter(String::isNotEmpty)
@@ -62,6 +64,7 @@ class PagerViewModel @Inject constructor(
                             activeMediaType.matches(it)
                 }
         }
+        .flowOn(Dispatchers.Default)
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.Eagerly,

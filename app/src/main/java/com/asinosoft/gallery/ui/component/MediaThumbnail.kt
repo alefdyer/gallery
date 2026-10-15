@@ -33,6 +33,7 @@ import coil3.compose.rememberConstraintsSizeResolver
 import coil3.request.CachePolicy
 import coil3.request.ImageRequest
 import coil3.request.allowHardware
+import coil3.video.videoFrameMillis
 import com.asinosoft.gallery.R
 import com.asinosoft.gallery.data.EXTERNAL_STORAGE_ID
 import com.asinosoft.gallery.data.Media
@@ -54,6 +55,7 @@ fun MediaThumbnail(
     playPreview: Boolean = false,
     showVideoBadge: Boolean = true,
     persistentCache: Boolean = true,
+    sharedElement: Boolean = false,
     onClick: (Media) -> Unit = {},
     onSelect: (Media) -> Unit = {},
     onPreviewEnded: (Media) -> Unit = {}
@@ -87,6 +89,7 @@ fun MediaThumbnail(
             ImageRequest.Builder(context)
                 .data(data)
                 .size(size)
+                .videoFrameMillis(0)
                 .memoryCacheKey(cacheKey)
                 .diskCacheKey(cacheKey)
                 .placeholderMemoryCacheKey(cacheKey)
@@ -108,7 +111,10 @@ fun MediaThumbnail(
             placeholder = painterResource(R.drawable.photo),
             contentDescription = null,
             contentScale = ContentScale.Crop,
-            modifier = Modifier.aspectRatio(aspectRatio).then(size)
+            modifier = Modifier
+                .aspectRatio(aspectRatio)
+                .then(size)
+                .then(if (sharedElement) Modifier.mediaSharedElement(media.id) else Modifier)
         )
 
         if (playPreview) {
@@ -122,7 +128,14 @@ fun MediaThumbnail(
                 modifier = Modifier
                     .align(Alignment.BottomStart)
                     .fillMaxWidth()
-                    .background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.45f))))
+                    .background(
+                        Brush.verticalGradient(
+                            listOf(
+                                Color.Transparent,
+                                Color.Black.copy(alpha = 0.45f)
+                            )
+                        )
+                    )
                     .padding(start = 4.dp, end = 4.dp, top = 8.dp, bottom = 3.dp)
             ) {
                 Icon(

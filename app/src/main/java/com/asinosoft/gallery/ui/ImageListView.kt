@@ -67,6 +67,7 @@ import androidx.compose.ui.input.pointer.PointerInputScope
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.stringResource
@@ -122,7 +123,7 @@ fun ImageListView(
     onSwitchAlbum: (album: Album, forward: Boolean) -> Unit = { _, _ -> },
     model: ImageListViewModel = hiltViewModel()
 ) {
-    val images by model.images.collectAsState(listOf())
+    val images by model.images.collectAsState()
     val filters by model.filters.collectAsState(listOf())
     val dateFilter by model.activeDateFilter.collectAsState()
     val selection by model.selection.collectAsState()
@@ -270,6 +271,23 @@ fun ImageListView(
     val visibleBottom = with(density) {
         maxOf(contentPadding.calculateBottomPadding(), bottomPanelHeight).toPx()
     }
+    val configuration = LocalConfiguration.current
+    remember(returnMediaId, images) {
+        val index = images.indexOfFirst { it.id == returnMediaId }
+        if (index < 0) return@remember
+        val visibleRows =
+            (configuration.screenHeightDp * GRID_COLUMNS / configuration.screenWidthDp).coerceAtLeast(
+                1
+            )
+        val first = lazyGridState.firstVisibleItemIndex
+        if (index !in first until first + (visibleRows - 1) * GRID_COLUMNS) {
+            lazyGridState.requestScrollToItem(
+                (index - visibleRows / 2 * GRID_COLUMNS).coerceAtLeast(
+                    0
+                )
+            )
+        }
+    }
     LaunchedEffect(returnMediaId, images) {
         val mediaId = returnMediaId ?: return@LaunchedEffect
         val index = images.indexOfFirst { it.id == mediaId }
@@ -320,7 +338,7 @@ fun ImageListView(
                         coroutineScope.launch {
                             val offset = swipeOffset.value + dragAmount
                             val blocked = null == model.activeDateFilter.value &&
-                                null == (if (offset > 0) currentPreviousAlbum else currentNextAlbum)
+                                    null == (if (offset > 0) currentPreviousAlbum else currentNextAlbum)
                             swipeOffset.snapTo(if (blocked) offset * EDGE_RESISTANCE else offset)
                         }
                     },
@@ -345,7 +363,10 @@ fun ImageListView(
 
                                 val width = size.width.toFloat()
                                 committingAlbum = targetAlbum
-                                swipeOffset.animateTo(if (swipedRight) width else -width, tween(200))
+                                swipeOffset.animateTo(
+                                    if (swipedRight) width else -width,
+                                    tween(200)
+                                )
                                 currentOnSwitchAlbum(targetAlbum, !swipedRight)
                                 return@launch
                             }
@@ -409,7 +430,9 @@ fun ImageListView(
                 contentPadding = gridPadding,
                 modifier = Modifier
                     .fillMaxSize()
-                    .graphicsLayer { translationX = swipeOffset.value - swipeDirection * size.width }
+                    .graphicsLayer {
+                        translationX = swipeOffset.value - swipeDirection * size.width
+                    }
             )
         }
 
@@ -424,7 +447,9 @@ fun ImageListView(
                 contentPadding = gridPadding,
                 modifier = Modifier
                     .fillMaxSize()
-                    .graphicsLayer { translationX = swipeOffset.value - swipeDirection * size.width }
+                    .graphicsLayer {
+                        translationX = swipeOffset.value - swipeDirection * size.width
+                    }
             )
         }
 
@@ -458,6 +483,7 @@ fun ImageListView(
                     selectionMode = selection.isNotEmpty(),
                     selected = selection,
                     playPreview = media.id == videoPreview.previewId,
+                    sharedElement = true,
                     onPreviewEnded = videoPreview::onEnded,
                     onClick = { media -> onMediaClick(media, model.activeFilterPackages.value, model.activeDateFilter.value, model.activeMediaType()) },
                     onSelect = { image ->
@@ -499,9 +525,9 @@ fun ImageListView(
                 .align(Alignment.CenterEnd)
                 .padding(
                     top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() +
-                        TOP_PANEL_MARGIN + TOP_PANEL_HEIGHT + SCROLL_INDICATOR_GAP,
+                            TOP_PANEL_MARGIN + TOP_PANEL_HEIGHT + SCROLL_INDICATOR_GAP,
                     bottom = maxOf(contentPadding.calculateBottomPadding(), bottomPanelHeight) +
-                        SCROLL_INDICATOR_GAP,
+                            SCROLL_INDICATOR_GAP,
                     end = 4.dp
                 )
         )
@@ -550,7 +576,9 @@ fun ImageListView(
         AnimatedVisibility(
             enter = slideInVertically { it * 2 },
             exit = slideOutVertically { it * 2 },
-            modifier = Modifier.align(Alignment.BottomCenter).padding(16.dp),
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(16.dp),
             visible = selection.isNotEmpty()
         ) {
             SelectionControlBar(
@@ -596,7 +624,7 @@ fun ImageListView(
                 .padding(
                     top = TOP_PANEL_MARGIN + TOP_PANEL_HEIGHT + SCROLL_INDICATOR_GAP,
                     bottom = maxOf(contentPadding.calculateBottomPadding(), bottomPanelHeight) +
-                        SCROLL_INDICATOR_GAP
+                            SCROLL_INDICATOR_GAP
                 )
         ) {
             AppsFilterPanel(
@@ -640,6 +668,7 @@ fun ImageListView(
 private class PendingFlag(var pending: Boolean = false)
 
 private const val SCROLL_TO_TOP_JUMP = 30
+private const val GRID_COLUMNS = 3
 private val DATE_SWIPE_THRESHOLD = 80.dp
 private const val EDGE_RESISTANCE = 0.3f
 private val TOP_PANEL_MARGIN = 8.dp
@@ -674,7 +703,9 @@ private fun DatePreviewPage(
 
     Box(modifier) {
         visibleImages.firstOrNull()?.let {
-            ImageListHeaderBackground(cover = it, modifier = Modifier.fillMaxWidth().height(headerHeight))
+            ImageListHeaderBackground(cover = it, modifier = Modifier
+                .fillMaxWidth()
+                .height(headerHeight))
         }
 
         LazyVerticalGrid(
@@ -695,7 +726,9 @@ private fun DatePreviewPage(
             videoCount = videoCount,
             photosEnabled = !typeFilterActive || showPhotos,
             videosEnabled = !typeFilterActive || showVideos,
-            modifier = Modifier.fillMaxWidth().height(headerHeight)
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(headerHeight)
         )
     }
 }

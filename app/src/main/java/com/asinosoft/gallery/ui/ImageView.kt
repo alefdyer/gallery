@@ -2,11 +2,13 @@ package com.asinosoft.gallery.ui
 
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.exponentialDecay
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.calculatePan
 import androidx.compose.foundation.gestures.calculateZoom
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
@@ -23,6 +25,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.geometry.isSpecified
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.AwaitPointerEventScope
@@ -46,9 +49,16 @@ import coil3.request.allowHardware
 import com.asinosoft.gallery.data.EXTERNAL_STORAGE_ID
 import com.asinosoft.gallery.data.Media
 import com.asinosoft.gallery.model.MediaViewModel
+import com.asinosoft.gallery.ui.component.LocalDismissDrag
+import com.asinosoft.gallery.ui.component.dismissDragTransform
+import com.asinosoft.gallery.ui.component.mediaSharedElement
+import com.asinosoft.gallery.ui.component.rememberCachedThumbnail
+import com.asinosoft.gallery.ui.component.thumbnailCacheKey
+import kotlinx.coroutines.delay
 import kotlin.math.max
 import kotlinx.coroutines.launch
 import kotlin.math.abs
+import kotlin.time.Duration.Companion.milliseconds
 
 @Composable
 fun ImageView(
@@ -60,21 +70,40 @@ fun ImageView(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
+    val thumbnail = rememberCachedThumbnail(media)
     var viewSize by remember { mutableStateOf(Size.Zero) }
-    var imageSize by remember { mutableStateOf(Size.Zero) }
+    var imageSize by remember(media.id) { mutableStateOf(thumbnail?.intrinsicSize ?: Size.Zero) }
+    var loaded by remember(media.id) { mutableStateOf(false) }
 
-    val minScale by remember { derivedStateOf { imageSize.scaleInto(viewSize) } }
-    val maxScale by remember { derivedStateOf { imageSize.scaleUpTo(viewSize) } }
+    val aspectRatio = when {
+        imageSize.isSpecified && !imageSize.isEmpty() -> imageSize.width / imageSize.height
+        else -> media.image?.aspectRatio()
+    }
+    val boxSize by remember(aspectRatio) {
+        derivedStateOf { aspectRatio?.let { viewSize.fit(it) } ?: viewSize }
+    }
+    val maxScale by remember {
+        derivedStateOf {
+            if (boxSize.isEmpty()) {
+                MIN_MAX_SCALE
+            } else {
+                maxOf(
+                    viewSize.width / boxSize.width,
+                    viewSize.height / boxSize.height,
+                    if (imageSize.isSpecified) MIN_MAX_SCALE * imageSize.width / boxSize.width else 0f,
+                    MIN_MAX_SCALE
+                )
+            }
+        }
+    }
     var scale by remember { mutableFloatStateOf(1f) }
 
     val offsetX = remember { Animatable(0f) }
     val offsetY = remember { Animatable(0f) }
     var isLoading by remember { mutableStateOf(false) }
 
-    var request by remember { mutableStateOf<ImageRequest?>(null) }
+    var request by remember(media.id) { mutableStateOf<ImageRequest?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
-
-    LaunchedEffect(minScale) { scale = minScale }
 
     LaunchedEffect(media.id, media.uri) {
         val key = if (EXTERNAL_STORAGE_ID == media.storageId) "external#${media.uri}" else "media#${media.id}"
@@ -87,13 +116,17 @@ fun ImageView(
                 .size(2000)
                 .memoryCacheKey(key)
                 .diskCacheKey(key)
+                .placeholderMemoryCacheKey(thumbnailCacheKey(media))
                 .allowHardware(true)
                 .listener(
                     onError = { _, result ->
                         error = result.throwable.message
                         isLoading = false
                     },
-                    onSuccess = { _, _ -> isLoading = false }
+                    onSuccess = { _, _ ->
+                        isLoading = false
+                        loaded = true
+                    }
                 )
                 .build()
         } catch (ex: Throwable) {
@@ -102,15 +135,21 @@ fun ImageView(
         }
     }
 
+    var showProgress by remember { mutableStateOf(false) }
+    LaunchedEffect(isLoading) {
+        if (isLoading) delay(PROGRESS_DELAY_MS.milliseconds)
+        showProgress = isLoading
+    }
+
     val toggleScale: (Offset) -> Unit = { tapOffset ->
         val oldScale = scale
-        scale = if (oldScale > minScale) minScale else maxScale
+        scale = if (oldScale > 1f) 1f else maxScale
 
-        val bounds = (imageSize * scale - viewSize).positive()
+        val bounds = (boxSize * scale - viewSize).positive()
         offsetX.updateBounds(-bounds.width / 2f, bounds.width / 2)
         offsetY.updateBounds(-bounds.height / 2f, bounds.height / 2)
 
-        if (scale == minScale) {
+        if (1f == scale) {
             scope.launch {
                 offsetX.snapTo(0f)
                 offsetY.snapTo(0f)
@@ -138,12 +177,13 @@ fun ImageView(
         modifier =
             modifier
                 .fillMaxSize()
+                .onSizeChanged { viewSize = it.toSize() }
                 .detectTapAndDoubleTap(
                     onTap = onTap,
                     onDoubleTap = toggleScale
                 )
-                .pointerInput(imageSize, viewSize) {
-                    if (imageSize.isEmpty()) return@pointerInput
+                .pointerInput(boxSize, viewSize) {
+                    if (boxSize.isEmpty()) return@pointerInput
 
                     awaitEachGesture {
                         val trackers = mutableMapOf<PointerId, VelocityTracker>()
@@ -153,8 +193,8 @@ fun ImageView(
                             val zoom = event.calculateZoom()
                             val pan = event.calculatePan()
 
-                            scale = max(minScale, scale * zoom)
-                            val bounds = (imageSize * scale - viewSize).positive()
+                            scale = max(1f, scale * zoom)
+                            val bounds = (boxSize * scale - viewSize).positive()
                             offsetX.updateBounds(-bounds.width / 2f, bounds.width / 2)
                             offsetY.updateBounds(-bounds.height / 2f, bounds.height / 2)
 
@@ -163,7 +203,7 @@ fun ImageView(
                                 offsetY.snapTo(offsetY.value * zoom + pan.y)
                             }
 
-                            if (scale != minScale || event.changes.size > 1) {
+                            if (scale != 1f || event.changes.size > 1) {
                                 event.changes.fastForEach {
                                     if (it.positionChanged()) {
                                         it.consume()
@@ -189,23 +229,37 @@ fun ImageView(
                     }
                 }
     ) {
-        AsyncImage(
-            model = request,
-            clipToBounds = false,
-            contentDescription = "",
-            contentScale = ContentScale.None,
-            onState = { state -> state.painter?.let { imageSize = it.intrinsicSize } },
-            modifier =
-                Modifier
-                    .fillMaxSize()
-                    .onSizeChanged { viewSize = it.toSize() }
-                    .graphicsLayer {
-                        scaleX = scale
-                        scaleY = scale
-                        translationX = offsetX.value
-                        translationY = offsetY.value
-                    }
-        )
+        Box(
+            modifier = Modifier
+                .align(Alignment.Center)
+                .then(aspectRatio?.let { Modifier.aspectRatio(it) } ?: Modifier.fillMaxSize())
+                .dismissDragTransform(LocalDismissDrag.current)
+                .mediaSharedElement(media.id)
+        ) {
+            if (!loaded && null != thumbnail) {
+                Image(
+                    painter = thumbnail,
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize()
+                )
+            }
+            AsyncImage(
+                model = request,
+                contentDescription = "",
+                contentScale = ContentScale.Crop,
+                onState = { state -> state.painter?.let { imageSize = it.intrinsicSize } },
+                modifier =
+                    Modifier
+                        .fillMaxSize()
+                        .graphicsLayer {
+                            scaleX = scale
+                            scaleY = scale
+                            translationX = offsetX.value
+                            translationY = offsetY.value
+                        }
+            )
+        }
 
         error?.let { error ->
             Text(
@@ -215,7 +269,7 @@ fun ImageView(
             )
         }
 
-        if (isLoading) {
+        if (showProgress) {
             CircularProgressIndicator(
                 color = Color.White,
                 modifier = Modifier.align(Alignment.Center)
@@ -224,6 +278,22 @@ fun ImageView(
     }
 }
 
+/** Пропорции с учётом поворота по EXIF */
+private fun com.asinosoft.gallery.data.Image.aspectRatio(): Float? {
+    if (width <= 0 || height <= 0) return null
+    return if (90 == orientation || 270 == orientation) {
+        height.toFloat() / width
+    } else {
+        width.toFloat() / height
+    }
+}
+
+private fun Size.fit(aspectRatio: Float): Size =
+    if (width / height > aspectRatio) Size(height * aspectRatio, height) else Size(
+        width,
+        width / aspectRatio
+    )
+
 private operator fun Size.minus(another: Size) = Size(
     width - another.width,
     height - another.height
@@ -231,10 +301,8 @@ private operator fun Size.minus(another: Size) = Size(
 
 private fun Size.positive() = Size(max(0f, width), max(0f, height))
 
-private fun Size.scaleInto(box: Size): Float = (box.width / width).coerceAtMost(box.height / height)
-
-private fun Size.scaleUpTo(box: Size): Float =
-    (box.width / width).coerceAtLeast(box.height / height).coerceAtLeast(2f)
+private const val MIN_MAX_SCALE = 2f
+private const val PROGRESS_DELAY_MS = 400
 
 /**
  * Enhanced double tap detector: doesn't cancel gesture when the pointer position changes
