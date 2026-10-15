@@ -73,11 +73,11 @@ fun rememberVideoPreviewQueue(items: List<Media>, state: LazyGridState): VideoPr
                         queue.previewId = null
                         withFrameNanos { }
                     }
-                    while (queue.ended.tryReceive().isSuccess) Unit
+                    do while (queue.ended.tryReceive().isSuccess)
                     queue.previewId = id
                 }
                 withTimeoutOrNull(VIDEO_PREVIEW_MAX_MS) {
-                    while (queue.ended.receive() != id) Unit
+                    do while (queue.ended.receive() != id)
                 }
                 index = (index + 1) % visibleVideos.size
                 restart = true
