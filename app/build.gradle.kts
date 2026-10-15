@@ -1,5 +1,6 @@
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import org.jlleitschuh.gradle.ktlint.reporter.ReporterType
+import java.io.FileInputStream
 import java.util.Properties
 
 plugins {
@@ -40,8 +41,6 @@ android {
         applicationId = "com.asinosoft.gallery"
         minSdk = 26
         targetSdk = 37
-        versionCode = 7
-        versionName = "0.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -90,6 +89,25 @@ android {
                 append('"')
             },
         )
+    }
+
+    // Автоматический инкремент номера сборки
+    val versionPropsFile = file("version.properties")
+    if (versionPropsFile.canRead()) {
+        val versionProps = Properties()
+        versionProps.load(FileInputStream(versionPropsFile))
+        val name = versionProps["VERSION_NAME"]
+        val code = (versionProps["VERSION_CODE"] as String).toInt() + 1
+        versionProps["VERSION_CODE"] = code.toString()
+        versionProps.store(versionPropsFile.writer(), null)
+
+        defaultConfig {
+            versionCode = code
+            versionName = "${name}"
+            base.archivesName = "$applicationId@$versionName"
+        }
+    } else {
+        throw GradleException("Could not read version.properties!")
     }
 
     buildTypes {
