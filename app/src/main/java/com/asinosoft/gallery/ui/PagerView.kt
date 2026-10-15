@@ -64,6 +64,7 @@ import com.asinosoft.gallery.R
 import com.asinosoft.gallery.data.Album
 import com.asinosoft.gallery.data.Media
 import com.asinosoft.gallery.model.PagerViewModel
+import com.asinosoft.gallery.ui.component.ActiveSharedMedia
 import com.asinosoft.gallery.ui.component.Carousel
 import com.asinosoft.gallery.ui.component.isOpeningTransition
 import com.asinosoft.gallery.ui.component.DismissDragState
@@ -75,6 +76,10 @@ import com.asinosoft.gallery.ui.component.rememberTrashIntro
 /** Нажатое фото: просмотр показывает его сразу, пока из базы грузится весь список */
 internal object OpenedMedia {
     var media: Media? = null
+        set(value) {
+            field = value
+            ActiveSharedMedia.id = value?.id
+        }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)

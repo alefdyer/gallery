@@ -24,6 +24,7 @@ import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -33,6 +34,8 @@ import coil3.compose.rememberConstraintsSizeResolver
 import coil3.request.CachePolicy
 import coil3.request.ImageRequest
 import coil3.request.allowHardware
+import coil3.size.Size
+import coil3.size.SizeResolver
 import coil3.video.videoFrameMillis
 import com.asinosoft.gallery.R
 import com.asinosoft.gallery.data.EXTERNAL_STORAGE_ID
@@ -40,6 +43,7 @@ import com.asinosoft.gallery.data.Media
 import com.asinosoft.gallery.data.ThumbnailCache
 import com.asinosoft.gallery.model.MediaViewModel
 import com.asinosoft.gallery.ui.theme.FavoriteRed
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.launch
 
 private const val LOCAL_STORAGE_ID = 1L
@@ -60,14 +64,31 @@ fun MediaThumbnail(
     onSelect: (Media) -> Unit = {},
     onPreviewEnded: (Media) -> Unit = {}
 ) {
+    // Под SharedTransitionLayout сетка при быстрой прокрутке создаёт много клеток только
+    // для предварительного прохода, и они так и не показываются. Загрузку начинаем
+    // после обычного измерения, чтобы такие клетки не занимали декодер.
+    val measured = remember(media.id) { CompletableDeferred<Unit>() }
     Box(
         modifier = modifier
+            .layout { measurable, constraints ->
+                if (!isLookingAhead) measured.complete(Unit)
+                val placeable = measurable.measure(constraints)
+                layout(placeable.width, placeable.height) { placeable.place(0, 0) }
+            }
             .clipToBounds()
             .clickable { if (selectionMode) onSelect(media) else onClick(media) }
     ) {
         val context = LocalContext.current
         val scope = rememberCoroutineScope()
         val size = rememberConstraintsSizeResolver()
+        val measuredSize = remember(size, measured) {
+            object : SizeResolver {
+                override suspend fun size(): Size {
+                    measured.await()
+                    return size.size()
+                }
+            }
+        }
 
         val cacheKey = remember(media.id) { "media-${media.id}" }
         val cacheFile = remember(media.id) { ThumbnailCache.getFile(context, media.id) }
@@ -88,7 +109,7 @@ fun MediaThumbnail(
             if (null == data) return@remember null
             ImageRequest.Builder(context)
                 .data(data)
-                .size(size)
+                .size(measuredSize)
                 .videoFrameMillis(0)
                 .memoryCacheKey(cacheKey)
                 .diskCacheKey(cacheKey)

@@ -19,6 +19,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.compositionLocalOf
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.setValue
@@ -107,6 +109,14 @@ fun MediaSharedTransitionLayout(modifier: Modifier = Modifier, content: @Composa
     }
 }
 
+/**
+ * Фото, которое открывают или к которому возвращаются из просмотра.
+ * Общий элемент вешается только на него: на каждой клетке сетки он тормозил прокрутку.
+ */
+object ActiveSharedMedia {
+    var id by mutableStateOf<Long?>(null)
+}
+
 @Composable
 fun Modifier.mediaSharedElement(mediaId: Long): Modifier {
     val shared = LocalSharedTransitionScope.current ?: return this
@@ -114,6 +124,8 @@ fun Modifier.mediaSharedElement(mediaId: Long): Modifier {
     val visible = LocalSharedElementVisible.current
     val animatedScope = LocalNavAnimatedScope.current
     if (null == visible && null == animatedScope) return this
+    val active by remember(mediaId) { derivedStateOf { mediaId == ActiveSharedMedia.id } }
+    if (null == visible && !active) return this
 
     return with(shared) {
         val state = rememberSharedContentState("media-$mediaId")

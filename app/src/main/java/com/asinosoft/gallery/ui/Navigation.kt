@@ -39,6 +39,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.asinosoft.gallery.R
 import com.asinosoft.gallery.model.PrivateMovesViewModel
+import com.asinosoft.gallery.ui.component.ActiveSharedMedia
 import com.asinosoft.gallery.ui.component.LocalNavAnimatedScope
 import com.asinosoft.gallery.ui.component.LocalSharedElementsEnabled
 import com.asinosoft.gallery.ui.component.LocalSharedTransitionScope
@@ -94,6 +95,7 @@ fun Navigation(
     }
     val navigateToSettings = { nav.navigate("settings") }
     val reportCurrentMedia: (Long) -> Unit = { mediaId ->
+        ActiveSharedMedia.id = mediaId
         nav.previousBackStackEntry?.savedStateHandle?.set(RETURN_MEDIA_ID, mediaId)
     }
     val openPrivateAlbum = rememberDeviceAuth { nav.navigate(PRIVATE_ROUTE) }
