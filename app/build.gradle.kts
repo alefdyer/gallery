@@ -112,12 +112,15 @@ android {
 
     buildTypes {
         release {
-            isMinifyEnabled = false
+            optimization {
+                enable = true
+            }
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
             )
-            signingConfig = signingConfigs.getByName("debug")
         }
     }
 
@@ -163,7 +166,10 @@ dependencies {
     implementation("androidx.media3:media3-datasource-okhttp:1.11.1")
 
     // WebDAV
-    implementation("com.github.thegrizzlylabs:sardine-android:0.9")
+    implementation("com.github.thegrizzlylabs:sardine-android:0.9") {
+        exclude(group = "stax", module = "stax-api")
+        exclude(group = "xpp3", module = "xpp3")
+    }
 
     // Coil
     implementation("io.coil-kt.coil3:coil-compose:3.6.3")
