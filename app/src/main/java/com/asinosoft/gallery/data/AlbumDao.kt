@@ -7,6 +7,7 @@ import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Transaction
 import androidx.room.Upsert
+import com.asinosoft.gallery.data.storage.StorageType
 import kotlinx.coroutines.flow.Flow
 import java.time.LocalDate
 
@@ -14,6 +15,14 @@ data class AlbumMediaSource(
     val albumId: Long,
     val path: String,
     val owner: String?
+)
+
+data class AlbumMediaRef(
+    val path: String,
+    val filename: String,
+    val storageType: StorageType,
+    val owner: String?,
+    val size: Long,
 )
 
 @Dao
@@ -152,6 +161,23 @@ interface AlbumDao {
 
     @Query("SELECT * FROM album_category ORDER BY name")
     fun getAlbumCategories(): Flow<List<AlbumCategory>>
+
+    @Query("SELECT * FROM album_category ORDER BY name")
+    suspend fun getAllCategories(): List<AlbumCategory>
+
+    @Query("SELECT * FROM album")
+    suspend fun getAllAlbums(): List<Album>
+
+    @Query(
+        """
+        SELECT m.path AS path, m.filename AS filename, m.storageType AS storageType,
+               m.owner AS owner, m.size AS size
+        FROM media m
+        INNER JOIN media_album ma ON ma.mediaId = m.id
+        WHERE ma.albumId = :albumId
+        """
+    )
+    suspend fun getAlbumMediaRefs(albumId: Long): List<AlbumMediaRef>
 
     @Query("SELECT * FROM album_category WHERE name = :name")
     suspend fun findCategoryByName(name: String): AlbumCategory?

@@ -89,6 +89,18 @@ android {
                 append('"')
             },
         )
+        // Google Drive settings backup (App Data). Register an Android OAuth client
+        // (package + SHA-1) in Google Cloud Console; optional Web client id for offline access:
+        // google.oauthClientId=....apps.googleusercontent.com
+        buildConfigField(
+            "String",
+            "GOOGLE_OAUTH_CLIENT_ID",
+            buildString {
+                append('"')
+                append(localProperties.getProperty("google.oauthClientId").orEmpty())
+                append('"')
+            },
+        )
     }
 
     // Автоматический инкремент номера сборки
@@ -164,6 +176,10 @@ dependencies {
     implementation("androidx.media3:media3-exoplayer:1.11.1")
     implementation("androidx.media3:media3-ui:1.11.1")
     implementation("androidx.media3:media3-datasource-okhttp:1.11.1")
+
+    // Google Sign-In / Authorization (Drive App Data backup)
+    implementation("com.google.android.gms:play-services-auth:21.5.1")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.10.2")
 
     // WebDAV
     implementation("com.github.thegrizzlylabs:sardine-android:0.9") {

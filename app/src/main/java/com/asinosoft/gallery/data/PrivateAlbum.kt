@@ -51,6 +51,14 @@ class PrivateAlbum @Inject constructor(
         .sortedWith(compareByDescending<Media> { it.date }.thenByDescending { it.time })
         .toList()
 
+    /** Относительные пути файлов в личной папке (для манифеста бэкапа). */
+    fun listRelativePaths(): List<String> =
+        root.walkTopDown()
+            .filter { it.isFile }
+            .map { it.relativeTo(root).invariantSeparatorsPath }
+            .sorted()
+            .toList()
+
     suspend fun copyIn(media: Media): File = withContext(Dispatchers.IO) {
         val uri = requireNotNull(media.uri) { "Media ${media.id} has no uri" }
         val name = media.filename.substringAfterLast('/').ifEmpty { "${media.id}" }

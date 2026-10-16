@@ -5,9 +5,20 @@ import androidx.room.Dao
 import androidx.room.Query
 import androidx.room.Upsert
 import com.asinosoft.gallery.data.storage.MediaStatistics
+import com.asinosoft.gallery.data.storage.StorageType
 import kotlinx.coroutines.flow.Flow
 
 data class MediaUri(val id: Long, val uri: Uri)
+
+/** Лёгкая строка для сопоставления медиа при восстановлении бэкапа. */
+data class MediaBackupLookup(
+    val id: Long,
+    val path: String,
+    val filename: String,
+    val storageType: StorageType,
+    val owner: String?,
+    val size: Long,
+)
 
 @Dao
 interface MediaDao {
@@ -23,6 +34,19 @@ interface MediaDao {
     @Query("SELECT * FROM media WHERE favorite = 1 ORDER BY date DESC, time DESC")
     fun getFavorites(): Flow<List<Media>>
 
+    @Query("SELECT * FROM media WHERE favorite = 1")
+    suspend fun getFavoritesList(): List<Media>
+
+    @Query(
+        """
+        SELECT * FROM media
+        WHERE path = :path
+          AND (filename = :name OR filename LIKE '%/' || :name)
+        LIMIT 20
+        """
+    )
+    suspend fun findByPathAndName(path: String, name: String): List<Media>
+
     @Query("UPDATE media SET favorite = :favorite WHERE id IN (:mediaIds)")
     suspend fun setFavorite(mediaIds: Collection<Long>, favorite: Boolean)
 
@@ -37,6 +61,9 @@ interface MediaDao {
 
     @Query("SELECT COUNT(*) FROM media")
     fun observeMediaCount(): Flow<Int>
+
+    @Query("SELECT id, path, filename, storageType, owner, size FROM media")
+    suspend fun getAllBackupLookupRows(): List<MediaBackupLookup>
 
     @Query("SELECT COUNT(video) AS videoCount, COUNT(CASE WHEN video IS NULL THEN 1 ELSE NULL END) AS photoCount FROM media WHERE storageId = :storageId")
     suspend fun getStorageStatistics(storageId: Long): MediaStatistics
