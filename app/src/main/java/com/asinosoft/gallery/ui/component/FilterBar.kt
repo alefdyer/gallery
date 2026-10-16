@@ -3,23 +3,24 @@ package com.asinosoft.gallery.ui.component
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.visible
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -119,8 +120,11 @@ fun FilterBar(
         }
     ) {
         Row(
-            Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+            Modifier
+                .fillMaxWidth()
+                .padding(4.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
             Surface(
                 shape = RoundedCornerShape(50),
@@ -190,42 +194,38 @@ fun FilterBar(
 
             Box(
                 contentAlignment = Alignment.CenterEnd,
-                modifier = Modifier.weight(1f)
+                modifier = Modifier
+                    .weight(1f)
+                    .visible(filters.isNotEmpty())
             ) {
                 Surface(
                     shape = RoundedCornerShape(50),
                     color = floatingPanelColor(),
                     tonalElevation = 4.dp
                 ) {
-                    Row(
+                    LazyRow(
+                        state = lazyListState,
                         modifier = Modifier
                             .pointerInput(Unit) { detectTapGestures(onLongPress = { openAppsMenu() }) }
-                            .padding(vertical = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically
+                            .widthIn(48.dp, 285.dp)
+                            .height(48.dp)
+                            .padding(4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        if (filters.isNotEmpty()) {
-                            LazyRow(
-                                state = lazyListState,
-                                modifier = Modifier.widthIn(max = 285.dp),
-                                contentPadding = PaddingValues(horizontal = 8.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                items(filters, key = { it.application.pkg }) { filter ->
-                                    filter.application.icon?.let { icon ->
-                                        Image(
-                                            bitmap = icon.toBitmap().asImageBitmap(),
-                                            contentDescription = filter.application.name,
-                                            modifier = Modifier
-                                                .padding(4.dp)
-                                                .size(32.dp)
-                                                .alpha(if (filter.enabled) 1f else 0.3f)
-                                                .combinedClickable(
-                                                    onClick = { model.toggleFilter(filter) },
-                                                    onLongClick = { openAppsMenu() }
-                                                )
+                        items(filters, key = { it.application.pkg }) { filter ->
+                            filter.application.icon?.let { icon ->
+                                Image(
+                                    bitmap = icon.toBitmap().asImageBitmap(),
+                                    contentDescription = filter.application.name,
+                                    modifier = Modifier
+                                        .padding(4.dp)
+                                        .size(32.dp)
+                                        .alpha(if (filter.enabled) 1f else 0.3f)
+                                        .combinedClickable(
+                                            onClick = { model.toggleFilter(filter) },
+                                            onLongClick = { openAppsMenu() }
                                         )
-                                    }
-                                }
+                                )
                             }
                         }
                     }

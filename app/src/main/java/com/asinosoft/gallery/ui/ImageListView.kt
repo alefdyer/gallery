@@ -70,9 +70,9 @@ import androidx.compose.ui.input.pointer.PointerInputScope
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.layout.onGloballyPositioned
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.Dp
@@ -220,7 +220,7 @@ fun ImageListView(
     val canToggleMediaType = photoCount > 0 && videoCount > 0
 
     val scrollToTopOnUpdate = remember { PendingFlag() }
-    remember(images) {
+    LaunchedEffect(images) {
         if (scrollToTopOnUpdate.pending) {
             scrollToTopOnUpdate.pending = false
             lazyGridState.requestScrollToItem(0)
@@ -274,17 +274,17 @@ fun ImageListView(
     val visibleBottom = with(density) {
         maxOf(contentPadding.calculateBottomPadding(), bottomPanelHeight).toPx()
     }
-    val configuration = LocalConfiguration.current
-    val nearItemsCount = remember(configuration.screenHeightDp, configuration.screenWidthDp) {
+    val window = LocalWindowInfo.current.containerSize
+    val nearItemsCount = remember(window.height, window.width) {
         val visibleRows =
-            configuration.screenHeightDp * GRID_COLUMNS / configuration.screenWidthDp + 1
+            window.height * GRID_COLUMNS / window.width + 1
         (visibleRows + NEAR_ROWS_BELOW) * GRID_COLUMNS
     }
-    remember(returnMediaId, images) {
+    LaunchedEffect(returnMediaId, images) {
         val index = images.indexOfFirst { it.id == returnMediaId }
-        if (index < 0) return@remember
+        if (index < 0) return@LaunchedEffect
         val visibleRows =
-            (configuration.screenHeightDp * GRID_COLUMNS / configuration.screenWidthDp).coerceAtLeast(
+            (window.height * GRID_COLUMNS / window.width).coerceAtLeast(
                 1
             )
         val first = lazyGridState.firstVisibleItemIndex
@@ -617,7 +617,6 @@ fun ImageListView(
             modifier = Modifier
                 .align(Alignment.TopEnd)
                 .statusBarsPadding()
-                .padding(top = 8.dp, end = 8.dp)
                 .offset { IntOffset(0, -filtersOffset.toInt()) }
                 .onGloballyPositioned {
                     filtersHeight = it.size.height + statusBarHeight + 8 * density.density
