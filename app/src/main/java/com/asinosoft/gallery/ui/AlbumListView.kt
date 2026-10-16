@@ -61,6 +61,7 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.painterResource
@@ -81,6 +82,7 @@ import com.asinosoft.gallery.data.name
 import com.asinosoft.gallery.data.storage.Storage
 import com.asinosoft.gallery.model.AlbumsViewModel
 import com.asinosoft.gallery.ui.component.AlbumCover
+import com.asinosoft.gallery.ui.component.FeatureTipCard
 import com.asinosoft.gallery.ui.component.FloatingDropdownMenu
 import com.asinosoft.gallery.ui.component.FloatingMenuItem
 import com.asinosoft.gallery.ui.component.ImageListHeaderBackground
@@ -89,6 +91,10 @@ import com.asinosoft.gallery.ui.component.NewAlbumCategoryDialog
 import com.asinosoft.gallery.ui.component.NewAlbumPlaceholder
 import com.asinosoft.gallery.ui.component.ScrollToTopButton
 import com.asinosoft.gallery.ui.component.StorageCard
+import com.asinosoft.gallery.ui.component.TIP_ALBUM_CATEGORY
+import com.asinosoft.gallery.ui.component.TIP_ALBUM_DRAG
+import com.asinosoft.gallery.ui.component.isTipSeen
+import com.asinosoft.gallery.ui.component.rememberFeatureTip
 import com.google.gson.Gson
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
@@ -113,6 +119,19 @@ fun AlbumListView(
     var showNewCategoryDialog by remember { mutableStateOf(false) }
     var isDragActive by remember { mutableStateOf(false) }
     var dropCategory by remember { mutableStateOf<CategoryWithAlbums?>(null) }
+    val tipContext = LocalContext.current
+    val categoryTip = rememberFeatureTip(
+        key = TIP_ALBUM_CATEGORY,
+        enabled = categories.isNotEmpty(),
+        delayMs = 700L
+    )
+    val albumDragTip = rememberFeatureTip(
+        key = TIP_ALBUM_DRAG,
+        enabled = categories.isNotEmpty() &&
+                !categoryTip.visible &&
+                isTipSeen(tipContext, TIP_ALBUM_CATEGORY),
+        delayMs = 300L
+    )
 
     val haptic = LocalHapticFeedback.current
     val density = LocalDensity.current
@@ -333,6 +352,7 @@ fun AlbumListView(
                 val id = category.category.id
                 val isDragged = id == draggingId
                 val surface = MaterialTheme.colorScheme.background
+                val isFirstCategory = category == shownCategories.firstOrNull()
 
                 AlbumCategoriesRow(
                     category = category,
@@ -355,6 +375,10 @@ fun AlbumListView(
                     onDragStart = { onCategoryDragStart(id) },
                     onDrag = ::onCategoryDrag,
                     onDragEnd = ::onCategoryDragEnd,
+                    showCategoryTip = isFirstCategory && categoryTip.visible,
+                    onCategoryTipDismiss = categoryTip.dismiss,
+                    showAlbumDragTip = isFirstCategory && albumDragTip.visible,
+                    onAlbumDragTipDismiss = albumDragTip.dismiss,
                     modifier = if (isDragged) {
                         Modifier
                             .zIndex(1f)
@@ -455,6 +479,10 @@ private fun AlbumCategoriesRow(
     onDragStart: () -> Unit,
     onDrag: (Float) -> Unit,
     onDragEnd: () -> Unit,
+    showCategoryTip: Boolean = false,
+    onCategoryTipDismiss: () -> Unit = {},
+    showAlbumDragTip: Boolean = false,
+    onAlbumDragTipDismiss: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -503,38 +531,60 @@ private fun AlbumCategoriesRow(
                     )
                 }
             }
+
+            if (showCategoryTip) {
+                FeatureTipCard(
+                    text = stringResource(R.string.tip_album_category),
+                    onDismiss = onCategoryTipDismiss,
+                    modifier = Modifier
+                        .align(Alignment.TopStart)
+                        .padding(start = 16.dp, top = 40.dp)
+                )
+            }
         }
 
-        if (expandable && expanded) {
-            Column(
-                verticalArrangement = Arrangement.spacedBy(CARD_SPACING),
-                modifier = Modifier.padding(horizontal = SCREEN_PADDING - 4.dp)
-            ) {
-                category.albums.chunked(ALBUMS_PER_ROW).forEach { row ->
-                    Row(horizontalArrangement = Arrangement.spacedBy(CARD_SPACING)) {
-                        row.forEach { album ->
-                            key(album.album.id) {
-                                AlbumCard(album, cardSize, onAlbumClick)
+        Box {
+            if (expandable && expanded) {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(CARD_SPACING),
+                    modifier = Modifier.padding(horizontal = SCREEN_PADDING - 4.dp)
+                ) {
+                    category.albums.chunked(ALBUMS_PER_ROW).forEach { row ->
+                        Row(horizontalArrangement = Arrangement.spacedBy(CARD_SPACING)) {
+                            row.forEach { album ->
+                                key(album.album.id) {
+                                    AlbumCard(album, cardSize, onAlbumClick)
+                                }
                             }
                         }
                     }
                 }
-            }
-        } else {
-            val rowState = rememberLazyListState()
-            val firstAlbumId = category.albums.firstOrNull()?.album?.id
-            LaunchedEffect(firstAlbumId) {
-                rowState.scrollToItem(0)
+            } else {
+                val rowState = rememberLazyListState()
+                val firstAlbumId = category.albums.firstOrNull()?.album?.id
+                LaunchedEffect(firstAlbumId) {
+                    rowState.scrollToItem(0)
+                }
+
+                LazyRow(
+                    state = rowState,
+                    contentPadding = PaddingValues(horizontal = SCREEN_PADDING - 4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(CARD_SPACING)
+                ) {
+                    items(category.albums, { it.album.id }) { album ->
+                        AlbumCard(album, cardSize, onAlbumClick)
+                    }
+                }
             }
 
-            LazyRow(
-                state = rowState,
-                contentPadding = PaddingValues(horizontal = SCREEN_PADDING - 4.dp),
-                horizontalArrangement = Arrangement.spacedBy(CARD_SPACING)
-            ) {
-                items(category.albums, { it.album.id }) { album ->
-                    AlbumCard(album, cardSize, onAlbumClick)
-                }
+            if (showAlbumDragTip) {
+                FeatureTipCard(
+                    text = stringResource(R.string.tip_album_drag),
+                    onDismiss = onAlbumDragTipDismiss,
+                    modifier = Modifier
+                        .align(Alignment.TopStart)
+                        .padding(start = 16.dp, top = 8.dp)
+                )
             }
         }
     }

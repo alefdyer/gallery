@@ -126,4 +126,10 @@
     <string name="mute">Stummschalten</string>
     <string name="unmute">Ton ein</string>
     <string name="video_player">Videoplayer</string>
+    <string name="tip_got_it">Verstanden</string>
+    <string name="tip_photo_date">Tippen Sie auf das Datum neben dem Scrollbalken, um Fotos und Videos dieses Tages zu öffnen</string>
+    <string name="tip_photo_counters">Tippen Sie auf den Foto- oder Videozähler, um die Liste zu filtern</string>
+    <string name="tip_photo_apps_filter">Lange auf die App-Filterleiste drücken, um die Filtereinstellungen zu öffnen</string>
+    <string name="tip_album_category">Lange auf eine Kategorie drücken zum Verschieben oder für das Menü</string>
+    <string name="tip_album_drag">Ziehen Sie Alben in eine andere Kategorie oder auf Neue Kategorie</string>
 </resources>

@@ -126,4 +126,10 @@
     <string name="mute">Выключить звук</string>
     <string name="unmute">Включить звук</string>
     <string name="video_player">Видеоплеер</string>
+    <string name="tip_got_it">Понятно</string>
+    <string name="tip_photo_date">Нажмите на дату возле ползунка, чтобы открыть фото и видео за этот день</string>
+    <string name="tip_photo_counters">Нажмите на счётчик фото или видео, чтобы отфильтровать список</string>
+    <string name="tip_photo_apps_filter">Долгое нажатие на панель фильтров приложений открывает настройки фильтра</string>
+    <string name="tip_album_category">Долгое нажатие на категорию — перетаскивание или меню</string>
+    <string name="tip_album_drag">Перетаскивайте альбомы в другие категории или на «Новая категория»</string>
 </resources>

@@ -126,4 +126,10 @@
     <string name="mute">Disattiva audio</string>
     <string name="unmute">Attiva audio</string>
     <string name="video_player">Lettore video</string>
+    <string name="tip_got_it">Ho capito</string>
+    <string name="tip_photo_date">Tocca la data accanto alla barra di scorrimento per aprire foto e video di quel giorno</string>
+    <string name="tip_photo_counters">Tocca il contatore di foto o video per filtrare l\'elenco</string>
+    <string name="tip_photo_apps_filter">Tieni premuta la barra dei filtri app per aprire le impostazioni</string>
+    <string name="tip_album_category">Tieni premuta una categoria per riordinarla o aprire il menu</string>
+    <string name="tip_album_drag">Trascina gli album in un\'altra categoria o su Nuova categoria</string>
 </resources>

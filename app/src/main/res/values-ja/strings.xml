@@ -126,4 +126,10 @@
     <string name="mute">ミュート</string>
     <string name="unmute">ミュート解除</string>
     <string name="video_player">動画プレーヤー</string>
+    <string name="tip_got_it">了解</string>
+    <string name="tip_photo_date">スクロールバー横の日付をタップすると、その日の写真と動画が開きます</string>
+    <string name="tip_photo_counters">写真または動画のカウンターをタップすると一覧を絞り込めます</string>
+    <string name="tip_photo_apps_filter">アプリフィルターバーを長押しするとフィルター設定が開きます</string>
+    <string name="tip_album_category">カテゴリを長押しすると並べ替えやメニューが表示されます</string>
+    <string name="tip_album_drag">アルバムを別のカテゴリや「新しいカテゴリ」にドラッグできます</string>
 </resources>

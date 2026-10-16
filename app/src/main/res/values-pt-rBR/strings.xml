@@ -126,4 +126,10 @@
     <string name="mute">Desativar som</string>
     <string name="unmute">Ativar som</string>
     <string name="video_player">Player de vídeo</string>
+    <string name="tip_got_it">Entendi</string>
+    <string name="tip_photo_date">Toque na data ao lado da barra de rolagem para abrir fotos e vídeos desse dia</string>
+    <string name="tip_photo_counters">Toque no contador de fotos ou vídeos para filtrar a lista</string>
+    <string name="tip_photo_apps_filter">Pressione e segure a barra de filtros de apps para abrir as configurações</string>
+    <string name="tip_album_category">Pressione e segure uma categoria para reordená-la ou abrir o menu</string>
+    <string name="tip_album_drag">Arraste álbuns para outra categoria ou para Nova categoria</string>
 </resources>

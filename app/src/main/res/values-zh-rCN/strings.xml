@@ -126,4 +126,10 @@
     <string name="mute">静音</string>
     <string name="unmute">取消静音</string>
     <string name="video_player">视频播放器</string>
+    <string name="tip_got_it">知道了</string>
+    <string name="tip_photo_date">点按滚动条旁的日期可打开当天的照片和视频</string>
+    <string name="tip_photo_counters">点按照片或视频计数可筛选列表</string>
+    <string name="tip_photo_apps_filter">长按应用过滤栏可打开过滤设置</string>
+    <string name="tip_album_category">长按分类可重新排序或打开菜单</string>
+    <string name="tip_album_drag">可将相册拖到其他分类或“新分类”</string>
 </resources>

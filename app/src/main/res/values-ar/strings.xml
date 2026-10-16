@@ -126,4 +126,10 @@
     <string name="mute">كتم الصوت</string>
     <string name="unmute">إلغاء كتم الصوت</string>
     <string name="video_player">مشغل الفيديو</string>
+    <string name="tip_got_it">حسنًا</string>
+    <string name="tip_photo_date">اضغط على التاريخ بجانب شريط التمرير لفتح الصور ومقاطع الفيديو لهذا اليوم</string>
+    <string name="tip_photo_counters">اضغط على عداد الصور أو الفيديو لتصفية القائمة</string>
+    <string name="tip_photo_apps_filter">اضغط مطولًا على شريط تصفية التطبيقات لفتح إعدادات التصفية</string>
+    <string name="tip_album_category">اضغط مطولًا على فئة لإعادة ترتيبها أو فتح القائمة</string>
+    <string name="tip_album_drag">اسحب الألبومات إلى فئة أخرى أو إلى فئة جديدة</string>
 </resources>

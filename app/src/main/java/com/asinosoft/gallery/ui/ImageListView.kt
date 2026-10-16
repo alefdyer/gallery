@@ -70,6 +70,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.LocalWindowInfo
@@ -89,6 +90,7 @@ import com.asinosoft.gallery.model.MediaViewModel
 import com.asinosoft.gallery.ui.component.AddToAlbumDialog
 import com.asinosoft.gallery.ui.component.AppsFilterPanel
 import com.asinosoft.gallery.ui.component.DragSelectionState
+import com.asinosoft.gallery.ui.component.FeatureTipCard
 import com.asinosoft.gallery.ui.component.FilterBar
 import com.asinosoft.gallery.ui.component.ImageListHeaderBackground
 import com.asinosoft.gallery.ui.component.ImageListHeaderInfo
@@ -98,8 +100,13 @@ import com.asinosoft.gallery.ui.component.MoveToPrivateDialog
 import com.asinosoft.gallery.ui.component.ScrollToTopButton
 import com.asinosoft.gallery.ui.component.SelectionControlBar
 import com.asinosoft.gallery.ui.component.SelectionInfoBar
+import com.asinosoft.gallery.ui.component.TIP_PHOTO_APPS_FILTER
+import com.asinosoft.gallery.ui.component.TIP_PHOTO_COUNTERS
+import com.asinosoft.gallery.ui.component.TIP_PHOTO_DATE
 import com.asinosoft.gallery.ui.component.dragSelection
+import com.asinosoft.gallery.ui.component.isTipSeen
 import com.asinosoft.gallery.ui.component.pinchGridColumns
+import com.asinosoft.gallery.ui.component.rememberFeatureTip
 import com.asinosoft.gallery.ui.component.rememberGridColumns
 import com.asinosoft.gallery.ui.component.rememberTrashIntro
 import com.asinosoft.gallery.ui.component.rememberVideoPreviewQueue
@@ -126,12 +133,14 @@ fun ImageListView(
     previousAlbum: Album? = null,
     nextAlbum: Album? = null,
     onSwitchAlbum: (album: Album, forward: Boolean) -> Unit = { _, _ -> },
+    showFeatureTips: Boolean = false,
     model: ImageListViewModel = hiltViewModel()
 ) {
     val images by model.images.collectAsState()
     val filters by model.filters.collectAsState(listOf())
     val dateFilter by model.activeDateFilter.collectAsState()
     val selection by model.selection.collectAsState()
+    val context = LocalContext.current
 
     var closeOnEmptyList by remember { mutableStateOf(false) }
     val lazyGridState = rememberLazyGridState()
@@ -220,6 +229,28 @@ fun ImageListView(
     val showPhotos by model.showPhotos.collectAsState()
     val showVideos by model.showVideos.collectAsState()
     val canToggleMediaType = photoCount > 0 && videoCount > 0
+    val hasAppFilters = filters.isNotEmpty()
+    val countersTip = rememberFeatureTip(
+        key = TIP_PHOTO_COUNTERS,
+        enabled = showFeatureTips && canToggleMediaType,
+        delayMs = 700L
+    )
+    val appsFilterTip = rememberFeatureTip(
+        key = TIP_PHOTO_APPS_FILTER,
+        enabled = showFeatureTips &&
+                hasAppFilters &&
+                !countersTip.visible &&
+                (isTipSeen(context, TIP_PHOTO_COUNTERS) || !canToggleMediaType),
+        delayMs = 400L
+    )
+    val dateTip = rememberFeatureTip(
+        key = TIP_PHOTO_DATE,
+        enabled = showFeatureTips &&
+                !countersTip.visible &&
+                !appsFilterTip.visible &&
+                (isTipSeen(context, TIP_PHOTO_COUNTERS) || !canToggleMediaType) &&
+                (isTipSeen(context, TIP_PHOTO_APPS_FILTER) || !hasAppFilters)
+    )
 
     val scrollToTopOnUpdate = remember { PendingFlag() }
     LaunchedEffect(images) {
@@ -506,6 +537,16 @@ fun ImageListView(
             )
         }
 
+        if (countersTip.visible) {
+            FeatureTipCard(
+                text = stringResource(R.string.tip_photo_counters),
+                onDismiss = countersTip.dismiss,
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(top = headerHeight + 8.dp, end = 16.dp)
+            )
+        }
+
         LazyGridVerticalScrollIndicator(
             lazyGridState = lazyGridState,
             listItems = images,
@@ -513,6 +554,8 @@ fun ImageListView(
             onDateClick = { date ->
                 model.pickDateFilter(DateFilter(date.year, date.monthValue, date.dayOfMonth))
             },
+            showDateTip = dateTip.visible,
+            onDateTipDismiss = dateTip.dismiss,
             modifier = Modifier
                 .align(Alignment.CenterEnd)
                 .padding(
@@ -596,6 +639,21 @@ fun ImageListView(
                     filtersHeight = it.size.height + statusBarHeight + 8 * density.density
                 }
         )
+
+        if (appsFilterTip.visible) {
+            FeatureTipCard(
+                text = stringResource(R.string.tip_photo_apps_filter),
+                onDismiss = appsFilterTip.dismiss,
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .statusBarsPadding()
+                    .padding(
+                        top = TOP_PANEL_MARGIN + TOP_PANEL_HEIGHT + 8.dp,
+                        end = 16.dp
+                    )
+                    .offset { IntOffset(0, -filtersOffset.toInt()) }
+            )
+        }
 
         if (showAppsPanel) {
             Box(

@@ -134,7 +134,8 @@ fun MainView(
                                 contentPadding = contentPadding,
                                 bottomPanelHeight = with(density) { navbarHeight.toDp() } - 24.dp,
                                 returnMediaId = returnMediaId,
-                                onReturnHandled = onReturnHandled
+                                onReturnHandled = onReturnHandled,
+                                showFeatureTips = true
                             )
 
                             1 -> AlbumListView(

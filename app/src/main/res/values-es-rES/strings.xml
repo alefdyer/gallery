@@ -126,4 +126,10 @@
     <string name="mute">Silenciar</string>
     <string name="unmute">Activar sonido</string>
     <string name="video_player">Reproductor de vídeo</string>
+    <string name="tip_got_it">Entendido</string>
+    <string name="tip_photo_date">Toca la fecha junto al control deslizante para abrir fotos y vídeos de ese día</string>
+    <string name="tip_photo_counters">Toca el contador de fotos o vídeos para filtrar la lista</string>
+    <string name="tip_photo_apps_filter">Mantén pulsada la barra de filtros de apps para abrir la configuración</string>
+    <string name="tip_album_category">Mantén pulsada una categoría para reordenarla o abrir el menú</string>
+    <string name="tip_album_drag">Arrastra álbumes a otra categoría o a Nueva categoría</string>
 </resources>

@@ -126,4 +126,10 @@
     <string name="mute">Wycisz</string>
     <string name="unmute">Włącz dźwięk</string>
     <string name="video_player">Odtwarzacz wideo</string>
+    <string name="tip_got_it">Rozumiem</string>
+    <string name="tip_photo_date">Dotknij daty obok suwaka, aby otworzyć zdjęcia i filmy z tego dnia</string>
+    <string name="tip_photo_counters">Dotknij licznika zdjęć lub filmów, aby filtrować listę</string>
+    <string name="tip_photo_apps_filter">Przytrzymaj pasek filtrów aplikacji, aby otworzyć ustawienia filtra</string>
+    <string name="tip_album_category">Przytrzymaj kategorię, aby zmienić kolejność lub otworzyć menu</string>
+    <string name="tip_album_drag">Przeciągaj albumy do innej kategorii lub na Nową kategorię</string>
 </resources>

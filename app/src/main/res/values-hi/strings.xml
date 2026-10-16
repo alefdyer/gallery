@@ -126,4 +126,10 @@
     <string name="mute">म्यूट</string>
     <string name="unmute">अनम्यूट</string>
     <string name="video_player">वीडियो प्लेयर</string>
+    <string name="tip_got_it">समझ गया</string>
+    <string name="tip_photo_date">उस दिन की फ़ोटो और वीडियो खोलने के लिए स्क्रॉलबार के पास तारीख पर टैप करें</string>
+    <string name="tip_photo_counters">सूची फ़िल्टर करने के लिए फ़ोटो या वीडियो काउंटर पर टैप करें</string>
+    <string name="tip_photo_apps_filter">फ़िल्टर सेटिंग खोलने के लिए ऐप फ़िल्टर बार को देर तक दबाएँ</string>
+    <string name="tip_album_category">श्रेणी को पुनर्व्यवस्थित करने या मेनू खोलने के लिए देर तक दबाएँ</string>
+    <string name="tip_album_drag">एल्बम को दूसरी श्रेणी या नई श्रेणी पर खींचें</string>
 </resources>

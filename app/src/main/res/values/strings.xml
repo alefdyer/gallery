@@ -126,4 +126,10 @@
     <string name="mute">Mute</string>
     <string name="unmute">Unmute</string>
     <string name="video_player">Video player</string>
+    <string name="tip_got_it">Got it</string>
+    <string name="tip_photo_date">Tap the date next to the scrollbar to open photos and videos from that day</string>
+    <string name="tip_photo_counters">Tap the photo or video counter to filter the list</string>
+    <string name="tip_photo_apps_filter">Long-press the app filter bar to open filter settings</string>
+    <string name="tip_album_category">Long-press a category to reorder it or open the menu</string>
+    <string name="tip_album_drag">Drag albums into another category or onto New category</string>
 </resources>

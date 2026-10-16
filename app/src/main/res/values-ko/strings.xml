@@ -126,4 +126,10 @@
     <string name="mute">음소거</string>
     <string name="unmute">음소거 해제</string>
     <string name="video_player">동영상 플레이어</string>
+    <string name="tip_got_it">알겠습니다</string>
+    <string name="tip_photo_date">스크롤바 옆 날짜를 누르면 그날의 사진과 동영상이 열립니다</string>
+    <string name="tip_photo_counters">사진 또는 동영상 카운터를 누르면 목록이 필터링됩니다</string>
+    <string name="tip_photo_apps_filter">앱 필터 바를 길게 누르면 필터 설정이 열립니다</string>
+    <string name="tip_album_category">카테고리를 길게 누르면 순서를 바꾸거나 메뉴가 열립니다</string>
+    <string name="tip_album_drag">앨범을 다른 카테고리나 새 카테고리로 끌어다 놓으세요</string>
 </resources>

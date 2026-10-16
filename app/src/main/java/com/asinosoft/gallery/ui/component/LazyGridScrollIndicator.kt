@@ -37,8 +37,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.asinosoft.gallery.R
 import com.asinosoft.gallery.data.Media
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
@@ -54,7 +56,9 @@ fun LazyGridVerticalScrollIndicator(
     listItems: List<Media>,
     modifier: Modifier = Modifier,
     showDateLabel: Boolean = true,
-    onDateClick: (LocalDate) -> Unit = {}
+    onDateClick: (LocalDate) -> Unit = {},
+    showDateTip: Boolean = false,
+    onDateTipDismiss: () -> Unit = {}
 ) {
     val locale = LocalConfiguration.current.locales[0]
     val shortDateFormatter = remember(locale) {
@@ -178,7 +182,7 @@ fun LazyGridVerticalScrollIndicator(
             }
 
             AnimatedVisibility(
-                visible = showDateLabel && showLabel && null != labelDate,
+                visible = showDateLabel && null != labelDate && (showLabel || showDateTip),
                 enter = fadeIn(),
                 exit = fadeOut(),
                 modifier = Modifier
@@ -186,22 +190,37 @@ fun LazyGridVerticalScrollIndicator(
                     .padding(top = (THUMB_TOUCH_HEIGHT - LABEL_HEIGHT) / 2, end = labelEndPadding)
                     .offset(y = thumbOffset)
             ) {
-                Surface(
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)),
-                    shape = RoundedCornerShape(50),
-                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.75f)
-                ) {
-                    Text(
-                        text = labelDate?.format(shortDateFormatter).orEmpty(),
-                        style = MaterialTheme.typography.labelMedium,
-                        fontWeight = FontWeight.Medium,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer,
-                        modifier = Modifier
-                            .clickable { labelDate?.let(onDateClick) }
-                            .height(LABEL_HEIGHT)
-                            .wrapContentHeight()
-                            .padding(horizontal = 12.dp)
-                    )
+                Box(contentAlignment = Alignment.CenterEnd) {
+                    Surface(
+                        border = BorderStroke(
+                            1.dp,
+                            MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
+                        ),
+                        shape = RoundedCornerShape(50),
+                        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.75f)
+                    ) {
+                        Text(
+                            text = labelDate?.format(shortDateFormatter).orEmpty(),
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.Medium,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer,
+                            modifier = Modifier
+                                .clickable { labelDate?.let(onDateClick) }
+                                .height(LABEL_HEIGHT)
+                                .wrapContentHeight()
+                                .padding(horizontal = 12.dp)
+                        )
+                    }
+
+                    if (showDateTip) {
+                        FeatureTipCard(
+                            text = stringResource(R.string.tip_photo_date),
+                            onDismiss = onDateTipDismiss,
+                            modifier = Modifier
+                                .align(Alignment.CenterEnd)
+                                .padding(end = 88.dp)
+                        )
+                    }
                 }
             }
         }
