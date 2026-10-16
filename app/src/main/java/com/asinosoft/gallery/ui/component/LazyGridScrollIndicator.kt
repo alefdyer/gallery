@@ -35,6 +35,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -47,9 +48,6 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.time.Duration.Companion.milliseconds
 
-private val shortDateFormatter: DateTimeFormatter =
-    DateTimeFormatter.ofLocalizedDate(FormatStyle.SHORT)
-
 @Composable
 fun LazyGridVerticalScrollIndicator(
     lazyGridState: LazyGridState,
@@ -58,6 +56,10 @@ fun LazyGridVerticalScrollIndicator(
     showDateLabel: Boolean = true,
     onDateClick: (LocalDate) -> Unit = {}
 ) {
+    val locale = LocalConfiguration.current.locales[0]
+    val shortDateFormatter = remember(locale) {
+        DateTimeFormatter.ofLocalizedDate(FormatStyle.SHORT).withLocale(locale)
+    }
     val indicator = lazyGridState.scrollIndicatorState ?: return
     val scrollMetrics by remember(indicator) {
         derivedStateOf {
@@ -151,7 +153,11 @@ fun LazyGridVerticalScrollIndicator(
                         draggableState,
                         Orientation.Vertical,
                         onDragStarted = {
-                            dragOffsetPx = (scrollOffset.toFloat() / contentSize * thumbTravelPx).coerceIn(0f, thumbTravelPx)
+                            dragOffsetPx =
+                                (scrollOffset.toFloat() / contentSize * thumbTravelPx).coerceIn(
+                                    0f,
+                                    thumbTravelPx
+                                )
                             isDragged = true
                         },
                         onDragStopped = { isDragged = false }

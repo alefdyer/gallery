@@ -595,7 +595,12 @@ private fun SectionTitle(
         verticalAlignment = Alignment.CenterVertically,
         modifier = modifier
             .fillMaxWidth()
-            .padding(start = SCREEN_PADDING - 4.dp, end = SCREEN_PADDING - 4.dp, top = 12.dp, bottom = 8.dp)
+            .padding(
+                start = SCREEN_PADDING - 4.dp,
+                end = SCREEN_PADDING - 4.dp,
+                top = 12.dp,
+                bottom = 8.dp
+            )
     ) {
         Text(
             text = title,
@@ -618,7 +623,9 @@ private fun SectionTitle(
                 painter = painterResource(
                     if (expanded) R.drawable.expand_more else R.drawable.chevron_right
                 ),
-                contentDescription = if (expanded) "Свернуть" else "Развернуть",
+                contentDescription = stringResource(
+                    if (expanded) R.string.collapse else R.string.expand
+                ),
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier
                     .padding(start = 4.dp)

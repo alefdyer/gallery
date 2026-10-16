@@ -2,6 +2,7 @@ package com.asinosoft.gallery.ui.component
 
 import android.icu.text.DateFormatSymbols
 import androidx.compose.foundation.clickable
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
@@ -46,15 +47,13 @@ import com.asinosoft.gallery.model.DateFilter
 import com.asinosoft.gallery.ui.theme.Golden
 import com.asinosoft.gallery.ui.theme.floatingPanelColor
 
-private val monthNames = DateFormatSymbols().getMonths(
-    DateFormatSymbols.STANDALONE,
-    DateFormatSymbols.WIDE
-)
-
-private val formatMonthNames = DateFormatSymbols().getMonths(
-    DateFormatSymbols.FORMAT,
-    DateFormatSymbols.WIDE
-)
+@Composable
+private fun rememberMonthNames(context: Int, width: Int): Array<String> {
+    val locale = LocalConfiguration.current.locales[0]
+    return remember(locale, context, width) {
+        DateFormatSymbols.getInstance(locale).getMonths(context, width)
+    }
+}
 
 @Composable
 fun DateFilterDialog(
@@ -71,6 +70,8 @@ fun DateFilterDialog(
     val availableRecentDates = remember(recentDates, yearGroups, selectedDate) {
         recentDates.filter { it != selectedDate && it.existsIn(yearGroups) }
     }
+    val monthNames = rememberMonthNames(DateFormatSymbols.STANDALONE, DateFormatSymbols.WIDE)
+    val formatMonthNames = rememberMonthNames(DateFormatSymbols.FORMAT, DateFormatSymbols.WIDE)
 
     LaunchedEffect(selectedDate, yearGroups) {
         if (restorePosition || selectedDate == null || yearGroups.isEmpty()) return@LaunchedEffect
@@ -122,7 +123,7 @@ fun DateFilterDialog(
 
                         item(key = yearKey) {
                             FolderTreeItem(
-                                title = "$year год",
+                                title = stringResource(R.string.date_filter_year, year),
                                 itemCount = yearTotalCount,
                                 level = 0,
                                 isExpanded = expandedNodes.contains(yearKey),
@@ -252,23 +253,18 @@ fun DateFilterDialog(
 
 private val HEADER_HEIGHT = 48.dp
 
-private val shortMonthNames = DateFormatSymbols().getMonths(
-    DateFormatSymbols.STANDALONE,
-    DateFormatSymbols.ABBREVIATED
-)
-
-private val shortFormatMonthNames = DateFormatSymbols().getMonths(
-    DateFormatSymbols.FORMAT,
-    DateFormatSymbols.ABBREVIATED
-)
-
 private fun DateFilter.existsIn(yearGroups: Map<Int, Map<Int, Map<Int, Int>>>): Boolean {
     val monthGroups = yearGroups[year ?: return false] ?: return false
     val dayGroups = month?.let { monthGroups[it] ?: return false } ?: return true
     return day?.let { dayGroups.containsKey(it) } ?: true
 }
 
+@Composable
 private fun DateFilter.shortTitle(): String {
+    val shortMonthNames =
+        rememberMonthNames(DateFormatSymbols.STANDALONE, DateFormatSymbols.ABBREVIATED)
+    val shortFormatMonthNames =
+        rememberMonthNames(DateFormatSymbols.FORMAT, DateFormatSymbols.ABBREVIATED)
     val month = month?.let { it - 1 }
     return when {
         null != month && null != day -> "$day ${shortFormatMonthNames[month].trimEnd('.')} $year"
@@ -282,6 +278,7 @@ private fun RecentDateChip(
     date: DateFilter,
     onClick: () -> Unit
 ) {
+    val title = date.shortTitle()
     Surface(
         onClick = onClick,
         shape = RoundedCornerShape(50),
@@ -296,7 +293,7 @@ private fun RecentDateChip(
                 .padding(horizontal = 14.dp)
         ) {
             Text(
-                text = date.shortTitle(),
+                text = title,
                 style = MaterialTheme.typography.labelLarge,
                 maxLines = 1
             )
@@ -342,7 +339,9 @@ private fun FolderTreeItem(
                         painter = painterResource(
                             if (isExpanded) R.drawable.expand_more else R.drawable.chevron_right
                         ),
-                        contentDescription = if (isExpanded) "Свернуть" else "Развернуть",
+                        contentDescription = stringResource(
+                            if (isExpanded) R.string.collapse else R.string.expand
+                        ),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier
                             .padding(4.dp)

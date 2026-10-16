@@ -69,6 +69,7 @@ import androidx.compose.ui.input.pointer.PointerInputScope
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.LocalWindowInfo
@@ -666,14 +667,6 @@ private val TOP_PANEL_MARGIN = 8.dp
 private val TOP_PANEL_HEIGHT = 48.dp
 private val SCROLL_INDICATOR_GAP = 8.dp
 
-private val months = DateFormatSymbols
-    .getInstance()
-    .getMonths(DateFormatSymbols.STANDALONE, DateFormatSymbols.WIDE)
-
-private val monthsGenitive = DateFormatSymbols
-    .getInstance()
-    .getMonths(DateFormatSymbols.FORMAT, DateFormatSymbols.WIDE)
-
 @Composable
 private fun DatePreviewPage(
     model: MediaViewModel,
@@ -759,6 +752,15 @@ private fun DateFilter.matches(media: Media) =
 @Composable
 internal fun dateFilterTitle(filter: DateFilter): String? {
     val year = filter.year ?: return null
+    val locale = LocalConfiguration.current.locales[0]
+    val months = remember(locale) {
+        DateFormatSymbols.getInstance(locale)
+            .getMonths(DateFormatSymbols.STANDALONE, DateFormatSymbols.WIDE)
+    }
+    val monthsGenitive = remember(locale) {
+        DateFormatSymbols.getInstance(locale)
+            .getMonths(DateFormatSymbols.FORMAT, DateFormatSymbols.WIDE)
+    }
     val month = filter.month?.let { it - 1 }
     val day = filter.day
     return when {

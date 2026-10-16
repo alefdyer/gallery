@@ -155,7 +155,7 @@ fun FilterBar(
                         ) {
                             Icon(
                                 painter = painterResource(R.drawable.calendar_color),
-                                contentDescription = "Дата",
+                                contentDescription = stringResource(R.string.date),
                                 tint = Color.Unspecified,
                                 modifier = Modifier.size(32.dp)
                             )
@@ -170,7 +170,7 @@ fun FilterBar(
                         ) {
                             Icon(
                                 painter = painterResource(R.drawable.calendar_color_selected),
-                                contentDescription = "Дата",
+                                contentDescription = stringResource(R.string.date),
                                 tint = Color.Unspecified,
                                 modifier = Modifier.size(32.dp)
                             )

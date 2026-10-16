@@ -6,6 +6,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import com.asinosoft.gallery.R
 
 @Composable
@@ -13,7 +14,7 @@ fun DummyView(modifier: Modifier = Modifier) {
     Box(modifier.fillMaxSize()) {
         Icon(
             painterResource(R.drawable.ic_launcher_background),
-            contentDescription = "Video player"
+            contentDescription = stringResource(R.string.video_player)
         )
     }
 }

@@ -59,18 +59,24 @@ fun BoxScope.CachingProgressIndicator(
             ) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = "Поиск изображений",
+                        text = stringResource(R.string.searching_images),
                         style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.Bold
                     )
                     Spacer(modifier = Modifier.height(4.dp))
                     LinearProgressIndicator(
                         progress = { preloadProgress.progress },
-                        modifier = Modifier.fillMaxWidth().height(6.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(6.dp),
                     )
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = "${preloadProgress.current} из ${preloadProgress.total}",
+                        text = stringResource(
+                            R.string.progress_current_of_total,
+                            preloadProgress.current,
+                            preloadProgress.total
+                        ),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )

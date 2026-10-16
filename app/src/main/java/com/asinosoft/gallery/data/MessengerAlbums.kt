@@ -4,7 +4,6 @@ import android.content.Context
 import android.util.Log
 import androidx.core.content.edit
 import com.asinosoft.gallery.GalleryApp
-import com.asinosoft.gallery.R
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -13,8 +12,8 @@ import javax.inject.Singleton
 
 /**
  * Альбомы из папок мессенджеров попадают в отдельную категорию.
- * Категория создаётся только при появлении первой такой папки, её id хранится
- * в настройках, поэтому пользователь может её переименовать.
+ * Категория создаётся только при появлении первой такой папки; в базе хранится
+ * системный ключ [AlbumCategory.MESSENGERS_NAME], а подпись берётся из строк локали.
  */
 @Singleton
 class MessengerAlbums @Inject constructor(
@@ -31,6 +30,8 @@ class MessengerAlbums @Inject constructor(
             ?: albumDao.getOrCreateAlbum(name, if (messenger) categoryId() else AlbumCategory.OTHER.id)
 
     suspend fun migrateOnce() {
+        migrateLegacyMessengersCategory()
+
         if (prefs.getBoolean(KEY_MIGRATED, false)) return
 
         val albumIds = albumDao.getAlbumMediaSources(AlbumCategory.OTHER.id)
@@ -50,17 +51,47 @@ class MessengerAlbums @Inject constructor(
         prefs.edit { putBoolean(KEY_MIGRATED, true) }
     }
 
+    /** Переводит старые локализованные имена («Мессенджеры» и т.п.) в системный ключ. */
+    private suspend fun migrateLegacyMessengersCategory() = mutex.withLock {
+        val savedId = prefs.getLong(KEY_CATEGORY_ID, 0L)
+        if (savedId > 0) {
+            albumDao.getCategoryById(savedId)?.let { migrateLegacyName(it) }
+        }
+        LEGACY_MESSENGERS_NAMES.forEach { name ->
+            albumDao.findCategoryByName(name)?.let { migrateLegacyName(it) }
+        }
+    }
+
     private suspend fun categoryId(): Long = mutex.withLock {
         val savedId = prefs.getLong(KEY_CATEGORY_ID, 0L)
-        if (savedId > 0 && null != albumDao.getCategoryById(savedId)) {
-            return@withLock savedId
+        if (savedId > 0) {
+            val saved = albumDao.getCategoryById(savedId)
+            if (null != saved) {
+                migrateLegacyName(saved)
+                return@withLock savedId
+            }
         }
 
-        val name = context.getString(R.string.messengers)
-        val id = albumDao.findCategoryByName(name)?.id
-            ?: albumDao.createCategory(AlbumCategory(name = name))
+        val existing = albumDao.findCategoryByName(AlbumCategory.MESSENGERS_NAME)
+            ?: LEGACY_MESSENGERS_NAMES.firstNotNullOfOrNull { albumDao.findCategoryByName(it) }
+
+        val id = if (null != existing) {
+            migrateLegacyName(existing)
+            existing.id
+        } else {
+            albumDao.createCategory(AlbumCategory(name = AlbumCategory.MESSENGERS_NAME))
+        }
         prefs.edit { putLong(KEY_CATEGORY_ID, id) }
         id
+    }
+
+    private suspend fun migrateLegacyName(category: AlbumCategory) {
+        if (category.name != AlbumCategory.MESSENGERS_NAME && category.name in LEGACY_MESSENGERS_NAMES) {
+            runCatching { albumDao.renameCategory(category.id, AlbumCategory.MESSENGERS_NAME) }
+                .onFailure {
+                    Log.w(GalleryApp.TAG, "Can't migrate messengers category ${category.id}", it)
+                }
+        }
     }
 
     private fun isMessenger(path: String, owner: String?): Boolean {
@@ -82,6 +113,22 @@ class MessengerAlbums @Inject constructor(
         const val PREFS_NAME = "messengers"
         const val KEY_CATEGORY_ID = "category_id"
         const val KEY_MIGRATED = "migrated"
+
+        /** Ранее имя категории писалось локализованной строкой — узнаём все наши переводы. */
+        val LEGACY_MESSENGERS_NAMES = setOf(
+            "Messengers",
+            "Мессенджеры",
+            "Messenger",
+            "Messageries",
+            "Mensajeros",
+            "Mensageiros",
+            "Komunikatory",
+            "المراسلات",
+            "मैसेजिंग ऐप",
+            "メッセンジャー",
+            "메신저",
+            "即时通讯",
+        )
 
         val MESSENGER_PACKAGES = setOf(
             "org.telegram.messenger",

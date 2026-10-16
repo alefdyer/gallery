@@ -58,6 +58,7 @@ import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.asinosoft.gallery.R
@@ -298,7 +299,9 @@ fun PagerView(
                 IconButton(onClick = { isMuted = !isMuted }) {
                     Icon(
                         painter = painterResource(if (isMuted) R.drawable.volume_off else R.drawable.volume_up),
-                        contentDescription = if (isMuted) "Unmute" else "Mute"
+                        contentDescription = stringResource(
+                            if (isMuted) R.string.unmute else R.string.mute
+                        )
                     )
                 }
             }

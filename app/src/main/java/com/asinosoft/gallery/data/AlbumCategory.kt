@@ -20,6 +20,7 @@ data class AlbumCategory(
 ) {
     companion object {
         val OTHER = AlbumCategory(1, ":other")
+        const val MESSENGERS_NAME = ":messengers"
     }
 }
 
@@ -36,7 +37,8 @@ fun AlbumCategory.isSystem(): Boolean = name.startsWith(":")
 
 @Composable
 fun AlbumCategory.name(): String =
-    if (":other" == name)
-        stringResource(R.string.other)
-    else
-        name
+    when (name) {
+        ":other" -> stringResource(R.string.other)
+        AlbumCategory.MESSENGERS_NAME -> stringResource(R.string.messengers)
+        else -> name
+    }

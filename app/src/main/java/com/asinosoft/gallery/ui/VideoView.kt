@@ -47,6 +47,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -316,7 +317,9 @@ private fun VideoControls(
             IconButton(onClick = onPlayPause) {
                 Icon(
                     painter = painterResource(if (isPlaying) R.drawable.pause_filled else R.drawable.play_arrow),
-                    contentDescription = if (isPlaying) "Pause" else "Play",
+                    contentDescription = stringResource(
+                        if (isPlaying) R.string.pause else R.string.play
+                    ),
                     modifier = Modifier.size(28.dp)
                 )
             }

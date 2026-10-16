@@ -18,7 +18,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.res.painterResource
@@ -44,8 +46,15 @@ fun MediaInfoSheet(
     model: MediaInfoSheetModel = hiltViewModel()
 ) {
     val size = Formatter.formatShortFileSize(LocalContext.current, media.size)
-    val date = media.date.format(DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM))
-    val time = media.time.format(DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT))
+    val locale = LocalConfiguration.current.locales[0]
+    val dateFormatter = remember(locale) {
+        DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).withLocale(locale)
+    }
+    val timeFormatter = remember(locale) {
+        DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT).withLocale(locale)
+    }
+    val date = media.date.format(dateFormatter)
+    val time = media.time.format(timeFormatter)
 
     LaunchedEffect(media) {
         model.getMediaInfo(media)
