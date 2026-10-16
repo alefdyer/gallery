@@ -90,8 +90,10 @@ import com.asinosoft.gallery.ui.component.SelectionInfoBar
 import com.asinosoft.gallery.ui.component.dragSelection
 import com.asinosoft.gallery.ui.component.dragToDismiss
 import com.asinosoft.gallery.ui.component.pinchGridColumns
+import com.asinosoft.gallery.ui.component.rememberAutoplayVideo
 import com.asinosoft.gallery.ui.component.rememberGridColumns
 import com.asinosoft.gallery.ui.component.rememberVideoPreviewQueue
+import com.asinosoft.gallery.ui.component.rememberVideoSound
 import com.asinosoft.gallery.ui.theme.floatingPanelColor
 
 private val HEADER_TOP = 36.dp
@@ -458,6 +460,9 @@ private fun PrivateMediaPager(
     var confirmDelete by remember { mutableStateOf<Media?>(null) }
     val close = { onClose(pagerState.currentPage) }
     val bottomGestureInset = WindowInsets.systemGestures.getBottom(LocalDensity.current)
+    val autoplayVideo = rememberAutoplayVideo()
+    val videoSound = rememberVideoSound()
+    val muted = !videoSound
 
     BackHandler(onBack = close)
 
@@ -482,6 +487,8 @@ private fun PrivateMediaPager(
                         isActive = page == pagerState.currentPage,
                         controlsVisible = controlsVisible,
                         controlsBottomPadding = 160.dp,
+                        muted = muted,
+                        autoplay = autoplayVideo,
                         onTap = { showControls = !showControls }
                     )
                 } else {

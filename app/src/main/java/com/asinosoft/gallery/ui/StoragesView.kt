@@ -19,7 +19,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
@@ -32,6 +31,8 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.foundation.clickable
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -66,6 +67,9 @@ import com.asinosoft.gallery.data.storage.StorageType
 import com.asinosoft.gallery.data.storage.dropbox.DropboxApi
 import com.asinosoft.gallery.data.storage.yandex.YandexStorageProvider
 import com.asinosoft.gallery.model.StoragesViewModel
+import com.asinosoft.gallery.ui.component.SettingsGroup
+import com.asinosoft.gallery.ui.component.SettingsGroupDivider
+import com.asinosoft.gallery.ui.component.SettingsSectionTitle
 import com.asinosoft.gallery.ui.component.StorageTypeIcon
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.regex.Pattern
@@ -98,31 +102,29 @@ fun StoragesView(modifier: Modifier = Modifier, model: StoragesViewModel = hiltV
         LazyColumn(
             modifier = modifier
                 .fillMaxSize()
-                .padding(8.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
+                .padding(horizontal = 16.dp, vertical = 12.dp)
         ) {
-            items(storages, key = { it.id }) { storage ->
-                Card {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(12.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
+            item {
+                SettingsSectionTitle(stringResource(R.string.network_section))
+                SettingsGroup {
+                    storages.forEachIndexed { index, storage ->
+                        if (index > 0) SettingsGroupDivider()
                         Row(
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            verticalAlignment = Alignment.CenterVertically
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 10.dp)
                         ) {
                             StorageTypeIcon(storage.type)
-
                             Text(
                                 text = storage.title,
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Medium,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier.weight(2f)
+                                modifier = Modifier.weight(1f)
                             )
-
                             if (storage.type.isEditable) {
                                 IconButton(onClick = {
                                     account.value = storage
@@ -130,34 +132,43 @@ fun StoragesView(modifier: Modifier = Modifier, model: StoragesViewModel = hiltV
                                 }) {
                                     Icon(
                                         painterResource(R.drawable.edit),
-                                        contentDescription = null
+                                        contentDescription = stringResource(R.string.edit),
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
                                 }
                             }
-
                             if (storage.type.isDeletable) {
-                                IconButton(onClick = {
-                                    model.deleteStorage(storage)
-                                }) {
+                                IconButton(onClick = { model.deleteStorage(storage) }) {
                                     Icon(
                                         painterResource(R.drawable.delete),
-                                        contentDescription = null
+                                        contentDescription = stringResource(R.string.delete),
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
                                 }
                             }
                         }
                     }
-                }
-            }
-
-            item {
-                Box(
-                    modifier = Modifier.fillParentMaxHeight(1f),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Button(onClick = showEditor) {
-                        Icon(painterResource(R.drawable.add), contentDescription = null)
-                        Text(stringResource(R.string.storage_add_account))
+                    if (storages.isNotEmpty()) SettingsGroupDivider()
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable(onClick = showEditor)
+                            .padding(horizontal = 16.dp, vertical = 14.dp)
+                    ) {
+                        Icon(
+                            painter = painterResource(R.drawable.add),
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(28.dp)
+                        )
+                        Spacer(modifier = Modifier.width(16.dp))
+                        Text(
+                            text = stringResource(R.string.storage_add_account),
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Medium,
+                            color = MaterialTheme.colorScheme.primary
+                        )
                     }
                 }
             }

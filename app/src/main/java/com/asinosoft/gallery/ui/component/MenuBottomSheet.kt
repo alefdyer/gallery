@@ -34,7 +34,6 @@ import com.asinosoft.gallery.R
 private data class MenuItemData(
     val title: String,
     val iconRes: Int,
-    val isStudio: Boolean = false,
     val onClick: () -> Unit
 )
 
@@ -51,13 +50,10 @@ fun MenuBottomSheet(
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     val menuItems = listOf(
-        MenuItemData("Поиск", R.drawable.search) {},
         MenuItemData(stringResource(R.string.favorites), R.drawable.favorite_border) {
             onDismissRequest()
             onFavoritesClick()
         },
-        MenuItemData("Последние", R.drawable.calendar_today) {},
-        MenuItemData("Типы съемки", R.drawable.photo) {},
         MenuItemData(stringResource(R.string.private_album), R.drawable.lock_outline) {
             onDismissRequest()
             onPrivateAlbumClick()
@@ -66,11 +62,10 @@ fun MenuBottomSheet(
             onDismissRequest()
             onTrashClick()
         },
-        MenuItemData("Настройки", R.drawable.settings) {
+        MenuItemData(stringResource(R.string.settings), R.drawable.settings) {
             onDismissRequest()
             onSettingsClick()
-        },
-        MenuItemData("Студия", R.drawable.brush, isStudio = true) {}
+        }
     )
 
     ModalBottomSheet(
@@ -114,7 +109,7 @@ fun MenuBottomSheet(
                                 Icon(
                                     painter = painterResource(item.iconRes),
                                     contentDescription = item.title,
-                                    tint = if (item.isStudio) Color(0xFFEE2852) else Color(0xFF202124),
+                                    tint = Color(0xFF202124),
                                     modifier = Modifier.size(22.dp)
                                 )
                             }

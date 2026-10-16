@@ -71,7 +71,9 @@ import com.asinosoft.gallery.ui.component.DismissDragState
 import com.asinosoft.gallery.ui.component.LocalDismissDrag
 import com.asinosoft.gallery.ui.component.dragToDismiss
 import com.asinosoft.gallery.ui.component.MoveToPrivateDialog
+import com.asinosoft.gallery.ui.component.rememberAutoplayVideo
 import com.asinosoft.gallery.ui.component.rememberTrashIntro
+import com.asinosoft.gallery.ui.component.rememberVideoSound
 
 /** Нажатое фото: просмотр показывает его сразу, пока из базы грузится весь список */
 internal object OpenedMedia {
@@ -126,7 +128,9 @@ fun PagerView(
     )
 
     val isLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
-    var isMuted by remember { mutableStateOf(true) }
+    val videoSound = rememberVideoSound()
+    val autoplayVideo = rememberAutoplayVideo()
+    var isMuted by remember(videoSound) { mutableStateOf(!videoSound) }
     val currentIsVideo = null != items.getOrNull(pagerState.currentPage)?.video
 
     var pendingFavorite by remember { mutableStateOf<Pair<Media, Boolean>?>(null) }
@@ -220,6 +224,7 @@ fun PagerView(
                     controlsVisible = controlsVisible,
                     controlsBottomPadding = if (isLandscape) 96.dp else 160.dp,
                     muted = isMuted,
+                    autoplay = autoplayVideo,
                     onTap = {
                         if (!pagerState.isScrollInProgress) {
                             showControls = !showControls

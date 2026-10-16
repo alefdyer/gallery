@@ -43,6 +43,8 @@ import com.asinosoft.gallery.ui.FloatingCircle
 import com.asinosoft.gallery.ui.ImageView
 import com.asinosoft.gallery.ui.PagerView
 import com.asinosoft.gallery.ui.VideoView
+import com.asinosoft.gallery.ui.component.rememberAutoplayVideo
+import com.asinosoft.gallery.ui.component.rememberVideoSound
 import com.asinosoft.gallery.ui.theme.GalleryTheme
 import dagger.hilt.android.AndroidEntryPoint
 
@@ -102,6 +104,8 @@ class ViewerActivity : ComponentActivity() {
     private fun SingleMediaView(media: Media) {
         var showControls by remember { mutableStateOf(true) }
         val toggleControls = { showControls = !showControls }
+        val autoplayVideo = rememberAutoplayVideo()
+        val videoSound = rememberVideoSound()
 
         Box(
             Modifier
@@ -112,6 +116,8 @@ class ViewerActivity : ComponentActivity() {
                 null != media.video -> VideoView(
                     media = media,
                     controlsVisible = showControls,
+                    muted = !videoSound,
+                    autoplay = autoplayVideo,
                     onTap = toggleControls
                 )
 

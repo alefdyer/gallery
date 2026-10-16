@@ -89,6 +89,7 @@ fun VideoView(
     controlsVisible: Boolean = true,
     controlsBottomPadding: Dp = VIDEO_CONTROLS_BOTTOM,
     muted: Boolean = false,
+    autoplay: Boolean = true,
     onTap: () -> Unit = {},
     model: MediaViewModel = hiltViewModel(),
 ) {
@@ -157,9 +158,12 @@ fun VideoView(
     val lifecycleState by lifecycleOwner.lifecycle.currentStateAsState()
     val resumed = lifecycleState.isAtLeast(Lifecycle.State.RESUMED)
 
-    var paused by remember(media.id) { mutableStateOf(false) }
-    LaunchedEffect(isActive) {
-        if (!isActive) paused = false
+    var paused by remember(media.id, autoplay) { mutableStateOf(!autoplay) }
+    LaunchedEffect(isActive, autoplay) {
+        if (!isActive) {
+            // При уходе со страницы сбрасываем в исходное: автозапуск или пауза
+            paused = !autoplay
+        }
     }
 
     DisposableEffect(lifecycleOwner) {

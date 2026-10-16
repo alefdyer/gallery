@@ -433,7 +433,14 @@ private fun AppNavHost(
         }
 
         composable("settings") {
-            SettingsView(onClose = nav::navigateUp)
+            SettingsView(
+                onClose = nav::navigateUp,
+                onOpenLicenses = { nav.navigate("licenses") }
+            )
+        }
+
+        composable("licenses") {
+            LicensesView(onClose = nav::navigateUp)
         }
     }
 }
