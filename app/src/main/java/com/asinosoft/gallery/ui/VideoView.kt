@@ -9,19 +9,15 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -46,14 +42,11 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.geometry.isSpecified
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.input.pointer.PointerInputScope
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -78,8 +71,9 @@ import com.asinosoft.gallery.data.EXTERNAL_STORAGE_ID
 import com.asinosoft.gallery.data.Media
 import com.asinosoft.gallery.model.MediaViewModel
 import com.asinosoft.gallery.ui.component.LocalDismissDrag
-import com.asinosoft.gallery.ui.component.isOpeningTransition
+import com.asinosoft.gallery.ui.component.ZoomableMediaBox
 import com.asinosoft.gallery.ui.component.dismissDragTransform
+import com.asinosoft.gallery.ui.component.isOpeningTransition
 import com.asinosoft.gallery.ui.component.mediaSharedElement
 import com.asinosoft.gallery.ui.component.rememberCachedThumbnail
 import kotlinx.coroutines.delay
@@ -231,19 +225,13 @@ fun VideoView(
         }
     }
 
-    Box(
-        contentAlignment = Alignment.Center,
-        modifier =
-            modifier
-                .fillMaxSize()
-                .clickable(interactionSource = null, indication = null, onClick = onTap)
-    ) {
-        Box(
-            modifier = Modifier
-                .then((videoRatio ?: thumbnailRatio)?.let { Modifier.aspectRatio(it) }
-                    ?: Modifier.fillMaxSize())
+    Box(modifier = modifier.fillMaxSize()) {
+        ZoomableMediaBox(
+            aspectRatio = videoRatio ?: thumbnailRatio,
+            frameModifier = Modifier
                 .dismissDragTransform(LocalDismissDrag.current)
-                .mediaSharedElement(media.id)
+                .mediaSharedElement(media.id),
+            onTap = onTap
         ) {
             player?.let { current ->
                 AndroidView(
@@ -275,7 +263,10 @@ fun VideoView(
         }
 
         if (showProgress) {
-            CircularProgressIndicator(color = Color.White)
+            CircularProgressIndicator(
+                color = Color.White,
+                modifier = Modifier.align(Alignment.Center)
+            )
         }
 
         AnimatedVisibility(
