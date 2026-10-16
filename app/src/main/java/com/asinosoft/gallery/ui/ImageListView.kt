@@ -40,7 +40,10 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBarScrollBehavior
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -82,6 +85,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.asinosoft.gallery.R
 import com.asinosoft.gallery.data.Album
+import com.asinosoft.gallery.data.AlbumCategory
 import com.asinosoft.gallery.data.Media
 import com.asinosoft.gallery.model.DateFilter
 import com.asinosoft.gallery.model.MediaType
@@ -145,6 +149,7 @@ fun ImageListView(
     var closeOnEmptyList by remember { mutableStateOf(false) }
     val lazyGridState = rememberLazyGridState()
     var showTagDialog by remember { mutableStateOf(false) }
+    var pendingAlbumAdd by remember { mutableStateOf<PendingAlbumAdd?>(null) }
     var showMoveToPrivate by remember { mutableStateOf(false) }
     val deleteSelection = rememberTrashIntro { model.deleteSelection() }
     val dragSelectionState = remember { DragSelectionState() }
@@ -697,20 +702,75 @@ fun ImageListView(
         if (showTagDialog) {
             AddToAlbumDialog(
                 onPickAlbum = { album ->
-                    model.addSelectionToAlbum(album.id)
                     showTagDialog = false
+                    requestAlbumAdd(model, PendingAlbumAdd.Existing(album.id)) {
+                        pendingAlbumAdd = it
+                    }
                 },
                 onCreateAlbum = { name, category ->
-                    model.addSelectionToNewAlbum(name, category)
                     showTagDialog = false
+                    requestAlbumAdd(model, PendingAlbumAdd.NewAlbum(name, category)) {
+                        pendingAlbumAdd = it
+                    }
                 },
                 onCreateAlbumInNewCategory = { name, categoryName ->
-                    model.addSelectionToNewAlbumInNewCategory(name, categoryName)
                     showTagDialog = false
+                    requestAlbumAdd(model, PendingAlbumAdd.NewAlbumInCategory(name, categoryName)) {
+                        pendingAlbumAdd = it
+                    }
                 },
                 onDismiss = { showTagDialog = false }
             )
         }
+
+        pendingAlbumAdd?.let { pending ->
+            AlertDialog(
+                onDismissRequest = { pendingAlbumAdd = null },
+                title = { Text(stringResource(R.string.remove_from_current_album_title)) },
+                text = { Text(stringResource(R.string.remove_from_current_album_text)) },
+                confirmButton = {
+                    TextButton(onClick = {
+                        pendingAlbumAdd = null
+                        pending.execute(model, removeFromAlbumId = model.albumId)
+                    }) { Text(stringResource(R.string.yes)) }
+                },
+                dismissButton = {
+                    TextButton(onClick = {
+                        pendingAlbumAdd = null
+                        pending.execute(model, removeFromAlbumId = null)
+                    }) { Text(stringResource(R.string.no)) }
+                }
+            )
+        }
+    }
+}
+
+private sealed class PendingAlbumAdd {
+    data class Existing(val albumId: Long) : PendingAlbumAdd()
+    data class NewAlbum(val name: String, val category: AlbumCategory) : PendingAlbumAdd()
+    data class NewAlbumInCategory(val name: String, val categoryName: String) : PendingAlbumAdd()
+
+    fun execute(model: ImageListViewModel, removeFromAlbumId: Long?) {
+        when (this) {
+            is Existing -> model.addSelectionToAlbum(albumId, removeFromAlbumId)
+            is NewAlbum -> model.addSelectionToNewAlbum(name, category, removeFromAlbumId)
+            is NewAlbumInCategory ->
+                model.addSelectionToNewAlbumInNewCategory(name, categoryName, removeFromAlbumId)
+        }
+    }
+}
+
+private fun requestAlbumAdd(
+    model: ImageListViewModel,
+    pending: PendingAlbumAdd,
+    askRemove: (PendingAlbumAdd) -> Unit
+) {
+    val currentAlbumId = model.albumId
+    val sameAlbum = pending is PendingAlbumAdd.Existing && pending.albumId == currentAlbumId
+    if (null != currentAlbumId && !sameAlbum) {
+        askRemove(pending)
+    } else {
+        pending.execute(model, removeFromAlbumId = null)
     }
 }
 

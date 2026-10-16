@@ -90,6 +90,10 @@
     <string name="new_category">新しいカテゴリ</string>
     <string name="add_to_album">アルバムへ</string>
     <string name="remove_from_album">アルバムから</string>
+    <string name="remove_from_current_album_title">現在のアルバムから削除しますか？</string>
+    <string name="remove_from_current_album_text">選択した項目をこのアルバムからも削除しますか？</string>
+    <string name="yes">はい</string>
+    <string name="no">いいえ</string>
     <string name="always_expanded">常に展開</string>
     <string name="always_collapsed">常に折りたたみ</string>
     <string name="name">名前</string>

@@ -412,22 +412,37 @@ class ImageListViewModel @Inject constructor(
         mediaService.moveToPrivate(selection.value, context, ::clearSelection)
     }
 
-    fun addSelectionToAlbum(albumId: Long) = viewModelScope.launchAndCatch {
-        mediaService.addToAlbum(selection.value, albumId)
+    fun addSelectionToAlbum(albumId: Long, removeFromAlbumId: Long? = null) =
+        viewModelScope.launchAndCatch {
+            val ids = selection.value
+            mediaService.addToAlbum(ids, albumId)
+            if (null != removeFromAlbumId && removeFromAlbumId != albumId) {
+                mediaService.removeFromAlbum(ids, removeFromAlbumId)
+            }
+            clearSelection()
+        }
+
+    fun addSelectionToNewAlbum(
+        name: String,
+        category: AlbumCategory,
+        removeFromAlbumId: Long? = null
+    ) = viewModelScope.launchAndCatch {
+        val ids = selection.value
+        mediaService.addToNewAlbum(ids, name, category)
+        removeFromAlbumId?.let { mediaService.removeFromAlbum(ids, it) }
         clearSelection()
     }
 
-    fun addSelectionToNewAlbum(name: String, category: AlbumCategory) =
-        viewModelScope.launchAndCatch {
-            mediaService.addToNewAlbum(selection.value, name, category)
-            clearSelection()
-        }
-
-    fun addSelectionToNewAlbumInNewCategory(name: String, categoryName: String) =
-        viewModelScope.launchAndCatch {
-            mediaService.addToNewAlbumInNewCategory(selection.value, name, categoryName)
-            clearSelection()
-        }
+    fun addSelectionToNewAlbumInNewCategory(
+        name: String,
+        categoryName: String,
+        removeFromAlbumId: Long? = null
+    ) = viewModelScope.launchAndCatch {
+        val ids = selection.value
+        mediaService.addToNewAlbumInNewCategory(ids, name, categoryName)
+        removeFromAlbumId?.let { mediaService.removeFromAlbum(ids, it) }
+        clearSelection()
+    }
 
     fun removeSelectionFromAlbum(albumId: Long) = viewModelScope.launchAndCatch {
         mediaService.removeFromAlbum(selection.value, albumId)

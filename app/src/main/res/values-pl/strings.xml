@@ -90,6 +90,10 @@
     <string name="new_category">Nowa kategoria</string>
     <string name="add_to_album">Do albumu</string>
     <string name="remove_from_album">Z albumu</string>
+    <string name="remove_from_current_album_title">Usunąć z bieżącego albumu?</string>
+    <string name="remove_from_current_album_text">Usunąć też wybrane elementy z tego albumu?</string>
+    <string name="yes">Tak</string>
+    <string name="no">Nie</string>
     <string name="always_expanded">Zawsze rozwinięte</string>
     <string name="always_collapsed">Zawsze zwinięte</string>
     <string name="name">Nazwa</string>

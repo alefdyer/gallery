@@ -90,6 +90,10 @@
     <string name="new_category">新类别</string>
     <string name="add_to_album">添加到相册</string>
     <string name="remove_from_album">移出相册</string>
+    <string name="remove_from_current_album_title">从当前相册中移除？</string>
+    <string name="remove_from_current_album_text">是否也从该相册中移除所选项目？</string>
+    <string name="yes">是</string>
+    <string name="no">否</string>
     <string name="always_expanded">始终展开</string>
     <string name="always_collapsed">始终折叠</string>
     <string name="name">名称</string>

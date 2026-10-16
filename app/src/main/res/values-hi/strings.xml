@@ -90,6 +90,10 @@
     <string name="new_category">नई श्रेणी</string>
     <string name="add_to_album">एल्बम में</string>
     <string name="remove_from_album">एल्बम से</string>
+    <string name="remove_from_current_album_title">वर्तमान एल्बम से हटाएँ?</string>
+    <string name="remove_from_current_album_text">चयनित आइटम को इस एल्बम से भी हटाएँ?</string>
+    <string name="yes">हाँ</string>
+    <string name="no">नहीं</string>
     <string name="always_expanded">हमेशा विस्तारित</string>
     <string name="always_collapsed">हमेशा संक्षिप्त</string>
     <string name="name">नाम</string>

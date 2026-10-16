@@ -90,6 +90,10 @@
     <string name="new_category">새 카테고리</string>
     <string name="add_to_album">앨범으로</string>
     <string name="remove_from_album">앨범에서</string>
+    <string name="remove_from_current_album_title">현재 앨범에서 제거할까요?</string>
+    <string name="remove_from_current_album_text">선택한 항목을 이 앨범에서도 제거할까요?</string>
+    <string name="yes">예</string>
+    <string name="no">아니요</string>
     <string name="always_expanded">항상 펼침</string>
     <string name="always_collapsed">항상 접음</string>
     <string name="name">이름</string>
