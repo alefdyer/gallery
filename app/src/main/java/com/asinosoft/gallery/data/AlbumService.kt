@@ -7,19 +7,26 @@ class AlbumService @Inject constructor(
     private val albumDao: AlbumDao,
 ) {
     suspend fun moveAlbumIntoCategory(album: Album, category: AlbumCategory) {
-        val sameNameAlbum = albumDao.getAlbumByName(album.name, category.id)
+        // Берём актуальный альбом из БД: в drag-payload может быть устаревшее имя
+        val current = runCatching { albumDao.getAlbumById(album.id) }.getOrNull() ?: return
+        if (current.categoryId == category.id) return
+
+        val sameNameAlbum = albumDao.getAlbumByName(current.name, category.id)
         if (null == sameNameAlbum) {
-            albumDao.moveAlbumIntoCategory(album, category)
+            albumDao.moveAlbumIntoCategory(current, category)
+        } else if (sameNameAlbum.id == current.id) {
+            return
         } else {
-            val mediaIds = albumDao.getMediaInAlbum(album.id).first().map { it.id }
-            albumDao.removeMediaFromAlbum(mediaIds, album.id)
+            val mediaIds = albumDao.getMediaInAlbum(current.id).first().map { it.id }
+            albumDao.removeMediaFromAlbum(mediaIds, current.id)
             albumDao.addMediaToAlbum(mediaIds, sameNameAlbum.id)
-            albumDao.delete(album.id)
+            albumDao.delete(current.id)
             albumDao.updateAlbumStats(sameNameAlbum.id)
         }
     }
 
     suspend fun moveAlbumIntoNewCategory(album: Album, categoryName: String) {
-        albumDao.moveAlbumIntoNewCategory(album, categoryName)
+        val current = runCatching { albumDao.getAlbumById(album.id) }.getOrNull() ?: return
+        albumDao.moveAlbumIntoNewCategory(current, categoryName)
     }
 }

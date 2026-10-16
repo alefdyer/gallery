@@ -121,6 +121,7 @@
     <string name="scroll_to_top">Inizio</string>
     <string name="rename">Rinomina</string>
     <string name="rename_category">Rinomina categoria</string>
+    <string name="rename_album">Rinomina album</string>
     <string name="collapse">Comprimi</string>
     <string name="expand">Espandi</string>
     <string name="searching_images">Ricerca immagini</string>

@@ -121,6 +121,7 @@
     <string name="scroll_to_top">回到顶部</string>
     <string name="rename">重命名</string>
     <string name="rename_category">重命名类别</string>
+    <string name="rename_album">重命名相册</string>
     <string name="collapse">折叠</string>
     <string name="expand">展开</string>
     <string name="searching_images">正在搜索图片</string>

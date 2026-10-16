@@ -17,7 +17,7 @@ import com.asinosoft.gallery.data.storage.StorageDao
         Media::class,
         MediaAlbum::class,
         Storage::class],
-    version = 5,
+    version = 6,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -38,7 +38,7 @@ abstract class AppDatabase : RoomDatabase() {
 
         private fun buildDatabase(context: Context): AppDatabase = Room
             .databaseBuilder(context, AppDatabase::class.java, "media.db")
-            .addMigrations(MIGRATION_4_5)
+            .addMigrations(MIGRATION_4_5, MIGRATION_5_6)
             .fallbackToDestructiveMigration(true)
             .addCallback(AppDatabaseInitializer())
             .build()
@@ -46,6 +46,23 @@ abstract class AppDatabase : RoomDatabase() {
         private val MIGRATION_4_5 = object : Migration(4, 5) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE media ADD COLUMN favorite INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+
+        private val MIGRATION_5_6 = object : Migration(5, 6) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "ALTER TABLE album ADD COLUMN userCreated INTEGER NOT NULL DEFAULT 0"
+                )
+                // Альбомы в пользовательских категориях (не :other / :messengers)
+                db.execSQL(
+                    """
+                    UPDATE album SET userCreated = 1
+                    WHERE categoryId IN (
+                        SELECT id FROM album_category WHERE name NOT LIKE ':%'
+                    )
+                    """.trimIndent()
+                )
             }
         }
     }

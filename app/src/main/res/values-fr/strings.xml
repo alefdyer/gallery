@@ -121,6 +121,7 @@
     <string name="scroll_to_top">Haut de page</string>
     <string name="rename">Renommer</string>
     <string name="rename_category">Renommer la catégorie</string>
+    <string name="rename_album">Renommer l\'album</string>
     <string name="collapse">Réduire</string>
     <string name="expand">Développer</string>
     <string name="searching_images">Recherche d\'images</string>

@@ -165,8 +165,14 @@ interface AlbumDao {
     @Query("UPDATE album_category SET name = :name WHERE id = :id")
     suspend fun renameCategory(id: Long, name: String)
 
+    @Query("UPDATE album SET name = :name WHERE id = :id")
+    suspend fun renameAlbum(id: Long, name: String)
+
+    @Query("UPDATE album SET categoryId = :categoryId WHERE id = :albumId")
+    suspend fun setAlbumCategory(albumId: Long, categoryId: Long)
+
     suspend fun moveAlbumIntoCategory(album: Album, category: AlbumCategory) {
-        upsert(album.copy(categoryId = category.id))
+        setAlbumCategory(album.id, category.id)
         deleteEmptyCategories()
     }
 
@@ -175,7 +181,7 @@ interface AlbumDao {
             findCategoryByName(categoryName)?.id
                 ?: createCategory(AlbumCategory(name = categoryName))
 
-        upsert(album.copy(categoryId = categoryId))
+        setAlbumCategory(album.id, categoryId)
         deleteEmptyCategories()
     }
 

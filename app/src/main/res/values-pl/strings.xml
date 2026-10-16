@@ -121,6 +121,7 @@
     <string name="scroll_to_top">Do góry</string>
     <string name="rename">Zmień nazwę</string>
     <string name="rename_category">Zmień nazwę kategorii</string>
+    <string name="rename_album">Zmień nazwę albumu</string>
     <string name="collapse">Zwiń</string>
     <string name="expand">Rozwiń</string>
     <string name="searching_images">Wyszukiwanie obrazów</string>

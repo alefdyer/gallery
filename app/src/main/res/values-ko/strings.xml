@@ -121,6 +121,7 @@
     <string name="scroll_to_top">맨 위로</string>
     <string name="rename">이름 바꾸기</string>
     <string name="rename_category">카테고리 이름 바꾸기</string>
+    <string name="rename_album">앨범 이름 바꾸기</string>
     <string name="collapse">접기</string>
     <string name="expand">펼치기</string>
     <string name="searching_images">이미지 검색 중</string>

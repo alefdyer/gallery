@@ -121,6 +121,7 @@
     <string name="scroll_to_top">إلى الأعلى</string>
     <string name="rename">إعادة تسمية</string>
     <string name="rename_category">إعادة تسمية الفئة</string>
+    <string name="rename_album">إعادة تسمية الألبوم</string>
     <string name="collapse">طي</string>
     <string name="expand">توسيع</string>
     <string name="searching_images">البحث عن الصور</string>

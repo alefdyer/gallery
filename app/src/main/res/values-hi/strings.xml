@@ -121,6 +121,7 @@
     <string name="scroll_to_top">ऊपर जाएँ</string>
     <string name="rename">नाम बदलें</string>
     <string name="rename_category">श्रेणी का नाम बदलें</string>
+    <string name="rename_album">एल्बम का नाम बदलें</string>
     <string name="collapse">संक्षिप्त करें</string>
     <string name="expand">विस्तार करें</string>
     <string name="searching_images">छवियाँ खोज रहा है</string>

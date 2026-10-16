@@ -104,6 +104,18 @@ class AlbumsViewModel @Inject constructor(
             .onFailure { Log.w(GalleryApp.TAG, "Can't rename category ${category.id}", it) }
     }
 
+    fun renameAlbum(album: Album, name: String) = viewModelScope.launch {
+        val category = albumDao.getCategoryById(album.categoryId)
+        val allowed = album.userCreated || (null != category && !category.name.startsWith(":"))
+        if (!allowed) return@launch
+
+        val newName = name.trim()
+        if (newName.isEmpty() || newName == album.name) return@launch
+
+        runCatching { albumDao.renameAlbum(album.id, newName) }
+            .onFailure { Log.w(GalleryApp.TAG, "Can't rename album ${album.id}", it) }
+    }
+
     fun setCategoryOrder(ids: List<Long>) {
         categoryOrder.value = ids
         prefs.edit { putString(KEY_ORDER, ids.joinToString(",")) }

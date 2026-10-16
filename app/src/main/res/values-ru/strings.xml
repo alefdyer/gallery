@@ -121,6 +121,7 @@
     <string name="scroll_to_top">В начало</string>
     <string name="rename">Переименовать</string>
     <string name="rename_category">Переименовать категорию</string>
+    <string name="rename_album">Переименовать альбом</string>
     <string name="collapse">Свернуть</string>
     <string name="expand">Развернуть</string>
     <string name="searching_images">Поиск изображений</string>

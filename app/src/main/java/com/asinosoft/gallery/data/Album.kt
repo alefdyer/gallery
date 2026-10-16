@@ -31,7 +31,9 @@ data class Album(
     val count: Int = 0,
     val size: Long = 0,
     val coverId: Long? = null,
-    val date: LocalDate = LocalDate.now()
+    val date: LocalDate = LocalDate.now(),
+    /** Альбом создан пользователем через «Новый альбом», а не автоматически из папки */
+    val userCreated: Boolean = false
 )
 
 data class AlbumWithCover(

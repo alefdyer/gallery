@@ -121,6 +121,7 @@
     <string name="scroll_to_top">先頭へ</string>
     <string name="rename">名前を変更</string>
     <string name="rename_category">カテゴリ名を変更</string>
+    <string name="rename_album">アルバム名を変更</string>
     <string name="collapse">折りたたむ</string>
     <string name="expand">展開</string>
     <string name="searching_images">画像を検索中</string>

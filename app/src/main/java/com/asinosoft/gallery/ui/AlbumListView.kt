@@ -3,16 +3,15 @@ package com.asinosoft.gallery.ui
 import android.content.ClipData
 import android.content.ClipDescription
 import android.content.Intent
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.draganddrop.dragAndDropSource
 import androidx.compose.foundation.draganddrop.dragAndDropTarget
-import androidx.compose.foundation.gestures.awaitEachGesture
-import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.scrollBy
-import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -97,7 +96,6 @@ import com.asinosoft.gallery.ui.component.isTipSeen
 import com.asinosoft.gallery.ui.component.rememberFeatureTip
 import com.google.gson.Gson
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.math.abs
 import kotlin.math.sign
 
@@ -145,6 +143,7 @@ fun AlbumListView(
     val expandedCategoryIds by model.expandedCategories.collectAsState()
     val alwaysExpandedCategoryIds by model.alwaysExpandedCategories.collectAsState()
     var renamingCategory by remember { mutableStateOf<AlbumCategory?>(null) }
+    var renamingAlbum by remember { mutableStateOf<Album?>(null) }
 
     val shownCategories = dragOrder
         ?.mapNotNull { id -> categories.firstOrNull { it.category.id == id } }
@@ -372,6 +371,7 @@ fun AlbumListView(
                         menuCategoryId = null
                         renamingCategory = category.category
                     },
+                    onAlbumRenameClick = { album -> renamingAlbum = album },
                     onDragStart = { onCategoryDragStart(id) },
                     onDrag = ::onCategoryDrag,
                     onDragEnd = ::onCategoryDragEnd,
@@ -449,6 +449,16 @@ fun AlbumListView(
         )
     }
 
+    renamingAlbum?.let { album ->
+        NewAlbumCategoryDialog(
+            title = stringResource(R.string.rename_album),
+            initialName = album.name,
+            confirmText = stringResource(R.string.save),
+            onCreateCategory = { name -> model.renameAlbum(album, name) },
+            onDismiss = { renamingAlbum = null }
+        )
+    }
+
     if (showNewCategoryDialog) {
         NewAlbumCategoryDialog(
             onCreateCategory = { categoryName ->
@@ -476,6 +486,7 @@ private fun AlbumCategoriesRow(
     menuExpanded: Boolean,
     onMenuDismiss: () -> Unit,
     onRenameClick: () -> Unit,
+    onAlbumRenameClick: (Album) -> Unit,
     onDragStart: () -> Unit,
     onDrag: (Float) -> Unit,
     onDragEnd: () -> Unit,
@@ -553,7 +564,12 @@ private fun AlbumCategoriesRow(
                         Row(horizontalArrangement = Arrangement.spacedBy(CARD_SPACING)) {
                             row.forEach { album ->
                                 key(album.album.id) {
-                                    AlbumCard(album, cardSize, onAlbumClick)
+                                    AlbumCard(
+                                        album = album,
+                                        cardSize = cardSize,
+                                        onAlbumClick = onAlbumClick,
+                                        onRenameClick = onAlbumRenameClick
+                                    )
                                 }
                             }
                         }
@@ -572,7 +588,12 @@ private fun AlbumCategoriesRow(
                     horizontalArrangement = Arrangement.spacedBy(CARD_SPACING)
                 ) {
                     items(category.albums, { it.album.id }) { album ->
-                        AlbumCard(album, cardSize, onAlbumClick)
+                        AlbumCard(
+                            album = album,
+                            cardSize = cardSize,
+                            onAlbumClick = onAlbumClick,
+                            onRenameClick = onAlbumRenameClick
+                        )
                     }
                 }
             }
@@ -590,26 +611,72 @@ private fun AlbumCategoriesRow(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun AlbumCard(
     album: AlbumWithCover,
     cardSize: Dp,
     onAlbumClick: (Album) -> Unit,
+    onRenameClick: (Album) -> Unit,
 ) {
-    AlbumCover(
-        album,
-        Modifier
-            .size(cardSize)
-            .dragAndDropSource { _ -> album.album.toDragAndDrop() }
-            .pointerInput(Unit) {
-                awaitEachGesture {
-                    awaitFirstDown()
-                    withTimeoutOrNull(300) { waitForUpOrCancellation() }?.let {
-                        onAlbumClick(album.album)
+    var menuExpanded by remember(album.album.id) { mutableStateOf(false) }
+    // Как у категорий: меню всегда; переименование — не для системных категорий
+    val canRename = album.album.userCreated || !album.category.isSystem()
+    val haptic = LocalHapticFeedback.current
+    val density = LocalDensity.current
+    val moveThreshold = with(density) { CATEGORY_MOVE_THRESHOLD.toPx() }
+
+    Box {
+        AlbumCover(
+            album,
+            Modifier
+                .size(cardSize)
+                .dragAndDropSource(
+                    block = {
+                        var transferred = false
+                        var dragDistance = 0f
+                        detectDragGesturesAfterLongPress(
+                            onDragStart = {
+                                transferred = false
+                                dragDistance = 0f
+                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                            },
+                            onDrag = { change, amount ->
+                                change.consume()
+                                dragDistance += abs(amount.x) + abs(amount.y)
+                                if (!transferred && dragDistance > moveThreshold) {
+                                    transferred = true
+                                    startTransfer(album.album.toDragAndDrop())
+                                }
+                            },
+                            onDragEnd = {
+                                if (!transferred) menuExpanded = true
+                            },
+                            onDragCancel = {
+                                if (!transferred) menuExpanded = true
+                            }
+                        )
                     }
+                )
+                .pointerInput(album.album.id) {
+                    detectTapGestures(onTap = { onAlbumClick(album.album) })
                 }
-            }
-    )
+        )
+
+        FloatingDropdownMenu(
+            expanded = menuExpanded,
+            onDismissRequest = { menuExpanded = false }
+        ) {
+            FloatingMenuItem(
+                text = stringResource(R.string.rename),
+                enabled = canRename,
+                onClick = {
+                    menuExpanded = false
+                    onRenameClick(album.album)
+                }
+            )
+        }
+    }
 }
 
 @Composable
