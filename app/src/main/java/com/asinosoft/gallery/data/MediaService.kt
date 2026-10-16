@@ -1,5 +1,6 @@
 package com.asinosoft.gallery.data
 
+import android.content.ClipData
 import android.content.Context
 import android.content.Intent
 import android.os.Build
@@ -46,7 +47,7 @@ class MediaService @Inject constructor(
         }
 
         CoroutineScope(Dispatchers.IO).launch {
-            ThumbnailCache.preload(context, mediaId, media.uri)
+            ThumbnailCache.preload(context, mediaId, media.uri, isVideo = media.video != null)
         }
     }
 
@@ -84,30 +85,45 @@ class MediaService @Inject constructor(
     }
 
     suspend fun share(mediaIds: Collection<Long>, context: Context) {
-        val uris = withContext(Dispatchers.IO) { mediaDao.getUris(mediaIds) }
+        val media = withContext(Dispatchers.IO) { mediaDao.getByIds(mediaIds) }
+        val items = media.mapNotNull { item -> item.uri?.let { it to item.mimeType } }
+        if (items.isEmpty()) return
+
+        val uris = items.map { it.first }
+        val type = shareMimeType(items.map { it.second })
         val send =
             if (1 == uris.size) {
-                Intent().apply {
-                    action = Intent.ACTION_SEND
-                    type = "image/jpeg"
+                Intent(Intent.ACTION_SEND).apply {
+                    this.type = type
                     putExtra(Intent.EXTRA_STREAM, uris.first())
                     addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                    clipData = ClipData.newUri(context.contentResolver, null, uris.first())
                 }
             } else {
-                Intent().apply {
-                    action = Intent.ACTION_SEND_MULTIPLE
-                    type = "image/jpeg"
-
-                    putParcelableArrayListExtra(
-                        Intent.EXTRA_STREAM,
-                        uris.toCollection(ArrayList())
-                    )
+                Intent(Intent.ACTION_SEND_MULTIPLE).apply {
+                    this.type = type
+                    putParcelableArrayListExtra(Intent.EXTRA_STREAM, ArrayList(uris))
                     addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                    clipData =
+                        ClipData.newUri(context.contentResolver, null, uris.first()).also { clip ->
+                            uris.drop(1).forEach { clip.addItem(ClipData.Item(it)) }
+                        }
                 }
             }
-        val chooser = Intent.createChooser(send, null)
-        chooser.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        val chooser = Intent.createChooser(send, null).apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
         context.startActivity(chooser)
+    }
+
+    private fun shareMimeType(mimeTypes: List<String>): String {
+        val types = mimeTypes.map { it.ifBlank { "*/*" } }.distinct()
+        return when {
+            types.size == 1 -> types.first()
+            types.all { it.startsWith("image/") } -> "image/*"
+            types.all { it.startsWith("video/") } -> "video/*"
+            else -> "*/*"
+        }
     }
 
     suspend fun setFavorite(mediaIds: Collection<Long>, favorite: Boolean) {
@@ -216,6 +232,7 @@ class MediaService @Inject constructor(
     suspend fun update(provider: StorageProvider) = withContext(Dispatchers.IO) {
         Log.i("MediaService", "update: ${provider.storage}")
         val updated = mutableSetOf<Long>()
+        val toPreload = mutableListOf<ThumbnailCache.Request>()
         messengerAlbums.migrateOnce()
         provider.fetchAll().chunked(500).collect { fetched ->
             val media = mediaDao.getMediaByStorageItemIds(
@@ -272,13 +289,17 @@ class MediaService @Inject constructor(
 
                 updated += validMediaIds
 
-                CoroutineScope(Dispatchers.IO).launch {
-                    val batch = toInsert.mapIndexedNotNull { index, media ->
-                        val rawId = rawMediaIds[index]
-                        val realId = if (rawId > 0) rawId else mediaDao.getMediaId(media.storageId, media.storageItemId) ?: -1L
-                        if (realId > 0) realId to media.uri else null
-                    }
-                    ThumbnailCache.preloadBatch(context, batch)
+                toPreload += toInsert.mapIndexedNotNull { index, media ->
+                    val rawId = rawMediaIds[index]
+                    val realId = if (rawId > 0) rawId else mediaDao.getMediaId(
+                        media.storageId,
+                        media.storageItemId
+                    ) ?: -1L
+                    if (realId > 0) ThumbnailCache.Request(
+                        realId,
+                        media.uri,
+                        media.video != null
+                    ) else null
                 }
             }
         }
@@ -286,24 +307,36 @@ class MediaService @Inject constructor(
         mediaDao.deleteAllExcept(provider.storage.id, updated)
         repairFolderAlbumsOnce(provider.storage.id)
         mergeDuplicateAlbumsOnce()
-        resetVideoThumbnailsOnce()
+        toPreload += resetVideoThumbnailsOnce()
         albumDao.deleteEmptyAlbums()
+
+        if (toPreload.isNotEmpty()) {
+            CoroutineScope(Dispatchers.IO).launch {
+                ThumbnailCache.preloadBatch(
+                    context,
+                    toPreload
+                )
+            }
+        }
     }
 
     /**
-     * Системные миниатюры видео берут кадр из середины ролика, а просмотр
-     * начинается с первого кадра. Удаляем их, чтобы пересоздать по первому кадру.
+     * Миниатюры видео пересоздаются по первому кадру, с которого начинается просмотр,
+     * и заполняют квадрат клетки, а не вписываются в него: вертикальное видео — 360×640, а не 202×360.
      */
-    private suspend fun resetVideoThumbnailsOnce() {
-        if (prefs.getBoolean(KEY_VIDEO_THUMBNAILS_RESET, false)) return
+    private suspend fun resetVideoThumbnailsOnce(): List<ThumbnailCache.Request> {
+        if (prefs.getBoolean(KEY_VIDEO_THUMBNAILS_RESET, false)) return emptyList()
 
         val memoryCache = SingletonImageLoader.get(context).memoryCache
-        mediaDao.getVideoIds().forEach { id ->
+        val videos = mediaDao.getVideoUris()
+        videos.forEach { (id, _) ->
             ThumbnailCache.getFile(context, id).delete()
             memoryCache?.remove(MemoryCache.Key("media-$id"))
         }
 
         prefs.edit { putBoolean(KEY_VIDEO_THUMBNAILS_RESET, true) }
+
+        return videos.map { ThumbnailCache.Request(it.id, it.uri, isVideo = true) }
     }
 
     /**
@@ -349,6 +382,6 @@ class MediaService @Inject constructor(
         const val PREFS_NAME = "media_service"
         const val KEY_ALBUMS_REPAIRED = "albums_repaired_"
         const val KEY_DUPLICATES_MERGED = "duplicates_merged"
-        const val KEY_VIDEO_THUMBNAILS_RESET = "video_thumbnails_reset"
+        const val KEY_VIDEO_THUMBNAILS_RESET = "video_thumbnails_reset_fill"
     }
 }

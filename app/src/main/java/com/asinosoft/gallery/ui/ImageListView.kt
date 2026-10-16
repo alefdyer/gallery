@@ -17,7 +17,6 @@ import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.awaitHorizontalTouchSlopOrCancellation
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.horizontalDrag
-import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -267,35 +266,14 @@ fun ImageListView(
     }
 
     val density = LocalDensity.current
-    val visibleTop = with(density) {
-        (WindowInsets.statusBars.asPaddingValues().calculateTopPadding() +
-            TOP_PANEL_MARGIN + TOP_PANEL_HEIGHT).toPx()
-    }
-    val visibleBottom = with(density) {
-        maxOf(contentPadding.calculateBottomPadding(), bottomPanelHeight).toPx()
-    }
     val window = LocalWindowInfo.current.containerSize
     val nearItemsCount = remember(window.height, window.width) {
         val visibleRows =
             window.height * GRID_COLUMNS / window.width + 1
         (visibleRows + NEAR_ROWS_BELOW) * GRID_COLUMNS
     }
-    LaunchedEffect(returnMediaId, images) {
-        val index = images.indexOfFirst { it.id == returnMediaId }
-        if (index < 0) return@LaunchedEffect
-        val visibleRows =
-            (window.height * GRID_COLUMNS / window.width).coerceAtLeast(
-                1
-            )
-        val first = lazyGridState.firstVisibleItemIndex
-        if (index !in first until first + (visibleRows - 1) * GRID_COLUMNS) {
-            lazyGridState.requestScrollToItem(
-                (index - visibleRows / 2 * GRID_COLUMNS).coerceAtLeast(
-                    0
-                )
-            )
-        }
-    }
+    // Список не двигаем, если ячейка уже на экране (даже под панелями) —
+    // иначе после закрытия просмотра сетка «прыгает» вверх/вниз.
     LaunchedEffect(returnMediaId, images) {
         val mediaId = returnMediaId ?: return@LaunchedEffect
         val index = images.indexOfFirst { it.id == mediaId }
@@ -305,20 +283,8 @@ fun ImageListView(
         }
 
         val layout = snapshotFlow { lazyGridState.layoutInfo }.first { it.totalItemsCount > 0 }
-        val viewportHeight = layout.viewportSize.height
-        val fullyVisible = layout.visibleItemsInfo.firstOrNull { it.index == index }?.let { item ->
-            val itemTop = item.offset.y - layout.viewportStartOffset
-            itemTop >= visibleTop && itemTop + item.size.height <= viewportHeight - visibleBottom
-        } ?: false
-
-        if (!fullyVisible) {
+        if (layout.visibleItemsInfo.none { it.index == index }) {
             lazyGridState.scrollToItem(index)
-            val updated = lazyGridState.layoutInfo
-            updated.visibleItemsInfo.firstOrNull { it.index == index }?.let { scrolled ->
-                val top = scrolled.offset.y - updated.viewportStartOffset
-                val centeredTop = (visibleTop + viewportHeight - visibleBottom - scrolled.size.height) / 2
-                lazyGridState.scrollBy(top - centeredTop)
-            }
         }
         onReturnHandled()
     }

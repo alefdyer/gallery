@@ -137,7 +137,7 @@ fun PagerView(
         pendingFavorite = null
         if (Activity.RESULT_OK == result.resultCode) {
             model.setFavorite(media, favorite)
-            if (model.favoritesOnly && !favorite && 1 == items.size) onClose()
+            if (model.favoritesOnly && !favorite) onClose()
         }
     }
 
@@ -162,7 +162,7 @@ fun PagerView(
                 if (null != request) {
                     pendingFavorite = media to favorite
                     favoriteLauncher.launch(IntentSenderRequest.Builder(request).build())
-                } else if (model.favoritesOnly && !favorite && 1 == items.size) {
+                } else if (model.favoritesOnly && !favorite) {
                     onClose()
                 }
             },

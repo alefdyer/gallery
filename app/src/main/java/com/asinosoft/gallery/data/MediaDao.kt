@@ -7,6 +7,8 @@ import androidx.room.Upsert
 import com.asinosoft.gallery.data.storage.MediaStatistics
 import kotlinx.coroutines.flow.Flow
 
+data class MediaUri(val id: Long, val uri: Uri)
+
 @Dao
 interface MediaDao {
     @Query("SELECT * FROM media WHERE storageId=:storageId ORDER BY date DESC, time DESC")
@@ -39,8 +41,8 @@ interface MediaDao {
     @Query("SELECT COUNT(video) AS videoCount, COUNT(CASE WHEN video IS NULL THEN 1 ELSE NULL END) AS photoCount FROM media WHERE storageId = :storageId")
     suspend fun getStorageStatistics(storageId: Long): MediaStatistics
 
-    @Query("SELECT id FROM media WHERE video IS NOT NULL")
-    suspend fun getVideoIds(): List<Long>
+    @Query("SELECT id, uri FROM media WHERE video IS NOT NULL")
+    suspend fun getVideoUris(): List<MediaUri>
 
     @Query("SELECT uri FROM media WHERE id = :mediaId")
     fun getUri(mediaId: Long): Uri
