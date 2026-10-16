@@ -13,6 +13,7 @@ import com.asinosoft.gallery.data.Media
 import com.asinosoft.gallery.data.MediaDao
 import com.asinosoft.gallery.data.MediaService
 import com.asinosoft.gallery.data.launchAndCatch
+import com.asinosoft.gallery.data.storage.MediaStatistics
 import com.asinosoft.gallery.data.storage.StorageDao
 import com.asinosoft.gallery.data.storage.StorageProviderRegistry
 import com.asinosoft.gallery.data.storage.StorageService
@@ -31,6 +32,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
+import androidx.core.content.edit
 
 data class DateFilter(
     val year: Int? = null,
@@ -107,7 +109,7 @@ class ImageListViewModel @Inject constructor(
     val hasMedia: StateFlow<Boolean> = allImages.map { it.isNotEmpty() }
         .stateIn(viewModelScope, SharingStarted.Eagerly, false)
 
-    private val applications = MutableStateFlow<List<Application>>(listOf())
+    private val applications = MutableStateFlow<Map<Application?, MediaStatistics>>(mapOf())
     private val activeFilters = MutableStateFlow<Set<String>>(setOf())
 
     val activeFilterPackages: StateFlow<Set<String>> = activeFilters
@@ -154,8 +156,8 @@ class ImageListViewModel @Inject constructor(
             (dateFilter?.year == null || image.date.year == dateFilter.year) &&
                     (dateFilter?.month == null || image.date.monthValue == dateFilter.month) &&
                     (dateFilter?.day == null || image.date.dayOfMonth == dateFilter.day)
-        }.map { it.owner }.toSet()
-        filters.filter { apps.contains(it.application.pkg) }
+        }.groupingBy { it.owner }.eachCount()
+        filters.filter { apps.contains(it.application.pkg) }.sortedByDescending { it.statistics }
     }.flowOn(Dispatchers.Default)
 
     // Группировка: Year -> Month -> Day -> List<Int>
@@ -189,23 +191,35 @@ class ImageListViewModel @Inject constructor(
             }
 
 
-            var lastOwners: List<String>? = null
+            var lastOwners: Map<String?, MediaStatistics>? = null
             allImages.collect { images ->
                 val ownersInOrder = withContext(Dispatchers.Default) {
-                    images.mapNotNull { it.owner }.distinct()
+                    images.groupingBy { it.owner }.fold(MediaStatistics()) { c, media ->
+                        MediaStatistics(
+                            c.photoCount + if (media.image != null) 1 else 0,
+                            c.videoCount + if (media.video != null) 1 else 0
+                        )
+                    }
                 }
                 if (ownersInOrder != lastOwners) {
                     lastOwners = ownersInOrder
-                    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                        val fetchedApps = applicationDao.getApplications(ownersInOrder.toSet())
+                    withContext(Dispatchers.IO) {
+                        val fetchedApps = applicationDao.getApplications(
+                            ownersInOrder.keys.filterNotNull().toSet()
+                        )
                             .associateBy { it.pkg }
-                        applications.value = ownersInOrder.mapNotNull { fetchedApps[it] }
+                        applications.value = lastOwners.mapKeys { fetchedApps[it.key] }
                         allFilters.emit(
-                            applications.value.map {
-                                Filter(
-                                    it,
-                                    activeFilters.value.isEmpty() or activeFilters.value.contains(it.pkg)
-                                )
+                            applications.value.mapNotNull { (app, count) ->
+                                app?.let {
+                                    Filter(
+                                        application = app,
+                                        statistics = count,
+                                        enabled = activeFilters.value.isEmpty() or activeFilters.value.contains(
+                                            app.pkg
+                                        )
+                                    )
+                                }
                             }
                         )
                     }
@@ -223,7 +237,7 @@ class ImageListViewModel @Inject constructor(
     }
 
     fun setFilterEnabled(filter: Filter, enabled: Boolean) = viewModelScope.launch {
-        val all = applications.value.map { it.pkg }.toSet()
+        val all = applications.value.keys.mapNotNull { it?.pkg }.toSet()
         val current = activeFilters.value.ifEmpty { all } - NO_APPS
         val updated = if (enabled) {
             current + filter.application.pkg
@@ -242,8 +256,10 @@ class ImageListViewModel @Inject constructor(
     private suspend fun applyActiveFilters(newFilters: Set<String>) {
         activeFilters.emit(newFilters)
         allFilters.emit(
-            applications.value.map {
-                Filter(it, newFilters.isEmpty() || newFilters.contains(it.pkg))
+            applications.value.mapNotNull { (app, count) ->
+                app?.let {
+                    Filter(app, count, newFilters.isEmpty() || newFilters.contains(it.pkg))
+                }
             }
         )
     }
@@ -293,7 +309,12 @@ class ImageListViewModel @Inject constructor(
             .filter { owners.isEmpty() || owners.contains(it.owner) }
             .map {
                 when {
-                    null != filter.day -> DateFilter(it.date.year, it.date.monthValue, it.date.dayOfMonth)
+                    null != filter.day -> DateFilter(
+                        it.date.year,
+                        it.date.monthValue,
+                        it.date.dayOfMonth
+                    )
+
                     null != filter.month -> DateFilter(it.date.year, it.date.monthValue)
                     else -> DateFilter(it.date.year)
                 }
@@ -324,9 +345,9 @@ class ImageListViewModel @Inject constructor(
         setDateFilter(filter)
         val recent = (listOf(filter) + recentDateFilters().filter { it != filter })
             .take(MAX_RECENT_DATES)
-        recentDatesPrefs.edit()
-            .putString(RECENT_DATES_KEY, recent.joinToString(","))
-            .apply()
+        recentDatesPrefs.edit {
+            putString(RECENT_DATES_KEY, recent.joinToString(","))
+        }
     }
 
     private val recentDatesPrefs
@@ -341,11 +362,10 @@ class ImageListViewModel @Inject constructor(
         }
         activeFilters.emit(newFilters)
         allFilters.emit(
-            applications.value.map {
-                Filter(
-                    it,
-                    activeFilters.value.isEmpty() or newFilters.contains(it.pkg)
-                )
+            applications.value.mapNotNull { (app, count) ->
+                app?.let {
+                    Filter(app, count, activeFilters.value.isEmpty() or newFilters.contains(it.pkg))
+                }
             }
         )
     }

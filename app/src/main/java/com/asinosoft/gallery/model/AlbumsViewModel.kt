@@ -16,7 +16,7 @@ import com.asinosoft.gallery.data.Media
 import com.asinosoft.gallery.data.MediaDao
 import com.asinosoft.gallery.data.storage.Storage
 import com.asinosoft.gallery.data.storage.StorageDao
-import com.asinosoft.gallery.data.storage.StorageStatistics
+import com.asinosoft.gallery.data.storage.MediaStatistics
 import com.asinosoft.gallery.data.storage.StorageType
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -31,7 +31,7 @@ import javax.inject.Inject
 
 data class StorageInfo(
     val storage: Storage,
-    val statistics: StorageStatistics,
+    val statistics: MediaStatistics,
     val cover: Media?,
 )
 

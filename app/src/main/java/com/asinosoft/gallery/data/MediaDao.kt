@@ -4,7 +4,7 @@ import android.net.Uri
 import androidx.room.Dao
 import androidx.room.Query
 import androidx.room.Upsert
-import com.asinosoft.gallery.data.storage.StorageStatistics
+import com.asinosoft.gallery.data.storage.MediaStatistics
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -37,7 +37,7 @@ interface MediaDao {
     fun observeMediaCount(): Flow<Int>
 
     @Query("SELECT COUNT(video) AS videoCount, COUNT(CASE WHEN video IS NULL THEN 1 ELSE NULL END) AS photoCount FROM media WHERE storageId = :storageId")
-    suspend fun getStorageStatistics(storageId: Long): StorageStatistics
+    suspend fun getStorageStatistics(storageId: Long): MediaStatistics
 
     @Query("SELECT id FROM media WHERE video IS NOT NULL")
     suspend fun getVideoIds(): List<Long>

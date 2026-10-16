@@ -1,5 +1,6 @@
 package com.asinosoft.gallery.ui.component
 
+import androidx.annotation.DrawableRes
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
@@ -49,6 +50,7 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.graphics.drawable.toBitmap
@@ -319,9 +321,34 @@ private fun AppsFilterItem(
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f)
         )
+        Counter(R.drawable.photo, filter.statistics.photoCount)
+        Counter(R.drawable.videocam, filter.statistics.videoCount)
         Switch(
             checked = filter.enabled,
             onCheckedChange = { onToggle(filter, it) }
+        )
+    }
+}
+
+@Composable
+fun Counter(
+    @DrawableRes icon: Int,
+    count: Int,
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(2.dp),
+        modifier = Modifier.alpha(if (count > 0) 0.5f else 0.05f)
+    ) {
+        Icon(
+            painter = painterResource(icon),
+            contentDescription = null,
+            modifier = Modifier.size(16.dp)
+        )
+        Text(
+            text = "$count",
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = FontWeight.SemiBold,
         )
     }
 }
