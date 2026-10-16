@@ -37,6 +37,7 @@ import androidx.compose.runtime.snapshots.SnapshotStateSet
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -72,6 +73,7 @@ fun DateFilterDialog(
     }
     val monthNames = rememberMonthNames(DateFormatSymbols.STANDALONE, DateFormatSymbols.WIDE)
     val formatMonthNames = rememberMonthNames(DateFormatSymbols.FORMAT, DateFormatSymbols.WIDE)
+    val density = LocalDensity.current
 
     LaunchedEffect(selectedDate, yearGroups) {
         if (restorePosition || selectedDate == null || yearGroups.isEmpty()) return@LaunchedEffect
@@ -95,7 +97,9 @@ fun DateFilterDialog(
             }
         }
 
-        listState.scrollToItem(selectedIndex)
+        // Keep selected date below the floating header so it's easy to see
+        val offsetPx = with(density) { SELECTED_DATE_SCROLL_OFFSET.roundToPx() }
+        listState.scrollToItem(selectedIndex, -offsetPx)
     }
 
     Dialog(
@@ -252,6 +256,7 @@ fun DateFilterDialog(
 }
 
 private val HEADER_HEIGHT = 48.dp
+private val SELECTED_DATE_SCROLL_OFFSET = 120.dp
 
 private fun DateFilter.existsIn(yearGroups: Map<Int, Map<Int, Map<Int, Int>>>): Boolean {
     val monthGroups = yearGroups[year ?: return false] ?: return false
