@@ -98,6 +98,8 @@ import com.asinosoft.gallery.ui.component.ScrollToTopButton
 import com.asinosoft.gallery.ui.component.SelectionControlBar
 import com.asinosoft.gallery.ui.component.SelectionInfoBar
 import com.asinosoft.gallery.ui.component.dragSelection
+import com.asinosoft.gallery.ui.component.pinchGridColumns
+import com.asinosoft.gallery.ui.component.rememberGridColumns
 import com.asinosoft.gallery.ui.component.rememberTrashIntro
 import com.asinosoft.gallery.ui.component.rememberVideoPreviewQueue
 import kotlinx.coroutines.delay
@@ -267,10 +269,11 @@ fun ImageListView(
 
     val density = LocalDensity.current
     val window = LocalWindowInfo.current.containerSize
-    val nearItemsCount = remember(window.height, window.width) {
+    val gridColumns = rememberGridColumns()
+    val nearItemsCount = remember(window.height, window.width, gridColumns) {
         val visibleRows =
-            window.height * GRID_COLUMNS / window.width + 1
-        (visibleRows + NEAR_ROWS_BELOW) * GRID_COLUMNS
+            window.height * gridColumns / window.width + 1
+        (visibleRows + NEAR_ROWS_BELOW) * gridColumns
     }
     // Список не двигаем, если ячейка уже на экране (даже под панелями) —
     // иначе после закрытия просмотра сетка «прыгает» вверх/вниз.
@@ -370,6 +373,7 @@ fun ImageListView(
             }
     ) {
         val gap = 2.dp
+        // Шапка всегда как при 3 столбцах, сетка ниже может быть 1…6
         val rowHeight = (maxWidth - gap * 2) / 3
         val headerHeight = contentPadding.calculateTopPadding() + rowHeight
         val gridPadding = if (null == cover) contentPadding else PaddingValues(
@@ -400,6 +404,7 @@ fun ImageListView(
                 title = dateFilterTitle(target) ?: listTitle,
                 showPhotos = showPhotos,
                 showVideos = showVideos,
+                columns = gridColumns,
                 headerHeight = headerHeight,
                 contentPadding = gridPadding,
                 modifier = Modifier
@@ -417,6 +422,7 @@ fun ImageListView(
                 title = target.name,
                 showPhotos = true,
                 showVideos = true,
+                columns = gridColumns,
                 headerHeight = headerHeight,
                 contentPadding = gridPadding,
                 modifier = Modifier
@@ -431,13 +437,14 @@ fun ImageListView(
 
         LazyVerticalGrid(
             state = lazyGridState,
-            columns = GridCells.Fixed(3),
+            columns = GridCells.Fixed(gridColumns),
             horizontalArrangement = Arrangement.spacedBy(2.dp),
             verticalArrangement = Arrangement.spacedBy(2.dp),
             contentPadding = gridPadding,
             modifier = Modifier
                 .graphicsLayer { translationX = swipeOffset.value }
                 .nestedScroll(nestedScrollConnection)
+                .pinchGridColumns(images, lazyGridState, gridColumns)
                 .dragSelection(
                     items = images,
                     state = lazyGridState,
@@ -651,8 +658,6 @@ fun ImageListView(
 private class PendingFlag(var pending: Boolean = false)
 
 private const val SCROLL_TO_TOP_JUMP = 30
-private const val GRID_COLUMNS = 3
-
 /** Ряды под экраном, которые строятся полностью: сюда попадает обычная предзагрузка сетки */
 private const val NEAR_ROWS_BELOW = 2
 private val DATE_SWIPE_THRESHOLD = 80.dp
@@ -676,6 +681,7 @@ private fun DatePreviewPage(
     title: String,
     showPhotos: Boolean,
     showVideos: Boolean,
+    columns: Int,
     headerHeight: Dp,
     contentPadding: PaddingValues,
     modifier: Modifier = Modifier
@@ -695,7 +701,7 @@ private fun DatePreviewPage(
         }
 
         LazyVerticalGrid(
-            columns = GridCells.Fixed(3),
+            columns = GridCells.Fixed(columns),
             horizontalArrangement = Arrangement.spacedBy(2.dp),
             verticalArrangement = Arrangement.spacedBy(2.dp),
             contentPadding = contentPadding,

@@ -89,11 +89,12 @@ import com.asinosoft.gallery.ui.component.SHARED_ELEMENT_MS
 import com.asinosoft.gallery.ui.component.SelectionInfoBar
 import com.asinosoft.gallery.ui.component.dragSelection
 import com.asinosoft.gallery.ui.component.dragToDismiss
+import com.asinosoft.gallery.ui.component.pinchGridColumns
+import com.asinosoft.gallery.ui.component.rememberGridColumns
 import com.asinosoft.gallery.ui.component.rememberVideoPreviewQueue
 import com.asinosoft.gallery.ui.theme.floatingPanelColor
 
 private val HEADER_TOP = 36.dp
-private const val GRID_COLUMNS = 3
 
 @Composable
 fun PrivateAlbumView(
@@ -185,9 +186,10 @@ private fun MediaFolderContent(
         )
     }
 
+    val gridColumns = rememberGridColumns()
     val closePager = { page: Int ->
         if (lazyGridState.layoutInfo.visibleItemsInfo.none { it.index == page }) {
-            lazyGridState.requestScrollToItem((page - GRID_COLUMNS).coerceAtLeast(0))
+            lazyGridState.requestScrollToItem((page - gridColumns).coerceAtLeast(0))
         }
         pagerMediaId = items.getOrNull(page)?.id
         pagerOpen = false
@@ -202,6 +204,7 @@ private fun MediaFolderContent(
         val gap = 2.dp
         val topPadding = HEADER_TOP + WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
         val bottomPadding = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+        // Шапка всегда как при 3 столбцах, сетка ниже может быть 1…6
         val headerHeight = topPadding + (maxWidth - gap * 2) / 3
         val headerModifier = Modifier
             .fillMaxWidth()
@@ -221,12 +224,13 @@ private fun MediaFolderContent(
         val gridPadding = PaddingValues(top = headerHeight + gap, bottom = bottomPadding)
         LazyVerticalGrid(
             state = lazyGridState,
-            columns = GridCells.Fixed(3),
+            columns = GridCells.Fixed(gridColumns),
             contentPadding = gridPadding,
             horizontalArrangement = Arrangement.spacedBy(gap),
             verticalArrangement = Arrangement.spacedBy(gap),
             modifier = Modifier
                 .fillMaxSize()
+                .pinchGridColumns(items, lazyGridState, gridColumns)
                 .dragSelection(
                     items = items,
                     state = lazyGridState,
