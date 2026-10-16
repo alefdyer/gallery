@@ -40,43 +40,49 @@ fun SelectionControlBar(
         color = floatingPanelColor()
     ) {
         Row(
-            modifier = Modifier.padding(8.dp),
+            modifier = Modifier.padding(horizontal = 4.dp, vertical = 8.dp),
             horizontalArrangement = Arrangement.SpaceEvenly
         ) {
             LabeledIconButton(
                 label = stringResource(R.string.add_to_album),
                 icon = painterResource(R.drawable.playlist_add),
-                onClick = { onAddTag() }
+                onClick = { onAddTag() },
+                modifier = Modifier.weight(1f)
             )
-            if (onRemoveTag != null) {
-                LabeledIconButton(
-                    label = stringResource(R.string.remove_from_album),
-                    icon = painterResource(R.drawable.playlist_remove),
-                    onClick = { onRemoveTag() }
-                )
-            }
             LabeledIconButton(
                 label = stringResource(R.string.share),
                 icon = painterResource(R.drawable.share),
-                onClick = { onShare() }
+                onClick = { onShare() },
+                modifier = Modifier.weight(1f)
             )
             LabeledIconButton(
                 label = stringResource(R.string.delete),
                 icon = painterResource(R.drawable.delete),
-                onClick = { onDelete() }
+                onClick = { onDelete() },
+                modifier = Modifier.weight(1f)
             )
-            Box {
+            Box(modifier = Modifier.weight(1f)) {
                 var showOptions by remember { mutableStateOf(false) }
                 LabeledIconButton(
                     label = stringResource(R.string.options),
                     icon = painterResource(R.drawable.more_vert),
-                    onClick = { showOptions = true }
+                    onClick = { showOptions = true },
+                    modifier = Modifier.fillMaxWidth()
                 )
                 FloatingDropdownMenu(
                     expanded = showOptions,
                     onDismissRequest = { showOptions = false },
                     offset = DpOffset(0.dp, (-8).dp)
                 ) {
+                    if (onRemoveTag != null) {
+                        FloatingMenuItem(
+                            text = stringResource(R.string.remove_from_album),
+                            onClick = {
+                                showOptions = false
+                                onRemoveTag()
+                            }
+                        )
+                    }
                     FloatingMenuItem(
                         text = stringResource(R.string.add_to_favorites),
                         onClick = {
