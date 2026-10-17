@@ -30,8 +30,6 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -98,6 +96,7 @@ import com.google.gson.Gson
 import kotlinx.coroutines.launch
 import kotlin.math.abs
 import kotlin.math.sign
+import kotlin.time.Duration.Companion.milliseconds
 
 @Composable
 fun AlbumListView(
@@ -121,14 +120,14 @@ fun AlbumListView(
     val categoryTip = rememberFeatureTip(
         key = TIP_ALBUM_CATEGORY,
         enabled = categories.isNotEmpty(),
-        delayMs = 700L
+        delay = 700.milliseconds
     )
     val albumDragTip = rememberFeatureTip(
         key = TIP_ALBUM_DRAG,
         enabled = categories.isNotEmpty() &&
                 !categoryTip.visible &&
                 isTipSeen(tipContext, TIP_ALBUM_CATEGORY),
-        delayMs = 300L
+        delay = 300.milliseconds
     )
 
     val haptic = LocalHapticFeedback.current
@@ -373,7 +372,10 @@ fun AlbumListView(
                     },
                     onAlbumRenameClick = { album -> renamingAlbum = album },
                     onDragStart = { onCategoryDragStart(id) },
-                    onDrag = ::onCategoryDrag,
+                    onDrag = {
+                        onCategoryDrag(it)
+                        categoryTip.dismiss()
+                    },
                     onDragEnd = ::onCategoryDragEnd,
                     showCategoryTip = isFirstCategory && categoryTip.visible,
                     onCategoryTipDismiss = categoryTip.dismiss,
@@ -568,7 +570,8 @@ private fun AlbumCategoriesRow(
                                         album = album,
                                         cardSize = cardSize,
                                         onAlbumClick = onAlbumClick,
-                                        onRenameClick = onAlbumRenameClick
+                                        onRenameClick = onAlbumRenameClick,
+                                        onDrag = onAlbumDragTipDismiss
                                     )
                                 }
                             }
@@ -592,7 +595,8 @@ private fun AlbumCategoriesRow(
                             album = album,
                             cardSize = cardSize,
                             onAlbumClick = onAlbumClick,
-                            onRenameClick = onAlbumRenameClick
+                            onRenameClick = onAlbumRenameClick,
+                            onDrag = onAlbumDragTipDismiss
                         )
                     }
                 }
@@ -618,6 +622,7 @@ private fun AlbumCard(
     cardSize: Dp,
     onAlbumClick: (Album) -> Unit,
     onRenameClick: (Album) -> Unit,
+    onDrag: () -> Unit,
 ) {
     var menuExpanded by remember(album.album.id) { mutableStateOf(false) }
     // Как у категорий: меню всегда; переименование — не для системных категорий
@@ -648,6 +653,7 @@ private fun AlbumCard(
                                     transferred = true
                                     startTransfer(album.album.toDragAndDrop())
                                 }
+                                onDrag()
                             },
                             onDragEnd = {
                                 if (!transferred) menuExpanded = true

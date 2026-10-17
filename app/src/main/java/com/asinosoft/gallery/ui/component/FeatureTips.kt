@@ -26,6 +26,7 @@ import androidx.core.content.edit
 import com.asinosoft.gallery.R
 import com.asinosoft.gallery.ui.theme.floatingPanelColor
 import kotlinx.coroutines.delay
+import kotlin.time.Duration
 
 const val TIP_PHOTO_DATE = "tip_photo_date"
 const val TIP_PHOTO_COUNTERS = "tip_photo_counters"
@@ -54,18 +55,19 @@ data class FeatureTipState(
 fun rememberFeatureTip(
     key: String,
     enabled: Boolean = true,
-    delayMs: Long = 0L
+    delay: Duration? = null
 ): FeatureTipState {
     val context = LocalContext.current
     var visible by remember(key) { mutableStateOf(false) }
 
-    LaunchedEffect(key, enabled, delayMs) {
+    LaunchedEffect(key, enabled, delay) {
         if (!enabled || isTipSeen(context, key)) {
             visible = false
             return@LaunchedEffect
         }
-        if (delayMs > 0) delay(delayMs)
-        if (enabled && !isTipSeen(context, key)) {
+        delay?.let { delay(it) }
+        // Перепроверяем настройки на случай, если за время задержки человек уже воспользовался рекомендуемой фичей
+        if (!isTipSeen(context, key)) {
             visible = true
         }
     }
@@ -73,8 +75,10 @@ fun rememberFeatureTip(
     return FeatureTipState(
         visible = visible && enabled,
         dismiss = {
-            visible = false
-            markTipSeen(context, key)
+            if (visible) {
+                visible = false
+                markTipSeen(context, key)
+            }
         }
     )
 }
