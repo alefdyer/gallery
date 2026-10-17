@@ -10,6 +10,7 @@ plugins {
     id("com.google.devtools.ksp")
     id("com.google.dagger.hilt.android")
     id("org.jlleitschuh.gradle.ktlint")
+    id("com.google.gms.google-services")
 }
 
 ksp {
@@ -167,6 +168,8 @@ dependencies {
 
     // Google Sign-In / Authorization (Drive App Data backup)
     implementation("com.google.android.gms:play-services-auth:21.5.1")
+    implementation(platform("com.google.firebase:firebase-bom:35.0.2"))
+    implementation("com.google.firebase:firebase-analytics")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.10.2")
 
     // WebDAV

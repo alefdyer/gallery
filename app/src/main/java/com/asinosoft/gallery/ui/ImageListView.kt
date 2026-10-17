@@ -88,6 +88,7 @@ import com.asinosoft.gallery.data.Album
 import com.asinosoft.gallery.data.AlbumCategory
 import com.asinosoft.gallery.data.Media
 import com.asinosoft.gallery.model.DateFilter
+import com.asinosoft.gallery.model.DateFilterSource
 import com.asinosoft.gallery.model.MediaType
 import com.asinosoft.gallery.model.ImageListViewModel
 import com.asinosoft.gallery.model.MediaViewModel
@@ -557,7 +558,10 @@ fun ImageListView(
             listItems = images,
             showDateLabel = null == dateFilter?.day,
             onDateClick = { date ->
-                model.pickDateFilter(DateFilter(date.year, date.monthValue, date.dayOfMonth))
+                model.pickDateFilter(
+                    DateFilter(date.year, date.monthValue, date.dayOfMonth),
+                    DateFilterSource.SLIDER
+                )
             },
             showDateTip = dateTip.visible,
             onDateTipDismiss = dateTip.dismiss,

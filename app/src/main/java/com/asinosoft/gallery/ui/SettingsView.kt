@@ -15,6 +15,7 @@ import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -25,6 +26,8 @@ import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
 import com.asinosoft.gallery.BuildConfig
 import com.asinosoft.gallery.R
+import com.asinosoft.gallery.di.AnalyticsEntryPoint
+import dagger.hilt.android.EntryPointAccessors
 import kotlinx.coroutines.launch
 
 private const val TAB_GALLERY = 0
@@ -40,6 +43,12 @@ fun SettingsView(
     onOpenPrivacy: () -> Unit,
 ) {
     val context = LocalContext.current
+    val analytics = remember(context) {
+        EntryPointAccessors.fromApplication(
+            context.applicationContext,
+            AnalyticsEntryPoint::class.java
+        ).appAnalytics()
+    }
     val scope = rememberCoroutineScope()
     val pagerState = rememberPagerState(pageCount = { TAB_COUNT })
 
@@ -141,6 +150,7 @@ fun SettingsView(
                                     context.getString(R.string.recommend_friends)
                                 )
                             )
+                            analytics.recommendFriends()
                         },
                         onSupport = {
                             context.startActivity(

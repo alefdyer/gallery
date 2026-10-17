@@ -2,6 +2,7 @@ package com.asinosoft.gallery.model
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.asinosoft.gallery.data.AppAnalytics
 import com.asinosoft.gallery.data.launchAndCatch
 import com.asinosoft.gallery.data.storage.Storage
 import com.asinosoft.gallery.data.storage.StorageCheckResult
@@ -16,7 +17,8 @@ import kotlinx.coroutines.flow.stateIn
 @HiltViewModel
 class StoragesViewModel @Inject constructor(
     storageDao: StorageDao,
-    private val storageService: StorageService
+    private val storageService: StorageService,
+    private val analytics: AppAnalytics
 ) : ViewModel() {
     val storages: StateFlow<List<Storage>> = storageDao.getAccounts().stateIn(
         scope = viewModelScope,
@@ -26,6 +28,7 @@ class StoragesViewModel @Inject constructor(
 
     fun addStorage(storage: Storage) = viewModelScope.launchAndCatch {
         storageService.addStorage(storage)
+        analytics.storageAdded(storage.type.name.lowercase())
     }
 
     suspend fun checkStorage(storage: Storage): StorageCheckResult =

@@ -29,6 +29,7 @@ class MediaService @Inject constructor(
     private val messengerAlbums: MessengerAlbums,
     private val privateAlbum: PrivateAlbum,
     private val trash: Trash,
+    private val analytics: AppAnalytics,
     @param:ApplicationContext private val context: Context
 ) {
     private val intentHelper = IntentHelper
@@ -60,6 +61,7 @@ class MediaService @Inject constructor(
             albums.forEach {
                 albumDao.updateAlbumStats(it) }
             callback()
+            if (mediaIds.isNotEmpty()) analytics.mediaDeleted(AppAnalytics.SOURCE_LIBRARY)
         }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             intentHelper.trashRequest(uris, context, trashed = true) { granted ->
@@ -128,6 +130,7 @@ class MediaService @Inject constructor(
 
     suspend fun setFavorite(mediaIds: Collection<Long>, favorite: Boolean) {
         mediaDao.setFavorite(mediaIds, favorite)
+        if (favorite && mediaIds.isNotEmpty()) analytics.favoriteAdded()
     }
 
     /** Для файлов из MediaStore отметку меняет система после подтверждения пользователя */
@@ -136,12 +139,16 @@ class MediaService @Inject constructor(
         mediaDao.setFavorite(other.map { it.id }, favorite)
         if (local.isEmpty() || Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
             mediaDao.setFavorite(local.map { it.id }, favorite)
+            if (favorite && mediaIds.isNotEmpty()) analytics.favoriteAdded()
             callback()
             return
         }
         val request = MediaStore.createFavoriteRequest(context.contentResolver, local.mapNotNull { it.uri }, favorite)
         intentHelper.launch(request.intentSender) { granted ->
-            if (granted) mediaDao.setFavorite(local.map { it.id }, favorite)
+            if (granted) {
+                mediaDao.setFavorite(local.map { it.id }, favorite)
+                if (favorite) analytics.favoriteAdded()
+            }
             callback()
         }
     }
@@ -194,6 +201,7 @@ class MediaService @Inject constructor(
             Album(name = albumName, categoryId = albumCategory.id, userCreated = true)
         )
         addToAlbum(mediaIds, albumId)
+        analytics.albumCreated()
     }
 
     suspend fun addToNewAlbumInNewCategory(
@@ -204,12 +212,14 @@ class MediaService @Inject constructor(
         val categoryName = categoryName.trim()
         require(categoryName.isNotEmpty()) { "Category name must not be empty" }
 
-        val category = albumDao.findCategoryByName(categoryName)
+        val existing = albumDao.findCategoryByName(categoryName)
+        val category = existing
             ?: AlbumCategory(
                 id = albumDao.createCategory(AlbumCategory(name = categoryName)),
                 name = categoryName
             )
         addToNewAlbum(mediaIds, albumName, category)
+        if (existing == null) analytics.categoryCreated()
     }
 
     suspend fun removeFromAlbum(mediaIds: Collection<Long>, albumId: Long) {

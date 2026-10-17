@@ -8,6 +8,7 @@ import androidx.lifecycle.viewModelScope
 import com.asinosoft.gallery.GalleryApp
 import com.asinosoft.gallery.data.Album
 import com.asinosoft.gallery.data.AlbumCategory
+import com.asinosoft.gallery.data.AppAnalytics
 import com.asinosoft.gallery.data.AlbumDao
 import com.asinosoft.gallery.data.AlbumService
 import com.asinosoft.gallery.data.AlbumWithCover
@@ -41,6 +42,7 @@ class AlbumsViewModel @Inject constructor(
     private val albumService: AlbumService,
     private val albumDao: AlbumDao,
     private val mediaDao: MediaDao,
+    private val analytics: AppAnalytics,
     storageDao: StorageDao
 ) : ViewModel() {
     private val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -101,6 +103,7 @@ class AlbumsViewModel @Inject constructor(
         if (newName.isEmpty() || newName == category.name) return@launch
 
         runCatching { albumDao.renameCategory(category.id, newName) }
+            .onSuccess { analytics.categoryRenamed() }
             .onFailure { Log.w(GalleryApp.TAG, "Can't rename category ${category.id}", it) }
     }
 
@@ -113,12 +116,14 @@ class AlbumsViewModel @Inject constructor(
         if (newName.isEmpty() || newName == album.name) return@launch
 
         runCatching { albumDao.renameAlbum(album.id, newName) }
+            .onSuccess { analytics.albumRenamed() }
             .onFailure { Log.w(GalleryApp.TAG, "Can't rename album ${album.id}", it) }
     }
 
     fun setCategoryOrder(ids: List<Long>) {
         categoryOrder.value = ids
         prefs.edit { putString(KEY_ORDER, ids.joinToString(",")) }
+        analytics.categoryMoved()
     }
 
     fun toggleCategoryExpanded(id: Long) {

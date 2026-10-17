@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "894508788187",
+    "project_id": "gallery-42849",
+    "storage_bucket": "gallery-42849.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:894508788187:android:24e5028c88559ee31ddffe",
+        "android_client_info": {
+          "package_name": "com.asinosoft.gallery"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDOUSiwZVNdsZkcK6LV77r7t4rY95KbL2k"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

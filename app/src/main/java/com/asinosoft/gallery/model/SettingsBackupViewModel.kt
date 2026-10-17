@@ -5,6 +5,7 @@ import android.app.PendingIntent
 import androidx.activity.result.ActivityResult
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.asinosoft.gallery.data.AppAnalytics
 import com.asinosoft.gallery.data.backup.GoogleDriveAuthOutcome
 import com.asinosoft.gallery.data.backup.GoogleDriveAuthStart
 import com.asinosoft.gallery.data.backup.SettingsBackupRepository
@@ -54,6 +55,7 @@ data class BackupUiState(
 @HiltViewModel
 class SettingsBackupViewModel @Inject constructor(
     private val repository: SettingsBackupRepository,
+    private val analytics: AppAnalytics,
 ) : ViewModel() {
     private val _state = MutableStateFlow(BackupUiState(connected = repository.isDriveConnected))
     val state: StateFlow<BackupUiState> = _state.asStateFlow()
@@ -93,6 +95,7 @@ class SettingsBackupViewModel @Inject constructor(
                 GoogleDriveAuthOutcome.Success -> {
                     _state.update { it.copy(connected = true) }
                     _events.emit(BackupUiEvent.Connected)
+                    analytics.googleSignedIn()
                 }
 
                 GoogleDriveAuthOutcome.Cancelled ->
@@ -123,6 +126,7 @@ class SettingsBackupViewModel @Inject constructor(
             if (!repository.isDriveConnected) error("not_connected")
             repository.backupToDrive(::reportProgress)
             _events.emit(BackupUiEvent.Saved)
+            analytics.backupSaved()
         }.onFailure {
             _events.emit(BackupUiEvent.Error(it.message ?: "error"))
         }
@@ -146,6 +150,7 @@ class SettingsBackupViewModel @Inject constructor(
             if (!repository.isDriveConnected) error("not_connected")
             val result = repository.restoreFromDrive(::reportProgress)
             _events.emit(BackupUiEvent.Restored(result))
+            analytics.backupRestored()
         }.onFailure {
             _events.emit(BackupUiEvent.Error(it.message ?: "error"))
         }

@@ -8,6 +8,7 @@ import android.os.Looper
 import android.provider.MediaStore
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.asinosoft.gallery.data.AppAnalytics
 import com.asinosoft.gallery.data.MessageBus
 import com.asinosoft.gallery.data.launchAndCatch
 import com.asinosoft.gallery.data.storage.Storage
@@ -24,6 +25,7 @@ import kotlinx.coroutines.flow.first
 class MainViewModel @Inject constructor(
     private val storageDao: StorageDao,
     private val storageService: StorageService,
+    private val analytics: AppAnalytics,
     @param:ApplicationContext private val context: Context
 ) : ViewModel() {
     val messages = MessageBus.messages
@@ -37,6 +39,7 @@ class MainViewModel @Inject constructor(
                 registerContentObserver(storage)
 
                 storageService.fetch(storage)
+                analytics.scanCompleted()
             }
         }
     }

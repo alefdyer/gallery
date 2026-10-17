@@ -5,6 +5,7 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
 import com.asinosoft.gallery.data.Album
 import com.asinosoft.gallery.data.AlbumCategory
+import com.asinosoft.gallery.data.AppAnalytics
 import com.asinosoft.gallery.data.AlbumDao
 import com.asinosoft.gallery.data.Application
 import com.asinosoft.gallery.data.ApplicationDao
@@ -53,6 +54,8 @@ fun String?.toDateFilter() = this?.split("-")?.let {
 
 enum class MediaType { PHOTO, VIDEO }
 
+enum class DateFilterSource { CALENDAR, SLIDER }
+
 fun MediaType?.matches(media: Media) = when (this) {
     null -> true
     MediaType.PHOTO -> null == media.video
@@ -74,6 +77,7 @@ class ImageListViewModel @Inject constructor(
     private val mediaService: MediaService,
     private val storageDao: StorageDao,
     private val storageService: StorageService,
+    private val analytics: AppAnalytics,
     @param:ApplicationContext private val context: Context
 ) : MediaViewModel(storageProviderRegistry) {
     val storageId: Long = state["storageId"] ?: 1
@@ -237,6 +241,7 @@ class ImageListViewModel @Inject constructor(
     }
 
     fun setFilterEnabled(filter: Filter, enabled: Boolean) = viewModelScope.launch {
+        analytics.filterApps()
         val all = applications.value.keys.mapNotNull { it?.pkg }.toSet()
         val current = activeFilters.value.ifEmpty { all } - NO_APPS
         val updated = if (enabled) {
@@ -275,12 +280,14 @@ class ImageListViewModel @Inject constructor(
         val onlyPhotos = showPhotos.value && !showVideos.value
         showPhotos.value = true
         showVideos.value = onlyPhotos
+        analytics.filterCounters()
     }
 
     fun toggleVideos() {
         val onlyVideos = showVideos.value && !showPhotos.value
         showVideos.value = true
         showPhotos.value = onlyVideos
+        analytics.filterCounters()
     }
 
     fun setDateFilter(filter: DateFilter?) {
@@ -341,12 +348,16 @@ class ImageListViewModel @Inject constructor(
             ?.mapNotNull { it.toDateFilter()?.takeIf { filter -> null != filter.year } }
             .orEmpty()
 
-    fun pickDateFilter(filter: DateFilter) {
+    fun pickDateFilter(filter: DateFilter, source: DateFilterSource = DateFilterSource.CALENDAR) {
         setDateFilter(filter)
         val recent = (listOf(filter) + recentDateFilters().filter { it != filter })
             .take(MAX_RECENT_DATES)
         recentDatesPrefs.edit {
             putString(RECENT_DATES_KEY, recent.joinToString(","))
+        }
+        when (source) {
+            DateFilterSource.CALENDAR -> analytics.filterDate()
+            DateFilterSource.SLIDER -> analytics.filterDateSlider()
         }
     }
 
@@ -354,6 +365,7 @@ class ImageListViewModel @Inject constructor(
         get() = context.getSharedPreferences(RECENT_DATES_PREFS, Context.MODE_PRIVATE)
 
     fun toggleFilter(filter: Filter) = viewModelScope.launch {
+        analytics.filterApps()
         val newFilters = activeFilters.value.toMutableSet()
         if (activeFilters.value.contains(filter.application.pkg)) {
             newFilters.remove(filter.application.pkg)
@@ -371,9 +383,11 @@ class ImageListViewModel @Inject constructor(
     }
 
     fun fetch() = viewModelScope.launchAndCatch {
-        storageDao.getAccounts().first().forEach {
+        val storages = storageDao.getAccounts().first()
+        storages.forEach {
             storageService.fetch(it)
         }
+        if (storages.isNotEmpty()) analytics.scanCompleted()
     }
 
     fun clearSelection() {
@@ -419,6 +433,7 @@ class ImageListViewModel @Inject constructor(
             if (null != removeFromAlbumId && removeFromAlbumId != albumId) {
                 mediaService.removeFromAlbum(ids, removeFromAlbumId)
             }
+            if (ids.isNotEmpty()) analytics.albumMediaAdded()
             clearSelection()
         }
 

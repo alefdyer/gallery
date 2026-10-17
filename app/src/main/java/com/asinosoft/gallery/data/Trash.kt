@@ -31,6 +31,7 @@ import javax.inject.Singleton
  */
 @Singleton
 class Trash @Inject constructor(
+    private val analytics: AppAnalytics,
     @param:ApplicationContext private val context: Context
 ) {
     val isSupported = Build.VERSION.SDK_INT >= Build.VERSION_CODES.R
@@ -62,7 +63,10 @@ class Trash @Inject constructor(
     fun delete(items: Collection<Media>) {
         val uris = items.mapNotNull { it.uri }
         if (uris.isEmpty()) return
-        IntentHelper.deleteRequest(uris, context) { refresh() }
+        IntentHelper.deleteRequest(uris, context) { granted ->
+            if (granted) analytics.mediaDeleted(AppAnalytics.SOURCE_TRASH)
+            refresh()
+        }
     }
 
     @RequiresApi(Build.VERSION_CODES.R)
