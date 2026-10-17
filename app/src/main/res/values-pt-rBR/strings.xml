@@ -23,9 +23,9 @@
     <string name="backup_drive_connected">Google Drive conectado</string>
     <string name="backup_drive_auth_cancelled">Login cancelado</string>
     <string name="backup_save">Salvar no Google Drive</string>
-    <string name="backup_save_hint">Categorias, álbuns, favoritos e ordem. Arquivos privados não são enviados.</string>
+    <string name="backup_save_hint">Categorias, Álbuns, Favoritos e ordem. Fotos e vídeos não são enviados.</string>
     <string name="backup_restore">Restaurar do Google Drive</string>
-    <string name="backup_restore_hint">Reconstruir a estrutura de álbuns a partir do último backup</string>
+    <string name="backup_restore_hint">Carregar a estrutura de álbuns a partir do último backup</string>
     <string name="backup_restore_title">Restaurar backup?</string>
     <string name="backup_restore_confirm">A estrutura de álbuns será atualizada a partir do Google Drive. Arquivos ausentes neste dispositivo serão ignorados. O conteúdo da pasta privada não é baixado.</string>
     <string name="backup_saved">Backup salvo no Google Drive</string>

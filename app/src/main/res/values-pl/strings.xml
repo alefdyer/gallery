@@ -23,9 +23,9 @@
     <string name="backup_drive_connected">Google Drive połączony</string>
     <string name="backup_drive_auth_cancelled">Logowanie anulowane</string>
     <string name="backup_save">Zapisz w Google Drive</string>
-    <string name="backup_save_hint">Kategorie, albumy, ulubione i kolejność. Pliki prywatne nie są przesyłane.</string>
+    <string name="backup_save_hint">Kategorie, Albumy, Ulubione i kolejność. Zdjęcia i filmy nie są przesyłane.</string>
     <string name="backup_restore">Przywróć z Google Drive</string>
-    <string name="backup_restore_hint">Odbuduj strukturę albumów z ostatniej kopii</string>
+    <string name="backup_restore_hint">Załaduj strukturę albumów z ostatniej kopii</string>
     <string name="backup_restore_title">Przywrócić kopię?</string>
     <string name="backup_restore_confirm">Struktura albumów zostanie zaktualizowana z Google Drive. Brakujące pliki na tym urządzeniu zostaną pominięte. Zawartość folderu prywatnego nie jest pobierana.</string>
     <string name="backup_saved">Kopia zapisana w Google Drive</string>

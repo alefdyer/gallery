@@ -23,9 +23,9 @@
     <string name="backup_drive_connected">Google Drive に接続しました</string>
     <string name="backup_drive_auth_cancelled">サインインがキャンセルされました</string>
     <string name="backup_save">Google Drive に保存</string>
-    <string name="backup_save_hint">カテゴリ、アルバム、お気に入り、並び順。プライベートファイルはアップロードされません。</string>
+    <string name="backup_save_hint">カテゴリ、アルバム、お気に入り、並び順。写真と動画はアップロードされません。</string>
     <string name="backup_restore">Google Drive から復元</string>
-    <string name="backup_restore_hint">最新のバックアップからアルバム構造を再構築</string>
+    <string name="backup_restore_hint">最新のバックアップからアルバム構造を読み込む</string>
     <string name="backup_restore_title">バックアップを復元しますか？</string>
     <string name="backup_restore_confirm">アルバム構造が Google Drive から更新されます。この端末にないファイルはスキップされます。プライベートフォルダの内容はダウンロードされません。</string>
     <string name="backup_saved">バックアップを Google Drive に保存しました</string>

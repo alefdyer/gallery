@@ -27,8 +27,8 @@ import com.asinosoft.gallery.BuildConfig
 import com.asinosoft.gallery.R
 import kotlinx.coroutines.launch
 
-private const val TAB_NETWORK = 0
-private const val TAB_GALLERY = 1
+private const val TAB_GALLERY = 0
+private const val TAB_NETWORK = 1
 private const val TAB_ABOUT = 2
 private const val TAB_COUNT = 3
 
@@ -37,6 +37,7 @@ private const val TAB_COUNT = 3
 fun SettingsView(
     onClose: () -> Unit,
     onOpenLicenses: () -> Unit,
+    onOpenPrivacy: () -> Unit,
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -67,22 +68,22 @@ fun SettingsView(
                 edgePadding = 12.dp
             ) {
                 Tab(
-                    selected = TAB_NETWORK == pagerState.currentPage,
-                    onClick = { scope.launch { pagerState.animateScrollToPage(TAB_NETWORK) } },
+                    selected = TAB_GALLERY == pagerState.currentPage,
+                    onClick = { scope.launch { pagerState.animateScrollToPage(TAB_GALLERY) } },
                     text = {
                         Text(
-                            text = stringResource(R.string.network),
+                            text = stringResource(R.string.gallery_tab),
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
                     }
                 )
                 Tab(
-                    selected = TAB_GALLERY == pagerState.currentPage,
-                    onClick = { scope.launch { pagerState.animateScrollToPage(TAB_GALLERY) } },
+                    selected = TAB_NETWORK == pagerState.currentPage,
+                    onClick = { scope.launch { pagerState.animateScrollToPage(TAB_NETWORK) } },
                     text = {
                         Text(
-                            text = stringResource(R.string.gallery_tab),
+                            text = stringResource(R.string.network),
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
@@ -108,8 +109,8 @@ fun SettingsView(
             ) { page ->
                 val pageModifier = Modifier.fillMaxSize()
                 when (page) {
-                    TAB_NETWORK -> StoragesView(pageModifier)
                     TAB_GALLERY -> GallerySettingsTab(pageModifier)
+                    TAB_NETWORK -> StoragesView(pageModifier)
                     else -> AboutAppTab(
                         version = "${BuildConfig.VERSION_NAME}.${BuildConfig.VERSION_CODE}",
                         onSayThanks = {
@@ -150,14 +151,7 @@ fun SettingsView(
                             )
                         },
                         onLicenses = onOpenLicenses,
-                        onPrivacy = {
-                            context.startActivity(
-                                Intent(
-                                    Intent.ACTION_VIEW,
-                                    context.getString(R.string.privacy_policy_url).toUri()
-                                )
-                            )
-                        },
+                        onPrivacy = onOpenPrivacy,
                         modifier = pageModifier
                     )
                 }

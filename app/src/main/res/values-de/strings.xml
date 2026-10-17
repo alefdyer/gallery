@@ -23,9 +23,9 @@
     <string name="backup_drive_connected">Google Drive verbunden</string>
     <string name="backup_drive_auth_cancelled">Anmeldung abgebrochen</string>
     <string name="backup_save">In Google Drive speichern</string>
-    <string name="backup_save_hint">Kategorien, Alben, Favoriten und Reihenfolge. Private Dateien werden nicht hochgeladen.</string>
+    <string name="backup_save_hint">Kategorien, Alben, Favoriten und Reihenfolge. Fotos und Videos werden nicht hochgeladen.</string>
     <string name="backup_restore">Aus Google Drive wiederherstellen</string>
-    <string name="backup_restore_hint">Albumstruktur aus der letzten Sicherung neu aufbauen</string>
+    <string name="backup_restore_hint">Albumstruktur aus der letzten Sicherung laden</string>
     <string name="backup_restore_title">Sicherung wiederherstellen?</string>
     <string name="backup_restore_confirm">Die Albumstruktur wird aus Google Drive aktualisiert. Fehlende Dateien auf diesem Gerät werden übersprungen. Inhalte des privaten Ordners werden nicht heruntergeladen.</string>
     <string name="backup_saved">Sicherung in Google Drive gespeichert</string>

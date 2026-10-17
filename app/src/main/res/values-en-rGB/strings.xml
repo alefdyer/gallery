@@ -23,9 +23,9 @@
     <string name="backup_drive_connected">Google Drive connected</string>
     <string name="backup_drive_auth_cancelled">Sign-in cancelled</string>
     <string name="backup_save">Save to Google Drive</string>
-    <string name="backup_save_hint">Categories, albums, favourites and order. Private files are not uploaded.</string>
+    <string name="backup_save_hint">Categories, Albums, Favourites and order. Photos and videos are not uploaded.</string>
     <string name="backup_restore">Restore from Google Drive</string>
-    <string name="backup_restore_hint">Rebuild album structure from the last backup</string>
+    <string name="backup_restore_hint">Load album structure from the last backup</string>
     <string name="backup_restore_title">Restore backup?</string>
     <string name="backup_restore_confirm">Album structure will be updated from Google Drive. Missing files on this device are skipped. Private folder contents are not downloaded.</string>
     <string name="backup_saved">Backup saved to Google Drive</string>

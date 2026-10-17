@@ -23,9 +23,9 @@
     <string name="backup_drive_connected">Google Drive подключён</string>
     <string name="backup_drive_auth_cancelled">Вход отменён</string>
     <string name="backup_save">Сохранить на Google Drive</string>
-    <string name="backup_save_hint">Категории, альбомы, избранное и порядок. Личные файлы не загружаются.</string>
+    <string name="backup_save_hint">Категории, Альбомы, Избранное и порядок. Фото и видео не загружаются.</string>
     <string name="backup_restore">Восстановить из Google Drive</string>
-    <string name="backup_restore_hint">Пересобрать структуру альбомов из последней копии</string>
+    <string name="backup_restore_hint">Загрузить структуру альбомов из последней копии</string>
     <string name="backup_restore_title">Восстановить копию?</string>
     <string name="backup_restore_confirm">Структура альбомов будет обновлена из Google Drive. Отсутствующие на устройстве файлы будут пропущены. Содержимое личной папки не скачивается.</string>
     <string name="backup_saved">Копия сохранена на Google Drive</string>

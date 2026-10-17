@@ -23,9 +23,9 @@
     <string name="backup_drive_connected">Google Drive कनेक्ट हो गया</string>
     <string name="backup_drive_auth_cancelled">साइन-इन रद्द किया गया</string>
     <string name="backup_save">Google Drive पर सहेजें</string>
-    <string name="backup_save_hint">श्रेणियाँ, एल्बम, पसंदीदा और क्रम। निजी फ़ाइलें अपलोड नहीं होतीं।</string>
+    <string name="backup_save_hint">श्रेणियाँ, एल्बम, पसंदीदा और क्रम। फ़ोटो और वीडियो अपलोड नहीं होते।</string>
     <string name="backup_restore">Google Drive से पुनर्स्थापित करें</string>
-    <string name="backup_restore_hint">अंतिम बैकअप से एल्बम संरचना फिर बनाएँ</string>
+    <string name="backup_restore_hint">अंतिम बैकअप से एल्बम संरचना लोड करें</string>
     <string name="backup_restore_title">बैकअप पुनर्स्थापित करें?</string>
     <string name="backup_restore_confirm">एल्बम संरचना Google Drive से अपडेट होगी। इस डिवाइस पर न मिली फ़ाइलें छोड़ दी जाएँगी। निजी फ़ोल्डर की सामग्री डाउनलोड नहीं होती।</string>
     <string name="backup_saved">बैकअप Google Drive पर सहेजा गया</string>

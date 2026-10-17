@@ -23,9 +23,9 @@
     <string name="backup_drive_connected">Google Drive collegato</string>
     <string name="backup_drive_auth_cancelled">Accesso annullato</string>
     <string name="backup_save">Salva su Google Drive</string>
-    <string name="backup_save_hint">Categorie, album, preferiti e ordine. I file privati non vengono caricati.</string>
+    <string name="backup_save_hint">Categorie, Album, Preferiti e ordine. Foto e video non vengono caricati.</string>
     <string name="backup_restore">Ripristina da Google Drive</string>
-    <string name="backup_restore_hint">Ricostruisci la struttura degli album dall\'ultimo backup</string>
+    <string name="backup_restore_hint">Carica la struttura degli album dall\'ultimo backup</string>
     <string name="backup_restore_title">Ripristinare il backup?</string>
     <string name="backup_restore_confirm">La struttura degli album verrà aggiornata da Google Drive. I file mancanti su questo dispositivo verranno saltati. Il contenuto della cartella privata non viene scaricato.</string>
     <string name="backup_saved">Backup salvato su Google Drive</string>

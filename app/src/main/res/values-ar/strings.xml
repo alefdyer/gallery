@@ -23,9 +23,9 @@
     <string name="backup_drive_connected">تم ربط Google Drive</string>
     <string name="backup_drive_auth_cancelled">تم إلغاء تسجيل الدخول</string>
     <string name="backup_save">حفظ في Google Drive</string>
-    <string name="backup_save_hint">الفئات والألبومات والمفضلة والترتيب. لا تُرفع الملفات الخاصة.</string>
+    <string name="backup_save_hint">الفئات والألبومات والمفضلة والترتيب. لا تُرفع الصور ومقاطع الفيديو.</string>
     <string name="backup_restore">استعادة من Google Drive</string>
-    <string name="backup_restore_hint">إعادة بناء بنية الألبومات من آخر نسخة</string>
+    <string name="backup_restore_hint">تحميل بنية الألبومات من آخر نسخة</string>
     <string name="backup_restore_title">استعادة النسخة؟</string>
     <string name="backup_restore_confirm">ستُحدَّث بنية الألبومات من Google Drive. تُتخطى الملفات غير الموجودة على هذا الجهاز. لا يُحمَّل محتوى المجلد الخاص.</string>
     <string name="backup_saved">تم حفظ النسخة في Google Drive</string>
