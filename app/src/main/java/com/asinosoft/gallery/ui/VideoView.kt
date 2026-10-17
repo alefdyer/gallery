@@ -123,8 +123,8 @@ fun VideoView(
     )
 
     /**
-     * Плеер создаётся сразу после первого кадра открытия: видео готовится, пока летит миниатюра,
-     * а запускается только после анимации
+     * ExoPlayer готовится во время анимации открытия.
+     * PlayerView и смена aspectRatio — только после неё, чтобы не дёргать shared element.
      */
     var player by remember(media.id) { mutableStateOf<ExoPlayer?>(null) }
     LaunchedEffect(media.id) {
@@ -230,28 +230,34 @@ fun VideoView(
         }
     }
 
+    // Во время открытия фиксируем пропорции миниатюры — иначе onVideoSizeChanged дергает рамку.
+    val frameRatio = if (opening) thumbnailRatio else (videoRatio ?: thumbnailRatio)
+
     Box(modifier = modifier.fillMaxSize()) {
         ZoomableMediaBox(
-            aspectRatio = videoRatio ?: thumbnailRatio,
+            aspectRatio = frameRatio,
             frameModifier = Modifier
                 .dismissDragTransform(LocalDismissDrag.current)
                 .mediaSharedElement(media.id),
             onTap = onTap
         ) {
-            player?.let { current ->
-                AndroidView(
-                    factory = { ctx ->
-                        (LayoutInflater.from(ctx)
-                            .inflate(R.layout.video_player, null) as PlayerView).apply {
-                            this.player = current
-                        }
-                    },
-                    update = {
-                        it.player = current
-                        it.keepScreenOn = isPlaying
-                    },
-                    modifier = Modifier.fillMaxSize()
-                )
+            // Surface/PlayerView тяжёлые: вешаем после shared element, prepare уже идёт.
+            if (!opening) {
+                player?.let { current ->
+                    AndroidView(
+                        factory = { ctx ->
+                            (LayoutInflater.from(ctx)
+                                .inflate(R.layout.video_player, null) as PlayerView).apply {
+                                this.player = current
+                            }
+                        },
+                        update = {
+                            it.player = current
+                            it.keepScreenOn = isPlaying
+                        },
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
             }
 
             if (thumbnailAlpha > 0f) {
