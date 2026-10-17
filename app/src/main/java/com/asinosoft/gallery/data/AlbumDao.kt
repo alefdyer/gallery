@@ -36,6 +36,9 @@ interface AlbumDao {
     @Query("SELECT * FROM album WHERE name = :name ORDER BY id LIMIT 1")
     suspend fun findAlbumByName(name: String): Album?
 
+    @Query("SELECT * FROM album WHERE name = :name ORDER BY id")
+    suspend fun findAlbumsByName(name: String): List<Album>
+
     @Query("SELECT * FROM album WHERE name IN (SELECT name FROM album GROUP BY name HAVING COUNT(*) > 1) ORDER BY id")
     suspend fun getDuplicateAlbums(): List<Album>
 

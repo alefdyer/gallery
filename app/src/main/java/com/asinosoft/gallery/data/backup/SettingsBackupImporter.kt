@@ -3,6 +3,7 @@ package com.asinosoft.gallery.data.backup
 import android.content.Context
 import android.util.Log
 import androidx.core.content.edit
+import com.asinosoft.gallery.data.Album
 import com.asinosoft.gallery.data.AlbumCategory
 import com.asinosoft.gallery.data.AlbumDao
 import com.asinosoft.gallery.data.MediaBackupLookup
@@ -58,16 +59,22 @@ class SettingsBackupImporter @Inject constructor(
             current++
             onProgress(current, total)
 
+            val systemCategoryIds = buildSet {
+                add(AlbumCategory.OTHER.id)
+                categoryIdByName[AlbumCategory.MESSENGERS_NAME]?.let { add(it) }
+            }
+
             for (albumBackup in backup.albums) {
                 val categoryName = albumBackup.category.ifBlank { AlbumCategory.OTHER.name }
                 val categoryId = categoryIdByName[categoryName]
                     ?: categoryIdByName[AlbumCategory.OTHER.name]
                     ?: AlbumCategory.OTHER.id
-                var album = albumDao.getOrCreateAlbum(albumBackup.name, categoryId)
-                if (album.userCreated != albumBackup.userCreated) {
-                    album = album.copy(userCreated = albumBackup.userCreated)
-                    albumDao.upsert(album)
-                }
+                val album = resolveAlbum(
+                    name = albumBackup.name,
+                    categoryId = categoryId,
+                    userCreated = albumBackup.userCreated,
+                    systemCategoryIds = systemCategoryIds,
+                )
                 albumsRestored++
 
                 val mediaIds = ArrayList<Long>(albumBackup.media.size)
@@ -128,6 +135,53 @@ class SettingsBackupImporter @Inject constructor(
                 privateManifestCount = backup.privatePaths.size,
             )
         }
+
+    /**
+     * Восстанавливает альбом в категорию из бэкапа.
+     * Если одноимённый альбом уже есть в «Прочее»/«Мессенджеры» (после переноса пользователем),
+     * переносим/сливаем его — не создаём вторую копию в системной категории.
+     */
+    private suspend fun resolveAlbum(
+        name: String,
+        categoryId: Long,
+        userCreated: Boolean,
+        systemCategoryIds: Set<Long>,
+    ): Album {
+        val all = albumDao.findAlbumsByName(name)
+        val inTarget = all.firstOrNull { it.categoryId == categoryId }
+        val systemDupes = all.filter {
+            it.categoryId in systemCategoryIds && it.categoryId != categoryId
+        }
+
+        var album = when {
+            null != inTarget -> {
+                val target = inTarget
+                systemDupes.forEach { dupe ->
+                    if (dupe.id != target.id) {
+                        albumDao.mergeAlbums(dupe.id, target.id)
+                    }
+                }
+                albumDao.getAlbumById(target.id)
+            }
+
+            systemDupes.isNotEmpty() -> {
+                val primary = systemDupes.first()
+                systemDupes.drop(1).forEach { dupe ->
+                    albumDao.mergeAlbums(dupe.id, primary.id)
+                }
+                albumDao.setAlbumCategory(primary.id, categoryId)
+                albumDao.getAlbumById(primary.id)
+            }
+
+            else -> albumDao.getOrCreateAlbum(name, categoryId)
+        }
+
+        if (album.userCreated != userCreated || album.categoryId != categoryId) {
+            album = album.copy(categoryId = categoryId, userCreated = userCreated)
+            albumDao.upsert(album)
+        }
+        return album
+    }
 
     private class MediaLookupIndex(rows: List<MediaBackupLookup>) {
         private val byPathAndName = HashMap<String, MutableList<MediaBackupLookup>>()
