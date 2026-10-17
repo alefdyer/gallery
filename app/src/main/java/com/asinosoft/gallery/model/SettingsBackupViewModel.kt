@@ -169,9 +169,11 @@ class SettingsBackupViewModel @Inject constructor(
     private fun authErrorMessage(e: Throwable): String {
         val api = e as? ApiException
             ?: (e.cause as? ApiException)
-        if (null != api && api.statusCode == CommonStatusCodes.DEVELOPER_ERROR) {
-            return "Ошибка OAuth (код 10): в Google Cloud Console создайте Android-клиент " +
-                    "с package com.asinosoft.gallery и SHA-1 отладочного ключа; включите Drive API."
+        val unregistered = api?.message?.contains("UNREGISTERED_ON_API_CONSOLE", true) == true
+        if (null != api && (api.statusCode == CommonStatusCodes.DEVELOPER_ERROR || unregistered)) {
+            return "Приложение не зарегистрировано в Google Cloud. Создайте OAuth-клиент " +
+                "типа Android: package com.asinosoft.gallery и SHA-1 ключа, которым " +
+                "подписана эта сборка, и включите Drive API."
         }
         return e.message?.takeIf { it.isNotBlank() } ?: "error"
     }
