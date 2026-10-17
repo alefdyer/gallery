@@ -146,6 +146,8 @@
     <string name="progress_current_of_total">%1$d / %2$d</string>
     <string name="play">재생</string>
     <string name="pause">일시중지</string>
+    <string name="video_seek_backward">5 sec</string>
+    <string name="video_seek_forward">5 sec</string>
     <string name="mute">음소거</string>
     <string name="unmute">음소거 해제</string>
     <string name="video_player">동영상 플레이어</string>

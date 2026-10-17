@@ -42,6 +42,9 @@ import kotlin.math.max
 /**
  * Двойной тап и щипок масштабируют [content].
  * [frameModifier] — рамка кадра (shared element, dismiss): она не масштабируется.
+ *
+ * Если заданы [onDoubleTapSeekBackward]/[onDoubleTapSeekForward], экран делится на три
+ * вертикальные полосы: левая/правая — перемотка, средняя (на всю высоту) — зум.
  */
 @Composable
 fun ZoomableMediaBox(
@@ -50,6 +53,8 @@ fun ZoomableMediaBox(
     frameModifier: Modifier = Modifier,
     contentScale: Float? = null,
     onTap: () -> Unit = {},
+    onDoubleTapSeekBackward: (() -> Unit)? = null,
+    onDoubleTapSeekForward: (() -> Unit)? = null,
     content: @Composable BoxScope.() -> Unit
 ) {
     val scope = rememberCoroutineScope()
@@ -99,6 +104,22 @@ fun ZoomableMediaBox(
         }
     }
 
+    val seekBack = onDoubleTapSeekBackward
+    val seekForward = onDoubleTapSeekForward
+    val onDoubleTap: (Offset) -> Unit = { tapOffset ->
+        if (null != seekBack && null != seekForward && viewSize.width > 0f) {
+            val left = viewSize.width / 3f
+            val right = viewSize.width * 2f / 3f
+            when {
+                tapOffset.x < left -> seekBack()
+                tapOffset.x > right -> seekForward()
+                else -> toggleScale(tapOffset)
+            }
+        } else {
+            toggleScale(tapOffset)
+        }
+    }
+
     Box(
         modifier =
             modifier
@@ -128,7 +149,7 @@ fun ZoomableMediaBox(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .detectTapAndDoubleTap(onTap = onTap, onDoubleTap = toggleScale)
+                .detectTapAndDoubleTap(onTap = onTap, onDoubleTap = onDoubleTap)
                 .pointerInput(boxSize, viewSize) {
                     if (boxSize.isEmpty()) return@pointerInput
 

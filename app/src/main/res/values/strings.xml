@@ -146,6 +146,8 @@
     <string name="progress_current_of_total">%1$d of %2$d</string>
     <string name="play">Play</string>
     <string name="pause">Pause</string>
+    <string name="video_seek_backward">5 sec</string>
+    <string name="video_seek_forward">5 sec</string>
     <string name="mute">Mute</string>
     <string name="unmute">Unmute</string>
     <string name="video_player">Video player</string>

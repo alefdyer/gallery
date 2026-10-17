@@ -146,6 +146,8 @@
     <string name="progress_current_of_total">%1$d из %2$d</string>
     <string name="play">Воспроизвести</string>
     <string name="pause">Пауза</string>
+    <string name="video_seek_backward">5 сек</string>
+    <string name="video_seek_forward">5 сек</string>
     <string name="mute">Выключить звук</string>
     <string name="unmute">Включить звук</string>
     <string name="video_player">Видеоплеер</string>

@@ -11,7 +11,9 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -48,6 +50,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -111,6 +114,16 @@ fun VideoView(
     var duration by remember { mutableLongStateOf(0L) }
     var videoRatio by remember(media.id) { mutableStateOf<Float?>(null) }
     var firstFrameRendered by remember(media.id) { mutableStateOf(false) }
+
+    /** −1 = назад, +1 = вперёд; null = скрыто */
+    var seekHintDirection by remember(media.id) { mutableStateOf<Int?>(null) }
+    var seekHintShown by remember(media.id) { mutableStateOf(-1) }
+    var seekHintToken by remember(media.id) { mutableStateOf(0) }
+    LaunchedEffect(seekHintToken) {
+        if (0 == seekHintToken) return@LaunchedEffect
+        delay(SEEK_HINT_MS.milliseconds)
+        seekHintDirection = null
+    }
     val thumbnail = rememberCachedThumbnail(media)
     val thumbnailRatio = thumbnail?.intrinsicSize
         ?.takeIf { it.isSpecified && !it.isEmpty() }
@@ -239,7 +252,19 @@ fun VideoView(
             frameModifier = Modifier
                 .dismissDragTransform(LocalDismissDrag.current)
                 .mediaSharedElement(media.id),
-            onTap = onTap
+            onTap = onTap,
+            onDoubleTapSeekBackward = {
+                seekBy(player, -DOUBLE_TAP_SEEK_MS) { position = it }
+                seekHintShown = -1
+                seekHintDirection = -1
+                seekHintToken++
+            },
+            onDoubleTapSeekForward = {
+                seekBy(player, DOUBLE_TAP_SEEK_MS) { position = it }
+                seekHintShown = 1
+                seekHintDirection = 1
+                seekHintToken++
+            },
         ) {
             // Surface/PlayerView тяжёлые: вешаем после shared element, prepare уже идёт.
             if (!opening) {
@@ -281,6 +306,28 @@ fun VideoView(
         }
 
         AnimatedVisibility(
+            visible = null != seekHintDirection,
+            enter = fadeIn(tween(100)),
+            exit = fadeOut(tween(200)),
+            modifier = Modifier
+                .align(
+                    if (-1 == seekHintShown) Alignment.CenterStart else Alignment.CenterEnd
+                )
+                .padding(horizontal = 20.dp)
+        ) {
+            SeekHintBadge(
+                backward = -1 == seekHintShown,
+                text = stringResource(
+                    if (-1 == seekHintShown) {
+                        R.string.video_seek_backward
+                    } else {
+                        R.string.video_seek_forward
+                    }
+                )
+            )
+        }
+
+        AnimatedVisibility(
             visible = controlsVisible,
             enter = fadeIn(),
             exit = fadeOut(),
@@ -299,6 +346,32 @@ fun VideoView(
                 }
             )
         }
+    }
+}
+
+@Composable
+private fun SeekHintBadge(
+    backward: Boolean,
+    text: String,
+) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Icon(
+            painter = painterResource(
+                if (backward) R.drawable.fast_rewind else R.drawable.fast_forward
+            ),
+            contentDescription = null,
+            tint = Color.White,
+            modifier = Modifier.size(40.dp)
+        )
+        Text(
+            text = text,
+            color = Color.White,
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Medium,
+        )
     }
 }
 
@@ -430,9 +503,24 @@ private fun VideoSize.aspectRatio(): Float? {
     return if (90 == unappliedRotationDegrees || 270 == unappliedRotationDegrees) 1f / ratio else ratio
 }
 
+private fun seekBy(player: ExoPlayer?, deltaMs: Long, onPosition: (Long) -> Unit) {
+    val current = player ?: return
+    val duration = current.duration.takeIf { it > 0 } ?: 0L
+    val position = current.currentPosition.coerceAtLeast(0L)
+    val target = if (duration > 0) {
+        (position + deltaMs).coerceIn(0L, duration)
+    } else {
+        (position + deltaMs).coerceAtLeast(0L)
+    }
+    onPosition(target)
+    current.seekTo(target)
+}
+
 private val VIDEO_CONTROLS_BOTTOM = 160.dp
 private const val THUMBNAIL_FADE_MS = 200
 private const val PROGRESS_DELAY_MS = 500
+private const val DOUBLE_TAP_SEEK_MS = 5_000L
+private const val SEEK_HINT_MS = 700
 private const val MIN_BUFFER_MS = 2_000
 private const val MAX_BUFFER_MS = 30_000
 private const val BUFFER_FOR_PLAYBACK_MS = 250
