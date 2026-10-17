@@ -6,7 +6,6 @@ import android.content.Context
 import android.util.Log
 import androidx.activity.result.ActivityResult
 import androidx.core.content.edit
-import com.asinosoft.gallery.BuildConfig
 import com.google.android.gms.auth.api.identity.AuthorizationRequest
 import com.google.android.gms.auth.api.identity.Identity
 import com.google.android.gms.common.api.ApiException
@@ -47,16 +46,10 @@ class GoogleDriveBackupStore @Inject constructor(
         prefs.edit { remove(KEY_ACCESS_TOKEN).remove(KEY_FILE_ID) }
     }
 
-    fun authorizationRequest(): AuthorizationRequest {
-        val builder = AuthorizationRequest.builder()
+    fun authorizationRequest(): AuthorizationRequest =
+        AuthorizationRequest.builder()
             .setRequestedScopes(listOf(Scope(DRIVE_APPDATA_SCOPE)))
-        val clientId = BuildConfig.GOOGLE_OAUTH_CLIENT_ID.trim()
-        // requestOfflineAccess требует Web client id (не Android).
-        if (clientId.isNotEmpty()) {
-            builder.requestOfflineAccess(clientId)
-        }
-        return builder.build()
-    }
+            .build()
 
     /**
      * Запускает выдачу разрешения Drive App Data.
@@ -122,23 +115,27 @@ class GoogleDriveBackupStore @Inject constructor(
         }
     }
 
-    private fun mapApiException(e: ApiException): GoogleDriveAuthOutcome =
-        when (e.statusCode) {
-            CommonStatusCodes.CANCELED -> GoogleDriveAuthOutcome.Cancelled
-            CommonStatusCodes.DEVELOPER_ERROR ->
-                GoogleDriveAuthOutcome.Failed(oauthConfigHint("DEVELOPER_ERROR (10)"))
+    private fun mapApiException(e: ApiException): GoogleDriveAuthOutcome {
+        val message = e.message.orEmpty()
+        return when {
+            e.statusCode == CommonStatusCodes.CANCELED -> GoogleDriveAuthOutcome.Cancelled
+            e.statusCode == CommonStatusCodes.DEVELOPER_ERROR ||
+                message.contains("UNREGISTERED_ON_API_CONSOLE", ignoreCase = true) ->
+                GoogleDriveAuthOutcome.Failed(oauthConfigHint())
 
             else ->
                 GoogleDriveAuthOutcome.Failed(
-                    e.message?.takeIf { it.isNotBlank() }
+                    message.takeIf { it.isNotBlank() }
                         ?: "Google auth error ${e.statusCode}"
                 )
         }
+    }
 
-    private fun oauthConfigHint(prefix: String): String =
-        "$prefix. В Google Cloud Console: включите Drive API; создайте OAuth-клиент " +
-                "типа Android (package ${context.packageName} + SHA-1 debug/release). " +
-                "Опционально Web client id → google.oauthClientId в local.properties."
+    private fun oauthConfigHint(prefix: String = "UNREGISTERED_ON_API_CONSOLE"): String =
+        "$prefix. В Google Cloud Console включите Drive API и создайте OAuth-клиент " +
+            "типа Android: package ${context.packageName} и SHA-1 сертификата, " +
+            "которым подписана установленная сборка (debug и release — разные клиенты). " +
+            "google.oauthClientId приложение не регистрирует."
 
     suspend fun uploadJson(json: String) = withContext(Dispatchers.IO) {
         Log.i(TAG, "Upload start, bytes=${json.length}")

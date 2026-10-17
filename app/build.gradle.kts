@@ -89,18 +89,6 @@ android {
                 append('"')
             },
         )
-        // Google Drive settings backup (App Data). Register an Android OAuth client
-        // (package + SHA-1) in Google Cloud Console; optional Web client id for offline access:
-        // google.oauthClientId=....apps.googleusercontent.com
-        buildConfigField(
-            "String",
-            "GOOGLE_OAUTH_CLIENT_ID",
-            buildString {
-                append('"')
-                append(localProperties.getProperty("google.oauthClientId").orEmpty())
-                append('"')
-            },
-        )
     }
 
     // Автоматический инкремент номера сборки
