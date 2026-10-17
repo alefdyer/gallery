@@ -86,6 +86,8 @@ class ImageListViewModel @Inject constructor(
 
     val favoritesOnly: Boolean = state["favorites"] ?: false
 
+    val showAds: Boolean = (albumId != null)
+
     val album = MutableStateFlow<Album?>(null)
 
     val selection = MutableStateFlow<Set<Long>>(setOf())

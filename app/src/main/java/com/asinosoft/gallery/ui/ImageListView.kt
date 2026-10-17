@@ -20,6 +20,7 @@ import androidx.compose.foundation.gestures.horizontalDrag
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
@@ -92,6 +93,7 @@ import com.asinosoft.gallery.model.DateFilterSource
 import com.asinosoft.gallery.model.MediaType
 import com.asinosoft.gallery.model.ImageListViewModel
 import com.asinosoft.gallery.model.MediaViewModel
+import com.asinosoft.gallery.ui.component.AdBanner
 import com.asinosoft.gallery.ui.component.AddToAlbumDialog
 import com.asinosoft.gallery.ui.component.AppsFilterPanel
 import com.asinosoft.gallery.ui.component.DragSelectionState
@@ -473,54 +475,61 @@ fun ImageListView(
 
         cover?.let { ImageListHeaderBackground(cover = it, modifier = headerModifier) }
 
-        LazyVerticalGrid(
-            state = lazyGridState,
-            columns = GridCells.Fixed(gridColumns),
-            horizontalArrangement = Arrangement.spacedBy(2.dp),
-            verticalArrangement = Arrangement.spacedBy(2.dp),
-            contentPadding = gridPadding,
-            modifier = Modifier
-                .graphicsLayer { translationX = swipeOffset.value }
-                .nestedScroll(nestedScrollConnection)
-                .pinchGridColumns(images, lazyGridState, gridColumns)
-                .dragSelection(
-                    items = images,
-                    state = lazyGridState,
-                    currentSelection = { selection },
-                    dragSelectionState = dragSelectionState,
-                    onSelectedChange = model::setSelection,
-                    contentPadding = gridPadding
-                )
-                .let {
-                    if (scrollBehavior == null) it else it.nestedScroll(scrollBehavior.nestedScrollConnection)
-                }
-        ) {
-            itemsIndexed(images, key = { _, media -> media.id }) { index, media ->
-                // Под SharedTransitionLayout сетка при прокрутке вверх строит в предварительном
-                // проходе лишние ряды под экраном (linesRetainedForLookahead в Compose), при прыжке
-                // ползунком — целый экран. Их никогда не видно, поэтому вместо миниатюры пустышка.
-                val farBelow by remember(index, nearItemsCount) {
-                    derivedStateOf { index >= lazyGridState.firstVisibleItemIndex + nearItemsCount }
-                }
-                if (farBelow) {
-                    Spacer(Modifier.aspectRatio(1f))
-                    return@itemsIndexed
-                }
-                MediaThumbnail(
-                    media = media,
-                    model = model,
-                    selectionMode = selection.isNotEmpty(),
-                    selected = selection,
-                    playPreview = media.id == videoPreview.previewId,
-                    sharedElement = true,
-                    onPreviewEnded = videoPreview::onEnded,
-                    onClick = { media -> onMediaClick(media, model.activeFilterPackages.value, model.activeDateFilter.value, model.activeMediaType()) },
-                    onSelect = { image ->
-                        if (!dragSelectionState.active) {
-                            model.toggleSelection(image)
-                        }
+        Column {
+            LazyVerticalGrid(
+                state = lazyGridState,
+                columns = GridCells.Fixed(gridColumns),
+                horizontalArrangement = Arrangement.spacedBy(2.dp),
+                verticalArrangement = Arrangement.spacedBy(2.dp),
+                contentPadding = gridPadding,
+                modifier = Modifier
+                    .weight(1f)
+                    .graphicsLayer { translationX = swipeOffset.value }
+                    .nestedScroll(nestedScrollConnection)
+                    .pinchGridColumns(images, lazyGridState, gridColumns)
+                    .dragSelection(
+                        items = images,
+                        state = lazyGridState,
+                        currentSelection = { selection },
+                        dragSelectionState = dragSelectionState,
+                        onSelectedChange = model::setSelection,
+                        contentPadding = gridPadding
+                    )
+                    .let {
+                        if (scrollBehavior == null) it else it.nestedScroll(scrollBehavior.nestedScrollConnection)
                     }
-                )
+            ) {
+                itemsIndexed(images, key = { _, media -> media.id }) { index, media ->
+                    // Под SharedTransitionLayout сетка при прокрутке вверх строит в предварительном
+                    // проходе лишние ряды под экраном (linesRetainedForLookahead в Compose), при прыжке
+                    // ползунком — целый экран. Их никогда не видно, поэтому вместо миниатюры пустышка.
+                    val farBelow by remember(index, nearItemsCount) {
+                        derivedStateOf { index >= lazyGridState.firstVisibleItemIndex + nearItemsCount }
+                    }
+                    if (farBelow) {
+                        Spacer(Modifier.aspectRatio(1f))
+                        return@itemsIndexed
+                    }
+                    MediaThumbnail(
+                        media = media,
+                        model = model,
+                        selectionMode = selection.isNotEmpty(),
+                        selected = selection,
+                        playPreview = media.id == videoPreview.previewId,
+                        sharedElement = true,
+                        onPreviewEnded = videoPreview::onEnded,
+                        onClick = { media -> onMediaClick(media, model.activeFilterPackages.value, model.activeDateFilter.value, model.activeMediaType()) },
+                        onSelect = { image ->
+                            if (!dragSelectionState.active) {
+                                model.toggleSelection(image)
+                            }
+                        }
+                    )
+                }
+            }
+
+            if (model.showAds) {
+                AdBanner(Modifier.height(168.dp).fillMaxWidth())
             }
         }
 

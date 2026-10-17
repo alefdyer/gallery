@@ -3,6 +3,8 @@ package com.asinosoft.gallery.ui
 import android.content.Intent
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
@@ -19,6 +21,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
@@ -27,6 +30,7 @@ import androidx.core.net.toUri
 import com.asinosoft.gallery.BuildConfig
 import com.asinosoft.gallery.R
 import com.asinosoft.gallery.di.AnalyticsEntryPoint
+import com.asinosoft.gallery.ui.component.AdBanner
 import dagger.hilt.android.EntryPointAccessors
 import kotlinx.coroutines.launch
 
@@ -43,6 +47,7 @@ fun SettingsView(
     onOpenPrivacy: () -> Unit,
 ) {
     val context = LocalContext.current
+    val resources = LocalResources.current
     val analytics = remember(context) {
         EntryPointAccessors.fromApplication(
             context.applicationContext,
@@ -113,7 +118,7 @@ fun SettingsView(
 
             HorizontalPager(
                 state = pagerState,
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier.weight(1f),
                 beyondViewportPageCount = 1
             ) { page ->
                 val pageModifier = Modifier.fillMaxSize()
@@ -144,10 +149,10 @@ fun SettingsView(
                                         type = "text/plain"
                                         putExtra(
                                             Intent.EXTRA_TEXT,
-                                            context.getString(R.string.share_app_text)
+                                            resources.getString(R.string.share_app_text)
                                         )
                                     },
-                                    context.getString(R.string.recommend_friends)
+                                    resources.getString(R.string.recommend_friends)
                                 )
                             )
                             analytics.recommendFriends()
@@ -156,7 +161,7 @@ fun SettingsView(
                             context.startActivity(
                                 Intent(
                                     Intent.ACTION_SENDTO,
-                                    "mailto:${context.getString(R.string.support_email)}".toUri()
+                                    "mailto:${resources.getString(R.string.support_email)}".toUri()
                                 )
                             )
                         },
@@ -166,6 +171,8 @@ fun SettingsView(
                     )
                 }
             }
+
+            AdBanner(Modifier.height(168.dp).fillMaxWidth())
         }
     }
 }

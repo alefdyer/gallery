@@ -167,10 +167,13 @@ dependencies {
     implementation("androidx.media3:media3-datasource-okhttp:1.11.1")
 
     // Google Sign-In / Authorization (Drive App Data backup)
-    implementation("com.google.android.gms:play-services-auth:21.5.1")
+    implementation("com.google.android.gms:play-services-auth:22.0.0")
     implementation(platform("com.google.firebase:firebase-bom:35.0.2"))
     implementation("com.google.firebase:firebase-analytics")
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.10.2")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.11.0")
+
+    // YandexAds
+    implementation("com.yandex.android:mobileads:8.6.0")
 
     // WebDAV
     implementation("com.github.thegrizzlylabs:sardine-android:0.9") {
@@ -197,7 +200,7 @@ dependencies {
     ksp("androidx.room:room-compiler:$roomVersion")
 
     // KtLint
-    ktlintRuleset("io.nlopez.compose.rules:ktlint:0.6.6")
+    ktlintRuleset("io.nlopez.compose.rules:ktlint:0.6.8")
 
     // Test
     testImplementation("junit:junit:4.13.2")

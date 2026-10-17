@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="yandex_ads_unit_id" translatable="false">demo-banner-yandex</string>
+</resources>

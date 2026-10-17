@@ -12,6 +12,7 @@ import coil3.request.CachePolicy
 import coil3.svg.SvgDecoder
 import coil3.video.VideoFrameDecoder
 import com.asinosoft.gallery.data.storage.StorageAuthProvider
+import com.yandex.mobile.ads.common.YandexAds
 import dagger.hilt.android.HiltAndroidApp
 import javax.inject.Inject
 import okhttp3.OkHttpClient
@@ -29,6 +30,9 @@ class GalleryApp : Application() {
 
     override fun onCreate() {
         super.onCreate()
+
+        YandexAds.initialize(this) { }
+
         httpClient =
             OkHttpClient
                 .Builder()
