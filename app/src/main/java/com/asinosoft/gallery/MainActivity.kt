@@ -51,10 +51,6 @@ class MainActivity : ComponentActivity() {
         lifecycle.addObserver(intentHelper)
         handleIntent(intent)
 
-        if (hasMediaPermissions()) {
-            model.start()
-        }
-
         setContent {
             val storagePermissions =
                 rememberMultiplePermissionsState(mediaPermissions) { result ->

@@ -16,6 +16,9 @@ interface StorageProvider {
 
     suspend fun checkConnection(): StorageCheckResult
 
+    /** Полное число файлов, если хранилище может сообщить его до сканирования. */
+    fun getMediaCount(): Int? = null
+
     suspend fun fetchAll(): Flow<Media>
 
     suspend fun fetchOne(uri: Uri): Media?

@@ -39,7 +39,7 @@ fun BoxScope.CachingProgressIndicator(
     var isProgressDismissed by remember { mutableStateOf(false) }
 
     AnimatedVisibility(
-        visible = preloadProgress.isPreloading && preloadProgress.current < preloadProgress.total && !isProgressDismissed,
+        visible = (preloadProgress.current in 1..<preloadProgress.total) && !isProgressDismissed,
         modifier = Modifier
             .align(Alignment.BottomCenter)
             .padding(bottom = 80.dp + paddingValues.calculateBottomPadding())

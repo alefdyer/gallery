@@ -34,7 +34,6 @@ import java.io.FileOutputStream
 import kotlin.math.roundToInt
 
 data class PreloadProgress(
-    val isPreloading: Boolean = false,
     val current: Int = 0,
     val total: Int = 0
 ) {
@@ -166,46 +165,54 @@ object ThumbnailCache {
 
     data class Request(val mediaId: Long, val uri: Uri?, val isVideo: Boolean)
 
-    suspend fun preloadBatch(context: Context, items: List<Request>) =
-        withContext(Dispatchers.IO) {
-            val existingFiles = getExistingFiles(context)
-            val missing = items
-                .filter { it.uri != null && "thumb_${it.mediaId}.jpg" !in existingFiles }
-                .distinctBy { it.mediaId }
-                .sortedByDescending { it.isVideo }
-            if (missing.isEmpty()) return@withContext
+    fun startPreload(total: Int) {
+        _progress.value = PreloadProgress(total = total)
+    }
 
-            _progress.update { curr ->
-                if (curr.isPreloading) curr.copy(total = curr.total + missing.size)
-                else PreloadProgress(isPreloading = true, current = 0, total = missing.size)
-            }
+    fun finishPreload() {
+        _progress.update { it.copy(current = it.total) }
+    }
 
-            val imageSemaphore = Semaphore(IMAGE_PARALLELISM)
-            val videoSemaphore = Semaphore(VIDEO_PARALLELISM)
-            coroutineScope {
-                missing.forEach { (mediaId, uri, isVideo) ->
-                    launch {
-                        (if (isVideo) videoSemaphore else imageSemaphore).withPermit {
-                            try {
-                                preload(context, mediaId, uri, existingFiles, isVideo)
-                            } finally {
-                                withContext(NonCancellable) {
-                                    _progress.update { curr ->
-                                        val updatedCurrent = curr.current + 1
-                                        val isDone = updatedCurrent >= curr.total
-                                        PreloadProgress(
-                                            isPreloading = !isDone,
-                                            current = updatedCurrent,
-                                            total = curr.total
-                                        )
-                                    }
-                                }
+    suspend fun preloadBatch(
+        context: Context,
+        items: List<Request>
+    ) = withContext(Dispatchers.IO) {
+        val existingFiles = getExistingFiles(context)
+        val missing = items
+            .filter { it.uri != null && "thumb_${it.mediaId}.jpg" !in existingFiles }
+            .distinctBy { it.mediaId }
+            .sortedByDescending { it.isVideo }
+
+        // Добавляем прогресс по файлам, которые уже есть в кэше.
+        // Если total заранее неизвестен, увеличиваем его на размер батча
+        _progress.update { curr ->
+            val current = curr.current + (items.size - missing.size)
+            curr.copy(
+                current = current,
+                total = curr.total.coerceAtLeast(current + missing.size)
+            )
+        }
+
+        if (missing.isEmpty()) return@withContext
+
+        val imageSemaphore = Semaphore(IMAGE_PARALLELISM)
+        val videoSemaphore = Semaphore(VIDEO_PARALLELISM)
+        coroutineScope {
+            missing.forEach { (mediaId, uri, isVideo) ->
+                launch {
+                    (if (isVideo) videoSemaphore else imageSemaphore).withPermit {
+                        try {
+                            preload(context, mediaId, uri, existingFiles, isVideo)
+                        } finally {
+                            withContext(NonCancellable) {
+                                _progress.update { it.copy(current = it.current + 1) }
                             }
                         }
                     }
                 }
             }
         }
+    }
 
     private var thumbnailSize: Size? = null
 

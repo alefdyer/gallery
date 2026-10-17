@@ -34,6 +34,18 @@ class LocalStorageProvider(
 
     override suspend fun checkConnection() = StorageCheckResult.Success
 
+    override fun getMediaCount(): Int =
+        count(Images.Media.EXTERNAL_CONTENT_URI) + count(Videos.Media.EXTERNAL_CONTENT_URI)
+
+    private fun count(uri: Uri): Int =
+        context.contentResolver.query(
+            uri,
+            arrayOf(MediaStore.MediaColumns._ID),
+            null,
+            null,
+            null
+        )?.use { it.count } ?: 0
+
     override suspend fun fetchOne(uri: Uri): Media? {
         val id = uri.lastPathSegment?.toLongOrNull()
         return if (id != null) {

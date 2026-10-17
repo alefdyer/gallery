@@ -7,21 +7,19 @@ import android.os.Build
 import android.provider.MediaStore
 import android.util.Log
 import androidx.core.content.edit
-import coil3.SingletonImageLoader
-import coil3.memory.MemoryCache
 import com.asinosoft.gallery.GalleryApp
 import com.asinosoft.gallery.data.storage.StorageProvider
 import com.asinosoft.gallery.di.IntentHelper
 import dagger.hilt.android.qualifiers.ApplicationContext
-import java.io.File
-import javax.inject.Inject
-import kotlin.system.measureTimeMillis
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.chunked
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.File
+import javax.inject.Inject
+import kotlin.system.measureTimeMillis
 
 class MediaService @Inject constructor(
     private val albumDao: AlbumDao,
@@ -244,111 +242,91 @@ class MediaService @Inject constructor(
     suspend fun update(provider: StorageProvider) = withContext(Dispatchers.IO) {
         Log.i("MediaService", "update: ${provider.storage}")
         val updated = mutableSetOf<Long>()
-        val toPreload = mutableListOf<ThumbnailCache.Request>()
-        messengerAlbums.migrateOnce()
-        provider.fetchAll().chunked(500).collect { fetched ->
-            val media = mediaDao.getMediaByStorageItemIds(
-                provider.storage.id,
-                fetched.map {
-                    it.storageItemId
-                }
-            )
-            updated += media.map { it.id }
-
-            if (provider.syncsFavorites) {
-                val fetchedFavorites = fetched.associate { it.storageItemId to it.favorite }
-                media.filter { fetchedFavorites[it.storageItemId] == !it.favorite }
-                    .partition { it.favorite }
-                    .let { (unfavorited, favorited) ->
-                        mediaDao.setFavorite(unfavorited.map { it.id }, false)
-                        mediaDao.setFavorite(favorited.map { it.id }, true)
+        ThumbnailCache.startPreload(provider.getMediaCount() ?: 0)
+        try {
+            messengerAlbums.migrateOnce()
+            provider.fetchAll().chunked(500).collect { fetched ->
+                val media = mediaDao.getMediaByStorageItemIds(
+                    provider.storage.id,
+                    fetched.map {
+                        it.storageItemId
                     }
-            }
+                )
+                updated += media.map { it.id }
 
-            val current = media.map { it.storageItemId }.toSet()
-            val toInsert = fetched.filterNot { current.contains(it.storageItemId) }
-
-            if (toInsert.isNotEmpty()) {
-                val rawMediaIds = mediaDao.upsertAll(toInsert)
-                val validMediaIds = rawMediaIds.mapIndexedNotNull { index, id ->
-                    if (id > 0) id
-                    else {
-                        val item = toInsert[index]
-                        mediaDao.getMediaId(item.storageId, item.storageItemId)
-                    }
+                if (provider.syncsFavorites) {
+                    val fetchedFavorites = fetched.associate { it.storageItemId to it.favorite }
+                    media.filter { fetchedFavorites[it.storageItemId] == !it.favorite }
+                        .partition { it.favorite }
+                        .let { (unfavorited, favorited) ->
+                            mediaDao.setFavorite(unfavorited.map { it.id }, false)
+                            mediaDao.setFavorite(favorited.map { it.id }, true)
+                        }
                 }
 
-                val chunkAlbums = HashMap<Pair<String, Boolean>, MutableSet<Long>>()
-                toInsert.forEachIndexed { index, media ->
-                    val albumName = media.path.split('/').lastOrNull { it.isNotEmpty() }
-                    albumName?.let {
+                val current = media.map { it.storageItemId }.toSet()
+                val toInsert = fetched.filterNot { current.contains(it.storageItemId) }
+
+                if (toInsert.isNotEmpty()) {
+                    val rawMediaIds = mediaDao.upsertAll(toInsert)
+                    val validMediaIds = rawMediaIds.mapIndexedNotNull { index, id ->
+                        if (id > 0) id
+                        else {
+                            val item = toInsert[index]
+                            mediaDao.getMediaId(item.storageId, item.storageItemId)
+                        }
+                    }
+
+                    val chunkAlbums = HashMap<Pair<String, Boolean>, MutableSet<Long>>()
+                    toInsert.forEachIndexed { index, media ->
+                        val albumName = media.path.split('/').lastOrNull { it.isNotEmpty() }
+                        albumName?.let {
+                            val rawId = rawMediaIds[index]
+                            val realId = if (rawId > 0) rawId else mediaDao.getMediaId(
+                                media.storageId,
+                                media.storageItemId
+                            ) ?: -1L
+                            if (realId > 0) {
+                                val key = albumName to messengerAlbums.isMessengerMedia(media)
+                                chunkAlbums.getOrPut(key) { mutableSetOf() } += realId
+                            }
+                        }
+                    }
+
+                    chunkAlbums.forEach { (key, ids) ->
+                        val album = messengerAlbums.albumFor(key.first, key.second)
+                        addToAlbum(ids, album.id)
+                    }
+
+                    updated += validMediaIds
+
+                    val toPreload = toInsert.mapIndexedNotNull { index, media ->
                         val rawId = rawMediaIds[index]
                         val realId = if (rawId > 0) rawId else mediaDao.getMediaId(
                             media.storageId,
                             media.storageItemId
                         ) ?: -1L
-                        if (realId > 0) {
-                            val key = albumName to messengerAlbums.isMessengerMedia(media)
-                            chunkAlbums.getOrPut(key) { mutableSetOf() } += realId
-                        }
+                        if (realId > 0) ThumbnailCache.Request(
+                            realId,
+                            media.uri,
+                            media.video != null
+                        ) else null
+                    }
+
+                    if (toPreload.isNotEmpty()) {
+                        ThumbnailCache.preloadBatch(context, toPreload)
                     }
                 }
-
-                chunkAlbums.forEach { (key, ids) ->
-                    val album = messengerAlbums.albumFor(key.first, key.second)
-                    addToAlbum(ids, album.id)
-                }
-
-                updated += validMediaIds
-
-                toPreload += toInsert.mapIndexedNotNull { index, media ->
-                    val rawId = rawMediaIds[index]
-                    val realId = if (rawId > 0) rawId else mediaDao.getMediaId(
-                        media.storageId,
-                        media.storageItemId
-                    ) ?: -1L
-                    if (realId > 0) ThumbnailCache.Request(
-                        realId,
-                        media.uri,
-                        media.video != null
-                    ) else null
-                }
             }
+
+            mediaDao.deleteAllExcept(provider.storage.id, updated)
+            repairFolderAlbumsOnce(provider.storage.id)
+            mergeDuplicateAlbumsOnce()
+            albumDao.deleteEmptyAlbums()
+
+        } finally {
+            ThumbnailCache.finishPreload()
         }
-
-        mediaDao.deleteAllExcept(provider.storage.id, updated)
-        repairFolderAlbumsOnce(provider.storage.id)
-        mergeDuplicateAlbumsOnce()
-        toPreload += resetVideoThumbnailsOnce()
-        albumDao.deleteEmptyAlbums()
-
-        if (toPreload.isNotEmpty()) {
-            CoroutineScope(Dispatchers.IO).launch {
-                ThumbnailCache.preloadBatch(
-                    context,
-                    toPreload
-                )
-            }
-        }
-    }
-
-    /**
-     * Миниатюры видео пересоздаются по первому кадру, с которого начинается просмотр,
-     * и заполняют квадрат клетки, а не вписываются в него: вертикальное видео — 360×640, а не 202×360.
-     */
-    private suspend fun resetVideoThumbnailsOnce(): List<ThumbnailCache.Request> {
-        if (prefs.getBoolean(KEY_VIDEO_THUMBNAILS_RESET, false)) return emptyList()
-
-        val memoryCache = SingletonImageLoader.get(context).memoryCache
-        val videos = mediaDao.getVideoUris()
-        videos.forEach { (id, _) ->
-            ThumbnailCache.getFile(context, id).delete()
-            memoryCache?.remove(MemoryCache.Key("media-$id"))
-        }
-
-        prefs.edit { putBoolean(KEY_VIDEO_THUMBNAILS_RESET, true) }
-
-        return videos.map { ThumbnailCache.Request(it.id, it.uri, isVideo = true) }
     }
 
     /**
@@ -394,6 +372,5 @@ class MediaService @Inject constructor(
         const val PREFS_NAME = "media_service"
         const val KEY_ALBUMS_REPAIRED = "albums_repaired_"
         const val KEY_DUPLICATES_MERGED = "duplicates_merged"
-        const val KEY_VIDEO_THUMBNAILS_RESET = "video_thumbnails_reset_fill"
     }
 }
