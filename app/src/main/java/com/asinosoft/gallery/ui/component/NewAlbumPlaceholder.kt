@@ -1,6 +1,7 @@
 package com.asinosoft.gallery.ui.component
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.size
@@ -18,7 +19,8 @@ import com.asinosoft.gallery.R
 
 @Composable
 fun NewAlbumPlaceholder(
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onClick: (() -> Unit)? = null
 ) {
     Box(
         contentAlignment = Alignment.Center,
@@ -26,10 +28,11 @@ fun NewAlbumPlaceholder(
             .aspectRatio(1f)
             .clip(RoundedCornerShape(12.dp))
             .background(MaterialTheme.colorScheme.surfaceVariant)
+            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
     ) {
         Icon(
             painter = painterResource(R.drawable.add),
-            contentDescription = stringResource(R.string.add),
+            contentDescription = stringResource(R.string.add_to_album),
             tint = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.size(40.dp)
         )
