@@ -75,16 +75,19 @@ fun LazyGridVerticalScrollIndicator(
         }
     }
     val (scrollOffset, contentSize, viewportSize) = scrollMetrics
+    val scrollRange = contentSize - viewportSize
 
     if (
         scrollOffset == Int.MAX_VALUE ||
         contentSize == Int.MAX_VALUE ||
         viewportSize == Int.MAX_VALUE ||
-        contentSize <= viewportSize ||
+        scrollRange <= 0 ||
         listItems.isEmpty()
     ) {
         return
     }
+
+    val scrollFraction = (scrollOffset.toFloat() / scrollRange).coerceIn(0f, 1f)
 
     val density = LocalDensity.current
     val scope = rememberCoroutineScope()
@@ -134,8 +137,9 @@ fun LazyGridVerticalScrollIndicator(
         modifier = modifier
     ) {
         BoxWithConstraints(modifier = Modifier.fillMaxHeight()) {
-            val thumbTravelPx = (constraints.maxHeight.toFloat() - with(density) { THUMB_TOUCH_HEIGHT.toPx() }).coerceAtLeast(1f)
-            val thumbOffset = (maxHeight - THUMB_TOUCH_HEIGHT) * scrollOffset / contentSize
+            val thumbTravelPx =
+                (constraints.maxHeight - with(density) { THUMB_TOUCH_HEIGHT.toPx() }).coerceAtLeast(1f)
+            val thumbOffset = with(density) { (thumbTravelPx * scrollFraction).toDp() }
 
             val draggableState = rememberDraggableState { dragAmount ->
                 dragOffsetPx = (dragOffsetPx + dragAmount).coerceIn(0f, thumbTravelPx)
@@ -157,11 +161,7 @@ fun LazyGridVerticalScrollIndicator(
                         draggableState,
                         Orientation.Vertical,
                         onDragStarted = {
-                            dragOffsetPx =
-                                (scrollOffset.toFloat() / contentSize * thumbTravelPx).coerceIn(
-                                    0f,
-                                    thumbTravelPx
-                                )
+                            dragOffsetPx = (scrollFraction * thumbTravelPx).coerceIn(0f, thumbTravelPx)
                             isDragged = true
                         },
                         onDragStopped = { isDragged = false }

@@ -25,9 +25,9 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.aspectRatio
-import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.calculateEndPadding
 import androidx.compose.foundation.layout.calculateStartPadding
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -529,7 +529,7 @@ fun ImageListView(
             }
 
             if (model.showAds) {
-                AdBanner(Modifier.height(168.dp).fillMaxWidth())
+                AdBanner(Modifier.height(AD_BANNER_HEIGHT).fillMaxWidth())
             }
         }
 
@@ -579,11 +579,14 @@ fun ImageListView(
             onDateTipDismiss = dateTip.dismiss,
             modifier = Modifier
                 .align(Alignment.CenterEnd)
+                .fillMaxHeight()
                 .padding(
-                    top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() +
-                            TOP_PANEL_MARGIN + TOP_PANEL_HEIGHT + SCROLL_INDICATOR_GAP,
-                    bottom = maxOf(contentPadding.calculateBottomPadding(), bottomPanelHeight) +
-                            SCROLL_INDICATOR_GAP,
+                    top = headerHeight + SCROLL_INDICATOR_GAP,
+                    bottom = maxOf(
+                        contentPadding.calculateBottomPadding(),
+                        bottomPanelHeight,
+                        if (model.showAds) AD_BANNER_HEIGHT else 0.dp
+                    ) + SCROLL_INDICATOR_GAP,
                     end = 4.dp
                 )
         )
@@ -803,6 +806,7 @@ private const val EDGE_RESISTANCE = 0.3f
 private val TOP_PANEL_MARGIN = 8.dp
 private val TOP_PANEL_HEIGHT = 48.dp
 private val SCROLL_INDICATOR_GAP = 8.dp
+private val AD_BANNER_HEIGHT = 168.dp
 
 @Composable
 private fun DatePreviewPage(
