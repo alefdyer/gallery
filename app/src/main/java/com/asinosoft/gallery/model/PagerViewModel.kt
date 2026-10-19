@@ -4,7 +4,6 @@ import android.content.Context
 import android.content.IntentSender
 import android.os.Build
 import android.provider.MediaStore
-import android.util.Log
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -27,7 +26,6 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
-import kotlinx.coroutines.flow.zip
 import javax.inject.Inject
 
 @HiltViewModel
@@ -59,13 +57,11 @@ class PagerViewModel @Inject constructor(
 
     @OptIn(ExperimentalCoroutinesApi::class)
     val images: StateFlow<List<Media>> = params.flatMapLatest { params ->
-        Log.i("model", "Request: storageId=${params.storageId}, albumId=${params.albumId}, imageId=${params.imageId}")
         if (params.favoritesOnly) {
             mediaDao.getFavorites()
         } else {
-            params.albumId?.let { albumDao.getMediaInAlbum(params.albumId) } ?: mediaDao.getImages(
-                params.storageId
-            )
+            params.albumId?.let { albumDao.getMediaInAlbum(params.albumId) }
+                ?: mediaDao.getImages(params.storageId)
         }
     }.map { images ->
         images.filter {
@@ -83,8 +79,8 @@ class PagerViewModel @Inject constructor(
         )
 
 
-    val offset = params.zip(images) { params, images ->
-        images.indexOfFirst { it.id == params.imageId }.coerceAtLeast(0)
+    val offset = images.map { images ->
+        images.indexOfFirst { it.id == params.value.imageId }.coerceAtLeast(0)
     }
 
     private val mediaFlow = MutableStateFlow<Long>(0)
