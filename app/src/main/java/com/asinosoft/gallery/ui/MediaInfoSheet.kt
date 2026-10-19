@@ -37,12 +37,11 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.asinosoft.gallery.R
 import com.asinosoft.gallery.data.Album
 import com.asinosoft.gallery.data.AlbumWithCover
 import com.asinosoft.gallery.data.Media
-import com.asinosoft.gallery.model.MediaInfoSheetModel
+import com.asinosoft.gallery.model.PagerViewModel
 import com.asinosoft.gallery.ui.component.AddToAlbumDialog
 import com.asinosoft.gallery.ui.component.AlbumCover
 import com.asinosoft.gallery.ui.component.NewAlbumPlaceholder
@@ -54,9 +53,9 @@ import java.time.format.FormatStyle
 @Composable
 fun MediaInfoSheet(
     media: Media,
+    model: PagerViewModel,
     onAlbumClick: (Album) -> Unit,
-    onDismissRequest: () -> Unit,
-    model: MediaInfoSheetModel = hiltViewModel()
+    onDismissRequest: () -> Unit
 ) {
     val size = Formatter.formatShortFileSize(LocalContext.current, media.size)
     val locale = LocalConfiguration.current.locales[0]

@@ -14,10 +14,8 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
-import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
-import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
@@ -26,19 +24,17 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.systemGestures
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.pager.rememberPagerState
-import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.Surface
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
@@ -46,6 +42,7 @@ import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
@@ -54,9 +51,9 @@ import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChanged
-import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -67,11 +64,11 @@ import com.asinosoft.gallery.data.Media
 import com.asinosoft.gallery.model.PagerViewModel
 import com.asinosoft.gallery.ui.component.ActiveSharedMedia
 import com.asinosoft.gallery.ui.component.Carousel
-import com.asinosoft.gallery.ui.component.isOpeningTransition
 import com.asinosoft.gallery.ui.component.DismissDragState
 import com.asinosoft.gallery.ui.component.LocalDismissDrag
-import com.asinosoft.gallery.ui.component.dragToDismiss
 import com.asinosoft.gallery.ui.component.MoveToPrivateDialog
+import com.asinosoft.gallery.ui.component.dragToDismiss
+import com.asinosoft.gallery.ui.component.isOpeningTransition
 import com.asinosoft.gallery.ui.component.rememberAutoplayVideo
 import com.asinosoft.gallery.ui.component.rememberTrashIntro
 import com.asinosoft.gallery.ui.component.rememberVideoSound
@@ -85,7 +82,6 @@ internal object OpenedMedia {
         }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PagerView(
     onAlbumClick: (Album) -> Unit,
@@ -96,8 +92,9 @@ fun PagerView(
 ) {
     val loadedItems by model.images.collectAsState(listOf())
     val offset by model.offset.collectAsState(0)
+    val params by model.params.collectAsState()
 
-    val opening = remember { OpenedMedia.media?.takeIf { it.id == model.imageId } }
+    val opening = remember(params) { OpenedMedia.media?.takeIf { it.id == params.imageId } }
     var listReady by remember { mutableStateOf(null == opening) }
     val openingTransition = isOpeningTransition()
     LaunchedEffect(loadedItems, offset, openingTransition) {
@@ -107,7 +104,7 @@ fun PagerView(
             true
     }
     val items = if (listReady || null == opening) loadedItems else listOf(opening)
-    val pagerState: PagerState = key(listReady, offset) {
+    val pagerState: PagerState = key(items, offset) {
         rememberPagerState(if (listReady) offset else 0) { items.size }
     }
 
@@ -142,7 +139,7 @@ fun PagerView(
         pendingFavorite = null
         if (Activity.RESULT_OK == result.resultCode) {
             model.setFavorite(media, favorite)
-            if (model.favoritesOnly && !favorite) onClose()
+            if (model.params.value.favoritesOnly && !favorite) onClose()
         }
     }
 
@@ -167,7 +164,7 @@ fun PagerView(
                 if (null != request) {
                     pendingFavorite = media to favorite
                     favoriteLauncher.launch(IntentSenderRequest.Builder(request).build())
-                } else if (model.favoritesOnly && !favorite) {
+                } else if (model.params.value.favoritesOnly && !favorite) {
                     onClose()
                 }
             },
@@ -204,11 +201,14 @@ fun PagerView(
         val rightGestureInset = WindowInsets.systemGestures.getRight(density, layoutDirection)
 
         if (showInfo) {
-            MediaInfoSheet(
-                media = items[pagerState.currentPage],
-                onAlbumClick = onAlbumClick,
-                onDismissRequest = { showInfo = false }
-            )
+            items.getOrNull(pagerState.currentPage)?.let {media ->
+                MediaInfoSheet(
+                    media = media,
+                    model = model,
+                    onAlbumClick = onAlbumClick,
+                    onDismissRequest = { showInfo = false }
+                )
+            }
         }
 
         val pageContent: @Composable (Media, Boolean) -> Unit = { item, active ->
@@ -241,7 +241,7 @@ fun PagerView(
             HorizontalPager(
                 state = pagerState,
                 pageSpacing = 16.dp,
-                key = { items[it].id },
+                key = { items.getOrNull(it)?.id ?: -1 },
                 modifier =
                     Modifier
                         .pointerInput(leftGestureInset, rightGestureInset) {
