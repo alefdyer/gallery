@@ -5,9 +5,10 @@ import android.content.Context
 import android.net.Uri
 import android.os.Build
 import android.provider.MediaStore
+import android.provider.MediaStore.Files.FileColumns
 import android.provider.MediaStore.Images
-import androidx.core.database.getStringOrNull
 import android.provider.MediaStore.Video as Videos
+import androidx.core.database.getStringOrNull
 import com.asinosoft.gallery.data.Image
 import com.asinosoft.gallery.data.Media
 import com.asinosoft.gallery.data.Video
@@ -17,7 +18,6 @@ import com.asinosoft.gallery.data.storage.StorageProvider
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.time.ZoneId
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.flow
 
@@ -27,44 +27,29 @@ class LocalStorageProvider(
 ) : StorageProvider {
     override val syncsFavorites: Boolean = Build.VERSION.SDK_INT >= Build.VERSION_CODES.R
 
-    override suspend fun fetchAll(): Flow<Media> = flow {
-        emitAll(fetchImages(""))
-        emitAll(fetchVideos(""))
-    }
+    private val filesUri: Uri = MediaStore.Files.getContentUri("external")
+
+    override suspend fun fetchAll(): Flow<Media> = fetchMedia()
 
     override suspend fun checkConnection() = StorageCheckResult.Success
 
-    override fun getMediaCount(): Int =
-        count(Images.Media.EXTERNAL_CONTENT_URI) + count(Videos.Media.EXTERNAL_CONTENT_URI)
-
-    private fun count(uri: Uri): Int =
-        context.contentResolver.query(
-            uri,
-            arrayOf(MediaStore.MediaColumns._ID),
-            null,
-            null,
-            null
-        )?.use { it.count } ?: 0
+    override fun getMediaCount(): Int = context.contentResolver.query(
+        filesUri,
+        arrayOf(FileColumns._ID),
+        typeClause(mediaTypes),
+        null,
+        null
+    )?.use { it.count } ?: 0
 
     override suspend fun fetchOne(uri: Uri): Media? {
-        val id = uri.lastPathSegment?.toLongOrNull()
-        return if (id != null) {
-            if (uri.toString().startsWith(Images.Media.EXTERNAL_CONTENT_URI.toString())) {
-                fetchImages("${Images.Media._ID} = $id").firstOrNull()
-            } else if (uri.toString().startsWith(Videos.Media.EXTERNAL_CONTENT_URI.toString())) {
-                fetchVideos("${Videos.Media._ID} = $id").firstOrNull()
-            } else {
-                null
-            }
-        } else {
-            if (uri.toString().startsWith(Images.Media.EXTERNAL_CONTENT_URI.toString())) {
-                fetchImages("").firstOrNull()
-            } else if (uri.toString().startsWith(Videos.Media.EXTERNAL_CONTENT_URI.toString())) {
-                fetchVideos("").firstOrNull()
-            } else {
-                null
-            }
+        val types = when {
+            uri.toString().startsWith(Images.Media.EXTERNAL_CONTENT_URI.toString()) -> imageTypes
+            uri.toString().startsWith(Videos.Media.EXTERNAL_CONTENT_URI.toString()) -> videoTypes
+            else -> return null
         }
+        val id = uri.lastPathSegment?.toLongOrNull()
+        val selection = if (id != null) "${FileColumns._ID} = $id" else ""
+        return fetchMedia(selection, types).firstOrNull()
     }
 
     override suspend fun getMediaUri(media: Media): Uri = ContentUris.withAppendedId(
@@ -80,176 +65,125 @@ class LocalStorageProvider(
 
     override suspend fun getThumbnailUri(media: Media): Uri = getMediaUri(media)
 
-    private fun fetchImages(selection: String): Flow<Media> = flow {
-        val sortOrder = "${Images.Media.DATE_TAKEN} DESC"
-
-        val query =
-            context.contentResolver.query(
-                Images.Media.EXTERNAL_CONTENT_URI,
-                arrayOf(
-                    Images.Media._ID,
-                    Images.Media.DATE_ADDED,
-                    Images.Media.DATE_TAKEN,
-                    Images.Media.WIDTH,
-                    Images.Media.HEIGHT,
-                    Images.Media.ORIENTATION,
-                    Images.Media.SIZE,
-                    Images.Media.DATA,
-                    Images.Media.MIME_TYPE,
-                ) + if (Build.VERSION.SDK_INT >= 28) arrayOf(
-                    Images.Media.RELATIVE_PATH,
-                    Images.Media.OWNER_PACKAGE_NAME
-                ) else {
-                    arrayOf()
-                } + if (syncsFavorites) arrayOf(MediaStore.MediaColumns.IS_FAVORITE) else arrayOf(),
-                selection,
-                arrayOf(),
-                sortOrder
-            )
-
-        query?.use { cursor ->
-            val zoneId = ZoneId.systemDefault()
-            val idColumn = cursor.getColumnIndexOrThrow(Images.Media._ID)
-            val dateAddedColumn = cursor.getColumnIndexOrThrow(Images.Media.DATE_ADDED)
-            val dateTakenColumn = cursor.getColumnIndexOrThrow(Images.Media.DATE_TAKEN)
-            val widthColumn = cursor.getColumnIndexOrThrow(Images.Media.WIDTH)
-            val heightColumn = cursor.getColumnIndexOrThrow(Images.Media.HEIGHT)
-            val orientationColumn = cursor.getColumnIndexOrThrow(Images.Media.ORIENTATION)
-            val sizeColumn = cursor.getColumnIndexOrThrow(Images.Media.SIZE)
-            val dataColumn = cursor.getColumnIndexOrThrow(Images.Media.DATA)
-            val mimeTypeColumn = cursor.getColumnIndexOrThrow(Images.Media.MIME_TYPE)
-            val pathColumn =
-                if (Build.VERSION.SDK_INT < 28) null else cursor.getColumnIndexOrThrow(Images.Media.RELATIVE_PATH)
-            val ownerColumn =
-                if (Build.VERSION.SDK_INT < 28) null else cursor.getColumnIndexOrThrow(Images.Media.OWNER_PACKAGE_NAME)
-            val favoriteColumn =
-                if (syncsFavorites) cursor.getColumnIndexOrThrow(MediaStore.MediaColumns.IS_FAVORITE) else null
-
-            while (cursor.moveToNext()) {
-                val id = cursor.getLong(idColumn)
-                val dateAdded: Long = cursor.getLong(dateAddedColumn)
-                val dateTaken: Long = cursor.getLong(dateTakenColumn)
-                val date = if (dateTaken > 0) dateTaken else (dateAdded * 1000)
-                val width: Int = cursor.getInt(widthColumn)
-                val height: Int = cursor.getInt(heightColumn)
-                val orientation: Int = cursor.getInt(orientationColumn)
-
-                val uri = ContentUris.withAppendedId(Images.Media.EXTERNAL_CONTENT_URI, id)
-                val datetime = java.time.Instant.ofEpochMilli(date).atZone(zoneId).toLocalDateTime()
-
-                val size: Long = cursor.getLong(sizeColumn)
-
-                val data: String = cursor.getString(dataColumn)
-                val mimeType: String = cursor.getString(mimeTypeColumn)
-
-                val path: String = pathColumn?.let { cursor.getString(pathColumn) } ?: ""
-                val owner: String? = ownerColumn?.let { cursor.getStringOrNull(ownerColumn) }
-
-                val image =
-                    Media(
-                        id = 0,
-                        uri = uri,
-                        date = datetime.toLocalDate(),
-                        time = datetime.toLocalTime(),
-                        path = path,
-                        size = size,
-                        filename = data,
-                        mimeType = mimeType,
-                        storageId = storage.id,
-                        storageType = storage.type,
-                        storageItemId = id.toString(),
-                        owner = owner,
-                        image =
-                            Image(
-                                width = width,
-                                height = height,
-                                orientation
-                            ),
-                        favorite = favoriteColumn?.let { 1 == cursor.getInt(it) } ?: false
-                    )
-                emit(image)
+    private fun fetchMedia(selection: String = "", types: IntArray = mediaTypes): Flow<Media> =
+        flow {
+            val typeSelection = typeClause(types)
+            val where = if (selection.isEmpty()) {
+                typeSelection
+            } else {
+                "($selection) AND $typeSelection"
             }
-        }
-    }
-
-    private fun fetchVideos(selection: String): Flow<Media> = flow {
-        val cursor =
-            context.contentResolver.query(
-                Videos.Media.EXTERNAL_CONTENT_URI,
+            val projection = arrayOf(
+                FileColumns._ID,
+                FileColumns.MEDIA_TYPE,
+                FileColumns.DATE_ADDED,
+                FileColumns.DATE_TAKEN,
+                FileColumns.WIDTH,
+                FileColumns.HEIGHT,
+                FileColumns.ORIENTATION,
+                FileColumns.DURATION,
+                FileColumns.SIZE,
+                FileColumns.DATA,
+                FileColumns.MIME_TYPE
+            ) + if (Build.VERSION.SDK_INT >= 28) {
                 arrayOf(
-                    Videos.Media._ID,
-                    Videos.Media.DISPLAY_NAME,
-                    Videos.Media.DURATION,
-                    Videos.Media.SIZE,
-                    Videos.Media.DATA,
-                    Videos.Media.DATE_TAKEN,
-                    Videos.Media.DATE_ADDED,
-                    Videos.Media.MIME_TYPE,
-                ) + if (Build.VERSION.SDK_INT >= 28) arrayOf(
-                    Videos.Media.RELATIVE_PATH,
-                    Videos.Media.OWNER_PACKAGE_NAME,
-                ) else {
-                    arrayOf()
-                } + if (syncsFavorites) arrayOf(MediaStore.MediaColumns.IS_FAVORITE) else arrayOf(),
-                selection,
+                    FileColumns.RELATIVE_PATH,
+                    FileColumns.OWNER_PACKAGE_NAME
+                )
+            } else {
+                arrayOf()
+            } + if (syncsFavorites) arrayOf(MediaStore.MediaColumns.IS_FAVORITE) else arrayOf()
+
+            context.contentResolver.query(
+                filesUri,
+                projection,
+                where,
                 null,
-                "${Videos.Media.DATE_TAKEN} DESC"
-            )
+                "${FileColumns.DATE_TAKEN} DESC"
+            )?.use { cursor ->
+                val zoneId = ZoneId.systemDefault()
+                val idColumn = cursor.getColumnIndexOrThrow(FileColumns._ID)
+                val mediaTypeColumn = cursor.getColumnIndexOrThrow(FileColumns.MEDIA_TYPE)
+                val dateAddedColumn = cursor.getColumnIndexOrThrow(FileColumns.DATE_ADDED)
+                val dateTakenColumn = cursor.getColumnIndexOrThrow(FileColumns.DATE_TAKEN)
+                val widthColumn = cursor.getColumnIndexOrThrow(FileColumns.WIDTH)
+                val heightColumn = cursor.getColumnIndexOrThrow(FileColumns.HEIGHT)
+                val orientationColumn = cursor.getColumnIndexOrThrow(FileColumns.ORIENTATION)
+                val durationColumn = cursor.getColumnIndexOrThrow(FileColumns.DURATION)
+                val sizeColumn = cursor.getColumnIndexOrThrow(FileColumns.SIZE)
+                val dataColumn = cursor.getColumnIndexOrThrow(FileColumns.DATA)
+                val mimeTypeColumn = cursor.getColumnIndexOrThrow(FileColumns.MIME_TYPE)
+                val pathColumn = if (Build.VERSION.SDK_INT < 28) {
+                    null
+                } else {
+                    cursor.getColumnIndexOrThrow(FileColumns.RELATIVE_PATH)
+                }
+                val ownerColumn = if (Build.VERSION.SDK_INT < 28) {
+                    null
+                } else {
+                    cursor.getColumnIndexOrThrow(FileColumns.OWNER_PACKAGE_NAME)
+                }
+                val favoriteColumn = if (syncsFavorites) {
+                    cursor.getColumnIndexOrThrow(MediaStore.MediaColumns.IS_FAVORITE)
+                } else {
+                    null
+                }
 
-        cursor?.use { cursor ->
-            val zoneId = ZoneId.systemDefault()
-            val idColumn = cursor.getColumnIndexOrThrow(Videos.Media._ID)
-            val dateAddedColumn = cursor.getColumnIndexOrThrow(Videos.Media.DATE_ADDED)
-            val dateTakenColumn = cursor.getColumnIndexOrThrow(Videos.Media.DATE_TAKEN)
-            val sizeColumn = cursor.getColumnIndexOrThrow(Videos.Media.SIZE)
-            val dataColumn = cursor.getColumnIndexOrThrow(Videos.Media.DATA)
-            val durationColumn = cursor.getColumnIndexOrThrow(Videos.Media.DURATION)
-            val mimeTypeColumn = cursor.getColumnIndexOrThrow(Videos.Media.MIME_TYPE)
-            val pathColumn =
-                if (Build.VERSION.SDK_INT < 28) null else cursor.getColumnIndexOrThrow(Videos.Media.RELATIVE_PATH)
-            val ownerColumn =
-                if (Build.VERSION.SDK_INT < 28) null else cursor.getColumnIndexOrThrow(Videos.Media.OWNER_PACKAGE_NAME)
-            val favoriteColumn =
-                if (syncsFavorites) cursor.getColumnIndexOrThrow(MediaStore.MediaColumns.IS_FAVORITE) else null
+                while (cursor.moveToNext()) {
+                    val id = cursor.getLong(idColumn)
+                    val isVideo = cursor.getInt(mediaTypeColumn) == FileColumns.MEDIA_TYPE_VIDEO
+                    val dateAdded: Long = cursor.getLong(dateAddedColumn)
+                    val dateTaken: Long = cursor.getLong(dateTakenColumn)
+                    val date = if (dateTaken > 0) dateTaken else (dateAdded * 1000)
+                    val collection = if (isVideo) {
+                        Videos.Media.EXTERNAL_CONTENT_URI
+                    } else {
+                        Images.Media.EXTERNAL_CONTENT_URI
+                    }
+                    val uri = ContentUris.withAppendedId(collection, id)
+                    val datetime = java.time.Instant.ofEpochMilli(date)
+                        .atZone(zoneId)
+                        .toLocalDateTime()
+                    val path: String = pathColumn?.let { cursor.getString(pathColumn) } ?: ""
+                    val owner: String? = ownerColumn?.let { cursor.getStringOrNull(ownerColumn) }
 
-            while (cursor.moveToNext()) {
-                val id = cursor.getLong(idColumn)
-                val dateAdded: Long = cursor.getLong(dateAddedColumn)
-                val dateTaken: Long = cursor.getLong(dateTakenColumn)
-                val date = if (dateTaken > 0) dateTaken else (dateAdded * 1000)
-
-                val uri = ContentUris.withAppendedId(Videos.Media.EXTERNAL_CONTENT_URI, id)
-                val datetime = java.time.Instant.ofEpochMilli(date).atZone(zoneId).toLocalDateTime()
-
-                val size: Long = cursor.getLong(sizeColumn)
-
-                val data: String = cursor.getString(dataColumn)
-                val duration: Long = cursor.getLong(durationColumn)
-                val mimeType: String = cursor.getString(mimeTypeColumn)
-
-                val path: String = pathColumn?.let { cursor.getString(pathColumn) } ?: ""
-                val owner: String? = ownerColumn?.let { cursor.getStringOrNull(ownerColumn) }
-
-                val video =
-                    Media(
-                        id = 0,
-                        uri = uri,
-                        date = datetime.toLocalDate(),
-                        time = datetime.toLocalTime(),
-                        path = path,
-                        size = size,
-                        filename = data,
-                        mimeType = mimeType,
-                        storageId = storage.id,
-                        storageType = storage.type,
-                        storageItemId = id.toString(),
-                        owner = owner,
-                        video = Video(duration),
-                        favorite = favoriteColumn?.let { 1 == cursor.getInt(it) } ?: false
+                    emit(
+                        Media(
+                            id = 0,
+                            uri = uri,
+                            date = datetime.toLocalDate(),
+                            time = datetime.toLocalTime(),
+                            path = path,
+                            size = cursor.getLong(sizeColumn),
+                            filename = cursor.getString(dataColumn),
+                            mimeType = cursor.getString(mimeTypeColumn),
+                            storageId = storage.id,
+                            storageType = storage.type,
+                            storageItemId = id.toString(),
+                            owner = owner,
+                            image = if (isVideo) {
+                                null
+                            } else {
+                                Image(
+                                    width = cursor.getInt(widthColumn),
+                                    height = cursor.getInt(heightColumn),
+                                    orientation = cursor.getInt(orientationColumn)
+                                )
+                            },
+                            video = if (isVideo) Video(cursor.getLong(durationColumn)) else null,
+                            favorite = favoriteColumn?.let { 1 == cursor.getInt(it) } ?: false
+                        )
                     )
-
-                emit(video)
+                }
             }
         }
+
+    private companion object {
+        val imageTypes = intArrayOf(FileColumns.MEDIA_TYPE_IMAGE)
+        val videoTypes = intArrayOf(FileColumns.MEDIA_TYPE_VIDEO)
+        val mediaTypes = intArrayOf(FileColumns.MEDIA_TYPE_IMAGE, FileColumns.MEDIA_TYPE_VIDEO)
+
+        fun typeClause(types: IntArray): String =
+            "${FileColumns.MEDIA_TYPE} IN (${types.joinToString(",")})"
     }
 }
