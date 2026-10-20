@@ -27,6 +27,7 @@ import com.asinosoft.gallery.R
 import com.asinosoft.gallery.ui.theme.floatingPanelColor
 import kotlinx.coroutines.delay
 import kotlin.time.Duration
+import kotlin.time.Duration.Companion.milliseconds
 
 const val TIP_PHOTO_DATE = "tip_photo_date"
 const val TIP_PHOTO_COUNTERS = "tip_photo_counters"
@@ -65,7 +66,9 @@ fun rememberFeatureTip(
             visible = false
             return@LaunchedEffect
         }
-        delay?.let { delay(it) }
+        delay?.takeIf { it.isPositive() }?.let {
+            delay(it)
+        }
         // Перепроверяем настройки на случай, если за время задержки человек уже воспользовался рекомендуемой фичей
         if (!isTipSeen(context, key)) {
             visible = true
