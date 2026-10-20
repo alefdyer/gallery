@@ -310,7 +310,7 @@ fun AlbumListView(
 
     BoxWithConstraints(modifier.fillMaxSize()) {
         val rowHeight = (maxWidth - HEADER_GAP * 2) / 3
-        val headerHeight = (contentPadding.calculateTopPadding() + rowHeight) / 2
+        val headerHeight = (contentPadding.calculateTopPadding() + rowHeight) / 2 * 1.5f
         val cardSize = (maxWidth - SCREEN_PADDING * 2 - CARD_SPACING * (ALBUMS_PER_ROW - 1)) / ALBUMS_PER_ROW
 
         LazyColumn(

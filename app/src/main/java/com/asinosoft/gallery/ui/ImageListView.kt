@@ -87,6 +87,7 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.asinosoft.gallery.R
 import com.asinosoft.gallery.data.Album
 import com.asinosoft.gallery.data.AlbumCategory
+import com.asinosoft.gallery.data.name
 import com.asinosoft.gallery.data.Media
 import com.asinosoft.gallery.model.DateFilter
 import com.asinosoft.gallery.model.DateFilterSource
@@ -107,6 +108,7 @@ import com.asinosoft.gallery.ui.component.MoveToPrivateDialog
 import com.asinosoft.gallery.ui.component.ScrollToTopButton
 import com.asinosoft.gallery.ui.component.SelectionControlBar
 import com.asinosoft.gallery.ui.component.SelectionInfoBar
+import com.asinosoft.gallery.ui.component.TIP_DAY_SWIPE
 import com.asinosoft.gallery.ui.component.TIP_PHOTO_APPS_FILTER
 import com.asinosoft.gallery.ui.component.TIP_PHOTO_COUNTERS
 import com.asinosoft.gallery.ui.component.TIP_PHOTO_DATE
@@ -250,12 +252,14 @@ fun ImageListView(
     }
 
     val album by model.album.collectAsState()
+    val albumCategory by model.albumCategory.collectAsState()
     val listTitle = album?.name
         ?: stringResource(if (model.favoritesOnly) R.string.favorites else R.string.all_photos)
     val title = dateFilter?.let { dateFilterTitle(it) } ?: listTitle
     val cover = images.firstOrNull()
     val photoCount by model.photoCount.collectAsState()
     val videoCount by model.videoCount.collectAsState()
+    val totalSize by model.totalSize.collectAsState()
     val showPhotos by model.showPhotos.collectAsState()
     val showVideos by model.showVideos.collectAsState()
     val canToggleMediaType = photoCount > 0 && videoCount > 0
@@ -296,6 +300,15 @@ fun ImageListView(
     val swipeDirection by remember { derivedStateOf { sign(swipeOffset.value) } }
     val olderDate = remember(dateFilter, images) { model.adjacentDateFilter(older = true) }
     val newerDate = remember(dateFilter, images) { model.adjacentDateFilter(older = false) }
+    // Первый вход в фильтр по дню: подсказать про листание дней свайпом.
+    val daySwipeTip = rememberFeatureTip(
+        key = TIP_DAY_SWIPE,
+        enabled = showFeatureTips &&
+                null != dateFilter?.day &&
+                (null != olderDate || null != newerDate) &&
+                selection.isEmpty(),
+        delayMs = 700L
+    )
     var committingDate by remember { mutableStateOf<DateFilter?>(null) }
     val previewDate = committingDate ?: when {
         swipeDirection > 0 -> olderDate
@@ -425,6 +438,7 @@ fun ImageListView(
                             committingDate = target
                             swipeOffset.animateTo(if (swipedRight) width else -width, tween(200))
                             model.setDateFilter(target)
+                            daySwipeTip.dismiss()
                             model.images.first { list -> list.all { target.matches(it) } }
                             repeat(2) { withFrameNanos { } }
                             swipeOffset.snapTo(0f)
@@ -564,6 +578,8 @@ fun ImageListView(
                 videoCount = videoCount,
                 photosEnabled = showPhotos,
                 videosEnabled = showVideos,
+                sizeBytes = totalSize,
+                subtitle = albumCategory?.let { "\\${it.name()}" },
                 onPhotosClick = {
                     scrollToTopOnUpdate.pending = true
                     model.togglePhotos()
@@ -583,6 +599,21 @@ fun ImageListView(
                 modifier = Modifier
                     .align(Alignment.TopEnd)
                     .padding(top = headerHeight + 8.dp, end = 16.dp)
+            )
+        }
+
+        if (daySwipeTip.visible) {
+            FeatureTipCard(
+                text = stringResource(R.string.tip_day_swipe),
+                onDismiss = daySwipeTip.dismiss,
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(
+                        bottom = maxOf(
+                            contentPadding.calculateBottomPadding(),
+                            bottomPanelHeight
+                        ) + 80.dp
+                    )
             )
         }
 

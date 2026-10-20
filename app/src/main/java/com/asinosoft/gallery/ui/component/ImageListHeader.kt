@@ -1,11 +1,13 @@
 package com.asinosoft.gallery.ui.component
 
+import android.text.format.Formatter
 import androidx.annotation.DrawableRes
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -90,12 +92,16 @@ fun ImageListHeaderInfo(
     modifier: Modifier = Modifier,
     photosEnabled: Boolean = true,
     videosEnabled: Boolean = true,
+    sizeBytes: Long? = null,
+    subtitle: String? = null,
     onPhotosClick: (() -> Unit)? = null,
     onVideosClick: (() -> Unit)? = null
 ) {
     Box(modifier) {
         Row(
-            verticalAlignment = Alignment.CenterVertically,
+            // Bottom, а не CenterVertically: правая колонка выросла (размер над счётчиками),
+            // и заголовок уезжал вверх.
+            verticalAlignment = Alignment.Bottom,
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             modifier = Modifier
                 .align(Alignment.BottomStart)
@@ -103,29 +109,64 @@ fun ImageListHeaderInfo(
                 .padding(start = 16.dp, end = 16.dp, bottom = 14.dp)
         ) {
             val style = MaterialTheme.typography.headlineSmall
-            Text(
-                text = title,
-                style = style.copy(shadow = textShadow),
-                fontWeight = FontWeight.Bold,
-                color = Color.White,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                autoSize = TextAutoSize.StepBased(minFontSize = MIN_TITLE_SIZE, maxFontSize = style.fontSize),
-                modifier = Modifier.weight(1f)
-            )
+            Column(Modifier.weight(1f)) {
+                if (!subtitle.isNullOrBlank()) {
+                    Text(
+                        text = subtitle,
+                        style = MaterialTheme.typography.titleMedium.copy(shadow = textShadow),
+                        fontWeight = FontWeight.SemiBold,
+                        color = Color.White.copy(alpha = 0.85f),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+                Text(
+                    text = title,
+                    style = style.copy(shadow = textShadow),
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    autoSize = TextAutoSize.StepBased(
+                        minFontSize = MIN_TITLE_SIZE,
+                        maxFontSize = style.fontSize
+                    )
+                )
+            }
 
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(4.dp),
-                modifier = Modifier
-                    .background(Color.White.copy(alpha = 0.18f), RoundedCornerShape(50))
-                    .padding(horizontal = 4.dp, vertical = 2.dp)
+            Column(
+                horizontalAlignment = Alignment.End,
+                verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
-                Counter(R.drawable.photo, photoCount, photosEnabled, onPhotosClick)
-                Counter(R.drawable.videocam, videoCount, videosEnabled, onVideosClick)
+                TotalSizeLabel(sizeBytes)
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    modifier = Modifier
+                        .background(Color.White.copy(alpha = 0.18f), RoundedCornerShape(50))
+                        .padding(horizontal = 4.dp, vertical = 2.dp)
+                ) {
+                    Counter(R.drawable.photo, photoCount, photosEnabled, onPhotosClick)
+                    Counter(R.drawable.videocam, videoCount, videosEnabled, onVideosClick)
+                }
             }
         }
     }
+}
+
+/** Общий размер над счётчиками в шапке */
+@Composable
+private fun TotalSizeLabel(sizeBytes: Long?) {
+    if (null == sizeBytes || sizeBytes <= 0) return
+    Text(
+        text = Formatter.formatShortFileSize(LocalContext.current, sizeBytes),
+        style = MaterialTheme.typography.labelSmall.copy(shadow = textShadow),
+        fontWeight = FontWeight.SemiBold,
+        color = Color.White,
+        modifier = Modifier
+            .background(Color.White.copy(alpha = 0.18f), RoundedCornerShape(50))
+            .padding(horizontal = 8.dp, vertical = 2.dp)
+    )
 }
 
 @Composable
@@ -133,7 +174,8 @@ fun ImageListHeaderTitle(
     title: String,
     @DrawableRes icon: Int,
     count: Int,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    sizeBytes: Long? = null
 ) {
     Box(modifier) {
         Row(
@@ -154,12 +196,18 @@ fun ImageListHeaderTitle(
                 modifier = Modifier.weight(1f)
             )
 
-            Row(
-                modifier = Modifier
-                    .background(Color.White.copy(alpha = 0.18f), RoundedCornerShape(50))
-                    .padding(horizontal = 4.dp, vertical = 2.dp)
+            Column(
+                horizontalAlignment = Alignment.End,
+                verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
-                Counter(icon, count, enabled = true, onClick = null)
+                TotalSizeLabel(sizeBytes)
+                Row(
+                    modifier = Modifier
+                        .background(Color.White.copy(alpha = 0.18f), RoundedCornerShape(50))
+                        .padding(horizontal = 4.dp, vertical = 2.dp)
+                ) {
+                    Counter(icon, count, enabled = true, onClick = null)
+                }
             }
         }
     }

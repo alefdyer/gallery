@@ -28,6 +28,7 @@ import com.asinosoft.gallery.ui.theme.floatingPanelColor
 import kotlinx.coroutines.delay
 
 const val TIP_PHOTO_DATE = "tip_photo_date"
+const val TIP_DAY_SWIPE = "tip_day_swipe"
 const val TIP_PHOTO_COUNTERS = "tip_photo_counters"
 const val TIP_PHOTO_APPS_FILTER = "tip_photo_apps_filter"
 const val TIP_ALBUM_CATEGORY = "tip_album_category"
