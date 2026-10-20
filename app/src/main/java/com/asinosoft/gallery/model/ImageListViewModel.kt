@@ -157,15 +157,6 @@ class ImageListViewModel @Inject constructor(
     val videoCount: StateFlow<Int> = filteredImages.map { list -> list.count { null != it.video } }
         .flowOn(Dispatchers.Default)
         .stateIn(viewModelScope, SharingStarted.Eagerly, 0)
-
-    /**
-     * Суммарный размер показанных медиа (для шапки, над счётчиками).
-     * От `images`, а не `filteredImages`: при переключении счётчиков фото/видео размер пересчитывается.
-     */
-    val totalSize: StateFlow<Long> = images.map { list -> list.sumOf { it.size.coerceAtLeast(0) } }
-        .flowOn(Dispatchers.Default)
-        .stateIn(viewModelScope, SharingStarted.Eagerly, 0)
-
     val filters = combine(allFilters, activeDateFilter, allImages) { filters, dateFilter, images ->
         val apps = images.filter { image ->
             (dateFilter?.year == null || image.date.year == dateFilter.year) &&
@@ -202,8 +193,11 @@ class ImageListViewModel @Inject constructor(
         viewModelScope.launch {
             albumId?.let { albumId ->
                 val value = albumDao.getAlbumById(albumId)
+                val category = albumDao.getCategoryById(value.categoryId)
+                // Категорию ставим первой: в UI она появится одним кадром с названием альбома,
+                // а не вторым запросом после него.
+                albumCategory.emit(category)
                 album.emit(value)
-                albumCategory.emit(albumDao.getCategoryById(value.categoryId))
             }
 
 

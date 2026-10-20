@@ -259,7 +259,9 @@ fun ImageListView(
     val cover = images.firstOrNull()
     val photoCount by model.photoCount.collectAsState()
     val videoCount by model.videoCount.collectAsState()
-    val totalSize by model.totalSize.collectAsState()
+    // Размер — синхронно из уже собранного списка, как счётчики в превью соседнего альбома:
+    // отдельный Flow давал лишнюю асинхронную ступень, и подпись появлялась позже названия.
+    val totalSize = remember(images) { images.sumOf { it.size.coerceAtLeast(0) } }
     val showPhotos by model.showPhotos.collectAsState()
     val showVideos by model.showVideos.collectAsState()
     val canToggleMediaType = photoCount > 0 && videoCount > 0
@@ -496,6 +498,8 @@ fun ImageListView(
                 model = model,
                 images = if (target.id == previousAlbum?.id) previousAlbumImages else nextAlbumImages,
                 title = target.name,
+                // Соседние альбомы — из той же категории, что и текущий.
+                subtitle = albumCategory?.let { "\\${it.name()}" },
                 showPhotos = true,
                 showVideos = true,
                 columns = gridColumns,
@@ -867,10 +871,12 @@ private fun DatePreviewPage(
     columns: Int,
     headerHeight: Dp,
     contentPadding: PaddingValues,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    subtitle: String? = null
 ) {
     val videoCount = remember(images) { images.count { null != it.video } }
     val photoCount = images.size - videoCount
+    val totalSize = remember(images) { images.sumOf { it.size.coerceAtLeast(0) } }
     val typeFilterActive = photoCount > 0 && videoCount > 0 && !(showPhotos && showVideos)
     val visibleImages = remember(images, typeFilterActive, showPhotos, showVideos) {
         if (typeFilterActive) images.filter { if (null == it.video) showPhotos else showVideos } else images
@@ -901,6 +907,8 @@ private fun DatePreviewPage(
             videoCount = videoCount,
             photosEnabled = !typeFilterActive || showPhotos,
             videosEnabled = !typeFilterActive || showVideos,
+            sizeBytes = totalSize,
+            subtitle = subtitle,
             modifier = Modifier
                 .fillMaxWidth()
                 .height(headerHeight)
