@@ -241,7 +241,7 @@ fun ImageListView(
     val countersTip = rememberFeatureTip(
         key = TIP_PHOTO_COUNTERS,
         enabled = showFeatureTips && canToggleMediaType,
-        delay = 700.milliseconds
+        delayMs = 700L
     )
     val appsFilterTip = rememberFeatureTip(
         key = TIP_PHOTO_APPS_FILTER,
@@ -249,7 +249,7 @@ fun ImageListView(
                 hasAppFilters &&
                 !countersTip.visible &&
                 (isTipSeen(context, TIP_PHOTO_COUNTERS) || !canToggleMediaType),
-        delay = 400.milliseconds
+        delayMs = 400L
     )
     val dateTip = rememberFeatureTip(
         key = TIP_PHOTO_DATE,
@@ -543,12 +543,10 @@ fun ImageListView(
                 onPhotosClick = {
                     scrollToTopOnUpdate.pending = true
                     model.togglePhotos()
-                    countersTip.dismiss()
                 }.takeIf { canToggleMediaType },
                 onVideosClick = {
                     scrollToTopOnUpdate.pending = true
                     model.toggleVideos()
-                    countersTip.dismiss()
                 }.takeIf { canToggleMediaType },
                 modifier = headerModifier
             )
@@ -573,7 +571,6 @@ fun ImageListView(
                     DateFilter(date.year, date.monthValue, date.dayOfMonth),
                     DateFilterSource.SLIDER
                 )
-                dateTip.dismiss()
             },
             showDateTip = dateTip.visible,
             onDateTipDismiss = dateTip.dismiss,
@@ -654,10 +651,7 @@ fun ImageListView(
         FilterBar(
             visible = selection.isEmpty(),
             onBack = onBack,
-            onAppsLongPress = {
-                showAppsPanel = true
-                appsFilterTip.dismiss()
-            },
+            onAppsLongPress = { showAppsPanel = true },
             modifier = Modifier
                 .align(Alignment.TopEnd)
                 .statusBarsPadding()
