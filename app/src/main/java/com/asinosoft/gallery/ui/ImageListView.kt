@@ -117,6 +117,7 @@ import com.asinosoft.gallery.ui.component.rememberFeatureTip
 import com.asinosoft.gallery.ui.component.rememberGridColumns
 import com.asinosoft.gallery.ui.component.rememberTrashIntro
 import com.asinosoft.gallery.ui.component.rememberVideoPreviewQueue
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
@@ -179,21 +180,29 @@ fun ImageListView(
     var filtersHeight by remember { mutableFloatStateOf(0f) }
     var filtersOffset by remember { mutableFloatStateOf(0f) }
     var lastScrollTime by remember { mutableLongStateOf(0L) }
+    // Одна анимация смещения за раз: snap из onPostFling и возврат по таймеру иначе
+    // пишут filtersOffset параллельно и панель появляется, уезжает и появляется снова.
+    var filtersAnimJob by remember { mutableStateOf<Job?>(null) }
+    var filtersReturning by remember { mutableStateOf(false) }
 
     LaunchedEffect(lastScrollTime) {
         if (lastScrollTime == 0L) return@LaunchedEffect
         delay(500.milliseconds)
-        launch {
+        filtersAnimJob?.cancel()
+        filtersReturning = true
+        filtersAnimJob = launch {
             animate(initialValue = filtersOffset, targetValue = 0f) { v, _ ->
                 filtersOffset = v
             }
         }
+        filtersAnimJob?.invokeOnCompletion { filtersReturning = false }
     }
 
     val coroutineScope = rememberCoroutineScope()
     val nestedScrollConnection = remember {
         object : NestedScrollConnection {
             override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+                filtersReturning = false
                 filtersOffset = (filtersOffset + abs(available.y)).coerceIn(0f, filtersHeight)
 
                 return Offset.Zero
@@ -204,21 +213,34 @@ fun ImageListView(
                 available: Offset,
                 source: NestedScrollSource
             ): Offset {
-                lastScrollTime = System.currentTimeMillis()
-                return available
+                // У краёв списка флинг шлёт события с нулевым consumed (overscroll) уже после
+                // визуальной остановки — они не должны сбрасывать таймер возврата панелей.
+                if (consumed.y != 0f) {
+                    lastScrollTime = System.currentTimeMillis()
+                }
+                // Ничего не потребляем: иначе родитель (навбар в MainView) увидит leftover
+                // как реальное движение и его таймер у краёв будет сбрасываться дольше.
+                return Offset.Zero
             }
 
             override suspend fun onPostFling(consumed: Velocity, available: Velocity): Velocity {
-                lastScrollTime = System.currentTimeMillis()
-                val targetFiltersOffset = if (filtersOffset > filtersHeight / 2f) filtersHeight else 0f
+                if (consumed.y != 0f) {
+                    lastScrollTime = System.currentTimeMillis()
+                }
+                // Поздний post-fling у края не должен отменять уже идущий возврат панели.
+                if (!filtersReturning) {
+                    val targetFiltersOffset =
+                        if (filtersOffset > filtersHeight / 2f) filtersHeight else 0f
 
-                coroutineScope.launch {
-                    animate(
-                        initialValue = filtersOffset,
-                        targetValue = targetFiltersOffset,
-                        initialVelocity = 10f
-                    ) { y, _ ->
-                        filtersOffset = y
+                    filtersAnimJob?.cancel()
+                    filtersAnimJob = coroutineScope.launch {
+                        animate(
+                            initialValue = filtersOffset,
+                            targetValue = targetFiltersOffset,
+                            initialVelocity = 10f
+                        ) { y, _ ->
+                            filtersOffset = y
+                        }
                     }
                 }
 
@@ -529,7 +551,9 @@ fun ImageListView(
             }
 
             if (model.showAds) {
-                AdBanner(Modifier.height(AD_BANNER_HEIGHT).fillMaxWidth())
+                AdBanner(Modifier
+                    .height(AD_BANNER_HEIGHT)
+                    .fillMaxWidth())
             }
         }
 

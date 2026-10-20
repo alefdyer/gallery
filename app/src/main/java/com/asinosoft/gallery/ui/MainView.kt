@@ -18,6 +18,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -40,6 +41,7 @@ import com.asinosoft.gallery.model.MediaType
 import com.asinosoft.gallery.model.ImageListViewModel
 import com.asinosoft.gallery.ui.component.CachingProgressIndicator
 import com.asinosoft.gallery.ui.component.ViewModeBar
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.abs
@@ -68,38 +70,64 @@ fun MainView(
     var navbarHeight by remember { mutableFloatStateOf(0f) }
     var navbarOffset by remember { mutableFloatStateOf(0f) }
     var lastScrollTime by remember { mutableLongStateOf(0L) }
+    // См. ImageListView: snap и возврат не должны анимировать смещение одновременно.
+    var navbarAnimJob by remember { mutableStateOf<Job?>(null) }
+    var navbarReturning by remember { mutableStateOf(false) }
 
     LaunchedEffect(lastScrollTime) {
         if (lastScrollTime == 0L) return@LaunchedEffect
         delay(500.milliseconds)
-        launch {
+        navbarAnimJob?.cancel()
+        navbarReturning = true
+        navbarAnimJob = launch {
             animate(initialValue = navbarOffset, targetValue = 0f) { v, _ ->
                 navbarOffset = v
             }
         }
+        navbarAnimJob?.invokeOnCompletion { navbarReturning = false }
     }
 
     val syncPanelsScrollConnection = remember {
         object : NestedScrollConnection {
             override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
-                lastScrollTime = System.currentTimeMillis()
+                navbarReturning = false
                 val newNavbarOffset = navbarOffset + abs(available.y)
                 navbarOffset = newNavbarOffset.coerceIn(0f, navbarHeight)
 
                 return Offset.Zero
             }
 
-            override suspend fun onPostFling(consumed: Velocity, available: Velocity): Velocity {
-                lastScrollTime = System.currentTimeMillis()
-                val targetNavbarOffset = if (navbarOffset > navbarHeight / 2f) navbarHeight else 0f
+            override fun onPostScroll(
+                consumed: Offset,
+                available: Offset,
+                source: NestedScrollSource
+            ): Offset {
+                // Таймер — только по реальному движению: в onPreScroll у краёв списка приходят
+                // «сырые» дельты overscroll уже после остановки, и панели выезжали с опозданием.
+                if (consumed.y != 0f) {
+                    lastScrollTime = System.currentTimeMillis()
+                }
+                return Offset.Zero
+            }
 
-                coroutineScope.launch {
-                    animate(
-                        initialValue = navbarOffset,
-                        targetValue = targetNavbarOffset,
-                        initialVelocity = 10f
-                    ) { y, _ ->
-                        navbarOffset = y
+            override suspend fun onPostFling(consumed: Velocity, available: Velocity): Velocity {
+                if (consumed.y != 0f) {
+                    lastScrollTime = System.currentTimeMillis()
+                }
+                // Поздний post-fling у края не должен отменять уже идущий возврат панели.
+                if (!navbarReturning) {
+                    val targetNavbarOffset =
+                        if (navbarOffset > navbarHeight / 2f) navbarHeight else 0f
+
+                    navbarAnimJob?.cancel()
+                    navbarAnimJob = coroutineScope.launch {
+                        animate(
+                            initialValue = navbarOffset,
+                            targetValue = targetNavbarOffset,
+                            initialVelocity = 10f
+                        ) { y, _ ->
+                            navbarOffset = y
+                        }
                     }
                 }
 
