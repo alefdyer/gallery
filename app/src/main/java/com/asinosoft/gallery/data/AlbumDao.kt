@@ -117,6 +117,13 @@ interface AlbumDao {
     )
     suspend fun removeMediaFromAlbum(mediaIds: Collection<Long>, albumId: Long)
 
+    /** Полная очистка состава альбома (для восстановления в режиме перезаписи). */
+    @Query("DELETE FROM media_album WHERE albumId = :albumId")
+    suspend fun clearAlbumMedia(albumId: Long)
+
+    @Query("DELETE FROM album_category WHERE id = :categoryId")
+    suspend fun deleteCategory(categoryId: Long)
+
     @Query(
         """
         SELECT m.*

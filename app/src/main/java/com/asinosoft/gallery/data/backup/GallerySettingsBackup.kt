@@ -34,6 +34,9 @@ data class BackupMediaRef(
     val size: Long? = null,
 )
 
+/** Слияние — добавить из копии к текущему; Перезапись — заменить текущее копией. */
+enum class SettingsRestoreMode { MERGE, REPLACE }
+
 data class SettingsBackupResult(
     val albumsRestored: Int = 0,
     val mediaLinked: Int = 0,

@@ -6,10 +6,12 @@ import androidx.activity.result.ActivityResult
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.asinosoft.gallery.data.AppAnalytics
+import com.asinosoft.gallery.data.backup.DriveBackupFile
 import com.asinosoft.gallery.data.backup.GoogleDriveAuthOutcome
 import com.asinosoft.gallery.data.backup.GoogleDriveAuthStart
 import com.asinosoft.gallery.data.backup.SettingsBackupRepository
 import com.asinosoft.gallery.data.backup.SettingsBackupResult
+import com.asinosoft.gallery.data.backup.SettingsRestoreMode
 import com.google.android.gms.common.api.ApiException
 import com.google.android.gms.common.api.CommonStatusCodes
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -28,6 +30,7 @@ sealed class BackupUiEvent {
     data object Connected : BackupUiEvent()
     data object AuthCancelled : BackupUiEvent()
     data object Saved : BackupUiEvent()
+    data object Deleted : BackupUiEvent()
     data class Restored(val result: SettingsBackupResult) : BackupUiEvent()
     data class Error(val message: String) : BackupUiEvent()
 }
@@ -35,6 +38,7 @@ sealed class BackupUiEvent {
 enum class BackupJob {
     Saving,
     Restoring,
+    Deleting,
 }
 
 data class BackupUiState(
@@ -43,6 +47,8 @@ data class BackupUiState(
     val job: BackupJob? = null,
     val progressCurrent: Int = 0,
     val progressTotal: Int = 0,
+    val backups: List<DriveBackupFile> = emptyList(),
+    val backupsLoading: Boolean = false,
 ) {
     val progress: Float
         get() = if (progressTotal > 0) {
@@ -114,17 +120,41 @@ class SettingsBackupViewModel @Inject constructor(
 
     fun disconnect() {
         repository.disconnectDrive()
-        _state.update { it.copy(connected = false) }
+        _state.update { it.copy(connected = false, backups = emptyList()) }
     }
 
-    fun backup() = viewModelScope.launch {
+    /** Обновляет список сохранённых копий для диалогов сохранения/загрузки. */
+    fun loadBackups() = viewModelScope.launch {
+        if (!repository.isDriveConnected || _state.value.backupsLoading) return@launch
+        _state.update { it.copy(backupsLoading = true) }
+        runCatching { repository.listDriveBackups() }
+            .onSuccess { backups -> _state.update { it.copy(backups = backups) } }
+            .onFailure { _events.emit(BackupUiEvent.Error(it.message ?: "error")) }
+        _state.update {
+            it.copy(backupsLoading = false, connected = repository.isDriveConnected)
+        }
+    }
+
+    private suspend fun refreshBackups() {
+        runCatching { repository.listDriveBackups() }
+            .onSuccess { backups -> _state.update { it.copy(backups = backups) } }
+    }
+
+    /** Сохранить новую копию с именем [name]. */
+    fun saveNew(name: String) = backup(fileId = null, name = name)
+
+    /** Заменить существующую копию текущими настройками. */
+    fun replaceBackup(file: DriveBackupFile) = backup(fileId = file.id, name = file.displayName)
+
+    private fun backup(fileId: String?, name: String) = viewModelScope.launch {
         if (_state.value.busy) return@launch
         _state.update {
             it.copy(busy = true, job = BackupJob.Saving, progressCurrent = 0, progressTotal = 0)
         }
         runCatching {
             if (!repository.isDriveConnected) error("not_connected")
-            repository.backupToDrive(::reportProgress)
+            repository.backupToDrive(fileId, name, ::reportProgress)
+            refreshBackups()
             _events.emit(BackupUiEvent.Saved)
             analytics.backupSaved()
         }.onFailure {
@@ -141,14 +171,39 @@ class SettingsBackupViewModel @Inject constructor(
         }
     }
 
-    fun restore() = viewModelScope.launch {
+    fun deleteBackup(file: DriveBackupFile) = viewModelScope.launch {
+        if (_state.value.busy) return@launch
+        _state.update {
+            it.copy(busy = true, job = BackupJob.Deleting, progressCurrent = 0, progressTotal = 0)
+        }
+        runCatching {
+            if (!repository.isDriveConnected) error("not_connected")
+            repository.deleteDriveBackup(file.id)
+            refreshBackups()
+            _events.emit(BackupUiEvent.Deleted)
+        }.onFailure {
+            _events.emit(BackupUiEvent.Error(it.message ?: "error"))
+        }
+        _state.update {
+            it.copy(
+                busy = false,
+                connected = repository.isDriveConnected,
+                job = null,
+                progressCurrent = 0,
+                progressTotal = 0,
+            )
+        }
+    }
+
+    /** Загрузить выбранную копию: слияние с текущими настройками или полная перезапись ими. */
+    fun restore(file: DriveBackupFile, mode: SettingsRestoreMode) = viewModelScope.launch {
         if (_state.value.busy) return@launch
         _state.update {
             it.copy(busy = true, job = BackupJob.Restoring, progressCurrent = 0, progressTotal = 0)
         }
         runCatching {
             if (!repository.isDriveConnected) error("not_connected")
-            val result = repository.restoreFromDrive(::reportProgress)
+            val result = repository.restoreFromDrive(file.id, mode, ::reportProgress)
             _events.emit(BackupUiEvent.Restored(result))
             analytics.backupRestored()
         }.onFailure {

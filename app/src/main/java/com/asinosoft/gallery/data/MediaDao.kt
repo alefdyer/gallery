@@ -50,6 +50,10 @@ interface MediaDao {
     @Query("UPDATE media SET favorite = :favorite WHERE id IN (:mediaIds)")
     suspend fun setFavorite(mediaIds: Collection<Long>, favorite: Boolean)
 
+    /** Сброс всего избранного (для восстановления в режиме перезаписи). */
+    @Query("UPDATE media SET favorite = 0")
+    suspend fun clearAllFavorites()
+
     @Query("SELECT * FROM media WHERE storageId = :storageId AND id NOT IN (SELECT mediaId FROM media_album)")
     suspend fun getMediaWithoutAlbum(storageId: Long): List<Media>
 

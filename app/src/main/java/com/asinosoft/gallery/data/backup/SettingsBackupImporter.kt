@@ -23,6 +23,7 @@ class SettingsBackupImporter @Inject constructor(
 ) {
     suspend fun import(
         backup: GallerySettingsBackup,
+        mode: SettingsRestoreMode = SettingsRestoreMode.MERGE,
         onProgress: (current: Int, total: Int) -> Unit = { _, _ -> },
     ): SettingsBackupResult =
         withContext(Dispatchers.IO) {
@@ -64,6 +65,7 @@ class SettingsBackupImporter @Inject constructor(
                 categoryIdByName[AlbumCategory.MESSENGERS_NAME]?.let { add(it) }
             }
 
+            val restoredAlbumIds = mutableSetOf<Long>()
             for (albumBackup in backup.albums) {
                 val categoryName = albumBackup.category.ifBlank { AlbumCategory.OTHER.name }
                 val categoryId = categoryIdByName[categoryName]
@@ -76,6 +78,11 @@ class SettingsBackupImporter @Inject constructor(
                     systemCategoryIds = systemCategoryIds,
                 )
                 albumsRestored++
+                restoredAlbumIds += album.id
+                if (mode == SettingsRestoreMode.REPLACE) {
+                    // Состав альбома заменяется, а не дополняется.
+                    albumDao.clearAlbumMedia(album.id)
+                }
 
                 val mediaIds = ArrayList<Long>(albumBackup.media.size)
                 for (ref in albumBackup.media) {
@@ -97,6 +104,28 @@ class SettingsBackupImporter @Inject constructor(
                 onProgress(current, total)
             }
 
+            if (mode == SettingsRestoreMode.REPLACE) {
+                // Удаляем структуру, которой нет в копии: альбомы (только записи
+                // и связи, сами файлы не трогаем), затем опустевшие пользовательские
+                // категории. Системные категории (":...") не удаляются никогда.
+                albumDao.getAllAlbums()
+                    .filter { it.id !in restoredAlbumIds }
+                    .forEach { extra ->
+                        albumDao.clearAlbumMedia(extra.id)
+                        albumDao.delete(extra.id)
+                    }
+                val backupCategoryNames = backup.categories
+                    .map { it.name.trim() }
+                    .toSet()
+                albumDao.getAllCategories()
+                    .filter { category ->
+                        category.name !in backupCategoryNames &&
+                                !category.name.startsWith(":")
+                    }
+                    .forEach { albumDao.deleteCategory(it.id) }
+                mediaDao.clearAllFavorites()
+            }
+
             val favoriteIds = ArrayList<Long>(backup.favorites.size)
             for (ref in backup.favorites) {
                 val media = index.resolve(ref)
@@ -115,8 +144,19 @@ class SettingsBackupImporter @Inject constructor(
             val orderIds = backup.categoryOrder.mapNotNull { categoryIdByName[it] }
             val expandedIds = backup.alwaysExpandedCategories.mapNotNull { categoryIdByName[it] }
             prefs.edit {
-                if (orderIds.isNotEmpty()) putString(KEY_ORDER, orderIds.joinToString(","))
-                if (expandedIds.isNotEmpty()) putString(KEY_EXPANDED, expandedIds.joinToString(","))
+                if (mode == SettingsRestoreMode.REPLACE) {
+                    // Перезапись: порядок из копии применяется и пустым значением.
+                    if (orderIds.isEmpty()) remove(KEY_ORDER)
+                    else putString(KEY_ORDER, orderIds.joinToString(","))
+                    if (expandedIds.isEmpty()) remove(KEY_EXPANDED)
+                    else putString(KEY_EXPANDED, expandedIds.joinToString(","))
+                } else {
+                    if (orderIds.isNotEmpty()) putString(KEY_ORDER, orderIds.joinToString(","))
+                    if (expandedIds.isNotEmpty()) putString(
+                        KEY_EXPANDED,
+                        expandedIds.joinToString(",")
+                    )
+                }
             }
             current++
             onProgress(current, total)

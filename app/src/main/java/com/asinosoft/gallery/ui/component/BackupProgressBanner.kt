@@ -51,6 +51,7 @@ fun BoxScope.BackupProgressBanner(
                         when (job) {
                             BackupJob.Saving -> R.string.backup_progress_saving
                             BackupJob.Restoring -> R.string.backup_progress_restoring
+                            BackupJob.Deleting -> R.string.backup_progress_deleting
                             null -> R.string.backup_section
                         }
                     ),

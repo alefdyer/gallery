@@ -137,27 +137,52 @@ class GoogleDriveBackupStore @Inject constructor(
             "которым подписана установленная сборка (debug и release — разные клиенты). " +
             "google.oauthClientId приложение не регистрирует."
 
-    suspend fun uploadJson(json: String) = withContext(Dispatchers.IO) {
-        Log.i(TAG, "Upload start, bytes=${json.length}")
+    /** Все сохранённые копии в App Data, новые сверху. */
+    suspend fun listBackups(): List<DriveBackupFile> = withContext(Dispatchers.IO) {
         val token = requireToken()
-        val existingId = findBackupFileId(token) ?: prefs.getString(KEY_FILE_ID, null)
-        if (null != existingId) {
-            updateFile(token, existingId, json)
-            prefs.edit { putString(KEY_FILE_ID, existingId) }
-        } else {
-            val id = createFile(token, json)
-            prefs.edit { putString(KEY_FILE_ID, id) }
+        val query = "name contains '$BACKUP_FILE_PREFIX' and trashed = false".encodeURL()
+        val url = "$DRIVE_FILES?spaces=appDataFolder&q=$query" +
+                "&fields=files(id,name,modifiedTime)&orderBy=modifiedTime%20desc"
+        val request = Request.Builder()
+            .url(url)
+            .header("Authorization", "Bearer $token")
+            .get()
+            .build()
+        client.newCall(request).execute().use { response ->
+            val body = response.body?.string().orEmpty()
+            if (!response.isSuccessful) {
+                throwIllegalHttp(response.code, body)
+            }
+            gson.fromJson(body, DriveFileList::class.java)?.files.orEmpty()
+                .mapNotNull { file ->
+                    val id = file.id ?: return@mapNotNull null
+                    val name = file.name ?: return@mapNotNull null
+                    DriveBackupFile(id, displayNameOf(name), file.modifiedTime)
+                }
         }
-        Log.i(TAG, "Upload done")
     }
 
-    suspend fun downloadJson(): String = withContext(Dispatchers.IO) {
+    /**
+     * Сохраняет копию: [fileId] задан — заменяет существующий файл,
+     * не задан — создаёт новый с именем [displayName].
+     */
+    suspend fun uploadJson(json: String, fileId: String?, displayName: String) =
+        withContext(Dispatchers.IO) {
+            Log.i(TAG, "Upload start, bytes=${json.length}")
+            val token = requireToken()
+            if (null != fileId) {
+                updateFile(token, fileId, json)
+                prefs.edit { putString(KEY_FILE_ID, fileId) }
+            } else {
+                val id = createFile(token, json, fileNameFor(displayName))
+                prefs.edit { putString(KEY_FILE_ID, id) }
+            }
+            Log.i(TAG, "Upload done")
+        }
+
+    suspend fun downloadJson(fileId: String): String = withContext(Dispatchers.IO) {
         Log.i(TAG, "Download start")
         val token = requireToken()
-        val fileId = findBackupFileId(token)
-            ?: prefs.getString(KEY_FILE_ID, null)
-            ?: error("Файл бэкапа не найден на Google Drive. Сначала сохраните копию.")
-        prefs.edit { putString(KEY_FILE_ID, fileId) }
         val request = Request.Builder()
             .url("$DRIVE_FILES/$fileId?alt=media")
             .header("Authorization", "Bearer $token")
@@ -173,6 +198,40 @@ class GoogleDriveBackupStore @Inject constructor(
         }
     }
 
+    suspend fun deleteBackup(fileId: String) = withContext(Dispatchers.IO) {
+        val token = requireToken()
+        val request = Request.Builder()
+            .url("$DRIVE_FILES/$fileId")
+            .header("Authorization", "Bearer $token")
+            .delete()
+            .build()
+        client.newCall(request).execute().use { response ->
+            val body = response.body?.string().orEmpty()
+            if (!response.isSuccessful) {
+                throwIllegalHttp(response.code, body)
+            }
+        }
+        if (prefs.getString(KEY_FILE_ID, null) == fileId) {
+            prefs.edit { remove(KEY_FILE_ID) }
+        }
+    }
+
+    internal fun fileNameFor(displayName: String): String {
+        val clean = displayName.trim()
+            .replace(Regex("[\\\\/:*?\"<>|']"), "_")
+            .take(60)
+            .ifBlank { "backup" }
+        return "$BACKUP_FILE_PREFIX$clean.json"
+    }
+
+    internal fun displayNameOf(fileName: String): String = when {
+        fileName == BACKUP_FILE_NAME -> LEGACY_DISPLAY_NAME
+        fileName.startsWith(BACKUP_FILE_PREFIX) ->
+            fileName.removePrefix(BACKUP_FILE_PREFIX).removeSuffix(".json")
+
+        else -> fileName.removeSuffix(".json")
+    }
+
     private fun throwIllegalHttp(code: Int, body: String): Nothing {
         if (code == 401 || code == 403) {
             clearToken()
@@ -185,24 +244,8 @@ class GoogleDriveBackupStore @Inject constructor(
         prefs.getString(KEY_ACCESS_TOKEN, null)
             ?: error("Not signed in to Google Drive")
 
-    private fun findBackupFileId(token: String): String? {
-        val url = "$DRIVE_FILES?spaces=appDataFolder&q=${QUERY.encodeURL()}&fields=files(id,name)"
-        val request = Request.Builder()
-            .url(url)
-            .header("Authorization", "Bearer $token")
-            .get()
-            .build()
-        client.newCall(request).execute().use { response ->
-            val body = response.body?.string().orEmpty()
-            if (!response.isSuccessful) {
-                throwIllegalHttp(response.code, body)
-            }
-            return gson.fromJson(body, DriveFileList::class.java)?.files?.firstOrNull()?.id
-        }
-    }
-
-    private fun createFile(token: String, json: String): String {
-        val metadata = """{"name":"$BACKUP_FILE_NAME","parents":["appDataFolder"]}"""
+    private fun createFile(token: String, json: String, fileName: String): String {
+        val metadata = """{"name":"$fileName","parents":["appDataFolder"]}"""
         val body = MultipartBody.Builder()
             .setType(MultipartBody.FORM)
             .addFormDataPart(
@@ -212,7 +255,7 @@ class GoogleDriveBackupStore @Inject constructor(
             )
             .addFormDataPart(
                 "file",
-                BACKUP_FILE_NAME,
+                fileName,
                 json.toRequestBody("application/json; charset=UTF-8".toMediaType())
             )
             .build()
@@ -257,7 +300,7 @@ class GoogleDriveBackupStore @Inject constructor(
         java.net.URLEncoder.encode(this, Charsets.UTF_8.name())
 
     private data class DriveFileList(val files: List<DriveFile>?)
-    private data class DriveFile(val id: String?, val name: String?)
+    private data class DriveFile(val id: String?, val name: String?, val modifiedTime: String?)
     private data class DriveErrorResponse(val error: DriveError?)
     private data class DriveError(
         val message: String?,
@@ -266,6 +309,8 @@ class GoogleDriveBackupStore @Inject constructor(
 
     companion object {
         const val BACKUP_FILE_NAME = "gallery-settings-v1.json"
+        private const val BACKUP_FILE_PREFIX = "gallery-settings-"
+        private const val LEGACY_DISPLAY_NAME = "Основная копия"
         private const val TAG = "GoogleDriveBackup"
         private const val PREFS = "google_drive_backup"
         private const val KEY_ACCESS_TOKEN = "access_token"
@@ -273,9 +318,15 @@ class GoogleDriveBackupStore @Inject constructor(
         private const val DRIVE_APPDATA_SCOPE = "https://www.googleapis.com/auth/drive.appdata"
         private const val DRIVE_FILES = "https://www.googleapis.com/drive/v3/files"
         private const val DRIVE_UPLOAD = "https://www.googleapis.com/upload/drive/v3/files"
-        private const val QUERY = "name = 'gallery-settings-v1.json' and trashed = false"
     }
 }
+
+/** Одна сохранённая копия на Google Drive. [modifiedTime] — RFC 3339 строка от Drive или null. */
+data class DriveBackupFile(
+    val id: String,
+    val displayName: String,
+    val modifiedTime: String?,
+)
 
 sealed class GoogleDriveAuthStart {
     data object AlreadyAuthorized : GoogleDriveAuthStart()

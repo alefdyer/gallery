@@ -28,20 +28,35 @@ class SettingsBackupRepository @Inject constructor(
     ): GoogleDriveAuthOutcome =
         drive.handleAuthorizeResult(activity, result)
 
-    suspend fun backupToDrive(onProgress: (current: Int, total: Int) -> Unit) {
+    suspend fun listDriveBackups(): List<DriveBackupFile> = drive.listBackups()
+
+    suspend fun deleteDriveBackup(fileId: String) = drive.deleteBackup(fileId)
+
+    /**
+     * [fileId] задан — заменяет существующую копию, не задан — создаёт новую с именем [name].
+     */
+    suspend fun backupToDrive(
+        fileId: String?,
+        name: String,
+        onProgress: (current: Int, total: Int) -> Unit,
+    ) {
         val backup = exporter.export { current, total ->
             // локальный сбор — 0..total, загрузка будет +1 шаг
             onProgress(current, total + 1)
         }
         val localTotal = backup.albums.size + 2
         onProgress(localTotal, localTotal + 1)
-        drive.uploadJson(gson.toJson(backup))
+        drive.uploadJson(gson.toJson(backup), fileId, name)
         onProgress(localTotal + 1, localTotal + 1)
     }
 
-    suspend fun restoreFromDrive(onProgress: (current: Int, total: Int) -> Unit): SettingsBackupResult {
+    suspend fun restoreFromDrive(
+        fileId: String,
+        mode: SettingsRestoreMode,
+        onProgress: (current: Int, total: Int) -> Unit,
+    ): SettingsBackupResult {
         onProgress(0, 1)
-        val json = drive.downloadJson()
+        val json = drive.downloadJson(fileId)
         val backup = gson.fromJson(json, GallerySettingsBackup::class.java)
             ?: error("Invalid backup file")
         require(backup.version == 1) { "Unsupported backup version ${backup.version}" }
@@ -49,7 +64,7 @@ class SettingsBackupRepository @Inject constructor(
         val importSteps = 2 + backup.albums.size + 1
         val total = 1 + importSteps
         onProgress(1, total)
-        return importer.import(backup) { current, importTotal ->
+        return importer.import(backup, mode) { current, importTotal ->
             onProgress(1 + current, 1 + importTotal)
         }
     }
