@@ -38,6 +38,7 @@ private const val TAB_GALLERY = 0
 private const val TAB_NETWORK = 1
 private const val TAB_ABOUT = 2
 private const val TAB_COUNT = 3
+private val AD_BANNER_HEIGHT = 60.dp
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -172,7 +173,10 @@ fun SettingsView(
                 }
             }
 
-            AdBanner(Modifier.height(168.dp).fillMaxWidth())
+            // Такой же баннер, как везде: 60 dp отдельной строкой под окном.
+            AdBanner(Modifier
+                .height(AD_BANNER_HEIGHT)
+                .fillMaxWidth())
         }
     }
 }
