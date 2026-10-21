@@ -61,7 +61,6 @@ class AlbumsViewModel @Inject constructor(
                         category,
                         albums.sortedWith(
                             compareByDescending<AlbumWithCover> { it.album.date }
-                                .thenByDescending { it.cover?.time }
                                 .thenBy { it.album.name }
                         )
                     )

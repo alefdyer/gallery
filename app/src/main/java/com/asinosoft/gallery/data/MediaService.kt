@@ -23,6 +23,7 @@ import kotlin.system.measureTimeMillis
 
 class MediaService @Inject constructor(
     private val albumDao: AlbumDao,
+    private val albumService: AlbumService,
     private val mediaDao: MediaDao,
     private val messengerAlbums: MessengerAlbums,
     private val privateAlbum: PrivateAlbum,
@@ -56,8 +57,10 @@ class MediaService @Inject constructor(
         val onDeleted: suspend () -> Unit = {
             val albums = albumDao.getMediaAlbumIds(mediaIds)
             mediaDao.deleteAll(mediaIds)
-            albums.forEach {
-                albumDao.updateAlbumStats(it) }
+            albums.forEach {albumId ->
+                albumService.updateAlbumCover(albumId)
+                albumDao.updateAlbumStats(albumId)
+            }
             callback()
             if (mediaIds.isNotEmpty()) analytics.mediaDeleted(AppAnalytics.SOURCE_LIBRARY)
         }
@@ -175,7 +178,10 @@ class MediaService @Inject constructor(
             val ids = media.map { it.id }
             val albums = albumDao.getMediaAlbumIds(ids)
             mediaDao.deleteAll(ids)
-            albums.forEach { albumDao.updateAlbumStats(it) }
+            albums.forEach {
+                albumService.updateAlbumCover(it)
+                albumDao.updateAlbumStats(it)
+            }
             withContext(Dispatchers.IO) {
                 ids.forEach { ThumbnailCache.getFile(context, it).delete() }
             }
@@ -188,6 +194,7 @@ class MediaService @Inject constructor(
 
     suspend fun addToAlbum(mediaIds: Collection<Long>, albumId: Long) {
         albumDao.addMediaToAlbum(mediaIds, albumId)
+        albumService.updateAlbumCover(albumId)
         albumDao.updateAlbumStats(albumId)
     }
 
@@ -225,6 +232,7 @@ class MediaService @Inject constructor(
             return
         }
         albumDao.removeMediaFromAlbum(mediaIds, albumId)
+        albumService.updateAlbumCover(albumId)
         albumDao.updateAlbumStats(albumId)
     }
 
@@ -322,7 +330,7 @@ class MediaService @Inject constructor(
             mediaDao.deleteAllExcept(provider.storage.id, updated)
             repairFolderAlbumsOnce(provider.storage.id)
             mergeDuplicateAlbumsOnce()
-            albumDao.deleteEmptyAlbums()
+            albumService.deleteEmptyAlbums()
 
         } finally {
             ThumbnailCache.finishPreload()
@@ -341,6 +349,7 @@ class MediaService @Inject constructor(
             albums.drop(1)
                 .filter { AlbumCategory.OTHER.id == it.categoryId }
                 .forEach { albumDao.mergeAlbums(it.id, target.id) }
+            albumService.updateAlbumCover(target.id)
         }
 
         prefs.edit { putBoolean(KEY_DUPLICATES_MERGED, true) }

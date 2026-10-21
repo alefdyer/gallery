@@ -6,6 +6,7 @@ import androidx.core.content.edit
 import com.asinosoft.gallery.data.Album
 import com.asinosoft.gallery.data.AlbumCategory
 import com.asinosoft.gallery.data.AlbumDao
+import com.asinosoft.gallery.data.AlbumService
 import com.asinosoft.gallery.data.MediaBackupLookup
 import com.asinosoft.gallery.data.MediaDao
 import com.asinosoft.gallery.data.storage.StorageType
@@ -20,6 +21,7 @@ class SettingsBackupImporter @Inject constructor(
     @param:ApplicationContext private val context: Context,
     private val albumDao: AlbumDao,
     private val mediaDao: MediaDao,
+    private val albumService: AlbumService,
 ) {
     suspend fun import(
         backup: GallerySettingsBackup,
@@ -98,6 +100,7 @@ class SettingsBackupImporter @Inject constructor(
                     albumDao.addMediaToAlbum(chunk, album.id)
                 }
                 if (mediaIds.isNotEmpty()) {
+                    albumService.updateAlbumCover(album.id)
                     albumDao.updateAlbumStats(album.id)
                 }
                 current++
@@ -110,10 +113,7 @@ class SettingsBackupImporter @Inject constructor(
                 // категории. Системные категории (":...") не удаляются никогда.
                 albumDao.getAllAlbums()
                     .filter { it.id !in restoredAlbumIds }
-                    .forEach { extra ->
-                        albumDao.clearAlbumMedia(extra.id)
-                        albumDao.delete(extra.id)
-                    }
+                    .forEach { albumService.deleteAlbum(it) }
                 val backupCategoryNames = backup.categories
                     .map { it.name.trim() }
                     .toSet()
@@ -201,6 +201,7 @@ class SettingsBackupImporter @Inject constructor(
                         albumDao.mergeAlbums(dupe.id, target.id)
                     }
                 }
+                albumService.updateAlbumCover(target.id)
                 albumDao.getAlbumById(target.id)
             }
 
@@ -210,6 +211,7 @@ class SettingsBackupImporter @Inject constructor(
                     albumDao.mergeAlbums(dupe.id, primary.id)
                 }
                 albumDao.setAlbumCategory(primary.id, categoryId)
+                albumService.updateAlbumCover(primary.id)
                 albumDao.getAlbumById(primary.id)
             }
 
