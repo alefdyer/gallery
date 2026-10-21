@@ -5,18 +5,13 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.asinosoft.gallery.data.Album
 import com.asinosoft.gallery.data.Media
-import com.asinosoft.gallery.model.AlbumsViewModel
 import com.asinosoft.gallery.model.DateFilter
 import com.asinosoft.gallery.model.MediaType
 import com.asinosoft.gallery.model.ImageListViewModel
@@ -28,29 +23,13 @@ fun AlbumView(
     onClose: () -> Unit,
     modifier: Modifier = Modifier,
     onSwitchAlbum: (album: Album, forward: Boolean) -> Unit = { _, _ -> },
-    loadNeighbours: Boolean = true,
     returnMediaId: Long? = null,
     onReturnHandled: () -> Unit = {},
     model: ImageListViewModel = hiltViewModel(),
 ) {
-    var neighboursRequested by remember { mutableStateOf(loadNeighbours) }
-    LaunchedEffect(loadNeighbours) {
-        if (loadNeighbours) neighboursRequested = true
-    }
-
-    val siblings = if (neighboursRequested) {
-        val albumsModel: AlbumsViewModel = hiltViewModel()
-        val categories by albumsModel.albums.collectAsState()
-        remember(categories, model.albumId) {
-            categories
-                .firstOrNull { category -> category.albums.any { it.album.id == model.albumId } }
-                ?.albums
-                ?.map { it.album }
-                .orEmpty()
-        }
-    } else {
-        emptyList()
-    }
+    // Соседи по категории запрашиваются сразу при открытии альбома (см. ImageListViewModel),
+    // чтобы листать свайпом можно было без ожидания загрузки панелей.
+    val siblings by model.siblingAlbums.collectAsState()
     val index = siblings.indexOfFirst { it.id == model.albumId }
 
     Scaffold(

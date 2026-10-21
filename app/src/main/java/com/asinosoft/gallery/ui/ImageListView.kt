@@ -31,6 +31,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBars
@@ -373,9 +374,12 @@ fun ImageListView(
     val leftGestureEdge = systemGestures.getLeft(density, layoutDirection).toFloat()
     val rightGestureEdge = systemGestures.getRight(density, layoutDirection).toFloat()
 
+    // Всё окно (сетка и плавающие кнопки) — над баннером, баннер — над системными кнопками:
+    // баннер отдельной строкой под окном, а не оверлеем, чтобы ничего его не перекрывало.
+    Column(modifier.fillMaxSize()) {
     BoxWithConstraints(
-        modifier
-            .fillMaxSize()
+        Modifier
+            .weight(1f)
             .pointerInput(
                 null != dateFilter,
                 albumSwipeEnabled,
@@ -568,11 +572,6 @@ fun ImageListView(
                 }
             }
 
-            if (model.showAds) {
-                AdBanner(Modifier
-                    .height(AD_BANNER_HEIGHT)
-                    .fillMaxWidth())
-            }
         }
 
         if (null != cover) {
@@ -640,14 +639,13 @@ fun ImageListView(
                     top = headerHeight + SCROLL_INDICATOR_GAP,
                     bottom = maxOf(
                         contentPadding.calculateBottomPadding(),
-                        bottomPanelHeight,
-                        if (model.showAds) AD_BANNER_HEIGHT else 0.dp
+                        bottomPanelHeight
                     ) + SCROLL_INDICATOR_GAP,
                     end = 4.dp
                 )
         )
 
-        AnimatedVisibility(
+        androidx.compose.animation.AnimatedVisibility(
             modifier = Modifier
                 .align(Alignment.TopStart)
                 .statusBarsPadding()
@@ -688,12 +686,21 @@ fun ImageListView(
                 .padding(bottom = contentPadding.calculateBottomPadding() + 24.dp)
         )
 
-        AnimatedVisibility(
+        androidx.compose.animation.AnimatedVisibility(
             enter = slideInVertically { it * 2 },
             exit = slideOutVertically { it * 2 },
             modifier = Modifier
                 .align(Alignment.BottomCenter)
-                .padding(16.dp),
+                // Над системными кнопками: без баннера окно доходит до низа экрана,
+                // поэтому добавляем нижний системный отступ из contentPadding;
+                // с баннером окно и так заканчивается над баннером (а он — над кнопками).
+                .padding(
+                    start = 16.dp,
+                    top = 16.dp,
+                    end = 16.dp,
+                    bottom = if (model.showAds) 16.dp
+                    else contentPadding.calculateBottomPadding() + 16.dp
+                ),
             visible = selection.isNotEmpty()
         ) {
             SelectionControlBar(
@@ -743,7 +750,7 @@ fun ImageListView(
             )
         }
 
-        AnimatedVisibility(
+        androidx.compose.animation.AnimatedVisibility(
             visible = showAppsPanel,
             enter = fadeIn() + scaleIn(initialScale = 0.9f, transformOrigin = TransformOrigin(0.5f, 0f)),
             exit = fadeOut() + scaleOut(targetScale = 0.9f, transformOrigin = TransformOrigin(0.5f, 0f)),
@@ -818,6 +825,17 @@ fun ImageListView(
             )
         }
     }
+
+        // Баннер: в открытом альбоме.
+        if (model.showAds) {
+            AdBanner(
+                Modifier
+                    .navigationBarsPadding()
+                    .height(AD_BANNER_HEIGHT)
+                    .fillMaxWidth()
+            )
+        }
+    }
 }
 
 private sealed class PendingAlbumAdd {
@@ -859,7 +877,7 @@ private const val EDGE_RESISTANCE = 0.3f
 private val TOP_PANEL_MARGIN = 8.dp
 private val TOP_PANEL_HEIGHT = 48.dp
 private val SCROLL_INDICATOR_GAP = 8.dp
-private val AD_BANNER_HEIGHT = 168.dp
+private val AD_BANNER_HEIGHT = 60.dp
 
 @Composable
 private fun DatePreviewPage(

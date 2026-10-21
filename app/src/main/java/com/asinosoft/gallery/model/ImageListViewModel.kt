@@ -5,6 +5,7 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
 import com.asinosoft.gallery.data.Album
 import com.asinosoft.gallery.data.AlbumCategory
+import com.asinosoft.gallery.data.AlbumWithCover
 import com.asinosoft.gallery.data.AppAnalytics
 import com.asinosoft.gallery.data.AlbumDao
 import com.asinosoft.gallery.data.Application
@@ -27,6 +28,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
@@ -90,6 +92,24 @@ class ImageListViewModel @Inject constructor(
 
     val album = MutableStateFlow<Album?>(null)
     val albumCategory = MutableStateFlow<AlbumCategory?>(null)
+
+    // Соседние альбомы для листания свайпом: только своя категория и с первой
+    // композиции экрана, а не после перехода навигации и загрузки всех категорий —
+    // иначе свайп не работает, пока не подгрузятся верхние панели.
+    // Порядок — как на вкладке «Альбомы».
+    val siblingAlbums: StateFlow<List<Album>> = (
+            albumId?.let { albumDao.getCategoryAlbums(it) } ?: flowOf(emptyList())
+            )
+        .map { albums ->
+            albums
+                .sortedWith(
+                    compareByDescending<AlbumWithCover> { it.album.date }
+                        .thenByDescending { it.cover?.time }
+                        .thenBy { it.album.name }
+                )
+                .map { it.album }
+        }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     val selection = MutableStateFlow<Set<Long>>(setOf())
 

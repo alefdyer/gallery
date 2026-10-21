@@ -256,7 +256,6 @@ private fun AppNavHost(
             val returnMediaId by entry.returnMediaId()
             WithNavScope {
                 AlbumView(
-                    loadNeighbours = false,
                     onMediaClick = { media, filters, date, type ->
                         OpenedMedia.media = media
                         nav.navigate("favorites/pager/${pagerArgs(media, filters, date, type)}")
@@ -357,7 +356,6 @@ private fun AppNavHost(
 
             WithNavScope {
                 AlbumView(
-                    loadNeighbours = transition.currentState == transition.targetState,
                     onSwitchAlbum = { album, _ ->
                         nav.navigate("album/${album.id}") {
                             popUpTo(ALBUM_ROUTE) { inclusive = true }

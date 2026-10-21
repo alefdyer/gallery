@@ -5,6 +5,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -13,6 +14,7 @@ import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBars
@@ -112,12 +114,15 @@ fun DateFilterDialog(
         val systemBars = WindowInsets.systemBars.asPaddingValues()
 
         Surface(Modifier.fillMaxSize()) {
-            Box(Modifier.fillMaxSize()) {
+            Column(Modifier.fillMaxSize()) {
+                Box(Modifier
+                    .weight(1f)
+                    .fillMaxWidth()) {
                 LazyColumn(
                     state = listState,
                     contentPadding = PaddingValues(
                         top = systemBars.calculateTopPadding() + HEADER_HEIGHT + 16.dp,
-                        bottom = systemBars.calculateBottomPadding() + 8.dp
+                        bottom = 8.dp
                     ),
                     modifier = Modifier.fillMaxSize()
                 ) {
@@ -251,12 +256,23 @@ fun DateFilterDialog(
                     }
                 }
             }
+
+                // Такой же баннер, как в открытом альбоме: отдельной строкой
+                // под списком дат, окно списка заканчивается над баннером.
+                AdBanner(
+                    Modifier
+                        .navigationBarsPadding()
+                        .height(AD_BANNER_HEIGHT)
+                        .fillMaxWidth()
+                )
+            }
         }
     }
 }
 
 private val HEADER_HEIGHT = 48.dp
 private val SELECTED_DATE_SCROLL_OFFSET = 120.dp
+private val AD_BANNER_HEIGHT = 60.dp
 
 private fun DateFilter.existsIn(yearGroups: Map<Int, Map<Int, Map<Int, Int>>>): Boolean {
     val monthGroups = yearGroups[year ?: return false] ?: return false

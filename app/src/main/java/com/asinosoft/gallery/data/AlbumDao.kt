@@ -71,6 +71,11 @@ interface AlbumDao {
     @Query("SELECT * FROM album ORDER BY name")
     fun getAlbums(): Flow<List<AlbumWithCover>>
 
+    /** Альбомы той же категории, что и альбом [albumId] — лёгкий список соседей для листания свайпом. */
+    @Transaction
+    @Query("SELECT * FROM album WHERE categoryId = (SELECT categoryId FROM album WHERE id = :albumId)")
+    fun getCategoryAlbums(albumId: Long): Flow<List<AlbumWithCover>>
+
     @Transaction
     @Query("SELECT * FROM album WHERE id IN (SELECT albumId FROM media_album WHERE mediaId = :mediaId) ORDER BY name")
     fun getMediaAlbums(mediaId: Long): Flow<List<AlbumWithCover>>

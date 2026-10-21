@@ -130,6 +130,33 @@ fun LazyGridVerticalScrollIndicator(
         label = "thumbColor"
     )
 
+    // Метки годов для перетаскивания ползунка: год и доля его последнего элемента
+    // на дорожке (список идёт от новых к старым) — плашка года стоит в конце
+    // своего отрезка, а даты этого года оказываются выше неё.
+    // Считаются один раз на список.
+    val yearMarks = remember(listItems) {
+        if (listItems.size < 2) {
+            emptyList()
+        } else {
+            val marks = mutableListOf<YearMark>()
+            var previousYear: Int? = null
+            listItems.forEachIndexed { index, media ->
+                if (media.date.year != previousYear) {
+                    previousYear = media.date.year
+                    marks += YearMark(
+                        year = media.date.year,
+                        fraction = index.toFloat() / (listItems.size - 1)
+                    )
+                } else {
+                    marks[marks.lastIndex] = marks.last().copy(
+                        fraction = index.toFloat() / (listItems.size - 1)
+                    )
+                }
+            }
+            marks
+        }
+    }
+
     AnimatedVisibility(
         visible = showThumb,
         enter = fadeIn(),
@@ -161,7 +188,8 @@ fun LazyGridVerticalScrollIndicator(
                         draggableState,
                         Orientation.Vertical,
                         onDragStarted = {
-                            dragOffsetPx = (scrollFraction * thumbTravelPx).coerceIn(0f, thumbTravelPx)
+                            dragOffsetPx =
+                                (scrollFraction * thumbTravelPx).coerceIn(0f, thumbTravelPx)
                             isDragged = true
                         },
                         onDragStopped = { isDragged = false }
@@ -178,6 +206,67 @@ fun LazyGridVerticalScrollIndicator(
                 derivedStateOf {
                     val index = lazyGridState.firstVisibleItemIndex.coerceIn(0, listItems.size - 1)
                     listItems.getOrNull(index)?.date
+                }
+            }
+
+            // Годы вдоль дорожки при перетаскивании ползунка: позиции — по той же
+            // шкале, что и ползунок; слишком близкие годы пропускаем, чтобы чипы
+            // не налезали друг на друга.
+            val minYearGapPx = with(density) { (LABEL_HEIGHT + 6.dp).toPx() }
+            val visibleYearMarks = remember(yearMarks, thumbTravelPx, minYearGapPx) {
+                val visible = mutableListOf<YearMark>()
+                var lastY = Float.NEGATIVE_INFINITY
+                yearMarks.forEach { mark ->
+                    val y = mark.fraction * thumbTravelPx
+                    if (y - lastY >= minYearGapPx) {
+                        visible += mark
+                        lastY = y
+                    }
+                }
+                visible
+            }
+
+            visibleYearMarks.forEach { mark ->
+                AnimatedVisibility(
+                    visible = showDateLabel && isDragged && yearMarks.size > 1,
+                    enter = fadeIn(),
+                    exit = fadeOut(),
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(
+                            top = (THUMB_TOUCH_HEIGHT - LABEL_HEIGHT) / 2,
+                            end = THUMB_TOUCH_WIDTH
+                        )
+                        .offset(y = with(density) { (thumbTravelPx * mark.fraction).toDp() })
+                ) {
+                    val isCurrent = mark.year == labelDate?.year
+                    Surface(
+                        border = BorderStroke(
+                            1.dp,
+                            MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
+                        ),
+                        shape = RoundedCornerShape(50),
+                        color = if (isCurrent) {
+                            MaterialTheme.colorScheme.primaryContainer
+                        } else {
+                            MaterialTheme.colorScheme.surface.copy(alpha = 0.9f)
+                        }
+                    ) {
+                        Text(
+                            text = mark.year.toString(),
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Medium,
+                            color = if (isCurrent) {
+                                MaterialTheme.colorScheme.onPrimaryContainer
+                            } else {
+                                MaterialTheme.colorScheme.onSurfaceVariant
+                            },
+                            modifier = Modifier
+                                .height(LABEL_HEIGHT)
+                                .wrapContentHeight()
+                                .padding(horizontal = 10.dp)
+                        )
+                    }
                 }
             }
 
@@ -232,4 +321,8 @@ private val THUMB_TOUCH_HEIGHT = 56.dp
 private val THUMB_TOUCH_WIDTH = 36.dp
 private val LABEL_HEIGHT = 28.dp
 private val LABEL_END_PADDING = THUMB_TOUCH_WIDTH
-private val LABEL_END_PADDING_DRAGGED = 80.dp
+
+// При перетаскивании плашка даты уезжает левее колонки годов, чтобы не налезать на неё.
+private val LABEL_END_PADDING_DRAGGED = 92.dp
+
+private data class YearMark(val year: Int, val fraction: Float)
