@@ -15,8 +15,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -33,6 +35,7 @@ import coil3.compose.rememberConstraintsSizeResolver
 import coil3.request.CachePolicy
 import coil3.request.ImageRequest
 import coil3.request.allowHardware
+import coil3.request.crossfade
 import coil3.video.videoFrameMillis
 import com.asinosoft.gallery.R
 import com.asinosoft.gallery.data.EXTERNAL_STORAGE_ID
@@ -40,9 +43,35 @@ import com.asinosoft.gallery.data.Media
 import com.asinosoft.gallery.data.ThumbnailCache
 import com.asinosoft.gallery.model.MediaViewModel
 import com.asinosoft.gallery.ui.theme.FavoriteRed
+import com.asinosoft.gallery.ui.theme.isDarkColorScheme
 import kotlinx.coroutines.launch
 
 private const val LOCAL_STORAGE_ID = 1L
+
+/**
+ * Подложка клетки до загрузки миниатюры: мягкий вертикальный градиент в цвет темы,
+ * как заглушки в Google Фото. Один градиент на клетку, перерисовка дешёвая и
+ * быстрой перемотке не мешает.
+ */
+@Composable
+internal fun rememberPlaceholderBrush(): Brush {
+    val dark = isDarkColorScheme()
+    return remember(dark) {
+        Brush.verticalGradient(
+            if (dark) {
+                listOf(Color(0xFF32323A), Color(0xFF202027))
+            } else {
+                listOf(Color(0xFFF5F6F8), Color(0xFFE1E4E9))
+            }
+        )
+    }
+}
+
+/** Плитка-заглушка без иконки — для «дальних» клеток при прыжке ползунком. */
+@Composable
+fun ThumbnailPlaceholderTile(modifier: Modifier = Modifier) {
+    Box(modifier.background(rememberPlaceholderBrush()))
+}
 
 @Composable
 fun MediaThumbnail(
@@ -61,8 +90,10 @@ fun MediaThumbnail(
     onPreviewEnded: (Media) -> Unit = {}
 ) {
     Box(
+        contentAlignment = Alignment.Center,
         modifier = modifier
             .clipToBounds()
+            .background(rememberPlaceholderBrush())
             .clickable { if (selectionMode) onSelect(media) else onClick(media) }
     ) {
         val context = LocalContext.current
@@ -84,6 +115,7 @@ fun MediaThumbnail(
         }
         val data = immediateData ?: remoteData
 
+        var loaded by remember(media.id) { mutableStateOf(cached) }
         val request = remember(data, cacheKey) {
             if (null == data) return@remember null
             ImageRequest.Builder(context)
@@ -96,7 +128,9 @@ fun MediaThumbnail(
                 .memoryCachePolicy(CachePolicy.ENABLED)
                 .diskCachePolicy(if (persistentCache) CachePolicy.ENABLED else CachePolicy.DISABLED)
                 .allowHardware(true)
+                .crossfade(true)
                 .listener(onSuccess = { _, result ->
+                    loaded = true
                     if (persistentCache && !cached) {
                         scope.launch {
                             ThumbnailCache.save(context, media.id, result.image)
@@ -108,7 +142,6 @@ fun MediaThumbnail(
 
         AsyncImage(
             model = request,
-            placeholder = painterResource(R.drawable.photo),
             contentDescription = null,
             contentScale = ContentScale.Crop,
             modifier = Modifier
@@ -116,6 +149,18 @@ fun MediaThumbnail(
                 .then(size)
                 .then(if (sharedElement) Modifier.mediaSharedElement(media.id) else Modifier)
         )
+
+        // Приглушённая иконка по центру подложки, пока миниатюра не появилась.
+        if (!loaded) {
+            Icon(
+                painter = painterResource(
+                    if (null != media.video) R.drawable.videocam else R.drawable.photo
+                ),
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.35f),
+                modifier = Modifier.size(28.dp)
+            )
+        }
 
         if (playPreview) {
             VideoPreview(media, Modifier.matchParentSize(), onEnded = { onPreviewEnded(media) })

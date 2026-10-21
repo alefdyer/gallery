@@ -109,6 +109,7 @@ import com.asinosoft.gallery.ui.component.MoveToPrivateDialog
 import com.asinosoft.gallery.ui.component.ScrollToTopButton
 import com.asinosoft.gallery.ui.component.SelectionControlBar
 import com.asinosoft.gallery.ui.component.SelectionInfoBar
+import com.asinosoft.gallery.ui.component.ThumbnailPlaceholderTile
 import com.asinosoft.gallery.ui.component.TIP_DAY_SWIPE
 import com.asinosoft.gallery.ui.component.TIP_PHOTO_APPS_FILTER
 import com.asinosoft.gallery.ui.component.TIP_PHOTO_COUNTERS
@@ -551,7 +552,9 @@ fun ImageListView(
                         derivedStateOf { index >= lazyGridState.firstVisibleItemIndex + nearItemsCount }
                     }
                     if (farBelow) {
-                        Spacer(Modifier.aspectRatio(1f))
+                        // Та же градиентная подложка, что и у загружающихся миниатюр:
+                        // при прыжке ползунком экран — ровное поле плиток, а не дырки фона.
+                        ThumbnailPlaceholderTile(Modifier.aspectRatio(1f))
                         return@itemsIndexed
                     }
                     MediaThumbnail(
