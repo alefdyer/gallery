@@ -35,7 +35,6 @@ import coil3.compose.rememberConstraintsSizeResolver
 import coil3.request.CachePolicy
 import coil3.request.ImageRequest
 import coil3.request.allowHardware
-import coil3.request.crossfade
 import coil3.video.videoFrameMillis
 import com.asinosoft.gallery.R
 import com.asinosoft.gallery.data.EXTERNAL_STORAGE_ID
@@ -128,7 +127,6 @@ fun MediaThumbnail(
                 .memoryCachePolicy(CachePolicy.ENABLED)
                 .diskCachePolicy(if (persistentCache) CachePolicy.ENABLED else CachePolicy.DISABLED)
                 .allowHardware(true)
-                .crossfade(true)
                 .listener(onSuccess = { _, result ->
                     loaded = true
                     if (persistentCache && !cached) {
