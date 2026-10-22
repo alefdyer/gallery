@@ -3,7 +3,7 @@
     <string name="permission_disclaimer">O aplicativo precisa de acesso aos arquivos de mídia</string>
     <string name="grant">Permitir</string>
     <string name="permission_denied">Sem acesso aos arquivos de mídia</string>
-    <string name="photos">Fotos</string>
+    <string name="photos">Tudo</string>
     <string name="albums">Álbuns</string>
     <string name="storages">Armazenamento</string>
     <string name="network">Rede</string>
@@ -148,7 +148,7 @@
     <string name="reset">Redefinir</string>
     <string name="date_filter">Filtro por data</string>
     <string name="back">Voltar</string>
-    <string name="all_photos">Todas as fotos</string>
+    <string name="all_photos">Todas as mídias</string>
     <string name="date_filter_year">Ano %1$d</string>
     <string name="filter_hide_all">Ocultar tudo</string>
     <string name="clear">Limpar</string>

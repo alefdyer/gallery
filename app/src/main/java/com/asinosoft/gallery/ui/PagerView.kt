@@ -63,6 +63,7 @@ import com.asinosoft.gallery.data.Album
 import com.asinosoft.gallery.data.Media
 import com.asinosoft.gallery.model.PagerViewModel
 import com.asinosoft.gallery.ui.component.ActiveSharedMedia
+import com.asinosoft.gallery.ui.component.AddToAlbumDialog
 import com.asinosoft.gallery.ui.component.Carousel
 import com.asinosoft.gallery.ui.component.DismissDragState
 import com.asinosoft.gallery.ui.component.LocalDismissDrag
@@ -131,6 +132,7 @@ fun PagerView(
     var isMuted by remember(videoSound) { mutableStateOf(!videoSound) }
     val currentIsVideo = null != items.getOrNull(pagerState.currentPage)?.video
 
+    var showAddToAlbum by remember { mutableStateOf(false) }
     var pendingFavorite by remember { mutableStateOf<Pair<Media, Boolean>?>(null) }
     val favoriteLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.StartIntentSenderForResult()
@@ -168,9 +170,9 @@ fun PagerView(
                     onClose()
                 }
             },
+            onAddToAlbum = { showAddToAlbum = true },
             onShare = { model.share(items[pagerState.currentPage]) },
             onEdit = { model.edit(items[pagerState.currentPage]) },
-            onSearch = {},
             onDelete = deleteCurrent
         )
     }
@@ -207,6 +209,21 @@ fun PagerView(
                     model = model,
                     onAlbumClick = onAlbumClick,
                     onDismissRequest = { showInfo = false }
+                )
+            }
+        }
+
+        if (showAddToAlbum) {
+            items.getOrNull(pagerState.currentPage)?.let { media ->
+                AddToAlbumDialog(
+                    onPickAlbum = { album -> model.addToAlbum(media.id, album.id) },
+                    onCreateAlbum = { name, category ->
+                        model.addToNewAlbum(media.id, name, category)
+                    },
+                    onCreateAlbumInNewCategory = { name, categoryName ->
+                        model.addToNewAlbumInNewCategory(media.id, name, categoryName)
+                    },
+                    onDismiss = { showAddToAlbum = false }
                 )
             }
         }
@@ -277,6 +294,7 @@ fun PagerView(
             PagerViewBar(
                 onBack = onClose,
                 onShowInfo = { showInfo = true },
+                onAddToAlbum = { showAddToAlbum = true },
                 onMoveToPrivate = { confirmMoveToPrivate = items.getOrNull(pagerState.currentPage) },
                 actions = { if (isLandscape) actionsBar() }
             )

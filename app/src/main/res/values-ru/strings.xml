@@ -3,7 +3,7 @@
     <string name="permission_disclaimer">Для работы приложению требуется доступ к медиафайлам</string>
     <string name="grant">Разрешить</string>
     <string name="permission_denied">Нет доступа к медиафайлам</string>
-    <string name="photos">Фото</string>
+    <string name="photos">Все</string>
     <string name="albums">Альбомы</string>
     <string name="storages">Хранилища</string>
     <string name="network">Сеть</string>
@@ -148,7 +148,7 @@
     <string name="reset">Сбросить</string>
     <string name="date_filter">Фильтр по дате</string>
     <string name="back">Назад</string>
-    <string name="all_photos">Все фото</string>
+    <string name="all_photos">Все медиа</string>
     <string name="date_filter_year">%1$d год</string>
     <string name="filter_hide_all">Скрыть все</string>
     <string name="clear">Очистить</string>

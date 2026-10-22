@@ -3,7 +3,7 @@
     <string name="permission_disclaimer">Per funzionare, l\'app richiede l\'accesso ai file multimediali</string>
     <string name="grant">Consenti</string>
     <string name="permission_denied">Nessun accesso ai file multimediali</string>
-    <string name="photos">Foto</string>
+    <string name="photos">Tutto</string>
     <string name="albums">Album</string>
     <string name="storages">Archiviazione</string>
     <string name="network">Rete</string>
@@ -148,7 +148,7 @@
     <string name="reset">Reimposta</string>
     <string name="date_filter">Filtro per data</string>
     <string name="back">Indietro</string>
-    <string name="all_photos">Tutte le foto</string>
+    <string name="all_photos">Tutti i media</string>
     <string name="date_filter_year">Anno %1$d</string>
     <string name="filter_hide_all">Nascondi tutto</string>
     <string name="clear">Cancella</string>

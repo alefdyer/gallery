@@ -3,7 +3,7 @@
     <string name="permission_disclaimer">アプリの動作にはメディアファイルへのアクセスが必要です</string>
     <string name="grant">許可</string>
     <string name="permission_denied">メディアファイルにアクセスできません</string>
-    <string name="photos">写真</string>
+    <string name="photos">すべて</string>
     <string name="albums">アルバム</string>
     <string name="storages">ストレージ</string>
     <string name="network">ネットワーク</string>
@@ -148,7 +148,7 @@
     <string name="reset">リセット</string>
     <string name="date_filter">日付フィルター</string>
     <string name="back">戻る</string>
-    <string name="all_photos">すべての写真</string>
+    <string name="all_photos">すべてのメディア</string>
     <string name="date_filter_year">%1$d年</string>
     <string name="filter_hide_all">すべて非表示</string>
     <string name="clear">クリア</string>

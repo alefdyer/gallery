@@ -3,7 +3,7 @@
     <string name="permission_disclaimer">Aplikacja wymaga dostępu do plików multimedialnych</string>
     <string name="grant">Zezwól</string>
     <string name="permission_denied">Brak dostępu do plików multimedialnych</string>
-    <string name="photos">Zdjęcia</string>
+    <string name="photos">Wszystkie</string>
     <string name="albums">Albumy</string>
     <string name="storages">Magazyny</string>
     <string name="network">Sieć</string>
@@ -148,7 +148,7 @@
     <string name="reset">Resetuj</string>
     <string name="date_filter">Filtr daty</string>
     <string name="back">Wstecz</string>
-    <string name="all_photos">Wszystkie zdjęcia</string>
+    <string name="all_photos">Wszystkie multimedia</string>
     <string name="date_filter_year">Rok %1$d</string>
     <string name="filter_hide_all">Ukryj wszystko</string>
     <string name="clear">Wyczyść</string>

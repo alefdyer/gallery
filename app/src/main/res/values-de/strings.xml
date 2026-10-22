@@ -3,7 +3,7 @@
     <string name="permission_disclaimer">Für die Nutzung benötigt die App Zugriff auf Mediendateien</string>
     <string name="grant">Zulassen</string>
     <string name="permission_denied">Kein Zugriff auf Mediendateien</string>
-    <string name="photos">Fotos</string>
+    <string name="photos">Alle</string>
     <string name="albums">Alben</string>
     <string name="storages">Speicher</string>
     <string name="network">Netzwerk</string>
@@ -148,7 +148,7 @@
     <string name="reset">Zurücksetzen</string>
     <string name="date_filter">Datumsfilter</string>
     <string name="back">Zurück</string>
-    <string name="all_photos">Alle Fotos</string>
+    <string name="all_photos">Alle Medien</string>
     <string name="date_filter_year">Jahr %1$d</string>
     <string name="filter_hide_all">Alle ausblenden</string>
     <string name="clear">Löschen</string>

@@ -3,7 +3,7 @@
     <string name="permission_disclaimer">يحتاج التطبيق إلى الوصول إلى ملفات الوسائط</string>
     <string name="grant">السماح</string>
     <string name="permission_denied">لا يوجد وصول إلى ملفات الوسائط</string>
-    <string name="photos">الصور</string>
+    <string name="photos">الكل</string>
     <string name="albums">الألبومات</string>
     <string name="storages">التخزين</string>
     <string name="network">الشبكة</string>
@@ -148,7 +148,7 @@
     <string name="reset">إعادة تعيين</string>
     <string name="date_filter">تصفية حسب التاريخ</string>
     <string name="back">رجوع</string>
-    <string name="all_photos">كل الصور</string>
+    <string name="all_photos">كل الوسائط</string>
     <string name="date_filter_year">سنة %1$d</string>
     <string name="filter_hide_all">إخفاء الكل</string>
     <string name="clear">مسح</string>

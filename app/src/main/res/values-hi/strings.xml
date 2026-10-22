@@ -3,7 +3,7 @@
     <string name="permission_disclaimer">ऐप को मीडिया फ़ाइलों तक पहुँच की आवश्यकता है</string>
     <string name="grant">अनुमति दें</string>
     <string name="permission_denied">मीडिया फ़ाइलों तक पहुँच नहीं है</string>
-    <string name="photos">फ़ोटो</string>
+    <string name="photos">सभी</string>
     <string name="albums">एल्बम</string>
     <string name="storages">स्टोरेज</string>
     <string name="network">नेटवर्क</string>
@@ -148,7 +148,7 @@
     <string name="reset">रीसेट</string>
     <string name="date_filter">तारीख फ़िल्टर</string>
     <string name="back">वापस</string>
-    <string name="all_photos">सभी फ़ोटो</string>
+    <string name="all_photos">सभी मीडिया</string>
     <string name="date_filter_year">वर्ष %1$d</string>
     <string name="filter_hide_all">सभी छिपाएँ</string>
     <string name="clear">साफ़ करें</string>

@@ -3,7 +3,7 @@
     <string name="permission_disclaimer">앱을 사용하려면 미디어 파일 접근 권한이 필요합니다</string>
     <string name="grant">허용</string>
     <string name="permission_denied">미디어 파일에 접근할 수 없습니다</string>
-    <string name="photos">사진</string>
+    <string name="photos">전체</string>
     <string name="albums">앨범</string>
     <string name="storages">저장소</string>
     <string name="network">네트워크</string>
@@ -148,7 +148,7 @@
     <string name="reset">재설정</string>
     <string name="date_filter">날짜 필터</string>
     <string name="back">뒤로</string>
-    <string name="all_photos">모든 사진</string>
+    <string name="all_photos">모든 미디어</string>
     <string name="date_filter_year">%1$d년</string>
     <string name="filter_hide_all">모두 숨기기</string>
     <string name="clear">지우기</string>

@@ -22,10 +22,10 @@ import com.asinosoft.gallery.ui.theme.floatingPanelColor
 @Composable
 fun PagerBottomBar(
     favorite: Boolean,
+    onAddToAlbum: () -> Unit,
     onFavorite: () -> Unit,
     onShare: () -> Unit,
     onEdit: () -> Unit,
-    onSearch: () -> Unit,
     onDelete: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -40,6 +40,12 @@ fun PagerBottomBar(
             horizontalArrangement = Arrangement.spacedBy(16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
+            IconButton(onClick = onAddToAlbum) {
+                Icon(
+                    painter = painterResource(R.drawable.playlist_add),
+                    contentDescription = stringResource(R.string.add_to_album)
+                )
+            }
             IconButton(onClick = onFavorite) {
                 Icon(
                     painter = painterResource(if (favorite) R.drawable.favorite else R.drawable.favorite_border),
@@ -59,12 +65,6 @@ fun PagerBottomBar(
                 Icon(
                     painter = painterResource(R.drawable.brush),
                     contentDescription = stringResource(R.string.edit)
-                )
-            }
-            IconButton(onClick = onSearch) {
-                Icon(
-                    painter = painterResource(R.drawable.search),
-                    contentDescription = stringResource(R.string.search)
                 )
             }
             IconButton(onClick = onDelete) {

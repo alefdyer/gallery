@@ -3,7 +3,7 @@
     <string name="permission_disclaimer">应用需要访问媒体文件才能正常工作</string>
     <string name="grant">允许</string>
     <string name="permission_denied">无法访问媒体文件</string>
-    <string name="photos">照片</string>
+    <string name="photos">全部</string>
     <string name="albums">相册</string>
     <string name="storages">存储</string>
     <string name="network">网络</string>
@@ -148,7 +148,7 @@
     <string name="reset">重置</string>
     <string name="date_filter">按日期筛选</string>
     <string name="back">返回</string>
-    <string name="all_photos">全部照片</string>
+    <string name="all_photos">所有媒体</string>
     <string name="date_filter_year">%1$d 年</string>
     <string name="filter_hide_all">全部隐藏</string>
     <string name="clear">清除</string>

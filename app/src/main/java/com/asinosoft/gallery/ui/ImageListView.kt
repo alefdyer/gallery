@@ -504,7 +504,7 @@ fun ImageListView(
                 images = if (target.id == previousAlbum?.id) previousAlbumImages else nextAlbumImages,
                 title = target.name,
                 // Соседние альбомы — из той же категории, что и текущий.
-                subtitle = albumCategory?.let { "\\${it.name()}" },
+                subtitle = albumCategory?.let { it.name() },
                 showPhotos = true,
                 showVideos = true,
                 columns = gridColumns,
@@ -585,7 +585,7 @@ fun ImageListView(
                 photosEnabled = showPhotos,
                 videosEnabled = showVideos,
                 sizeBytes = totalSize,
-                subtitle = albumCategory?.let { "\\${it.name()}" },
+                subtitle = albumCategory?.let { it.name() },
                 onPhotosClick = {
                     scrollToTopOnUpdate.pending = true
                     model.togglePhotos()
