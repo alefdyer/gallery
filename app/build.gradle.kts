@@ -5,6 +5,7 @@ import java.util.Properties
 
 plugins {
     id("com.android.application")
+    id("com.google.android.gms.oss-licenses-plugin")
     id("org.jetbrains.kotlin.plugin.compose")
     id("dagger.hilt.android.plugin")
     id("com.google.devtools.ksp")
@@ -143,6 +144,21 @@ android {
     }
 }
 
+// AGP emits the dependency list only for non-debuggable variants, so debug builds
+// would show a placeholder "Debug License Info". Overwrite debug licenses with release.
+afterEvaluate {
+    val releaseLicenses = tasks.named("releaseOssLicensesTask")
+    tasks.named("debugOssLicensesTask").configure {
+        dependsOn(releaseLicenses)
+        doLast {
+            copy {
+                from(layout.buildDirectory.dir("generated/res/releaseOssLicensesTask"))
+                into(layout.buildDirectory.dir("generated/res/debugOssLicensesTask"))
+            }
+        }
+    }
+}
+
 dependencies {
     implementation("com.google.code.gson:gson:2.14.0")
 
@@ -169,6 +185,7 @@ dependencies {
 
     // Google Sign-In / Authorization (Drive App Data backup)
     implementation("com.google.android.gms:play-services-auth:22.0.0")
+    implementation("com.google.android.gms:play-services-oss-licenses:17.5.2")
     implementation(platform("com.google.firebase:firebase-bom:35.0.2"))
     implementation("com.google.firebase:firebase-analytics")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.11.0")

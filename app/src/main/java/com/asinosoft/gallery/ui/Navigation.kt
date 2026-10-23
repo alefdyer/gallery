@@ -33,11 +33,13 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import android.content.Intent
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.asinosoft.gallery.R
+import com.google.android.gms.oss.licenses.v2.OssLicensesMenuActivity
 import com.asinosoft.gallery.model.PrivateMovesViewModel
 import com.asinosoft.gallery.ui.component.ActiveSharedMedia
 import com.asinosoft.gallery.ui.component.LocalNavAnimatedScope
@@ -431,15 +433,19 @@ private fun AppNavHost(
         }
 
         composable("settings") {
+            val context = LocalContext.current
             SettingsView(
                 onClose = nav::navigateUp,
-                onOpenLicenses = { nav.navigate("licenses") },
+                onOpenLicenses = {
+                    OssLicensesMenuActivity.setActivityTitle(
+                        context.getString(R.string.third_party_licenses)
+                    )
+                    context.startActivity(
+                        Intent(context, OssLicensesMenuActivity::class.java)
+                    )
+                },
                 onOpenPrivacy = { nav.navigate("privacy") },
             )
-        }
-
-        composable("licenses") {
-            LicensesView(onClose = nav::navigateUp)
         }
 
         composable("privacy") {
