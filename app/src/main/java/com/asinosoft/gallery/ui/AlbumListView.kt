@@ -60,7 +60,6 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -72,13 +71,9 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
-import coil3.compose.AsyncImage
-import coil3.request.CachePolicy
-import coil3.request.ImageRequest
 import com.asinosoft.gallery.R
 import com.asinosoft.gallery.data.Album
 import com.asinosoft.gallery.data.AlbumCategory
-import com.asinosoft.gallery.data.AlbumCoverService
 import com.asinosoft.gallery.data.AlbumWithCover
 import com.asinosoft.gallery.data.CategoryWithAlbums
 import com.asinosoft.gallery.data.isSystem
@@ -250,13 +245,12 @@ fun AlbumListView(
     }
 
     val albumCount = categories.sumOf { it.albums.size }
-    val context = LocalContext.current
-    val cover = remember(categories, context) {
-        val covers = AlbumCoverService(context)
+    val cover = remember(categories) {
         categories
             .flatMap { it.albums }
-            .sortedByDescending { it.album.date }
-            .firstNotNullOfOrNull { covers.getAlbumCover(it.album.id) }
+            .filter { null != it.cover }
+            .maxByOrNull { it.album.date }
+            ?.cover
     }
 
     fun categoryAt(event: DragAndDropEvent): CategoryWithAlbums? {
@@ -342,20 +336,7 @@ fun AlbumListView(
                             .height(headerHeight)
                             .padding(bottom = HEADER_GAP)
                     ) {
-                        val updatedAt = cover.lastModified()
-                        val request = remember(cover, updatedAt, context) {
-                            ImageRequest.Builder(context)
-                                .data(cover)
-                                .memoryCacheKey("${cover.path}#$updatedAt")
-                                .diskCachePolicy(CachePolicy.DISABLED)
-                                .build()
-                        }
-                        AsyncImage(
-                            model = request,
-                            contentDescription = null,
-                            contentScale = ContentScale.Crop,
-                            modifier = Modifier.fillMaxSize()
-                        )
+                        ImageListHeaderBackground(cover, Modifier.fillMaxSize())
                         ImageListHeaderTitle(
                             title = stringResource(R.string.albums),
                             icon = R.drawable.album,
@@ -513,7 +494,7 @@ private fun AlbumCategoriesRow(
     onCategoryTipDismiss: () -> Unit = {},
     showAlbumDragTip: Boolean = false,
     onAlbumDragTipDismiss: () -> Unit = {},
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
     Column(
         modifier

@@ -2,7 +2,6 @@ package com.asinosoft.gallery.data.storage
 
 import android.util.Log
 import com.asinosoft.gallery.data.AlbumDao
-import com.asinosoft.gallery.data.AlbumService
 import com.asinosoft.gallery.data.MediaDao
 import com.asinosoft.gallery.data.MediaService
 import javax.inject.Inject
@@ -15,7 +14,7 @@ import kotlinx.coroutines.withContext
 import kotlin.system.measureTimeMillis
 
 class StorageService @Inject constructor(
-    private val albumService: AlbumService,
+    private val albumDao: AlbumDao,
     private val mediaDao: MediaDao,
     private val mediaService: MediaService,
     private val storageDao: StorageDao,
@@ -44,7 +43,7 @@ class StorageService @Inject constructor(
         storageDao.delete(storage)
         storageProviderRegistry.invalidate(storage.id)
         mediaDao.deleteStorage(storage.id)
-        albumService.deleteEmptyAlbums()
+        albumDao.deleteEmptyAlbums()
         storageAuthProvider.refresh()
     }
 

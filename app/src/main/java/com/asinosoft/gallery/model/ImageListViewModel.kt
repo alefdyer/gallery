@@ -104,6 +104,7 @@ class ImageListViewModel @Inject constructor(
             albums
                 .sortedWith(
                     compareByDescending<AlbumWithCover> { it.album.date }
+                        .thenByDescending { it.cover?.time }
                         .thenBy { it.album.name }
                 )
                 .map { it.album }

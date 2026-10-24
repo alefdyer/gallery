@@ -30,6 +30,7 @@ data class Album(
     val categoryId: Long = AlbumCategory.OTHER.id,
     val count: Int = 0,
     val size: Long = 0,
+    val coverId: Long? = null,
     val date: LocalDate = LocalDate.now(),
     /** Альбом создан пользователем через «Новый альбом», а не автоматически из папки */
     val userCreated: Boolean = false
@@ -37,6 +38,11 @@ data class Album(
 
 data class AlbumWithCover(
     @Embedded val album: Album,
+    @Relation(
+        parentColumn = "coverId",
+        entityColumn = "id"
+    )
+    val cover: Media? = null,
     @Relation(
         parentColumn = "categoryId",
         entityColumn = "id"

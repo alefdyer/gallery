@@ -91,13 +91,15 @@ interface AlbumDao {
 
     @Query(
         """
+        DELETE FROM album WHERE id IN (
             SELECT a.id
             FROM album a
             LEFT JOIN media_album ma ON ma.albumId = a.id
             WHERE ma.mediaId IS NULL
+        )
         """
     )
-    suspend fun getEmptyAlbumIds(): List<Long>
+    suspend fun deleteEmptyAlbums()
 
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertMedia(links: List<MediaAlbum>)
@@ -134,18 +136,6 @@ interface AlbumDao {
     fun getMediaInAlbum(albumId: Long): Flow<List<Media>>
 
     @Query(
-        """
-        SELECT m.*
-        FROM media m
-        INNER JOIN media_album ma ON ma.mediaId = m.id
-        WHERE ma.albumId = :albumId AND m.mimeType NOT LIKE 'video/%'
-        ORDER BY m.date DESC, m.time DESC
-        LIMIT 4
-        """
-    )
-    suspend fun getMediaForCover(albumId: Long): List<Media>
-
-    @Query(
         "SELECT DISTINCT albumId FROM media_album WHERE mediaId IN (:mediaIds)"
     )
     suspend fun getMediaAlbumIds(mediaIds: Collection<Long>): List<Long>
@@ -155,6 +145,14 @@ interface AlbumDao {
         SELECT
             COUNT(m.id) AS count,
             IFNULL(SUM(m.size), 0) AS size,
+            (
+                SELECT m2.id
+                FROM media_album ma2
+                INNER JOIN media m2 ON m2.id = ma2.mediaId
+                WHERE ma2.albumId = a.id
+                ORDER BY m2.date DESC, m2.time DESC
+                LIMIT 1
+            ) AS coverId,
             IFNULL(MAX(m.date), a.date) AS date
         FROM album a
         LEFT JOIN media_album ma ON ma.albumId = a.id
@@ -164,13 +162,13 @@ interface AlbumDao {
     )
     suspend fun getAlbumStats(albumId: Long): AlbumStats
 
-    @Query("UPDATE album SET count = :count, size = :size, date = :date WHERE id = :albumId")
-    suspend fun setAlbumStats(albumId: Long, count: Int, size: Long, date: LocalDate)
+    @Query("UPDATE album SET count = :count, size = :size, coverId = :coverId, date = :date WHERE id = :albumId")
+    suspend fun setAlbumStats(albumId: Long, count: Int, size: Long, coverId: Long, date: LocalDate)
 
     suspend fun updateAlbumStats(albumId: Long) {
         val stats = getAlbumStats(albumId)
         if (stats.count > 0) {
-            setAlbumStats(albumId, stats.count, stats.size, stats.date)
+            setAlbumStats(albumId, stats.count, stats.size, stats.coverId, stats.date)
         } else {
             delete(albumId)
         }

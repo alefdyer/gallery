@@ -3,7 +3,6 @@ package com.asinosoft.gallery.ui
 import android.app.Activity
 import android.view.WindowManager
 import androidx.activity.compose.BackHandler
-import androidx.activity.compose.LocalActivity
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -545,7 +544,7 @@ private fun PrivateMediaPager(
 /** Запрещает скриншоты и показ содержимого в списке недавних приложений */
 @Composable
 private fun SecureWindow() {
-    val activity = LocalActivity.current ?: return
+    val activity = LocalContext.current as? Activity ?: return
     DisposableEffect(activity) {
         activity.window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
         onDispose { activity.window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE) }
@@ -555,7 +554,7 @@ private fun SecureWindow() {
 /** Личный альбом закрывается, когда приложение уходит в фон: вернуться можно только через проверку */
 @Composable
 private fun CloseWhenHidden(onClose: () -> Unit) {
-    val activity = LocalActivity.current ?: return
+    val activity = LocalContext.current as? Activity
     val lifecycleOwner = LocalLifecycleOwner.current
     val currentOnClose by rememberUpdatedState(onClose)
     DisposableEffect(lifecycleOwner) {
