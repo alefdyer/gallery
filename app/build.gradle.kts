@@ -36,11 +36,11 @@ ktlint {
 }
 
 android {
-    namespace = "com.asinosoft.gallery"
+    namespace = "com.asinosoft.photogallery"
     compileSdk = 37
 
     defaultConfig {
-        applicationId = "com.asinosoft.gallery"
+        applicationId = "com.asinosoft.photogallery"
         minSdk = 26
         targetSdk = 37
 

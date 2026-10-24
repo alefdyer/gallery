@@ -19,7 +19,7 @@
 -keep class com.github.thegrizzlylabs.sardine.** { *; }
 
 # Keep all classes that are part of the app package to prevent over-optimization
--keep class com.asinosoft.gallery.** { *; }
+-keep class com.asinosoft.photogallery.** { *; }
 
 # Fix for XmlPullParser dependency issue
 -dontwarn org.xmlpull.v1.**

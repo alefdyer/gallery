@@ -1,0 +1,71 @@
+package com.asinosoft.photogallery.ui
+
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.material3.Button
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.dp
+import com.asinosoft.photogallery.R
+import com.asinosoft.photogallery.ui.theme.Typography
+import com.google.accompanist.permissions.ExperimentalPermissionsApi
+import com.google.accompanist.permissions.MultiplePermissionsState
+import com.google.accompanist.permissions.PermissionState
+
+@Composable
+@OptIn(ExperimentalPermissionsApi::class)
+fun PermissionDisclaimer(permissions: MultiplePermissionsState, modifier: Modifier = Modifier) {
+    Column(
+        modifier = modifier.fillMaxSize(1f),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        val text =
+            if (permissions.shouldShowRationale) {
+                R.string.permission_disclaimer
+            } else {
+                R.string.permission_denied
+            }
+
+        Text(
+            text = stringResource(id = text),
+            style = Typography.bodyLarge,
+            textAlign = TextAlign.Center,
+            modifier =
+                Modifier
+                    .padding(16.dp, 16.dp)
+                    .width(200.dp)
+        )
+        Button(onClick = { permissions.launchMultiplePermissionRequest() }) {
+            Text(text = stringResource(id = R.string.grant))
+        }
+    }
+}
+
+@Preview(showSystemUi = true)
+@Composable
+@OptIn(ExperimentalPermissionsApi::class)
+private fun Preview() {
+    val state =
+        remember {
+            object : MultiplePermissionsState {
+                override val permissions = emptyList<PermissionState>()
+                override val revokedPermissions = emptyList<PermissionState>()
+                override val allPermissionsGranted = false
+                override val shouldShowRationale = true
+
+                override fun launchMultiplePermissionRequest() {}
+            }
+        }
+
+    PermissionDisclaimer(state)
+}

@@ -1,0 +1,161 @@
+package com.asinosoft.photogallery.model
+
+import android.content.Context
+import android.util.Log
+import androidx.core.content.edit
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.asinosoft.photogallery.GalleryApp
+import com.asinosoft.photogallery.data.Album
+import com.asinosoft.photogallery.data.AlbumCategory
+import com.asinosoft.photogallery.data.AppAnalytics
+import com.asinosoft.photogallery.data.AlbumDao
+import com.asinosoft.photogallery.data.AlbumService
+import com.asinosoft.photogallery.data.AlbumWithCover
+import com.asinosoft.photogallery.data.CategoryWithAlbums
+import com.asinosoft.photogallery.data.Media
+import com.asinosoft.photogallery.data.MediaDao
+import com.asinosoft.photogallery.data.storage.Storage
+import com.asinosoft.photogallery.data.storage.StorageDao
+import com.asinosoft.photogallery.data.storage.MediaStatistics
+import com.asinosoft.photogallery.data.storage.StorageType
+import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
+import javax.inject.Inject
+
+data class StorageInfo(
+    val storage: Storage,
+    val statistics: MediaStatistics,
+    val cover: Media?,
+)
+
+@HiltViewModel
+class AlbumsViewModel @Inject constructor(
+    @param:ApplicationContext private val context: Context,
+    private val albumService: AlbumService,
+    private val albumDao: AlbumDao,
+    private val mediaDao: MediaDao,
+    private val analytics: AppAnalytics,
+    storageDao: StorageDao
+) : ViewModel() {
+    private val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+    private val categoryOrder = MutableStateFlow(loadCategoryOrder())
+    private val alwaysExpandedCategoriesFlow = MutableStateFlow(loadExpandedCategories())
+    val alwaysExpandedCategories: StateFlow<Set<Long>> = alwaysExpandedCategoriesFlow
+    private val expandedCategoriesFlow = MutableStateFlow(alwaysExpandedCategoriesFlow.value)
+    val expandedCategories: StateFlow<Set<Long>> = expandedCategoriesFlow
+
+    val albums: StateFlow<List<CategoryWithAlbums>> =
+        combine(albumDao.getAlbums(), categoryOrder) { albums, order ->
+            albums
+                .groupBy { it.category }
+                .map { (category, albums) ->
+                    CategoryWithAlbums(
+                        category,
+                        albums.sortedWith(
+                            compareByDescending<AlbumWithCover> { it.album.date }
+                                .thenByDescending { it.cover?.time }
+                                .thenBy { it.album.name }
+                        )
+                    )
+                }
+                .sortedWith(
+                    compareBy<CategoryWithAlbums> { category ->
+                        order.indexOf(category.category.id).takeIf { it >= 0 } ?: Int.MAX_VALUE
+                    }.thenBy { it.category.name }
+                )
+        }.stateIn(
+            scope = viewModelScope, started = SharingStarted.Eagerly, initialValue = emptyList()
+        )
+
+    val storages: StateFlow<List<StorageInfo>> = combine(
+        storageDao.getStorages(),
+        mediaDao.observeMediaCount()
+    ) { storages, _ -> storages }.map { storages ->
+        storages.filterNot { it.type == StorageType.LOCAL }.map { storage ->
+            StorageInfo(
+                storage,
+                mediaDao.getStorageStatistics(storage.id),
+                mediaDao.getStorageCover(storage.id)
+            )
+        }
+    }.stateIn(
+        scope = viewModelScope, started = SharingStarted.Eagerly, initialValue = emptyList()
+    )
+
+    fun moveAlbumIntoCategory(album: Album, category: AlbumCategory) = viewModelScope.launch {
+        albumService.moveAlbumIntoCategory(album, category)
+    }
+
+    fun moveAlbumIntoNewCategory(album: Album, categoryName: String) = viewModelScope.launch {
+        albumService.moveAlbumIntoNewCategory(album, categoryName)
+    }
+
+    fun renameCategory(category: AlbumCategory, name: String) = viewModelScope.launch {
+        val newName = name.trim()
+        if (newName.isEmpty() || newName == category.name) return@launch
+
+        runCatching { albumDao.renameCategory(category.id, newName) }
+            .onSuccess { analytics.categoryRenamed() }
+            .onFailure { Log.w(GalleryApp.TAG, "Can't rename category ${category.id}", it) }
+    }
+
+    fun renameAlbum(album: Album, name: String) = viewModelScope.launch {
+        val category = albumDao.getCategoryById(album.categoryId)
+        val allowed = album.userCreated || (null != category && !category.name.startsWith(":"))
+        if (!allowed) return@launch
+
+        val newName = name.trim()
+        if (newName.isEmpty() || newName == album.name) return@launch
+
+        runCatching { albumDao.renameAlbum(album.id, newName) }
+            .onSuccess { analytics.albumRenamed() }
+            .onFailure { Log.w(GalleryApp.TAG, "Can't rename album ${album.id}", it) }
+    }
+
+    fun setCategoryOrder(ids: List<Long>) {
+        categoryOrder.value = ids
+        prefs.edit { putString(KEY_ORDER, ids.joinToString(",")) }
+        analytics.categoryMoved()
+    }
+
+    fun toggleCategoryExpanded(id: Long) {
+        val current = expandedCategoriesFlow.value
+        expandedCategoriesFlow.value = if (id in current) current - id else current + id
+    }
+
+    fun setCategoryAlwaysExpanded(id: Long, expanded: Boolean) {
+        val updated = alwaysExpandedCategoriesFlow.value.let { if (expanded) it + id else it - id }
+        alwaysExpandedCategoriesFlow.value = updated
+        prefs.edit { putString(KEY_EXPANDED, updated.joinToString(",")) }
+
+        val current = expandedCategoriesFlow.value
+        expandedCategoriesFlow.value = if (expanded) current + id else current - id
+    }
+
+    private fun loadExpandedCategories(): Set<Long> =
+        prefs.getString(KEY_EXPANDED, null)
+            ?.split(',')
+            ?.mapNotNull { it.toLongOrNull() }
+            ?.toSet()
+            ?: emptySet()
+
+    private fun loadCategoryOrder(): List<Long> =
+        prefs.getString(KEY_ORDER, null)
+            ?.split(',')
+            ?.mapNotNull { it.toLongOrNull() }
+            ?: emptyList()
+
+    private companion object {
+        const val PREFS_NAME = "album_categories"
+        const val KEY_ORDER = "order"
+        const val KEY_EXPANDED = "expanded"
+    }
+}

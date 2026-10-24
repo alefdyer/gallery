@@ -1,0 +1,988 @@
+package com.asinosoft.photogallery.ui
+
+import android.icu.text.DateFormatSymbols
+import androidx.activity.compose.BackHandler
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.animate
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.awaitHorizontalTouchSlopOrCancellation
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.horizontalDrag
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.calculateEndPadding
+import androidx.compose.foundation.layout.calculateStartPadding
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.systemGestures
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.itemsIndexed
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBarScrollBehavior
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.withFrameNanos
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.input.pointer.PointerInputChange
+import androidx.compose.ui.input.pointer.PointerInputScope
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.positionChange
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.platform.LocalWindowInfo
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.Velocity
+import androidx.compose.ui.unit.dp
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import com.asinosoft.photogallery.R
+import com.asinosoft.photogallery.data.Album
+import com.asinosoft.photogallery.data.AlbumCategory
+import com.asinosoft.photogallery.data.name
+import com.asinosoft.photogallery.data.Media
+import com.asinosoft.photogallery.model.DateFilter
+import com.asinosoft.photogallery.model.DateFilterSource
+import com.asinosoft.photogallery.model.MediaType
+import com.asinosoft.photogallery.model.ImageListViewModel
+import com.asinosoft.photogallery.model.MediaViewModel
+import com.asinosoft.photogallery.ui.component.AdBanner
+import com.asinosoft.photogallery.ui.component.AddToAlbumDialog
+import com.asinosoft.photogallery.ui.component.AppsFilterPanel
+import com.asinosoft.photogallery.ui.component.DragSelectionState
+import com.asinosoft.photogallery.ui.component.FeatureTipCard
+import com.asinosoft.photogallery.ui.component.FilterBar
+import com.asinosoft.photogallery.ui.component.ImageListHeaderBackground
+import com.asinosoft.photogallery.ui.component.ImageListHeaderInfo
+import com.asinosoft.photogallery.ui.component.LazyGridVerticalScrollIndicator
+import com.asinosoft.photogallery.ui.component.MediaThumbnail
+import com.asinosoft.photogallery.ui.component.MoveToPrivateDialog
+import com.asinosoft.photogallery.ui.component.ScrollToTopButton
+import com.asinosoft.photogallery.ui.component.SelectionControlBar
+import com.asinosoft.photogallery.ui.component.SelectionInfoBar
+import com.asinosoft.photogallery.ui.component.ThumbnailPlaceholderTile
+import com.asinosoft.photogallery.ui.component.TIP_DAY_SWIPE
+import com.asinosoft.photogallery.ui.component.TIP_PHOTO_APPS_FILTER
+import com.asinosoft.photogallery.ui.component.TIP_PHOTO_COUNTERS
+import com.asinosoft.photogallery.ui.component.TIP_PHOTO_DATE
+import com.asinosoft.photogallery.ui.component.dragSelection
+import com.asinosoft.photogallery.ui.component.isTipSeen
+import com.asinosoft.photogallery.ui.component.pinchGridColumns
+import com.asinosoft.photogallery.ui.component.rememberFeatureTip
+import com.asinosoft.photogallery.ui.component.rememberGridColumns
+import com.asinosoft.photogallery.ui.component.rememberTrashIntro
+import com.asinosoft.photogallery.ui.component.rememberVideoPreviewQueue
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.launch
+import kotlin.math.abs
+import kotlin.math.sign
+import kotlin.time.Duration.Companion.milliseconds
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ImageListView(
+    onMediaClick: (Media, Set<String>, DateFilter?, MediaType?) -> Unit,
+    onClose: () -> Unit,
+    modifier: Modifier = Modifier,
+    scrollBehavior: TopAppBarScrollBehavior? = null,
+    contentPadding: PaddingValues = PaddingValues(0.dp),
+    bottomPanelHeight: Dp = 0.dp,
+    onBack: (() -> Unit)? = null,
+    returnMediaId: Long? = null,
+    onReturnHandled: () -> Unit = {},
+    previousAlbum: Album? = null,
+    nextAlbum: Album? = null,
+    onSwitchAlbum: (album: Album, forward: Boolean) -> Unit = { _, _ -> },
+    showFeatureTips: Boolean = false,
+    model: ImageListViewModel = hiltViewModel()
+) {
+    val images by model.images.collectAsState()
+    val filters by model.filters.collectAsState(listOf())
+    val dateFilter by model.activeDateFilter.collectAsState()
+    val selection by model.selection.collectAsState()
+    val context = LocalContext.current
+
+    var closeOnEmptyList by remember { mutableStateOf(false) }
+    val lazyGridState = rememberLazyGridState()
+    var showTagDialog by remember { mutableStateOf(false) }
+    var pendingAlbumAdd by remember { mutableStateOf<PendingAlbumAdd?>(null) }
+    var showMoveToPrivate by remember { mutableStateOf(false) }
+    val deleteSelection = rememberTrashIntro { model.deleteSelection() }
+    val dragSelectionState = remember { DragSelectionState() }
+    val videoPreview = rememberVideoPreviewQueue(images, lazyGridState)
+
+    val hasMedia by model.hasMedia.collectAsState()
+    LaunchedEffect(model.albumId, hasMedia, onClose) {
+        if (closeOnEmptyList && !hasMedia) {
+            onClose()
+        } else {
+            closeOnEmptyList = null != model.albumId
+        }
+    }
+
+    BackHandler(selection.isNotEmpty(), model::clearSelection)
+
+    BackHandler(dateFilter != null, model::clearDateFilter)
+
+    BackHandler(filters.any { !it.enabled }, model::clearFilters)
+
+    var showAppsPanel by remember { mutableStateOf(false) }
+    BackHandler(showAppsPanel) { showAppsPanel = false }
+
+    var filtersHeight by remember { mutableFloatStateOf(0f) }
+    var filtersOffset by remember { mutableFloatStateOf(0f) }
+    var lastScrollTime by remember { mutableLongStateOf(0L) }
+    // Одна анимация смещения за раз: snap из onPostFling и возврат по таймеру иначе
+    // пишут filtersOffset параллельно и панель появляется, уезжает и появляется снова.
+    var filtersAnimJob by remember { mutableStateOf<Job?>(null) }
+    var filtersReturning by remember { mutableStateOf(false) }
+
+    LaunchedEffect(lastScrollTime) {
+        if (lastScrollTime == 0L) return@LaunchedEffect
+        delay(500.milliseconds)
+        filtersAnimJob?.cancel()
+        filtersReturning = true
+        filtersAnimJob = launch {
+            animate(initialValue = filtersOffset, targetValue = 0f) { v, _ ->
+                filtersOffset = v
+            }
+        }
+        filtersAnimJob?.invokeOnCompletion { filtersReturning = false }
+    }
+
+    val coroutineScope = rememberCoroutineScope()
+    val nestedScrollConnection = remember {
+        object : NestedScrollConnection {
+            override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+                filtersReturning = false
+                filtersOffset = (filtersOffset + abs(available.y)).coerceIn(0f, filtersHeight)
+
+                return Offset.Zero
+            }
+
+            override fun onPostScroll(
+                consumed: Offset,
+                available: Offset,
+                source: NestedScrollSource
+            ): Offset {
+                // У краёв списка флинг шлёт события с нулевым consumed (overscroll) уже после
+                // визуальной остановки — они не должны сбрасывать таймер возврата панелей.
+                if (consumed.y != 0f) {
+                    lastScrollTime = System.currentTimeMillis()
+                }
+                // Ничего не потребляем: иначе родитель (навбар в MainView) увидит leftover
+                // как реальное движение и его таймер у краёв будет сбрасываться дольше.
+                return Offset.Zero
+            }
+
+            override suspend fun onPostFling(consumed: Velocity, available: Velocity): Velocity {
+                if (consumed.y != 0f) {
+                    lastScrollTime = System.currentTimeMillis()
+                }
+                // Поздний post-fling у края не должен отменять уже идущий возврат панели.
+                if (!filtersReturning) {
+                    val targetFiltersOffset =
+                        if (filtersOffset > filtersHeight / 2f) filtersHeight else 0f
+
+                    filtersAnimJob?.cancel()
+                    filtersAnimJob = coroutineScope.launch {
+                        animate(
+                            initialValue = filtersOffset,
+                            targetValue = targetFiltersOffset,
+                            initialVelocity = 10f
+                        ) { y, _ ->
+                            filtersOffset = y
+                        }
+                    }
+                }
+
+                return super.onPostFling(consumed, available)
+            }
+        }
+    }
+
+    val album by model.album.collectAsState()
+    val albumCategory by model.albumCategory.collectAsState()
+    val listTitle = album?.name
+        ?: stringResource(if (model.favoritesOnly) R.string.favorites else R.string.all_photos)
+    val title = dateFilter?.let { dateFilterTitle(it) } ?: listTitle
+    val cover = images.firstOrNull()
+    val photoCount by model.photoCount.collectAsState()
+    val videoCount by model.videoCount.collectAsState()
+    // Размер — синхронно из уже собранного списка, как счётчики в превью соседнего альбома:
+    // отдельный Flow давал лишнюю асинхронную ступень, и подпись появлялась позже названия.
+    val totalSize = remember(images) { images.sumOf { it.size.coerceAtLeast(0) } }
+    val showPhotos by model.showPhotos.collectAsState()
+    val showVideos by model.showVideos.collectAsState()
+    val canToggleMediaType = photoCount > 0 && videoCount > 0
+    val hasAppFilters = filters.isNotEmpty()
+    val countersTip = rememberFeatureTip(
+        key = TIP_PHOTO_COUNTERS,
+        enabled = showFeatureTips && canToggleMediaType,
+        delayMs = 700L
+    )
+    val appsFilterTip = rememberFeatureTip(
+        key = TIP_PHOTO_APPS_FILTER,
+        enabled = showFeatureTips &&
+                hasAppFilters &&
+                !countersTip.visible &&
+                (isTipSeen(context, TIP_PHOTO_COUNTERS) || !canToggleMediaType),
+        delayMs = 400L
+    )
+    val dateTip = rememberFeatureTip(
+        key = TIP_PHOTO_DATE,
+        enabled = showFeatureTips &&
+                !countersTip.visible &&
+                !appsFilterTip.visible &&
+                (isTipSeen(context, TIP_PHOTO_COUNTERS) || !canToggleMediaType) &&
+                (isTipSeen(context, TIP_PHOTO_APPS_FILTER) || !hasAppFilters)
+    )
+
+    val scrollToTopOnUpdate = remember { PendingFlag() }
+    LaunchedEffect(images) {
+        if (scrollToTopOnUpdate.pending) {
+            scrollToTopOnUpdate.pending = false
+            lazyGridState.requestScrollToItem(0)
+        }
+    }
+    val layoutDirection = LocalLayoutDirection.current
+
+    val swipeOffset = remember { Animatable(0f) }
+    val swipeThreshold = with(LocalDensity.current) { DATE_SWIPE_THRESHOLD.toPx() }
+    val swipeDirection by remember { derivedStateOf { sign(swipeOffset.value) } }
+    val olderDate = remember(dateFilter, images) { model.adjacentDateFilter(older = true) }
+    val newerDate = remember(dateFilter, images) { model.adjacentDateFilter(older = false) }
+    // Первый вход в фильтр по дню: подсказать про листание дней свайпом.
+    val daySwipeTip = rememberFeatureTip(
+        key = TIP_DAY_SWIPE,
+        enabled = showFeatureTips &&
+                null != dateFilter?.day &&
+                (null != olderDate || null != newerDate) &&
+                selection.isEmpty(),
+        delayMs = 700L
+    )
+    var committingDate by remember { mutableStateOf<DateFilter?>(null) }
+    val previewDate = committingDate ?: when {
+        swipeDirection > 0 -> olderDate
+        swipeDirection < 0 -> newerDate
+        else -> null
+    }
+
+    val previousAlbumImages by remember(previousAlbum?.id) {
+        previousAlbum?.let { model.albumImages(it.id) } ?: flowOf(emptyList())
+    }.collectAsState(emptyList())
+    val nextAlbumImages by remember(nextAlbum?.id) {
+        nextAlbum?.let { model.albumImages(it.id) } ?: flowOf(emptyList())
+    }.collectAsState(emptyList())
+    val currentPreviousAlbum by rememberUpdatedState(previousAlbum)
+    val currentNextAlbum by rememberUpdatedState(nextAlbum)
+    val currentOnSwitchAlbum by rememberUpdatedState(onSwitchAlbum)
+    val albumSwipeEnabled = null == dateFilter && (null != previousAlbum || null != nextAlbum)
+    var committingAlbum by remember { mutableStateOf<Album?>(null) }
+    val previewAlbum = committingAlbum ?: when {
+        null != dateFilter -> null
+        swipeDirection > 0 -> previousAlbum
+        swipeDirection < 0 -> nextAlbum
+        else -> null
+    }
+
+    var shownDateFilter by remember { mutableStateOf(dateFilter) }
+    LaunchedEffect(dateFilter) {
+        if (dateFilter != shownDateFilter) {
+            shownDateFilter = dateFilter
+            lazyGridState.scrollToItem(0)
+        }
+    }
+
+    val density = LocalDensity.current
+    val window = LocalWindowInfo.current.containerSize
+    val gridColumns = rememberGridColumns()
+    val nearItemsCount = remember(window.height, window.width, gridColumns) {
+        val visibleRows =
+            window.height * gridColumns / window.width + 1
+        (visibleRows + NEAR_ROWS_BELOW) * gridColumns
+    }
+    // Список не двигаем, если ячейка уже на экране (даже под панелями) —
+    // иначе после закрытия просмотра сетка «прыгает» вверх/вниз.
+    LaunchedEffect(returnMediaId, images) {
+        val mediaId = returnMediaId ?: return@LaunchedEffect
+        val index = images.indexOfFirst { it.id == mediaId }
+        if (index < 0) {
+            if (images.isNotEmpty()) onReturnHandled()
+            return@LaunchedEffect
+        }
+
+        val layout = snapshotFlow { lazyGridState.layoutInfo }.first { it.totalItemsCount > 0 }
+        if (layout.visibleItemsInfo.none { it.index == index }) {
+            lazyGridState.scrollToItem(index)
+        }
+        onReturnHandled()
+    }
+
+    val systemGestures = WindowInsets.systemGestures
+    val leftGestureEdge = systemGestures.getLeft(density, layoutDirection).toFloat()
+    val rightGestureEdge = systemGestures.getRight(density, layoutDirection).toFloat()
+
+    // Всё окно (сетка и плавающие кнопки) — над баннером, баннер — над системными кнопками:
+    // баннер отдельной строкой под окном, а не оверлеем, чтобы ничего его не перекрывало.
+    Column(modifier.fillMaxSize()) {
+    BoxWithConstraints(
+        Modifier
+            .weight(1f)
+            .pointerInput(
+                null != dateFilter,
+                albumSwipeEnabled,
+                selection.isEmpty(),
+                leftGestureEdge,
+                rightGestureEdge
+            ) {
+                if ((null == dateFilter && !albumSwipeEnabled) || selection.isNotEmpty()) return@pointerInput
+                detectHorizontalDragGesturesAwayFromEdges(
+                    leftEdge = leftGestureEdge,
+                    rightEdge = rightGestureEdge,
+                    onHorizontalDrag = { change, dragAmount ->
+                        change.consume()
+                        coroutineScope.launch {
+                            val offset = swipeOffset.value + dragAmount
+                            val blocked = null == model.activeDateFilter.value &&
+                                    null == (if (offset > 0) currentPreviousAlbum else currentNextAlbum)
+                            swipeOffset.snapTo(if (blocked) offset * EDGE_RESISTANCE else offset)
+                        }
+                    },
+                    onDragCancel = {
+                        coroutineScope.launch { swipeOffset.animateTo(0f) }
+                    },
+                    onDragEnd = {
+                        coroutineScope.launch {
+                            val offset = swipeOffset.value
+                            val swipedRight = offset > 0
+
+                            if (null == model.activeDateFilter.value) {
+                                val targetAlbum = when {
+                                    abs(offset) <= swipeThreshold -> null
+                                    swipedRight -> currentPreviousAlbum
+                                    else -> currentNextAlbum
+                                }
+                                if (null == targetAlbum) {
+                                    swipeOffset.animateTo(0f)
+                                    return@launch
+                                }
+
+                                val width = size.width.toFloat()
+                                committingAlbum = targetAlbum
+                                swipeOffset.animateTo(
+                                    if (swipedRight) width else -width,
+                                    tween(200)
+                                )
+                                currentOnSwitchAlbum(targetAlbum, !swipedRight)
+                                return@launch
+                            }
+
+                            val target = if (abs(offset) > swipeThreshold) {
+                                model.adjacentDateFilter(older = swipedRight)
+                            } else {
+                                null
+                            }
+
+                            if (null == target) {
+                                swipeOffset.animateTo(0f)
+                                return@launch
+                            }
+
+                            val width = size.width.toFloat()
+                            committingDate = target
+                            swipeOffset.animateTo(if (swipedRight) width else -width, tween(200))
+                            model.setDateFilter(target)
+                            daySwipeTip.dismiss()
+                            model.images.first { list -> list.all { target.matches(it) } }
+                            repeat(2) { withFrameNanos { } }
+                            swipeOffset.snapTo(0f)
+                            committingDate = null
+                        }
+                    }
+                )
+            }
+    ) {
+        val gap = 2.dp
+        // Шапка всегда как при 3 столбцах, сетка ниже может быть 1…6
+        val rowHeight = (maxWidth - gap * 2) / 3
+        val headerHeight = contentPadding.calculateTopPadding() + rowHeight
+        val gridPadding = if (null == cover) contentPadding else PaddingValues(
+            start = contentPadding.calculateStartPadding(layoutDirection),
+            top = headerHeight + gap,
+            end = contentPadding.calculateEndPadding(layoutDirection),
+            bottom = contentPadding.calculateBottomPadding()
+        )
+
+        val headerModifier = Modifier
+            .fillMaxWidth()
+            .height(headerHeight)
+            .graphicsLayer {
+                translationX = swipeOffset.value
+                val info = lazyGridState.layoutInfo
+                val first = info.visibleItemsInfo.firstOrNull()
+                translationY = if (first?.index == 0) {
+                    (first.offset.y - info.viewportStartOffset) - size.height - gap.toPx()
+                } else {
+                    -size.height - gap.toPx()
+                }
+            }
+
+        previewDate?.let { target ->
+            DatePreviewPage(
+                model = model,
+                images = remember(target, images) { model.imagesForDate(target) },
+                title = dateFilterTitle(target) ?: listTitle,
+                showPhotos = showPhotos,
+                showVideos = showVideos,
+                columns = gridColumns,
+                headerHeight = headerHeight,
+                contentPadding = gridPadding,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .graphicsLayer {
+                        translationX = swipeOffset.value - swipeDirection * size.width
+                    }
+            )
+        }
+
+        if (null == previewDate) previewAlbum?.let { target ->
+            DatePreviewPage(
+                model = model,
+                images = if (target.id == previousAlbum?.id) previousAlbumImages else nextAlbumImages,
+                title = target.name,
+                // Соседние альбомы — из той же категории, что и текущий.
+                subtitle = albumCategory?.let { it.name() },
+                showPhotos = true,
+                showVideos = true,
+                columns = gridColumns,
+                headerHeight = headerHeight,
+                contentPadding = gridPadding,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .graphicsLayer {
+                        translationX = swipeOffset.value - swipeDirection * size.width
+                    }
+            )
+        }
+
+        cover?.let { ImageListHeaderBackground(cover = it, modifier = headerModifier) }
+
+        Column {
+            LazyVerticalGrid(
+                state = lazyGridState,
+                columns = GridCells.Fixed(gridColumns),
+                horizontalArrangement = Arrangement.spacedBy(2.dp),
+                verticalArrangement = Arrangement.spacedBy(2.dp),
+                contentPadding = gridPadding,
+                modifier = Modifier
+                    .weight(1f)
+                    .graphicsLayer { translationX = swipeOffset.value }
+                    .nestedScroll(nestedScrollConnection)
+                    .pinchGridColumns(images, lazyGridState, gridColumns)
+                    .dragSelection(
+                        items = images,
+                        state = lazyGridState,
+                        currentSelection = { selection },
+                        dragSelectionState = dragSelectionState,
+                        onSelectedChange = model::setSelection,
+                        contentPadding = gridPadding
+                    )
+                    .let {
+                        if (scrollBehavior == null) it else it.nestedScroll(scrollBehavior.nestedScrollConnection)
+                    }
+            ) {
+                itemsIndexed(images, key = { _, media -> media.id }) { index, media ->
+                    // Под SharedTransitionLayout сетка при прокрутке вверх строит в предварительном
+                    // проходе лишние ряды под экраном (linesRetainedForLookahead в Compose), при прыжке
+                    // ползунком — целый экран. Их никогда не видно, поэтому вместо миниатюры пустышка.
+                    val farBelow by remember(index, nearItemsCount) {
+                        derivedStateOf { index >= lazyGridState.firstVisibleItemIndex + nearItemsCount }
+                    }
+                    if (farBelow) {
+                        // Та же градиентная подложка, что и у загружающихся миниатюр:
+                        // при прыжке ползунком экран — ровное поле плиток, а не дырки фона.
+                        ThumbnailPlaceholderTile(Modifier.aspectRatio(1f))
+                        return@itemsIndexed
+                    }
+                    MediaThumbnail(
+                        media = media,
+                        model = model,
+                        selectionMode = selection.isNotEmpty(),
+                        selected = selection,
+                        playPreview = media.id == videoPreview.previewId,
+                        sharedElement = true,
+                        onPreviewEnded = videoPreview::onEnded,
+                        onClick = { media -> onMediaClick(media, model.activeFilterPackages.value, model.activeDateFilter.value, model.activeMediaType()) },
+                        onSelect = { image ->
+                            if (!dragSelectionState.active) {
+                                model.toggleSelection(image)
+                            }
+                        }
+                    )
+                }
+            }
+
+        }
+
+        if (null != cover) {
+            ImageListHeaderInfo(
+                title = title,
+                photoCount = photoCount,
+                videoCount = videoCount,
+                photosEnabled = showPhotos,
+                videosEnabled = showVideos,
+                sizeBytes = totalSize,
+                subtitle = albumCategory?.let { it.name() },
+                onPhotosClick = {
+                    scrollToTopOnUpdate.pending = true
+                    model.togglePhotos()
+                }.takeIf { canToggleMediaType },
+                onVideosClick = {
+                    scrollToTopOnUpdate.pending = true
+                    model.toggleVideos()
+                }.takeIf { canToggleMediaType },
+                modifier = headerModifier
+            )
+        }
+
+        if (countersTip.visible) {
+            FeatureTipCard(
+                text = stringResource(R.string.tip_photo_counters),
+                onDismiss = countersTip.dismiss,
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(top = headerHeight + 8.dp, end = 16.dp)
+            )
+        }
+
+        if (daySwipeTip.visible) {
+            FeatureTipCard(
+                text = stringResource(R.string.tip_day_swipe),
+                onDismiss = daySwipeTip.dismiss,
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(
+                        bottom = maxOf(
+                            contentPadding.calculateBottomPadding(),
+                            bottomPanelHeight
+                        ) + 80.dp
+                    )
+            )
+        }
+
+        LazyGridVerticalScrollIndicator(
+            lazyGridState = lazyGridState,
+            listItems = images,
+            showDateLabel = null == dateFilter?.day,
+            onDateClick = { date ->
+                model.pickDateFilter(
+                    DateFilter(date.year, date.monthValue, date.dayOfMonth),
+                    DateFilterSource.SLIDER
+                )
+            },
+            showDateTip = dateTip.visible,
+            onDateTipDismiss = dateTip.dismiss,
+            modifier = Modifier
+                .align(Alignment.CenterEnd)
+                .fillMaxHeight()
+                .padding(
+                    top = headerHeight + SCROLL_INDICATOR_GAP,
+                    bottom = maxOf(
+                        contentPadding.calculateBottomPadding(),
+                        bottomPanelHeight
+                    ) + SCROLL_INDICATOR_GAP,
+                    end = 4.dp
+                )
+        )
+
+        androidx.compose.animation.AnimatedVisibility(
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .statusBarsPadding()
+                .padding(8.dp)
+                .offset {
+                    IntOffset(
+                        0,
+                        scrollBehavior?.state?.heightOffset?.toInt() ?: 0
+                    )
+                },
+            visible = selection.isNotEmpty()
+        ) {
+            SelectionInfoBar(
+                selection = selection,
+                onCancel = model::clearSelection
+            )
+        }
+
+        val panelsHidden by remember {
+            derivedStateOf { filtersHeight > 0f && filtersOffset > filtersHeight / 2f }
+        }
+        val scrolledAway by remember {
+            derivedStateOf { lazyGridState.firstVisibleItemIndex > 0 }
+        }
+        ScrollToTopButton(
+            visible = selection.isEmpty() && panelsHidden && scrolledAway,
+            onClick = {
+                lastScrollTime = System.currentTimeMillis()
+                coroutineScope.launch {
+                    if (lazyGridState.firstVisibleItemIndex > SCROLL_TO_TOP_JUMP) {
+                        lazyGridState.scrollToItem(SCROLL_TO_TOP_JUMP)
+                    }
+                    lazyGridState.animateScrollToItem(0)
+                }
+            },
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(bottom = contentPadding.calculateBottomPadding() + 24.dp)
+        )
+
+        androidx.compose.animation.AnimatedVisibility(
+            enter = slideInVertically { it * 2 },
+            exit = slideOutVertically { it * 2 },
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                // Над системными кнопками: без баннера окно доходит до низа экрана,
+                // поэтому добавляем нижний системный отступ из contentPadding;
+                // с баннером окно и так заканчивается над баннером (а он — над кнопками).
+                .padding(
+                    start = 16.dp,
+                    top = 16.dp,
+                    end = 16.dp,
+                    bottom = if (model.showAds) 16.dp
+                    else contentPadding.calculateBottomPadding() + 16.dp
+                ),
+            visible = selection.isNotEmpty()
+        ) {
+            SelectionControlBar(
+                onShare = { model.shareSelection() },
+                onDelete = deleteSelection,
+                onAddTag = { showTagDialog = true },
+                onRemoveTag = model.albumId?.let { { model.removeSelectionFromAlbum(it) } },
+                onAddToFavorites = { model.addSelectionToFavorites() },
+                onMoveToPrivate = { showMoveToPrivate = true }
+            )
+        }
+
+        val statusBarHeight = WindowInsets.statusBars.getTop(density)
+        FilterBar(
+            visible = selection.isEmpty(),
+            onBack = onBack,
+            onAppsLongPress = { showAppsPanel = true },
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .statusBarsPadding()
+                .offset { IntOffset(0, -filtersOffset.toInt()) }
+                .onGloballyPositioned {
+                    filtersHeight = it.size.height + statusBarHeight + 8 * density.density
+                }
+        )
+
+        if (appsFilterTip.visible) {
+            FeatureTipCard(
+                text = stringResource(R.string.tip_photo_apps_filter),
+                onDismiss = appsFilterTip.dismiss,
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .statusBarsPadding()
+                    .padding(
+                        top = TOP_PANEL_MARGIN + TOP_PANEL_HEIGHT + 8.dp,
+                        end = 16.dp
+                    )
+                    .offset { IntOffset(0, -filtersOffset.toInt()) }
+            )
+        }
+
+        if (showAppsPanel) {
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .pointerInput(Unit) { detectTapGestures { showAppsPanel = false } }
+            )
+        }
+
+        androidx.compose.animation.AnimatedVisibility(
+            visible = showAppsPanel,
+            enter = fadeIn() + scaleIn(initialScale = 0.9f, transformOrigin = TransformOrigin(0.5f, 0f)),
+            exit = fadeOut() + scaleOut(targetScale = 0.9f, transformOrigin = TransformOrigin(0.5f, 0f)),
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .statusBarsPadding()
+                .padding(
+                    top = TOP_PANEL_MARGIN + TOP_PANEL_HEIGHT + SCROLL_INDICATOR_GAP,
+                    bottom = maxOf(contentPadding.calculateBottomPadding(), bottomPanelHeight) +
+                            SCROLL_INDICATOR_GAP
+                )
+        ) {
+            AppsFilterPanel(
+                filters = filters,
+                onToggle = model::setFilterEnabled,
+                onShowAll = model::clearFilters,
+                onHideAll = model::hideAllFilters
+            )
+        }
+
+        if (showMoveToPrivate) {
+            MoveToPrivateDialog(
+                onConfirm = {
+                    showMoveToPrivate = false
+                    model.moveSelectionToPrivate()
+                },
+                onDismiss = { showMoveToPrivate = false }
+            )
+        }
+
+        if (showTagDialog) {
+            AddToAlbumDialog(
+                onPickAlbum = { album ->
+                    showTagDialog = false
+                    requestAlbumAdd(model, PendingAlbumAdd.Existing(album.id)) {
+                        pendingAlbumAdd = it
+                    }
+                },
+                onCreateAlbum = { name, category ->
+                    showTagDialog = false
+                    requestAlbumAdd(model, PendingAlbumAdd.NewAlbum(name, category)) {
+                        pendingAlbumAdd = it
+                    }
+                },
+                onCreateAlbumInNewCategory = { name, categoryName ->
+                    showTagDialog = false
+                    requestAlbumAdd(model, PendingAlbumAdd.NewAlbumInCategory(name, categoryName)) {
+                        pendingAlbumAdd = it
+                    }
+                },
+                onDismiss = { showTagDialog = false }
+            )
+        }
+
+        pendingAlbumAdd?.let { pending ->
+            AlertDialog(
+                onDismissRequest = { pendingAlbumAdd = null },
+                title = { Text(stringResource(R.string.remove_from_current_album_title)) },
+                text = { Text(stringResource(R.string.remove_from_current_album_text)) },
+                confirmButton = {
+                    TextButton(onClick = {
+                        pendingAlbumAdd = null
+                        pending.execute(model, removeFromAlbumId = model.albumId)
+                    }) { Text(stringResource(R.string.yes)) }
+                },
+                dismissButton = {
+                    TextButton(onClick = {
+                        pendingAlbumAdd = null
+                        pending.execute(model, removeFromAlbumId = null)
+                    }) { Text(stringResource(R.string.no)) }
+                }
+            )
+        }
+    }
+
+        // Баннер: в открытом альбоме.
+        if (model.showAds) {
+            AdBanner(
+                Modifier
+                    .navigationBarsPadding()
+                    .height(AD_BANNER_HEIGHT)
+                    .fillMaxWidth()
+            )
+        }
+    }
+}
+
+private sealed class PendingAlbumAdd {
+    data class Existing(val albumId: Long) : PendingAlbumAdd()
+    data class NewAlbum(val name: String, val category: AlbumCategory) : PendingAlbumAdd()
+    data class NewAlbumInCategory(val name: String, val categoryName: String) : PendingAlbumAdd()
+
+    fun execute(model: ImageListViewModel, removeFromAlbumId: Long?) {
+        when (this) {
+            is Existing -> model.addSelectionToAlbum(albumId, removeFromAlbumId)
+            is NewAlbum -> model.addSelectionToNewAlbum(name, category, removeFromAlbumId)
+            is NewAlbumInCategory ->
+                model.addSelectionToNewAlbumInNewCategory(name, categoryName, removeFromAlbumId)
+        }
+    }
+}
+
+private fun requestAlbumAdd(
+    model: ImageListViewModel,
+    pending: PendingAlbumAdd,
+    askRemove: (PendingAlbumAdd) -> Unit
+) {
+    val currentAlbumId = model.albumId
+    val sameAlbum = pending is PendingAlbumAdd.Existing && pending.albumId == currentAlbumId
+    if (null != currentAlbumId && !sameAlbum) {
+        askRemove(pending)
+    } else {
+        pending.execute(model, removeFromAlbumId = null)
+    }
+}
+
+private class PendingFlag(var pending: Boolean = false)
+
+private const val SCROLL_TO_TOP_JUMP = 30
+/** Ряды под экраном, которые строятся полностью: сюда попадает обычная предзагрузка сетки */
+private const val NEAR_ROWS_BELOW = 2
+private val DATE_SWIPE_THRESHOLD = 80.dp
+private const val EDGE_RESISTANCE = 0.3f
+private val TOP_PANEL_MARGIN = 8.dp
+private val TOP_PANEL_HEIGHT = 48.dp
+private val SCROLL_INDICATOR_GAP = 8.dp
+private val AD_BANNER_HEIGHT = 60.dp
+
+@Composable
+private fun DatePreviewPage(
+    model: MediaViewModel,
+    images: List<Media>,
+    title: String,
+    showPhotos: Boolean,
+    showVideos: Boolean,
+    columns: Int,
+    headerHeight: Dp,
+    contentPadding: PaddingValues,
+    modifier: Modifier = Modifier,
+    subtitle: String? = null
+) {
+    val videoCount = remember(images) { images.count { null != it.video } }
+    val photoCount = images.size - videoCount
+    val totalSize = remember(images) { images.sumOf { it.size.coerceAtLeast(0) } }
+    val typeFilterActive = photoCount > 0 && videoCount > 0 && !(showPhotos && showVideos)
+    val visibleImages = remember(images, typeFilterActive, showPhotos, showVideos) {
+        if (typeFilterActive) images.filter { if (null == it.video) showPhotos else showVideos } else images
+    }
+
+    Box(modifier) {
+        visibleImages.firstOrNull()?.let {
+            ImageListHeaderBackground(cover = it, modifier = Modifier
+                .fillMaxWidth()
+                .height(headerHeight))
+        }
+
+        LazyVerticalGrid(
+            columns = GridCells.Fixed(columns),
+            horizontalArrangement = Arrangement.spacedBy(2.dp),
+            verticalArrangement = Arrangement.spacedBy(2.dp),
+            contentPadding = contentPadding,
+            userScrollEnabled = false
+        ) {
+            items(visibleImages, key = { it.id }) { media ->
+                MediaThumbnail(media = media, model = model)
+            }
+        }
+
+        ImageListHeaderInfo(
+            title = title,
+            photoCount = photoCount,
+            videoCount = videoCount,
+            photosEnabled = !typeFilterActive || showPhotos,
+            videosEnabled = !typeFilterActive || showVideos,
+            sizeBytes = totalSize,
+            subtitle = subtitle,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(headerHeight)
+        )
+    }
+}
+
+/**
+ * Как detectHorizontalDragGestures, но игнорирует касания в зонах системного жеста «назад» у краёв экрана
+ */
+private suspend fun PointerInputScope.detectHorizontalDragGesturesAwayFromEdges(
+    leftEdge: Float,
+    rightEdge: Float,
+    onDragEnd: () -> Unit,
+    onDragCancel: () -> Unit,
+    onHorizontalDrag: (change: PointerInputChange, dragAmount: Float) -> Unit,
+) = awaitEachGesture {
+    val down = awaitFirstDown(requireUnconsumed = false)
+    if (down.position.x < leftEdge || down.position.x > size.width - rightEdge) return@awaitEachGesture
+
+    var overSlop = 0f
+    val drag = awaitHorizontalTouchSlopOrCancellation(down.id) { change, over ->
+        change.consume()
+        overSlop = over
+    } ?: return@awaitEachGesture
+
+    onHorizontalDrag(drag, overSlop)
+    val completed = horizontalDrag(drag.id) { change ->
+        onHorizontalDrag(change, change.positionChange().x)
+    }
+    if (completed) onDragEnd() else onDragCancel()
+}
+
+private fun DateFilter.matches(media: Media) =
+    (year == null || media.date.year == year) &&
+        (month == null || media.date.monthValue == month) &&
+        (day == null || media.date.dayOfMonth == day)
+
+@Composable
+internal fun dateFilterTitle(filter: DateFilter): String? {
+    val year = filter.year ?: return null
+    val locale = LocalConfiguration.current.locales[0]
+    val months = remember(locale) {
+        DateFormatSymbols.getInstance(locale)
+            .getMonths(DateFormatSymbols.STANDALONE, DateFormatSymbols.WIDE)
+    }
+    val monthsGenitive = remember(locale) {
+        DateFormatSymbols.getInstance(locale)
+            .getMonths(DateFormatSymbols.FORMAT, DateFormatSymbols.WIDE)
+    }
+    val month = filter.month?.let { it - 1 }
+    val day = filter.day
+    return when {
+        null != month && null != day -> "$day ${monthsGenitive[month].replaceFirstChar { it.titlecase() }} $year"
+        null != month -> "${months[month].replaceFirstChar { it.titlecase() }} $year"
+        else -> stringResource(R.string.date_filter_year, year)
+    }
+}
