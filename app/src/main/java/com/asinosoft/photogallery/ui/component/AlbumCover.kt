@@ -102,7 +102,14 @@ private fun AlbumThumbnail(
         val cacheKey = remember(cover.id) { "media-${cover.id}" }
         val request = remember(cover, context, cacheKey) {
             val file = ThumbnailCache.getFile(context, cover.id)
-            val data = if (file.exists() && file.length() > 0) file else cover.uri
+            val data = when {
+                file.exists() && file.length() > 0 -> file
+                // Remote video URI через Coil = OOM; без кэша показываем плейсхолдер.
+                cover.video != null &&
+                        (cover.uri?.scheme == "http" || cover.uri?.scheme == "https") -> null
+
+                else -> cover.uri
+            } ?: return@remember null
 
             ImageRequest.Builder(context)
                 .data(data)

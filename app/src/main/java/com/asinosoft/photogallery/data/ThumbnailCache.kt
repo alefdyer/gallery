@@ -100,7 +100,13 @@ object ThumbnailCache {
         if (file.exists() && file.length() > 0) return@withContext
 
         try {
-            val isContent = uri.scheme == "content"
+            val scheme = uri.scheme
+            val isRemote = scheme == "http" || scheme == "https"
+            // Удалённые видео не прелоадим: скачивание кадра с WebDAV/облака
+            // для файлов на десятки ГБ намертво блокирует скан.
+            if (isRemote && isVideo == true) return@withContext
+
+            val isContent = scheme == "content"
             val video = isContent && (isVideo
                 ?: (true == context.contentResolver.getType(uri)?.startsWith("video/")))
             val frame = if (video) loadFirstFrame(context, uri) else null

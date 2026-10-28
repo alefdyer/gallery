@@ -15,17 +15,21 @@ import com.asinosoft.photogallery.data.AlbumWithCover
 import com.asinosoft.photogallery.data.CategoryWithAlbums
 import com.asinosoft.photogallery.data.Media
 import com.asinosoft.photogallery.data.MediaDao
+import com.asinosoft.photogallery.data.WebDavAlbums
 import com.asinosoft.photogallery.data.storage.Storage
 import com.asinosoft.photogallery.data.storage.StorageDao
 import com.asinosoft.photogallery.data.storage.MediaStatistics
+import com.asinosoft.photogallery.data.storage.StorageService
 import com.asinosoft.photogallery.data.storage.StorageType
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.mapLatest
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -43,6 +47,8 @@ class AlbumsViewModel @Inject constructor(
     private val albumDao: AlbumDao,
     private val mediaDao: MediaDao,
     private val analytics: AppAnalytics,
+    private val webDavAlbums: WebDavAlbums,
+    private val storageService: StorageService,
     storageDao: StorageDao
 ) : ViewModel() {
     private val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -52,19 +58,45 @@ class AlbumsViewModel @Inject constructor(
     private val expandedCategoriesFlow = MutableStateFlow(alwaysExpandedCategoriesFlow.value)
     val expandedCategories: StateFlow<Set<Long>> = expandedCategoriesFlow
 
+    val isFetchingWebDav: StateFlow<Boolean> = storageService.fetchingTypes
+        .map { StorageType.WEBDAV in it }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
+
+    init {
+        viewModelScope.launch {
+            runCatching { webDavAlbums.migrateOnce() }
+                .onFailure { Log.w(GalleryApp.TAG, "WebDAV album migration failed", it) }
+        }
+        viewModelScope.launch {
+            storageDao.getStorages().collect { storages ->
+                if (storages.any { it.type == StorageType.WEBDAV }) {
+                    runCatching { webDavAlbums.ensureCategory() }
+                        .onFailure {
+                            Log.w(GalleryApp.TAG, "Can't ensure WebDAV category", it)
+                        }
+                }
+            }
+        }
+    }
+
     val albums: StateFlow<List<CategoryWithAlbums>> =
-        combine(albumDao.getAlbums(), categoryOrder) { albums, order ->
-            albums
-                .groupBy { it.category }
-                .map { (category, albums) ->
-                    CategoryWithAlbums(
-                        category,
-                        albums.sortedWith(
-                            compareByDescending<AlbumWithCover> { it.album.date }
-                                .thenByDescending { it.cover?.time }
-                                .thenBy { it.album.name }
-                        )
+        combine(
+            albumDao.getAlbums(),
+            albumDao.getAlbumCategories(),
+            categoryOrder
+        ) { albums, categories, order ->
+            val byCategoryId = albums.groupBy { it.album.categoryId }
+            categories
+                .map { category ->
+                    val categoryAlbums = byCategoryId[category.id].orEmpty().sortedWith(
+                        compareByDescending<AlbumWithCover> { it.album.date }
+                            .thenByDescending { it.cover?.time }
+                            .thenBy { it.album.name }
                     )
+                    CategoryWithAlbums(category, categoryAlbums)
+                }
+                .filter {
+                    it.albums.isNotEmpty() || it.category.name == AlbumCategory.WEBDAV_NAME
                 }
                 .sortedWith(
                     compareBy<CategoryWithAlbums> { category ->
@@ -75,11 +107,15 @@ class AlbumsViewModel @Inject constructor(
             scope = viewModelScope, started = SharingStarted.Eagerly, initialValue = emptyList()
         )
 
+    @OptIn(ExperimentalCoroutinesApi::class)
     val storages: StateFlow<List<StorageInfo>> = combine(
         storageDao.getStorages(),
         mediaDao.observeMediaCount()
-    ) { storages, _ -> storages }.map { storages ->
-        storages.filterNot { it.type == StorageType.LOCAL }.map { storage ->
+    ) { storages, _ -> storages }.mapLatest { storages ->
+        // WebDAV показывается отдельной категорией альбомов, не карточкой хранилища.
+        storages.filterNot {
+            it.type == StorageType.LOCAL || it.type == StorageType.WEBDAV
+        }.map { storage ->
             StorageInfo(
                 storage,
                 mediaDao.getStorageStatistics(storage.id),

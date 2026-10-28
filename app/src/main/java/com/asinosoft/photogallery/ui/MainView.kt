@@ -66,6 +66,12 @@ fun MainView(
     val pagerState = rememberPagerState { 2 }
     val coroutineScope = rememberCoroutineScope()
     val selection by model.selection.collectAsState()
+    // Верхний индикатор — только после pull-to-refresh пользователем.
+    // Скан WebDAV показывает крутилку у категории на вкладке Альбомы.
+    var pullRefreshing by remember { mutableStateOf(false) }
+    LaunchedEffect(isFetching) {
+        if (!isFetching) pullRefreshing = false
+    }
 
     var navbarHeight by remember { mutableFloatStateOf(0f) }
     var navbarOffset by remember { mutableFloatStateOf(0f) }
@@ -142,8 +148,11 @@ fun MainView(
         modifier = modifier.nestedScroll(syncPanelsScrollConnection)
     ) { paddingValues ->
         PullToRefreshBox(
-            isRefreshing = isFetching,
-            onRefresh = model::fetch,
+            isRefreshing = pullRefreshing && isFetching && pagerState.currentPage == 0,
+            onRefresh = {
+                pullRefreshing = true
+                model.fetch()
+            },
             modifier = Modifier.fillMaxSize()
         ) {
             Box(Modifier.fillMaxSize()) {

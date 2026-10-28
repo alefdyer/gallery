@@ -124,6 +124,12 @@ fun StoragesView(modifier: Modifier = Modifier, model: StoragesViewModel = hiltV
                                 overflow = TextOverflow.Ellipsis,
                                 modifier = Modifier.weight(1f)
                             )
+                            Icon(
+                                painter = painterResource(R.drawable.check),
+                                contentDescription = null,
+                                tint = Color(0xFF2E7D32),
+                                modifier = Modifier.size(22.dp)
+                            )
                             if (storage.type.isEditable) {
                                 IconButton(onClick = {
                                     account.value = storage

@@ -21,6 +21,7 @@ data class AlbumCategory(
     companion object {
         val OTHER = AlbumCategory(1, ":other")
         const val MESSENGERS_NAME = ":messengers"
+        const val WEBDAV_NAME = ":webdav"
     }
 }
 
@@ -40,5 +41,6 @@ fun AlbumCategory.name(): String =
     when (name) {
         ":other" -> stringResource(R.string.other)
         AlbumCategory.MESSENGERS_NAME -> stringResource(R.string.messengers)
+        AlbumCategory.WEBDAV_NAME -> stringResource(R.string.storage_type_webdav)
         else -> name
     }

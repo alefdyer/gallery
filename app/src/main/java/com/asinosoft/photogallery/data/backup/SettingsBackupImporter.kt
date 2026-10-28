@@ -63,6 +63,7 @@ class SettingsBackupImporter @Inject constructor(
             val systemCategoryIds = buildSet {
                 add(AlbumCategory.OTHER.id)
                 categoryIdByName[AlbumCategory.MESSENGERS_NAME]?.let { add(it) }
+                categoryIdByName[AlbumCategory.WEBDAV_NAME]?.let { add(it) }
             }
 
             val restoredAlbumIds = mutableSetOf<Long>()

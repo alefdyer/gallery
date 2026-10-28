@@ -4,6 +4,7 @@ import android.content.ClipData
 import android.content.ClipDescription
 import android.content.Intent
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -30,6 +31,7 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -110,6 +112,7 @@ fun AlbumListView(
     val scope = rememberCoroutineScope()
     val categories by model.albums.collectAsState()
     val storages by model.storages.collectAsState()
+    val isFetchingWebDav by model.isFetchingWebDav.collectAsState()
     val lazyListState = rememberLazyListState()
     var droppedAlbum by remember { mutableStateOf<Album?>(null) }
     var showNewCategoryDialog by remember { mutableStateOf(false) }
@@ -373,6 +376,8 @@ fun AlbumListView(
                     onDragStart = { onCategoryDragStart(id) },
                     onDrag = ::onCategoryDrag,
                     onDragEnd = ::onCategoryDragEnd,
+                    showLoading = category.category.name == AlbumCategory.WEBDAV_NAME &&
+                            isFetchingWebDav,
                     showCategoryTip = isFirstCategory && categoryTip.visible,
                     onCategoryTipDismiss = categoryTip.dismiss,
                     showAlbumDragTip = isFirstCategory && albumDragTip.visible,
@@ -488,6 +493,7 @@ private fun AlbumCategoriesRow(
     onDragStart: () -> Unit,
     onDrag: (Float) -> Unit,
     onDragEnd: () -> Unit,
+    showLoading: Boolean = false,
     showCategoryTip: Boolean = false,
     onCategoryTipDismiss: () -> Unit = {},
     showAlbumDragTip: Boolean = false,
@@ -506,7 +512,12 @@ private fun AlbumCategoriesRow(
         Box {
             SectionTitle(
                 title = category.category.name(),
+                titleIcon = when (category.category.name) {
+                    AlbumCategory.WEBDAV_NAME -> R.drawable.webdav
+                    else -> null
+                },
                 count = category.albums.size,
+                showLoading = showLoading,
                 expanded = expanded.takeIf { expandable },
                 onToggleExpand = onToggleExpand,
                 modifier = Modifier.pointerInput(category.category.id) {
@@ -703,6 +714,8 @@ private fun SectionTitle(
     title: String,
     count: Int? = null,
     modifier: Modifier = Modifier,
+    titleIcon: Int? = null,
+    showLoading: Boolean = false,
     expanded: Boolean? = null,
     onToggleExpand: () -> Unit = {},
 ) {
@@ -717,6 +730,15 @@ private fun SectionTitle(
                 bottom = 8.dp
             )
     ) {
+        if (null != titleIcon) {
+            Image(
+                painter = painterResource(titleIcon),
+                contentDescription = null,
+                modifier = Modifier
+                    .padding(end = 8.dp)
+                    .size(24.dp)
+            )
+        }
         Text(
             text = title,
             style = MaterialTheme.typography.titleMedium,
@@ -748,6 +770,14 @@ private fun SectionTitle(
                     .clickable(onClick = onToggleExpand)
                     .padding(4.dp)
                     .size(24.dp)
+            )
+        }
+        if (showLoading) {
+            CircularProgressIndicator(
+                modifier = Modifier
+                    .padding(start = 4.dp)
+                    .size(18.dp),
+                strokeWidth = 2.dp
             )
         }
     }

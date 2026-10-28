@@ -14,7 +14,8 @@ import java.time.LocalDate
 data class AlbumMediaSource(
     val albumId: Long,
     val path: String,
-    val owner: String?
+    val owner: String?,
+    val storageType: StorageType,
 )
 
 data class AlbumMediaRef(
@@ -54,7 +55,8 @@ interface AlbumDao {
 
     @Query(
         """
-        SELECT DISTINCT ma.albumId AS albumId, m.path AS path, m.owner AS owner
+        SELECT DISTINCT ma.albumId AS albumId, m.path AS path, m.owner AS owner,
+            m.storageType AS storageType
         FROM media_album ma
         INNER JOIN media m ON m.id = ma.mediaId
         INNER JOIN album a ON a.id = ma.albumId
@@ -62,6 +64,24 @@ interface AlbumDao {
         """
     )
     suspend fun getAlbumMediaSources(categoryId: Long): List<AlbumMediaSource>
+
+    @Query(
+        """
+        SELECT m.id FROM media m
+        INNER JOIN media_album ma ON ma.mediaId = m.id
+        WHERE ma.albumId = :albumId AND m.storageType = :storageType
+        """
+    )
+    suspend fun getMediaIdsInAlbumOfType(albumId: Long, storageType: StorageType): List<Long>
+
+    @Query(
+        """
+        SELECT COUNT(m.id) FROM media m
+        INNER JOIN media_album ma ON ma.mediaId = m.id
+        WHERE ma.albumId = :albumId AND m.storageType != :storageType
+        """
+    )
+    suspend fun countMediaInAlbumNotOfType(albumId: Long, storageType: StorageType): Int
 
     suspend fun getOrCreateAlbum(name: String, categoryId: Long): Album =
         getAlbumByName(name, categoryId)

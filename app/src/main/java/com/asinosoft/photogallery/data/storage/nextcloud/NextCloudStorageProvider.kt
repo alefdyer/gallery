@@ -15,9 +15,10 @@ import java.net.SocketTimeoutException
 import java.net.UnknownHostException
 import java.time.ZoneId
 import java.time.ZonedDateTime
+import java.util.ArrayDeque
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.yield
 import okhttp3.Credentials
 import okhttp3.Request
 
@@ -36,7 +37,7 @@ class NextCloudStorageProvider(override val storage: Storage) : StorageProvider 
 
     override suspend fun checkConnection(): StorageCheckResult = try {
         Log.i("nextcloud", "Check: ${storage.url}")
-        connection.get(buildUrl("/remote.php/dav/files/${storage.login}/"))
+        connection.list(buildUrl("/remote.php/dav/files/${storage.login}/"), 0)
         StorageCheckResult.Success
     } catch (ex: Throwable) {
         Log.e("nextcloud", "Check error: $ex")
@@ -58,29 +59,29 @@ class NextCloudStorageProvider(override val storage: Storage) : StorageProvider 
 
     override suspend fun fetchAll(): Flow<Media> = flow {
         Log.i("nextcloud", "fetchAll")
-        emitAll(fetch(buildUrl("/remote.php/dav/files/${storage.login}/")))
-    }
-
-    override suspend fun fetchOne(uri: Uri): Media? {
-        TODO("Not yet implemented")
-    }
-
-    override suspend fun getMediaUri(media: Media): Uri = media.uri!!
-
-    override suspend fun getThumbnailUri(media: Media): Uri = media.uri!!
-
-    private fun fetch(path: String): Flow<Media> = flow {
-        Log.d("nextcloud", "Fetch: $path")
-        connection.list(path).forEach { item ->
-            Log.d("nextcloud", "Found: $item|${item.path}")
-            if (path.endsWith(item.path)) return@forEach
-
-            if (item.isDirectory) {
-                emitAll(fetch(buildUrl(item.path)))
-            } else if (item.contentType.startsWith("image/") ||
-                item.contentType.startsWith("video/")
-            ) {
-                Log.d("nextcloud", "Add: [${storage.id}, ${item.path}]")
+        val queue = ArrayDeque<String>()
+        queue.addLast(buildUrl("/remote.php/dav/files/${storage.login}/"))
+        while (queue.isNotEmpty()) {
+            val path = queue.removeFirst()
+            Log.d("nextcloud", "Fetch: $path")
+            val items = try {
+                connection.list(path)
+            } catch (ex: Throwable) {
+                Log.e("nextcloud", "List failed: $path", ex)
+                continue
+            }
+            val subdirs = ArrayList<String>()
+            for (item in items) {
+                if (path.endsWith(item.path)) continue
+                if (item.isDirectory) {
+                    subdirs += buildUrl(item.path)
+                    continue
+                }
+                if (!item.contentType.startsWith("image/") &&
+                    !item.contentType.startsWith("video/")
+                ) {
+                    continue
+                }
                 val datetime =
                     item.modified?.toInstant()?.atZone(ZoneId.systemDefault())
                         ?: ZonedDateTime.now()
@@ -107,8 +108,20 @@ class NextCloudStorageProvider(override val storage: Storage) : StorageProvider 
                     )
                 )
             }
+            for (i in subdirs.indices.reversed()) {
+                queue.addFirst(subdirs[i])
+            }
+            yield()
         }
     }
+
+    override suspend fun fetchOne(uri: Uri): Media? {
+        TODO("Not yet implemented")
+    }
+
+    override suspend fun getMediaUri(media: Media): Uri = media.uri!!
+
+    override suspend fun getThumbnailUri(media: Media): Uri = media.uri!!
 
     private fun buildUrl(path: String): String {
         if (path.startsWith("http://") || path.startsWith("https://")) {

@@ -102,25 +102,38 @@ fun MediaThumbnail(
         val cacheKey = remember(media.id) { "media-${media.id}" }
         val cacheFile = remember(media.id) { ThumbnailCache.getFile(context, media.id) }
         val cached = remember(media.id) { persistentCache && cacheFile.exists() && cacheFile.length() > 0 }
+        val isRemoteVideo = media.video != null &&
+                LOCAL_STORAGE_ID != media.storageId &&
+                EXTERNAL_STORAGE_ID != media.storageId
         val immediateData: Any? = remember(media, cached) {
             when {
                 cached -> cacheFile
+                // Удалённое видео без кэша: не кормим Coil http-URL — VideoFrameDecoder
+                // скачивает ролик целиком и ловит OOM на десятках ГБ.
+                isRemoteVideo -> null
                 LOCAL_STORAGE_ID == media.storageId || EXTERNAL_STORAGE_ID == media.storageId -> media.uri
                 else -> null
             }
         }
-        val remoteData by produceState<Any?>(null, media, immediateData) {
-            if (null == immediateData) value = model.getThumbnailUri(media)
+        val remoteData by produceState<Any?>(null, media, immediateData, isRemoteVideo) {
+            if (null != immediateData || isRemoteVideo) {
+                value = null
+                return@produceState
+            }
+            value = model.getThumbnailUri(media)
         }
         val data = immediateData ?: remoteData
 
         var loaded by remember(media.id) { mutableStateOf(cached) }
-        val request = remember(data, cacheKey) {
+        val request = remember(data, cacheKey, media.video != null) {
             if (null == data) return@remember null
             ImageRequest.Builder(context)
                 .data(data)
                 .size(size)
-                .videoFrameMillis(0)
+                .apply {
+                    // Кадр из файла — только для локальных/кэшированных источников.
+                    if (media.video != null) videoFrameMillis(0)
+                }
                 .memoryCacheKey(cacheKey)
                 .diskCacheKey(cacheKey)
                 .placeholderMemoryCacheKey(cacheKey)

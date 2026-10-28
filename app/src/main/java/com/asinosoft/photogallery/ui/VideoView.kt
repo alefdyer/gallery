@@ -69,6 +69,7 @@ import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.ui.PlayerView
+import coil3.SingletonImageLoader
 import com.asinosoft.photogallery.GalleryApp
 import com.asinosoft.photogallery.R
 import com.asinosoft.photogallery.data.EXTERNAL_STORAGE_ID
@@ -141,25 +142,36 @@ fun VideoView(
      */
     var player by remember(media.id) { mutableStateOf<ExoPlayer?>(null) }
     LaunchedEffect(media.id) {
+        val isLocal = 1L == media.storageId || EXTERNAL_STORAGE_ID == media.storageId
+        if (!isLocal) {
+            // Перед стримом с WebDAV освобождаем Coil — иначе вместе с буфером Exo ловим OOM.
+            SingletonImageLoader.get(context).memoryCache?.clear()
+        }
         val mediaSourceFactory = DefaultMediaSourceFactory(
-            if (1L == media.storageId || EXTERNAL_STORAGE_ID == media.storageId) {
+            if (isLocal) {
                 DefaultDataSource.Factory(context)
             } else {
                 OkHttpDataSource.Factory(app.httpClient)
             }
         )
+        val loadControl = DefaultLoadControl.Builder()
+            .setBufferDurationsMs(
+                if (isLocal) MIN_BUFFER_MS else REMOTE_MIN_BUFFER_MS,
+                if (isLocal) MAX_BUFFER_MS else REMOTE_MAX_BUFFER_MS,
+                BUFFER_FOR_PLAYBACK_MS,
+                BUFFER_FOR_PLAYBACK_AFTER_REBUFFER_MS
+            )
+            .apply {
+                if (!isLocal) {
+                    // Жёсткий потолок буфера в байтах — не раздуваем кучу на huge remote MKV.
+                    setTargetBufferBytes(REMOTE_TARGET_BUFFER_BYTES)
+                    setPrioritizeTimeOverSizeThresholds(false)
+                }
+            }
+            .build()
         player = ExoPlayer.Builder(context.applicationContext)
             .setMediaSourceFactory(mediaSourceFactory)
-            .setLoadControl(
-                DefaultLoadControl.Builder()
-                    .setBufferDurationsMs(
-                        MIN_BUFFER_MS,
-                        MAX_BUFFER_MS,
-                        BUFFER_FOR_PLAYBACK_MS,
-                        BUFFER_FOR_PLAYBACK_AFTER_REBUFFER_MS
-                    )
-                    .build()
-            )
+            .setLoadControl(loadControl)
             .build()
             .apply {
                 playWhenReady = false
@@ -523,6 +535,9 @@ private const val DOUBLE_TAP_SEEK_MS = 5_000L
 private const val SEEK_HINT_MS = 700
 private const val MIN_BUFFER_MS = 2_000
 private const val MAX_BUFFER_MS = 30_000
+private const val REMOTE_MIN_BUFFER_MS = 1_500
+private const val REMOTE_MAX_BUFFER_MS = 8_000
+private const val REMOTE_TARGET_BUFFER_BYTES = 8 * 1024 * 1024
 private const val BUFFER_FOR_PLAYBACK_MS = 250
 private const val BUFFER_FOR_PLAYBACK_AFTER_REBUFFER_MS = 1_000
 private val SEEK_THUMB_RADIUS = 9.dp

@@ -47,7 +47,8 @@ class GalleryApp : Application() {
                 .memoryCache(
                     MemoryCache
                         .Builder()
-                        .maxSizePercent(this, 0.35)
+                        // Меньше запас под Coil: при WebDAV-видео ExoPlayer тоже ест кучу.
+                        .maxSizePercent(this, 0.18)
                         .build()
                 )
                 .diskCachePolicy(CachePolicy.ENABLED)

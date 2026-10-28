@@ -7,8 +7,10 @@ import android.os.Build
 import android.provider.MediaStore
 import android.util.Log
 import androidx.core.content.edit
+import coil3.SingletonImageLoader
 import com.asinosoft.photogallery.GalleryApp
 import com.asinosoft.photogallery.data.storage.StorageProvider
+import com.asinosoft.photogallery.data.storage.StorageType
 import com.asinosoft.photogallery.di.IntentHelper
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineScope
@@ -19,12 +21,15 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 import javax.inject.Inject
+import javax.inject.Singleton
 import kotlin.system.measureTimeMillis
 
+@Singleton
 class MediaService @Inject constructor(
     private val albumDao: AlbumDao,
     private val mediaDao: MediaDao,
     private val messengerAlbums: MessengerAlbums,
+    private val webDavAlbums: WebDavAlbums,
     private val privateAlbum: PrivateAlbum,
     private val trash: Trash,
     private val analytics: AppAnalytics,
@@ -41,8 +46,7 @@ class MediaService @Inject constructor(
         }
         val albumName = media.path.split('/').lastOrNull { it.isNotEmpty() }
         albumName?.let {
-            val album = messengerAlbums.albumFor(albumName, messengerAlbums.isMessengerMedia(media))
-            addToAlbum(listOf(mediaId), album.id)
+            addToAlbum(listOf(mediaId), albumFor(albumName, media).id)
         }
 
         CoroutineScope(Dispatchers.IO).launch {
@@ -245,7 +249,17 @@ class MediaService @Inject constructor(
         ThumbnailCache.startPreload(provider.getMediaCount() ?: 0)
         try {
             messengerAlbums.migrateOnce()
-            provider.fetchAll().chunked(500).collect { fetched ->
+            webDavAlbums.migrateOnce()
+            // Локально — крупные пачки; удалённые (WebDAV/облако) — по 10,
+            // чтобы счётчики росли сразу после первых найденных файлов.
+            val isLocal = provider.storage.type == StorageType.LOCAL
+            val chunkSize = if (isLocal) LOCAL_FETCH_CHUNK else REMOTE_FETCH_CHUNK
+            val isWebDav = provider.storage.type == StorageType.WEBDAV
+            if (!isLocal) {
+                SingletonImageLoader.get(context).memoryCache?.clear()
+            }
+            var remoteChunks = 0
+            provider.fetchAll().chunked(chunkSize).collect { fetched ->
                 val media = mediaDao.getMediaByStorageItemIds(
                     provider.storage.id,
                     fetched.map {
@@ -287,20 +301,31 @@ class MediaService @Inject constructor(
                                 media.storageItemId
                             ) ?: -1L
                             if (realId > 0) {
-                                val key = albumName to messengerAlbums.isMessengerMedia(media)
+                                val key = albumName to
+                                        if (isWebDav) false else messengerAlbums.isMessengerMedia(
+                                            media
+                                        )
                                 chunkAlbums.getOrPut(key) { mutableSetOf() } += realId
                             }
                         }
                     }
 
                     chunkAlbums.forEach { (key, ids) ->
-                        val album = messengerAlbums.albumFor(key.first, key.second)
+                        val album = if (isWebDav) {
+                            webDavAlbums.albumFor(key.first)
+                        } else {
+                            messengerAlbums.albumFor(key.first, key.second)
+                        }
                         addToAlbum(ids, album.id)
                     }
 
                     updated += validMediaIds
 
+                    // Миниатюры при скане — только для локальных content/file URI.
                     val toPreload = toInsert.mapIndexedNotNull { index, media ->
+                        val uri = media.uri ?: return@mapIndexedNotNull null
+                        val scheme = uri.scheme
+                        if (scheme != "content" && scheme != "file") return@mapIndexedNotNull null
                         val rawId = rawMediaIds[index]
                         val realId = if (rawId > 0) rawId else mediaDao.getMediaId(
                             media.storageId,
@@ -308,13 +333,20 @@ class MediaService @Inject constructor(
                         ) ?: -1L
                         if (realId > 0) ThumbnailCache.Request(
                             realId,
-                            media.uri,
+                            uri,
                             media.video != null
                         ) else null
                     }
 
                     if (toPreload.isNotEmpty()) {
                         ThumbnailCache.preloadBatch(context, toPreload)
+                    }
+                }
+
+                if (!isLocal) {
+                    remoteChunks++
+                    if (remoteChunks % REMOTE_CACHE_CLEAR_EVERY_CHUNKS == 0) {
+                        SingletonImageLoader.get(context).memoryCache?.clear()
                     }
                 }
             }
@@ -355,20 +387,41 @@ class MediaService @Inject constructor(
         val prefsKey = "$KEY_ALBUMS_REPAIRED$storageId"
         if (prefs.getBoolean(prefsKey, false)) return
 
-        val albums = HashMap<Pair<String, Boolean>, MutableSet<Long>>()
+        val albums = HashMap<Triple<String, Boolean, Boolean>, MutableSet<Long>>()
         mediaDao.getMediaWithoutAlbum(storageId).forEach { media ->
             val albumName = media.path.split('/').lastOrNull { it.isNotEmpty() } ?: return@forEach
-            albums.getOrPut(albumName to messengerAlbums.isMessengerMedia(media)) { mutableSetOf() } += media.id
+            val key = Triple(
+                albumName,
+                media.storageType == StorageType.WEBDAV,
+                messengerAlbums.isMessengerMedia(media)
+            )
+            albums.getOrPut(key) { mutableSetOf() } += media.id
         }
         albums.forEach { (key, ids) ->
-            addToAlbum(ids, messengerAlbums.albumFor(key.first, key.second).id)
+            val (name, webDav, messenger) = key
+            val album = if (webDav) {
+                webDavAlbums.albumFor(name)
+            } else {
+                messengerAlbums.albumFor(name, messenger)
+            }
+            addToAlbum(ids, album.id)
         }
 
         prefs.edit { putBoolean(prefsKey, true) }
     }
 
+    private suspend fun albumFor(name: String, media: Media): Album =
+        if (media.storageType == StorageType.WEBDAV) {
+            webDavAlbums.albumFor(name)
+        } else {
+            messengerAlbums.albumFor(name, messengerAlbums.isMessengerMedia(media))
+        }
+
     private companion object {
         const val LOCAL_STORAGE_ID = 1L
+        const val LOCAL_FETCH_CHUNK = 500
+        const val REMOTE_FETCH_CHUNK = 10
+        const val REMOTE_CACHE_CLEAR_EVERY_CHUNKS = 50
         const val PREFS_NAME = "media_service"
         const val KEY_ALBUMS_REPAIRED = "albums_repaired_"
         const val KEY_DUPLICATES_MERGED = "duplicates_merged"

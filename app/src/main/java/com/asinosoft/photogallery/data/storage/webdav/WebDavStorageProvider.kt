@@ -17,9 +17,10 @@ import java.net.URI
 import java.net.UnknownHostException
 import java.time.ZoneId
 import java.time.ZonedDateTime
+import java.util.ArrayDeque
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.yield
 import okhttp3.Credentials
 import okhttp3.Request
 
@@ -37,7 +38,8 @@ class WebDavStorageProvider(override val storage: Storage) : StorageProvider {
     }
 
     override suspend fun checkConnection(): StorageCheckResult = try {
-        webdav.get(rootUrl())
+        // Depth 0 — только сама коллекция, без детей и без скачивания тела.
+        webdav.list(rootUrl(), 0)
         StorageCheckResult.Success
     } catch (ex: Throwable) {
         when {
@@ -58,32 +60,30 @@ class WebDavStorageProvider(override val storage: Storage) : StorageProvider {
 
     override suspend fun fetchAll(): Flow<Media> = flow {
         Log.i("webdav", "fetchAll")
-        emitAll(fetch(rootUrl()))
-    }
-
-    override suspend fun fetchOne(uri: Uri): Media? {
-        TODO("Not yet implemented")
-    }
-
-    override suspend fun getMediaUri(media: Media): Uri = media.uri!!
-
-    override suspend fun getThumbnailUri(media: Media): Uri = media.uri!!
-
-    private fun fetch(path: String): Flow<Media> = flow {
-        Log.d("webdav", "Fetch: $path")
-        val folderPath = runCatching { URI(path).path }.getOrNull()?.trimEnd('/')
-        webdav.list(path).forEach { item ->
-            Log.d("webdav", "Found: $item|${item.path}")
-            if (folderPath == item.path.trimEnd('/')) return@forEach
-
-            if (item.isDirectory) {
-                emitAll(fetch(resolve(item.href)))
-                return@forEach
+        // Итеративный обход: в памяти только очередь путей папок, не стек Flow/списков.
+        val queue = ArrayDeque<String>()
+        queue.addLast(rootUrl())
+        while (queue.isNotEmpty()) {
+            val path = queue.removeFirst()
+            Log.d("webdav", "Fetch: $path")
+            val folderPath = runCatching { URI(path).path }.getOrNull()?.trimEnd('/')
+            val items = try {
+                webdav.list(path)
+            } catch (ex: Throwable) {
+                Log.e("webdav", "List failed: $path", ex)
+                continue
             }
+            // Сначала файлы (emit), пути подпапок — в очередь; список PROPFIND отпускаем.
+            val subdirs = ArrayList<String>()
+            for (item in items) {
+                if (folderPath == item.path.trimEnd('/')) continue
+                if (item.isDirectory) {
+                    subdirs += resolve(item.href)
+                    continue
+                }
+                val mimeType = mimeTypeOf(item.contentType, item.name)
+                if (!mimeType.startsWith("image/") && !mimeType.startsWith("video/")) continue
 
-            val mimeType = mimeTypeOf(item.contentType, item.name)
-            if (mimeType.startsWith("image/") || mimeType.startsWith("video/")) {
-                Log.d("webdav", "Add: [${storage.id}, ${item.path}]")
                 val datetime =
                     item.modified?.toInstant()?.atZone(ZoneId.systemDefault())
                         ?: ZonedDateTime.now()
@@ -105,8 +105,21 @@ class WebDavStorageProvider(override val storage: Storage) : StorageProvider {
                     )
                 )
             }
+            // DFS: сначала глубже по первой подпапке (как раньше через emitAll).
+            for (i in subdirs.indices.reversed()) {
+                queue.addFirst(subdirs[i])
+            }
+            yield()
         }
     }
+
+    override suspend fun fetchOne(uri: Uri): Media? {
+        TODO("Not yet implemented")
+    }
+
+    override suspend fun getMediaUri(media: Media): Uri = media.uri!!
+
+    override suspend fun getThumbnailUri(media: Media): Uri = media.uri!!
 
     private fun mimeTypeOf(contentType: String?, name: String?): String {
         if (null != contentType && (contentType.startsWith("image/") || contentType.startsWith("video/"))) {
