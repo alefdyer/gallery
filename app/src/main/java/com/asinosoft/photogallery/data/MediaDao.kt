@@ -84,6 +84,9 @@ interface MediaDao {
     @Query("SELECT * FROM media WHERE uri=:uri")
     fun getImageByPath(uri: Uri): Flow<Media?>
 
+    @Query("SELECT * FROM media WHERE id = :id")
+    suspend fun getById(id: Long): Media?
+
     @Query("SELECT * FROM media WHERE id IN (:mediaIds)")
     suspend fun getByIds(mediaIds: Collection<Long>): List<Media>
 
@@ -92,6 +95,17 @@ interface MediaDao {
 
     @Query("SELECT * FROM media WHERE size = :size AND (filename = :name OR filename LIKE '%/' || :name) LIMIT 1")
     suspend fun findByNameAndSize(name: String, size: Long): Media?
+
+    @Query(
+        """
+        SELECT * FROM media
+        WHERE storageType = 'LOCAL'
+          AND size = :size
+          AND (filename = :name OR filename LIKE '%/' || :name)
+        LIMIT 1
+        """
+    )
+    suspend fun findLocalByBasenameAndSize(name: String, size: Long): Media?
 
     @Upsert
     suspend fun upsert(media: Media): Long
@@ -102,9 +116,24 @@ interface MediaDao {
     @Query("DELETE FROM media WHERE id IN (:mediaIds)")
     suspend fun deleteAll(mediaIds: Collection<Long>)
 
+    @Query("SELECT id FROM media WHERE storageId = :storageId")
+    suspend fun getIdsForStorage(storageId: Long): List<Long>
+
     @Query("DELETE FROM media WHERE storageId = :storageId")
     suspend fun deleteStorage(storageId: Long)
 
     @Query("DELETE FROM media WHERE storageId=:storageId AND id NOT IN (:mediaIds)")
     suspend fun deleteAllExcept(storageId: Long, mediaIds: Collection<Long>)
+
+    /**
+     * Удаляет медиа хранилища, которых нет в [keepIds].
+     * Пустой [keepIds] нельзя отдавать в SQL `NOT IN ()` — Room/SQLite сносит всё.
+     */
+    suspend fun deleteMissing(storageId: Long, keepIds: Collection<Long>) {
+        if (keepIds.isEmpty()) {
+            deleteStorage(storageId)
+        } else {
+            deleteAllExcept(storageId, keepIds)
+        }
+    }
 }

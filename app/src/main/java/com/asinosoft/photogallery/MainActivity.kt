@@ -18,6 +18,7 @@ import androidx.compose.runtime.remember
 import androidx.navigation.compose.rememberNavController
 import com.asinosoft.photogallery.di.IntentHelper
 import com.asinosoft.photogallery.model.MainViewModel
+import com.asinosoft.photogallery.ui.GoogleDriveReauthHandler
 import com.asinosoft.photogallery.ui.Navigation
 import com.asinosoft.photogallery.ui.PermissionDisclaimer
 import com.asinosoft.photogallery.ui.theme.GalleryTheme
@@ -66,6 +67,7 @@ class MainActivity : ComponentActivity() {
             }
 
             GalleryTheme {
+                GoogleDriveReauthHandler()
                 when (storagePermissions.allPermissionsGranted) {
                     true -> {
                         Navigation(

@@ -6,12 +6,14 @@ import androidx.core.net.toUri
 import com.asinosoft.photogallery.data.Image
 import com.asinosoft.photogallery.data.Media
 import com.asinosoft.photogallery.data.Video
+import com.asinosoft.photogallery.data.mediaParentPath
 import com.asinosoft.photogallery.data.storage.Storage
 import com.asinosoft.photogallery.data.storage.StorageCheckResult
 import com.asinosoft.photogallery.data.storage.StorageProvider
 import com.thegrizzlylabs.sardineandroid.impl.OkHttpSardine
 import java.net.ConnectException
 import java.net.SocketTimeoutException
+import java.net.URLEncoder
 import java.net.UnknownHostException
 import java.time.ZoneId
 import java.time.ZonedDateTime
@@ -26,6 +28,8 @@ class NextCloudStorageProvider(override val storage: Storage) : StorageProvider 
     private val connection = OkHttpSardine().apply {
         setCredentials(storage.login, storage.password)
     }
+    private val rootPath: String
+        get() = "/remote.php/dav/files/${storage.login}/"
 
     override fun authorize(request: Request): Request {
         if (null == storage.login || null == storage.password) return request
@@ -92,13 +96,14 @@ class NextCloudStorageProvider(override val storage: Storage) : StorageProvider 
                         uri = buildUrl(item.href.toString()).toUri(),
                         date = datetime.toLocalDate(),
                         time = datetime.toLocalTime(),
-                        path = item.path.dropLastWhile { it != '/' },
+                        path = mediaParentPath(item.path, rootPath),
                         size = item.contentLength,
                         filename = item.name,
                         mimeType = item.contentType,
                         storageId = storage.id,
                         storageType = storage.type,
                         storageItemId = item.path,
+                        thumbnail = previewUri(item.path),
                         image = Image(
                             width = 0,
                             height = 0,
@@ -121,7 +126,19 @@ class NextCloudStorageProvider(override val storage: Storage) : StorageProvider 
 
     override suspend fun getMediaUri(media: Media): Uri = media.uri!!
 
-    override suspend fun getThumbnailUri(media: Media): Uri = media.uri!!
+    override suspend fun getThumbnailUri(media: Media): Uri =
+        media.thumbnail ?: media.uri!!
+
+    private fun previewUri(davPath: String): Uri? {
+        val login = storage.login ?: return null
+        val prefix = "/remote.php/dav/files/$login"
+        val relative = when {
+            davPath.startsWith(prefix) -> davPath.removePrefix(prefix).ifEmpty { "/" }
+            else -> davPath
+        }
+        val fileParam = URLEncoder.encode(relative, Charsets.UTF_8.name())
+        return buildUrl("/index.php/core/preview.png?file=$fileParam&x=512&y=512&a=1").toUri()
+    }
 
     private fun buildUrl(path: String): String {
         if (path.startsWith("http://") || path.startsWith("https://")) {

@@ -9,38 +9,21 @@ import androidx.compose.ui.unit.dp
 import com.asinosoft.photogallery.R
 import com.asinosoft.photogallery.data.storage.StorageType
 
+fun StorageType.drawableRes(): Int = when (this) {
+    StorageType.LOCAL -> R.drawable.smartphone
+    StorageType.DROPBOX -> R.drawable.dropbox
+    StorageType.NEXTCLOUD -> R.drawable.nextcloud
+    StorageType.WEBDAV -> R.drawable.webdav
+    StorageType.YANDEX -> R.drawable.yandex_disk
+    StorageType.GOOGLE_DRIVE -> R.drawable.google_drive
+    StorageType.ONEDRIVE -> R.drawable.onedrive
+}
+
 @Composable
 fun StorageTypeIcon(type: StorageType, modifier: Modifier = Modifier) {
-    val size = modifier.size(32.dp)
-    when (type) {
-        StorageType.LOCAL -> Image(
-            painterResource(R.drawable.smartphone),
-            contentDescription = null,
-            modifier = size
-        )
-
-        StorageType.DROPBOX -> Image(
-            painterResource(R.drawable.dropbox),
-            contentDescription = null,
-            modifier = size
-        )
-
-        StorageType.NEXTCLOUD -> Image(
-            painterResource(R.drawable.nextcloud),
-            contentDescription = null,
-            modifier = size
-        )
-
-        StorageType.WEBDAV -> Image(
-            painterResource(R.drawable.webdav),
-            contentDescription = null,
-            modifier = size
-        )
-
-        StorageType.YANDEX -> Image(
-            painterResource(R.drawable.yandex_disk),
-            contentDescription = null,
-            modifier = size
-        )
-    }
+    Image(
+        painter = painterResource(type.drawableRes()),
+        contentDescription = null,
+        modifier = modifier.size(32.dp)
+    )
 }

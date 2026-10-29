@@ -44,10 +44,13 @@ import androidx.compose.ui.util.fastAny
 import androidx.compose.ui.util.fastForEach
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import coil3.compose.AsyncImage
+import coil3.network.NetworkHeaders
+import coil3.network.httpHeaders
 import coil3.request.ImageRequest
 import coil3.request.allowHardware
 import com.asinosoft.photogallery.data.EXTERNAL_STORAGE_ID
 import com.asinosoft.photogallery.data.Media
+import com.asinosoft.photogallery.data.storage.StorageAuthProvider
 import com.asinosoft.photogallery.model.MediaViewModel
 import com.asinosoft.photogallery.ui.component.LocalDismissDrag
 import com.asinosoft.photogallery.ui.component.dismissDragTransform
@@ -118,6 +121,18 @@ fun ImageView(
                 .diskCacheKey(key)
                 .placeholderMemoryCacheKey(thumbnailCacheKey(media))
                 .allowHardware(true)
+                .apply {
+                    if (EXTERNAL_STORAGE_ID != media.storageId) {
+                        httpHeaders(
+                            NetworkHeaders.Builder()
+                                .set(
+                                    StorageAuthProvider.HEADER_STORAGE_ID,
+                                    media.storageId.toString()
+                                )
+                                .build()
+                        )
+                    }
+                }
                 .listener(
                     onError = { _, result ->
                         error = result.throwable.message
@@ -129,6 +144,8 @@ fun ImageView(
                     }
                 )
                 .build()
+        } catch (ex: kotlinx.coroutines.CancellationException) {
+            throw ex
         } catch (ex: Throwable) {
             error = ex.message
             isLoading = false

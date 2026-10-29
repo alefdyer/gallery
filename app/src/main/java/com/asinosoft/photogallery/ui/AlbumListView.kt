@@ -78,6 +78,7 @@ import com.asinosoft.photogallery.data.AlbumWithCover
 import com.asinosoft.photogallery.data.CategoryWithAlbums
 import com.asinosoft.photogallery.data.isSystem
 import com.asinosoft.photogallery.data.name
+import com.asinosoft.photogallery.data.storageIdOrNull
 import com.asinosoft.photogallery.data.storage.Storage
 import com.asinosoft.photogallery.model.AlbumsViewModel
 import com.asinosoft.photogallery.ui.component.AlbumCover
@@ -89,9 +90,9 @@ import com.asinosoft.photogallery.ui.component.ImageListHeaderTitle
 import com.asinosoft.photogallery.ui.component.NewAlbumCategoryDialog
 import com.asinosoft.photogallery.ui.component.NewAlbumPlaceholder
 import com.asinosoft.photogallery.ui.component.ScrollToTopButton
-import com.asinosoft.photogallery.ui.component.StorageCard
 import com.asinosoft.photogallery.ui.component.TIP_ALBUM_CATEGORY
 import com.asinosoft.photogallery.ui.component.TIP_ALBUM_DRAG
+import com.asinosoft.photogallery.ui.component.drawableRes
 import com.asinosoft.photogallery.ui.component.isTipSeen
 import com.asinosoft.photogallery.ui.component.rememberFeatureTip
 import com.google.gson.Gson
@@ -111,8 +112,8 @@ fun AlbumListView(
 ) {
     val scope = rememberCoroutineScope()
     val categories by model.albums.collectAsState()
-    val storages by model.storages.collectAsState()
-    val isFetchingWebDav by model.isFetchingWebDav.collectAsState()
+    val remoteStorages by model.remoteStorages.collectAsState()
+    val fetchingStorageIds by model.fetchingStorageIds.collectAsState()
     val lazyListState = rememberLazyListState()
     var droppedAlbum by remember { mutableStateOf<Album?>(null) }
     var showNewCategoryDialog by remember { mutableStateOf(false) }
@@ -354,8 +355,12 @@ fun AlbumListView(
                 val surface = MaterialTheme.colorScheme.background
                 val isFirstCategory = category == shownCategories.firstOrNull()
 
+                val storageInfo = category.category.storageIdOrNull()
+                    ?.let { remoteStorages[it] }
                 AlbumCategoriesRow(
                     category = category,
+                    title = storageInfo?.title ?: category.category.name(),
+                    titleIcon = storageInfo?.storage?.type?.drawableRes(),
                     cardSize = cardSize,
                     highlighted = isDragActive && category == dropCategory,
                     onAlbumClick = onAlbumClick,
@@ -365,6 +370,11 @@ fun AlbumListView(
                     onAlwaysExpandedChange = { always ->
                         menuCategoryId = null
                         model.setCategoryAlwaysExpanded(id, always)
+                    },
+                    showRefresh = null != storageInfo,
+                    onRefreshClick = {
+                        menuCategoryId = null
+                        model.refreshCategoryStorage(category.category)
                     },
                     menuExpanded = id == menuCategoryId,
                     onMenuDismiss = { menuCategoryId = null },
@@ -376,8 +386,7 @@ fun AlbumListView(
                     onDragStart = { onCategoryDragStart(id) },
                     onDrag = ::onCategoryDrag,
                     onDragEnd = ::onCategoryDragEnd,
-                    showLoading = category.category.name == AlbumCategory.WEBDAV_NAME &&
-                            isFetchingWebDav,
+                    showLoading = storageInfo?.storage?.id in fetchingStorageIds,
                     showCategoryTip = isFirstCategory && categoryTip.visible,
                     onCategoryTipDismiss = categoryTip.dismiss,
                     showAlbumDragTip = isFirstCategory && albumDragTip.visible,
@@ -404,28 +413,6 @@ fun AlbumListView(
                         cardSize = cardSize,
                         highlighted = null == dropCategory
                     )
-                }
-            }
-
-            if (storages.isNotEmpty()) {
-                item(key = STORAGES_KEY) {
-                    SectionTitle(
-                        title = stringResource(R.string.storages),
-                        count = storages.size
-                    )
-                }
-
-                items(storages, key = { "storage_${it.storage.id}" }) { info ->
-                    Box(
-                        Modifier
-                            .padding(horizontal = SCREEN_PADDING, vertical = CARD_SPACING / 2)
-                            .clip(RoundedCornerShape(16.dp))
-                    ) {
-                        StorageCard(
-                            info = info,
-                            onClick = { onStorageClick(info.storage) }
-                        )
-                    }
                 }
             }
         }
@@ -479,6 +466,8 @@ fun AlbumListView(
 @Composable
 private fun AlbumCategoriesRow(
     category: CategoryWithAlbums,
+    title: String,
+    titleIcon: Int? = null,
     cardSize: Dp,
     highlighted: Boolean,
     onAlbumClick: (Album) -> Unit,
@@ -486,6 +475,8 @@ private fun AlbumCategoriesRow(
     alwaysExpanded: Boolean,
     onToggleExpand: () -> Unit,
     onAlwaysExpandedChange: (Boolean) -> Unit,
+    showRefresh: Boolean = false,
+    onRefreshClick: () -> Unit = {},
     menuExpanded: Boolean,
     onMenuDismiss: () -> Unit,
     onRenameClick: () -> Unit,
@@ -511,11 +502,8 @@ private fun AlbumCategoriesRow(
 
         Box {
             SectionTitle(
-                title = category.category.name(),
-                titleIcon = when (category.category.name) {
-                    AlbumCategory.WEBDAV_NAME -> R.drawable.webdav
-                    else -> null
-                },
+                title = title,
+                titleIcon = titleIcon,
                 count = category.albums.size,
                 showLoading = showLoading,
                 expanded = expanded.takeIf { expandable },
@@ -548,6 +536,12 @@ private fun AlbumCategoriesRow(
                             if (alwaysExpanded) R.string.always_collapsed else R.string.always_expanded
                         ),
                         onClick = { onAlwaysExpandedChange(!alwaysExpanded) }
+                    )
+                }
+                if (showRefresh) {
+                    FloatingMenuItem(
+                        text = stringResource(R.string.storage_refresh),
+                        onClick = onRefreshClick
                     )
                 }
             }
@@ -822,7 +816,6 @@ private fun LazyListState.keyAt(event: DragAndDropEvent): Any? {
 
 private const val HEADER_KEY = "header"
 private const val NEW_CATEGORY_KEY = "new_category"
-private const val STORAGES_KEY = "storages"
 private val HEADER_GAP = 2.dp
 private const val ALBUMS_PER_ROW = 3
 private val SCREEN_PADDING = 12.dp

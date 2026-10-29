@@ -48,6 +48,10 @@ android {
         vectorDrawables {
             useSupportLibrary = true
         }
+        // LibVLC/FFmpeg: без лишних ABI (armeabi-v7a/x86) — экономия десятков МБ.
+        ndk {
+            abiFilters += listOf("arm64-v8a", "x86_64")
+        }
 
         val localProperties = Properties()
         val localPropertiesFile = rootProject.file("local.properties")
@@ -55,41 +59,38 @@ android {
             localPropertiesFile.inputStream().use(localProperties::load)
         }
 
+        fun propOr(key: String, default: String): String =
+            localProperties.getProperty(key)?.takeIf { it.isNotBlank() } ?: default
+
         buildConfigField(
             "String",
             "DROPBOX_APP_KEY",
-            buildString {
-                append('"')
-                append(localProperties.getProperty("dropbox.appKey"))
-                append('"')
-            },
+            "\"${propOr("dropbox.appKey", "")}\"",
         )
         buildConfigField(
             "String",
             "DROPBOX_REDIRECT_URI",
-            buildString {
-                append('"')
-                append(localProperties.getProperty("dropbox.redirectUri"))
-                append('"')
-            },
+            "\"${propOr("dropbox.redirectUri", "com.asinosoft.photogallery://dropbox-auth")}\"",
         )
         buildConfigField(
             "String",
             "YANDEX_APP_KEY",
-            buildString {
-                append('"')
-                append(localProperties.getProperty("yandex.appKey"))
-                append('"')
-            },
+            "\"${propOr("yandex.appKey", "b9d5243b463f443ab96529bd0ae607d4")}\"",
         )
         buildConfigField(
             "String",
             "YANDEX_REDIRECT_URI",
-            buildString {
-                append('"')
-                append(localProperties.getProperty("yandex.redirectUri"))
-                append('"')
-            },
+            "\"${propOr("yandex.redirectUri", "com.asinosoft.photogallery://yandex-auth")}\"",
+        )
+        buildConfigField(
+            "String",
+            "ONEDRIVE_CLIENT_ID",
+            "\"${propOr("onedrive.clientId", "")}\"",
+        )
+        buildConfigField(
+            "String",
+            "ONEDRIVE_REDIRECT_URI",
+            "\"${propOr("onedrive.redirectUri", "com.asinosoft.photogallery://onedrive-auth")}\"",
         )
     }
 
@@ -182,6 +183,8 @@ dependencies {
     implementation("androidx.media3:media3-exoplayer:1.11.1")
     implementation("androidx.media3:media3-ui:1.11.1")
     implementation("androidx.media3:media3-datasource-okhttp:1.11.1")
+    // FFmpeg через LibVLC — MPEG/.MPG и прочие кодеки без MediaCodec
+    implementation("org.videolan.android:libvlc-all:3.6.5")
 
     // Google Sign-In / Authorization (Drive App Data backup)
     implementation("com.google.android.gms:play-services-auth:22.0.0")

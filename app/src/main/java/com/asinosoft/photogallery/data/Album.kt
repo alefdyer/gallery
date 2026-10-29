@@ -36,6 +36,21 @@ data class Album(
     val userCreated: Boolean = false
 )
 
+/**
+ * Имя альбома из родительского path файла.
+ * Пустой / корневой path → «Главная · &lt;хранилище&gt;» ([rootAlbumName]).
+ */
+fun albumNameFromPath(path: String, rootAlbumName: String): String =
+    path.split('/').lastOrNull { it.isNotEmpty() } ?: rootAlbumName
+
+/** Родительская папка; если файл в корне [rootPath] — пустая строка. */
+fun mediaParentPath(itemPath: String, rootPath: String): String {
+    val parent = itemPath.dropLastWhile { it != '/' }
+    val parentNorm = parent.trimEnd('/')
+    val rootNorm = rootPath.trimEnd('/')
+    return if (parentNorm.isEmpty() || parentNorm == rootNorm) "" else parent
+}
+
 data class AlbumWithCover(
     @Embedded val album: Album,
     @Relation(

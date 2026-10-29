@@ -22,8 +22,18 @@ data class AlbumCategory(
         val OTHER = AlbumCategory(1, ":other")
         const val MESSENGERS_NAME = ":messengers"
         const val WEBDAV_NAME = ":webdav"
+        const val STORAGE_PREFIX = ":storage:"
+
+        fun storageCategoryName(storageId: Long): String = "$STORAGE_PREFIX$storageId"
     }
 }
+
+fun AlbumCategory.storageIdOrNull(): Long? =
+    name.removePrefix(AlbumCategory.STORAGE_PREFIX)
+        .toLongOrNull()
+        .takeIf { name.startsWith(AlbumCategory.STORAGE_PREFIX) }
+
+fun AlbumCategory.isStorageCategory(): Boolean = storageIdOrNull() != null
 
 data class CategoryWithAlbums(
     @Embedded val category: AlbumCategory,
@@ -38,9 +48,10 @@ fun AlbumCategory.isSystem(): Boolean = name.startsWith(":")
 
 @Composable
 fun AlbumCategory.name(): String =
-    when (name) {
-        ":other" -> stringResource(R.string.other)
-        AlbumCategory.MESSENGERS_NAME -> stringResource(R.string.messengers)
-        AlbumCategory.WEBDAV_NAME -> stringResource(R.string.storage_type_webdav)
+    when {
+        name == ":other" -> stringResource(R.string.other)
+        name == AlbumCategory.MESSENGERS_NAME -> stringResource(R.string.messengers)
+        name == AlbumCategory.WEBDAV_NAME -> stringResource(R.string.storage_type_webdav)
+        isStorageCategory() -> name // подпись хранилища подставляет UI
         else -> name
     }

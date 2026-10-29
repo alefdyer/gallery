@@ -17,6 +17,7 @@ import com.asinosoft.photogallery.data.MediaService
 import com.asinosoft.photogallery.data.launchAndCatch
 import com.asinosoft.photogallery.data.storage.MediaStatistics
 import com.asinosoft.photogallery.data.storage.StorageProviderRegistry
+import com.asinosoft.photogallery.data.storage.StorageService
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
@@ -73,10 +74,11 @@ class ImageListViewModel @Inject constructor(
     mediaDao: MediaDao,
     applicationDao: ApplicationDao,
     storageProviderRegistry: StorageProviderRegistry,
+    storageService: StorageService,
     private val mediaService: MediaService,
     private val analytics: AppAnalytics,
     @param:ApplicationContext private val context: Context
-) : MediaViewModel(storageProviderRegistry) {
+) : MediaViewModel(storageProviderRegistry, storageService, mediaDao) {
     val storageId: Long = state["storageId"] ?: 1
 
     val albumId: Long? = state["albumId"]

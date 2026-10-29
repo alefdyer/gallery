@@ -9,6 +9,8 @@ import android.util.Log
 import androidx.core.content.edit
 import coil3.SingletonImageLoader
 import com.asinosoft.photogallery.GalleryApp
+import com.asinosoft.photogallery.R
+import com.asinosoft.photogallery.data.storage.StorageDao
 import com.asinosoft.photogallery.data.storage.StorageProvider
 import com.asinosoft.photogallery.data.storage.StorageType
 import com.asinosoft.photogallery.di.IntentHelper
@@ -28,11 +30,13 @@ import kotlin.system.measureTimeMillis
 class MediaService @Inject constructor(
     private val albumDao: AlbumDao,
     private val mediaDao: MediaDao,
+    private val storageDao: StorageDao,
     private val messengerAlbums: MessengerAlbums,
-    private val webDavAlbums: WebDavAlbums,
+    private val storageAlbums: StorageAlbums,
     private val privateAlbum: PrivateAlbum,
     private val trash: Trash,
     private val analytics: AppAnalytics,
+    private val remoteVideoThumbQueue: RemoteVideoThumbQueue,
     @param:ApplicationContext private val context: Context
 ) {
     private val intentHelper = IntentHelper
@@ -44,10 +48,10 @@ class MediaService @Inject constructor(
             mediaId = mediaDao.getMediaId(media.storageId, media.storageItemId) ?: return
             if (syncFavorite) mediaDao.setFavorite(listOf(mediaId), media.favorite)
         }
-        val albumName = media.path.split('/').lastOrNull { it.isNotEmpty() }
-        albumName?.let {
-            addToAlbum(listOf(mediaId), albumFor(albumName, media).id)
-        }
+        addToAlbum(
+            listOf(mediaId),
+            albumFor(folderAlbumName(media.path), media).id
+        )
 
         CoroutineScope(Dispatchers.IO).launch {
             ThumbnailCache.preload(context, mediaId, media.uri, isVideo = media.video != null)
@@ -244,21 +248,24 @@ class MediaService @Inject constructor(
 
     @OptIn(ExperimentalCoroutinesApi::class)
     suspend fun update(provider: StorageProvider) = withContext(Dispatchers.IO) {
-        Log.i("MediaService", "update: ${provider.storage}")
+        Log.i("MediaService", "update: ${provider.storage.type} id=${provider.storage.id}")
         val updated = mutableSetOf<Long>()
         ThumbnailCache.startPreload(provider.getMediaCount() ?: 0)
         try {
             messengerAlbums.migrateOnce()
-            webDavAlbums.migrateOnce()
+            storageAlbums.migrateOnce()
             // Локально — крупные пачки; удалённые (WebDAV/облако) — по 10,
             // чтобы счётчики росли сразу после первых найденных файлов.
             val isLocal = provider.storage.type == StorageType.LOCAL
             val chunkSize = if (isLocal) LOCAL_FETCH_CHUNK else REMOTE_FETCH_CHUNK
-            val isWebDav = provider.storage.type == StorageType.WEBDAV
-            if (!isLocal) {
+            val isRemote = !isLocal
+            if (isRemote) {
+                storageAlbums.ensureCategory(provider.storage)
                 SingletonImageLoader.get(context).memoryCache?.clear()
             }
             var remoteChunks = 0
+            var fetchCompleted = false
+            try {
             provider.fetchAll().chunked(chunkSize).collect { fetched ->
                 val media = mediaDao.getMediaByStorageItemIds(
                     provider.storage.id,
@@ -280,6 +287,54 @@ class MediaService @Inject constructor(
 
                 val current = media.map { it.storageItemId }.toSet()
                 val toInsert = fetched.filterNot { current.contains(it.storageItemId) }
+                val existingByItemId = media.associateBy { it.storageItemId }
+                val rootAlbum = context.getString(R.string.album_root)
+
+                // Уже известные remote: обновить path/метаданные; альбом — только
+                // если папка сменилась (полный remap на каждом refresh слишком дорог).
+                if (isRemote) {
+                    for (item in fetched) {
+                        val existing = existingByItemId[item.storageItemId] ?: continue
+                        val pathChanged = existing.path != item.path
+                        val mergedDuration = bestVideoDurationMs(
+                            item.size.takeIf { it > 0 } ?: existing.size,
+                            item.filename,
+                            item.mimeType,
+                            existing.video?.duration ?: 0L,
+                            item.video?.duration ?: 0L,
+                        )
+                        val mergedVideo = when {
+                            item.video != null || existing.video != null ->
+                                Video(duration = mergedDuration)
+
+                            else -> null
+                        }
+                        val durationChanged =
+                            (existing.video?.duration ?: 0L) != (mergedVideo?.duration ?: 0L)
+                        if (pathChanged ||
+                            durationChanged ||
+                            existing.filename != item.filename ||
+                            existing.size != item.size ||
+                            existing.thumbnail != item.thumbnail
+                        ) {
+                            mediaDao.upsert(
+                                item.copy(
+                                    id = existing.id,
+                                    favorite = existing.favorite,
+                                    uri = item.uri ?: existing.uri,
+                                    video = mergedVideo,
+                                )
+                            )
+                        }
+                        if (pathChanged) {
+                            ensureRemoteFolderAlbum(
+                                mediaId = existing.id,
+                                albumName = folderAlbumName(item.path, rootAlbum),
+                                storageId = provider.storage.id,
+                            )
+                        }
+                    }
+                }
 
                 if (toInsert.isNotEmpty()) {
                     val rawMediaIds = mediaDao.upsertAll(toInsert)
@@ -293,26 +348,24 @@ class MediaService @Inject constructor(
 
                     val chunkAlbums = HashMap<Pair<String, Boolean>, MutableSet<Long>>()
                     toInsert.forEachIndexed { index, media ->
-                        val albumName = media.path.split('/').lastOrNull { it.isNotEmpty() }
-                        albumName?.let {
-                            val rawId = rawMediaIds[index]
-                            val realId = if (rawId > 0) rawId else mediaDao.getMediaId(
-                                media.storageId,
-                                media.storageItemId
-                            ) ?: -1L
-                            if (realId > 0) {
-                                val key = albumName to
-                                        if (isWebDav) false else messengerAlbums.isMessengerMedia(
-                                            media
-                                        )
-                                chunkAlbums.getOrPut(key) { mutableSetOf() } += realId
-                            }
+                        val albumName = folderAlbumName(media.path, rootAlbum)
+                        val rawId = rawMediaIds[index]
+                        val realId = if (rawId > 0) rawId else mediaDao.getMediaId(
+                            media.storageId,
+                            media.storageItemId
+                        ) ?: -1L
+                        if (realId > 0) {
+                            val key = albumName to
+                                    if (isRemote) false else messengerAlbums.isMessengerMedia(
+                                        media
+                                    )
+                            chunkAlbums.getOrPut(key) { mutableSetOf() } += realId
                         }
                     }
 
                     chunkAlbums.forEach { (key, ids) ->
-                        val album = if (isWebDav) {
-                            webDavAlbums.albumFor(key.first)
+                        val album = if (isRemote) {
+                            storageAlbums.albumFor(key.first, provider.storage.id)
                         } else {
                             messengerAlbums.albumFor(key.first, key.second)
                         }
@@ -344,20 +397,91 @@ class MediaService @Inject constructor(
                 }
 
                 if (!isLocal) {
+                    // Thumb из локального двойника — и для новых, и для уже известных
+                    // (после «Обновить» toInsert пуст, иначе миниатюры так и не появятся).
+                    val knownIds = media.associate { it.storageItemId to it.id }
+                    val newItemIds = toInsert.map { it.storageItemId }.toSet()
+                    for (item in fetched) {
+                        val realId = knownIds[item.storageItemId]
+                            ?: mediaDao.getMediaId(item.storageId, item.storageItemId)
+                            ?: continue
+                        if (realId <= 0) continue
+
+                        val filled = fillRemoteThumbFromLocalTwin(realId, item)
+                        if (!filled &&
+                            item.storageItemId in newItemIds &&
+                            item.thumbnail == null &&
+                            item.video != null
+                        ) {
+                            remoteVideoThumbQueue.enqueue(
+                                RemoteVideoThumbQueue.Job(
+                                    mediaId = realId,
+                                    storageId = item.storageId,
+                                    storageItemId = item.storageItemId,
+                                    size = item.size,
+                                    uri = item.uri?.toString()
+                                )
+                            )
+                        }
+                    }
+
                     remoteChunks++
                     if (remoteChunks % REMOTE_CACHE_CLEAR_EVERY_CHUNKS == 0) {
                         SingletonImageLoader.get(context).memoryCache?.clear()
                     }
                 }
             }
+                fetchCompleted = true
+            } catch (ex: Throwable) {
+                Log.e("MediaService", "Fetch aborted: ${provider.storage}", ex)
+                throw ex
+            }
 
-            mediaDao.deleteAllExcept(provider.storage.id, updated)
+            // Не чистим базу, если обход оборвался ошибкой — иначе remote обнуляется.
+            if (fetchCompleted) {
+                mediaDao.deleteMissing(provider.storage.id, updated)
+            }
             repairFolderAlbumsOnce(provider.storage.id)
             mergeDuplicateAlbumsOnce()
             albumDao.deleteEmptyAlbums()
+            if (isRemote && fetchCompleted) {
+                preloadAlbumCovers(provider)
+            }
 
         } finally {
             ThumbnailCache.finishPreload()
+        }
+    }
+
+    /**
+     * Только обложки альбомов хранилища (coverId) — не все файлы, чтобы не жечь квоту API.
+     */
+    private suspend fun preloadAlbumCovers(provider: StorageProvider) {
+        val category = albumDao.findCategoryByName(
+            AlbumCategory.storageCategoryName(provider.storage.id)
+        ) ?: return
+        val albums = albumDao.getAllAlbums().filter { it.categoryId == category.id }
+        val coverIds = albums.mapNotNull { it.coverId }.distinct()
+        if (coverIds.isEmpty()) return
+
+        val covers = mediaDao.getByIds(coverIds).associateBy { it.id }
+        for (coverId in coverIds) {
+            val file = ThumbnailCache.getFile(context, coverId)
+            if (file.exists() && file.length() > 0) continue
+            val media = covers[coverId] ?: continue
+            val uri = media.thumbnail
+                ?: runCatching { provider.getThumbnailUri(media) }.getOrNull()
+                ?: continue
+            val scheme = uri.scheme
+            val isHttp = scheme == "http" || scheme == "https"
+            // Полный remote-видео файл не качаем; native preview / локальный twin — ок.
+            if (media.video != null && isHttp && media.thumbnail == null) continue
+            ThumbnailCache.preload(
+                context,
+                coverId,
+                uri,
+                isVideo = media.video != null
+            )
         }
     }
 
@@ -387,20 +511,21 @@ class MediaService @Inject constructor(
         val prefsKey = "$KEY_ALBUMS_REPAIRED$storageId"
         if (prefs.getBoolean(prefsKey, false)) return
 
-        val albums = HashMap<Triple<String, Boolean, Boolean>, MutableSet<Long>>()
+        val rootAlbum = context.getString(R.string.album_root)
+        val storageType = runCatching { storageDao.getStorageById(storageId).type }
+            .getOrNull()
+        val isRemote = storageType != null && storageType != StorageType.LOCAL
+        val albums = HashMap<Pair<String, Boolean>, MutableSet<Long>>()
         mediaDao.getMediaWithoutAlbum(storageId).forEach { media ->
-            val albumName = media.path.split('/').lastOrNull { it.isNotEmpty() } ?: return@forEach
-            val key = Triple(
-                albumName,
-                media.storageType == StorageType.WEBDAV,
-                messengerAlbums.isMessengerMedia(media)
-            )
+            val albumName = folderAlbumName(media.path, rootAlbum)
+            val key = albumName to
+                    if (isRemote) false else messengerAlbums.isMessengerMedia(media)
             albums.getOrPut(key) { mutableSetOf() } += media.id
         }
         albums.forEach { (key, ids) ->
-            val (name, webDav, messenger) = key
-            val album = if (webDav) {
-                webDavAlbums.albumFor(name)
+            val (name, messenger) = key
+            val album = if (isRemote) {
+                storageAlbums.albumFor(name, storageId)
             } else {
                 messengerAlbums.albumFor(name, messenger)
             }
@@ -411,17 +536,70 @@ class MediaService @Inject constructor(
     }
 
     private suspend fun albumFor(name: String, media: Media): Album =
-        if (media.storageType == StorageType.WEBDAV) {
-            webDavAlbums.albumFor(name)
+        if (media.storageType != StorageType.LOCAL) {
+            storageAlbums.albumFor(name, media.storageId)
         } else {
             messengerAlbums.albumFor(name, messengerAlbums.isMessengerMedia(media))
         }
 
+    /**
+     * Файл в категории хранилища должен быть ровно в одном авто-альбоме папки.
+     * Старые альбомы с Drive id вместо имени снимаются.
+     */
+    private suspend fun ensureRemoteFolderAlbum(
+        mediaId: Long,
+        albumName: String,
+        storageId: Long,
+    ) {
+        val target = storageAlbums.albumFor(albumName, storageId)
+        val linked = albumDao.getMediaAlbumIds(listOf(mediaId))
+        for (albumId in linked) {
+            if (albumId == target.id) continue
+            val album = runCatching { albumDao.getAlbumById(albumId) }.getOrNull() ?: continue
+            if (album.categoryId == target.categoryId && !album.userCreated) {
+                albumDao.removeMediaFromAlbum(listOf(mediaId), albumId)
+                albumDao.updateAlbumStats(albumId)
+            }
+        }
+        if (target.id !in linked) {
+            addToAlbum(listOf(mediaId), target.id)
+        }
+    }
+
+    private fun folderAlbumName(
+        path: String,
+        rootAlbum: String = context.getString(R.string.album_root)
+    ): String =
+        albumNameFromPath(path, rootAlbum)
+
+    /**
+     * Копирует/генерирует thumb remote-файла из локального дубликата
+     * (то же имя + size). Возвращает true, если файл thumb уже есть или удалось создать.
+     */
+    private suspend fun fillRemoteThumbFromLocalTwin(remoteId: Long, remote: Media): Boolean {
+        val thumb = ThumbnailCache.getFile(context, remoteId)
+        if (thumb.exists() && thumb.length() > 0) return true
+        if (remote.size <= 0 || remote.filename.isBlank()) return false
+
+        val local = mediaDao.findLocalByBasenameAndSize(remote.filename, remote.size)
+            ?: return false
+        if (ThumbnailCache.copyIfPresent(context, local.id, remoteId)) return true
+
+        // Видеокадры при скане не декодируем — иначе refresh Drive на минуты (MediaCodec).
+        if (local.video != null || remote.video != null) return false
+
+        val uri = local.uri ?: return false
+        val scheme = uri.scheme
+        if (scheme != "content" && scheme != "file") return false
+        ThumbnailCache.preload(context, remoteId, uri, isVideo = false)
+        return thumb.exists() && thumb.length() > 0
+    }
+
     private companion object {
         const val LOCAL_STORAGE_ID = 1L
         const val LOCAL_FETCH_CHUNK = 500
-        const val REMOTE_FETCH_CHUNK = 10
-        const val REMOTE_CACHE_CLEAR_EVERY_CHUNKS = 50
+        const val REMOTE_FETCH_CHUNK = 50
+        const val REMOTE_CACHE_CLEAR_EVERY_CHUNKS = 20
         const val PREFS_NAME = "media_service"
         const val KEY_ALBUMS_REPAIRED = "albums_repaired_"
         const val KEY_DUPLICATES_MERGED = "duplicates_merged"

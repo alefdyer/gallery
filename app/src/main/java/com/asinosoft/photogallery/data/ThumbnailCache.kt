@@ -61,6 +61,14 @@ object ThumbnailCache {
         return File(getDir(context), "thumb_$mediaId.jpg")
     }
 
+    fun deleteAll(context: Context, mediaIds: Collection<Long>) {
+        if (mediaIds.isEmpty()) return
+        val dir = getDir(context)
+        for (id in mediaIds) {
+            File(dir, "thumb_$id.jpg").delete()
+        }
+    }
+
     private fun getExistingFiles(context: Context): Set<String> {
         return getDir(context).list()?.toSet() ?: emptySet()
     }
@@ -73,6 +81,27 @@ object ThumbnailCache {
                 saveBitmap(file, bitmap)
             }
         } catch (_: Throwable) {
+        }
+    }
+
+    fun saveBitmap(context: Context, mediaId: Long, bitmap: Bitmap) {
+        val file = getFile(context, mediaId)
+        if (file.exists() && file.length() > 0) return
+        saveBitmap(file, bitmap)
+    }
+
+    /** Копирует готовый thumb локального дубликата на remote mediaId. */
+    fun copyIfPresent(context: Context, fromMediaId: Long, toMediaId: Long): Boolean {
+        if (fromMediaId == toMediaId) return false
+        val source = getFile(context, fromMediaId)
+        if (!source.exists() || source.length() <= 0) return false
+        val target = getFile(context, toMediaId)
+        if (target.exists() && target.length() > 0) return true
+        return try {
+            source.copyTo(target, overwrite = true)
+            target.exists() && target.length() > 0
+        } catch (_: Throwable) {
+            false
         }
     }
 

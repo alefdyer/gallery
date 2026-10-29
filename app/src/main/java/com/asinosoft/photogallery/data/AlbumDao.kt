@@ -83,6 +83,24 @@ interface AlbumDao {
     )
     suspend fun countMediaInAlbumNotOfType(albumId: Long, storageType: StorageType): Int
 
+    @Query(
+        """
+        SELECT DISTINCT m.storageId FROM media m
+        INNER JOIN media_album ma ON ma.mediaId = m.id
+        WHERE ma.albumId = :albumId
+        """
+    )
+    suspend fun getStorageIdsInAlbum(albumId: Long): List<Long>
+
+    @Query(
+        """
+        SELECT m.id FROM media m
+        INNER JOIN media_album ma ON ma.mediaId = m.id
+        WHERE ma.albumId = :albumId AND m.storageId = :storageId
+        """
+    )
+    suspend fun getMediaIdsInAlbumOfStorage(albumId: Long, storageId: Long): List<Long>
+
     suspend fun getOrCreateAlbum(name: String, categoryId: Long): Album =
         getAlbumByName(name, categoryId)
             ?: Album(name = name, categoryId = categoryId).let { it.copy(id = upsert(it)) }

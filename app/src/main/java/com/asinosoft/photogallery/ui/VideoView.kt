@@ -59,8 +59,11 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.currentStateAsState
+import androidx.media3.common.C
 import androidx.media3.common.MediaItem
+import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
+import androidx.media3.common.Tracks
 import androidx.media3.common.VideoSize
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DefaultDataSource
@@ -72,18 +75,28 @@ import androidx.media3.ui.PlayerView
 import coil3.SingletonImageLoader
 import com.asinosoft.photogallery.GalleryApp
 import com.asinosoft.photogallery.R
+import android.graphics.Bitmap
+import android.media.MediaMetadataRetriever
+import android.os.Build
+import android.util.Log
 import com.asinosoft.photogallery.data.EXTERNAL_STORAGE_ID
 import com.asinosoft.photogallery.data.Media
+import com.asinosoft.photogallery.data.ThumbnailCache
+import com.asinosoft.photogallery.data.storage.StorageAuthProvider
 import com.asinosoft.photogallery.model.MediaViewModel
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import kotlin.math.roundToInt
+import kotlin.time.Duration.Companion.milliseconds
 import com.asinosoft.photogallery.ui.component.LocalDismissDrag
 import com.asinosoft.photogallery.ui.component.ZoomableMediaBox
 import com.asinosoft.photogallery.ui.component.dismissDragTransform
 import com.asinosoft.photogallery.ui.component.isOpeningTransition
 import com.asinosoft.photogallery.ui.component.mediaSharedElement
 import com.asinosoft.photogallery.ui.component.rememberCachedThumbnail
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
-import kotlin.time.Duration.Companion.milliseconds
 
 @OptIn(UnstableApi::class)
 @Composable
@@ -98,6 +111,22 @@ fun VideoView(
     onTap: () -> Unit = {},
     model: MediaViewModel = hiltViewModel(),
 ) {
+    var forceSoftware by remember(media.id) { mutableStateOf(false) }
+    if (needsSoftwareVideoPlayer(media) || forceSoftware) {
+        LibVlcVideoView(
+            media = media,
+            modifier = modifier,
+            isActive = isActive,
+            controlsVisible = controlsVisible,
+            controlsBottomPadding = controlsBottomPadding,
+            muted = muted,
+            autoplay = autoplay,
+            onTap = onTap,
+            model = model,
+        )
+        return
+    }
+
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val app = context.applicationContext as GalleryApp
@@ -112,9 +141,11 @@ fun VideoView(
         }
     }
     var position by remember { mutableLongStateOf(0L) }
-    var duration by remember { mutableLongStateOf(0L) }
+    val metadataDuration = media.video?.duration?.takeIf { it > 0 } ?: 0L
+    var duration by remember(media.id) { mutableLongStateOf(metadataDuration) }
     var videoRatio by remember(media.id) { mutableStateOf<Float?>(null) }
     var firstFrameRendered by remember(media.id) { mutableStateOf(false) }
+    var playbackError by remember(media.id) { mutableStateOf<String?>(null) }
 
     /** −1 = назад, +1 = вперёд; null = скрыто */
     var seekHintDirection by remember(media.id) { mutableStateOf<Int?>(null) }
@@ -147,13 +178,17 @@ fun VideoView(
             // Перед стримом с WebDAV освобождаем Coil — иначе вместе с буфером Exo ловим OOM.
             SingletonImageLoader.get(context).memoryCache?.clear()
         }
-        val mediaSourceFactory = DefaultMediaSourceFactory(
-            if (isLocal) {
-                DefaultDataSource.Factory(context)
-            } else {
-                OkHttpDataSource.Factory(app.httpClient)
-            }
-        )
+        val dataSourceFactory = if (isLocal) {
+            DefaultDataSource.Factory(context)
+        } else {
+            OkHttpDataSource.Factory(app.httpClient)
+                .setDefaultRequestProperties(
+                    mapOf(
+                        StorageAuthProvider.HEADER_STORAGE_ID to media.storageId.toString()
+                    )
+                )
+        }
+        val mediaSourceFactory = DefaultMediaSourceFactory(dataSourceFactory)
         val loadControl = DefaultLoadControl.Builder()
             .setBufferDurationsMs(
                 if (isLocal) MIN_BUFFER_MS else REMOTE_MIN_BUFFER_MS,
@@ -176,7 +211,6 @@ fun VideoView(
             .apply {
                 playWhenReady = false
                 repeatMode = Player.REPEAT_MODE_ONE
-                prepare()
             }
     }
 
@@ -208,12 +242,21 @@ fun VideoView(
         player?.volume = if (muted) 0f else 1f
     }
 
-    LaunchedEffect(player) {
+    LaunchedEffect(player, media.id) {
         val current = player ?: return@LaunchedEffect
-        scope.launch {
-            model.getMediaUri(media).let { uri ->
-                current.setMediaItem(MediaItem.fromUri(uri))
-            }
+        playbackError = null
+        firstFrameRendered = false
+        try {
+            val uri = model.getMediaUri(media)
+            // mime не навязываем: для .MPG/Drive sniff надёжнее, чем video/mpeg.
+            current.setMediaItem(MediaItem.fromUri(uri))
+            current.prepare()
+        } catch (ex: CancellationException) {
+            // Свайп/уход с экрана — не ошибка воспроизведения.
+            throw ex
+        } catch (ex: Throwable) {
+            Log.w(TAG, "Can't open video ${media.id}", ex)
+            playbackError = ex.message ?: "playback error"
         }
     }
 
@@ -221,8 +264,21 @@ fun VideoView(
         val current = player ?: return@LaunchedEffect
         while (true) {
             position = current.currentPosition.coerceAtLeast(0L)
-            duration = current.duration.takeIf { it > 0 } ?: 0L
+            // Exo на MPEG-PS иногда отдаёт мусорную «огромную» duration — режем.
+            duration = saneDurationMs(current.duration)
+                ?: saneDurationMs(metadataDuration)
+                        ?: 0L
             delay(200.milliseconds)
+        }
+    }
+
+    // Старые контейнеры часто «висят» без кадра — уходим в LibVLC/FFmpeg.
+    LaunchedEffect(player, media.id, firstFrameRendered, playbackError) {
+        if (player == null || firstFrameRendered || playbackError != null) return@LaunchedEffect
+        delay(PLAYBACK_STALL_MS.milliseconds)
+        if (!firstFrameRendered && playbackError == null) {
+            Log.i(TAG, "Exo stall → LibVLC media=${media.id} file=${media.filename}")
+            forceSoftware = true
         }
     }
 
@@ -242,8 +298,49 @@ fun VideoView(
                     videoRatio = videoSize.aspectRatio()
                 }
 
+                override fun onTracksChanged(tracks: Tracks) {
+                    val videoGroups = tracks.groups.filter { it.type == C.TRACK_TYPE_VIDEO }
+                    if (videoGroups.isEmpty()) return
+                    val supported = videoGroups.any { group ->
+                        (0 until group.length).any { group.isTrackSupported(it) }
+                    }
+                    if (!supported) {
+                        Log.i(TAG, "Exo unsupported tracks → LibVLC media=${media.id}")
+                        forceSoftware = true
+                    }
+                }
+
+                override fun onPlayerError(error: PlaybackException) {
+                    Log.w(TAG, "ExoPlayer error media=${media.id}", error)
+                    when (error.errorCode) {
+                        PlaybackException.ERROR_CODE_DECODER_INIT_FAILED,
+                        PlaybackException.ERROR_CODE_DECODING_FAILED,
+                        PlaybackException.ERROR_CODE_DECODING_FORMAT_UNSUPPORTED,
+                        PlaybackException.ERROR_CODE_PARSING_CONTAINER_UNSUPPORTED,
+                        PlaybackException.ERROR_CODE_PARSING_CONTAINER_MALFORMED,
+                            -> {
+                            Log.i(TAG, "Exo decode/container error → LibVLC media=${media.id}")
+                            forceSoftware = true
+                        }
+
+                        else -> {
+                            playbackError = error.message?.takeIf { it.isNotBlank() }
+                                ?: "Error ${error.errorCode}"
+                            buffering = false
+                        }
+                    }
+                }
+
                 override fun onRenderedFirstFrame() {
                     firstFrameRendered = true
+                    playbackError = null
+                    if (media.storageId != EXTERNAL_STORAGE_ID &&
+                        media.storageId != LOCAL_PHONE_STORAGE_ID
+                    ) {
+                        scope.launch {
+                            saveRemoteVideoThumbIfNeeded(context, media, model)
+                        }
+                    }
                 }
             }
         current?.addListener(listener)
@@ -266,13 +363,13 @@ fun VideoView(
                 .mediaSharedElement(media.id),
             onTap = onTap,
             onDoubleTapSeekBackward = {
-                seekBy(player, -DOUBLE_TAP_SEEK_MS) { position = it }
+                seekBy(player, -DOUBLE_TAP_SEEK_MS, duration) { position = it }
                 seekHintShown = -1
                 seekHintDirection = -1
                 seekHintToken++
             },
             onDoubleTapSeekForward = {
-                seekBy(player, DOUBLE_TAP_SEEK_MS) { position = it }
+                seekBy(player, DOUBLE_TAP_SEEK_MS, duration) { position = it }
                 seekHintShown = 1
                 seekHintDirection = 1
                 seekHintToken++
@@ -310,10 +407,21 @@ fun VideoView(
             }
         }
 
-        if (showProgress) {
+        if (showProgress && playbackError == null) {
             CircularProgressIndicator(
                 color = Color.White,
                 modifier = Modifier.align(Alignment.Center)
+            )
+        }
+
+        playbackError?.let { message ->
+            Text(
+                text = message,
+                color = Color.Red,
+                style = MaterialTheme.typography.bodyMedium,
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .padding(24.dp)
             )
         }
 
@@ -388,7 +496,7 @@ private fun SeekHintBadge(
 }
 
 @Composable
-private fun VideoControls(
+internal fun VideoControls(
     isPlaying: Boolean,
     position: Long,
     duration: Long,
@@ -503,6 +611,10 @@ private fun formatTime(millis: Long): String {
     }
 }
 
+/** Exo на битых/legacy контейнерах иногда отдаёт астрономическую длительность. */
+private fun saneDurationMs(value: Long): Long? =
+    value.takeIf { it > 0L && it <= MAX_DISPLAY_DURATION_MS }
+
 private fun PointerInputScope.fractionAt(x: Float): Float {
     val radius = SEEK_THUMB_RADIUS.toPx()
     val width = (size.width - radius * 2).coerceAtLeast(1f)
@@ -515,9 +627,50 @@ private fun VideoSize.aspectRatio(): Float? {
     return if (90 == unappliedRotationDegrees || 270 == unappliedRotationDegrees) 1f / ratio else ratio
 }
 
-private fun seekBy(player: ExoPlayer?, deltaMs: Long, onPosition: (Long) -> Unit) {
+private suspend fun saveRemoteVideoThumbIfNeeded(
+    context: android.content.Context,
+    media: Media,
+    model: MediaViewModel
+) = withContext(Dispatchers.IO) {
+    val file = ThumbnailCache.getFile(context, media.id)
+    if (file.exists() && file.length() > 0) return@withContext
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O_MR1) return@withContext
+    val uri = runCatching { model.getMediaUri(media) }.getOrNull() ?: return@withContext
+    val retriever = MediaMetadataRetriever()
+    try {
+        when (uri.scheme) {
+            "http", "https" -> retriever.setDataSource(uri.toString(), HashMap())
+            else -> retriever.setDataSource(context, uri)
+        }
+        val width = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH)
+            ?.toIntOrNull() ?: return@withContext
+        val height = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT)
+            ?.toIntOrNull() ?: return@withContext
+        if (width <= 0 || height <= 0) return@withContext
+        val side = (context.resources.displayMetrics.widthPixels / 3).coerceAtLeast(128)
+        val scale = minOf(1f, side.toFloat() / minOf(width, height))
+        val frame: Bitmap = retriever.getScaledFrameAtTime(
+            0,
+            MediaMetadataRetriever.OPTION_CLOSEST_SYNC,
+            (width * scale).roundToInt().coerceAtLeast(1),
+            (height * scale).roundToInt().coerceAtLeast(1)
+        ) ?: return@withContext
+        ThumbnailCache.saveBitmap(context, media.id, frame)
+        frame.recycle()
+    } catch (_: Throwable) {
+    } finally {
+        retriever.release()
+    }
+}
+
+private fun seekBy(
+    player: ExoPlayer?,
+    deltaMs: Long,
+    knownDuration: Long,
+    onPosition: (Long) -> Unit,
+) {
     val current = player ?: return
-    val duration = current.duration.takeIf { it > 0 } ?: 0L
+    val duration = current.duration.takeIf { it > 0 } ?: knownDuration.takeIf { it > 0 } ?: 0L
     val position = current.currentPosition.coerceAtLeast(0L)
     val target = if (duration > 0) {
         (position + deltaMs).coerceIn(0L, duration)
@@ -528,9 +681,13 @@ private fun seekBy(player: ExoPlayer?, deltaMs: Long, onPosition: (Long) -> Unit
     current.seekTo(target)
 }
 
+private const val TAG = "VideoView"
+private const val LOCAL_PHONE_STORAGE_ID = 1L
 private val VIDEO_CONTROLS_BOTTOM = 160.dp
 private const val THUMBNAIL_FADE_MS = 200
 private const val PROGRESS_DELAY_MS = 500
+private const val PLAYBACK_STALL_MS = 4_000L
+private const val MAX_DISPLAY_DURATION_MS = 12L * 60 * 60 * 1000
 private const val DOUBLE_TAP_SEEK_MS = 5_000L
 private const val SEEK_HINT_MS = 700
 private const val MIN_BUFFER_MS = 2_000

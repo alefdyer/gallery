@@ -4,6 +4,7 @@ import android.util.Log
 import androidx.annotation.DrawableRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
@@ -15,6 +16,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -31,10 +33,12 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -53,20 +57,34 @@ import kotlinx.coroutines.launch
 fun StorageCard(
     info: StorageInfo,
     onClick: () -> Unit,
+    onRefresh: (() -> Unit)? = null,
+    isRefreshing: Boolean = false,
 ) {
     val height = LocalWindowInfo.current.containerDpSize.width / 3
     val contentColor =
         if (null == info.cover) MaterialTheme.colorScheme.onSurfaceVariant else Color.White
+    var menuExpanded by remember { mutableStateOf(false) }
+
     Box(
         modifier = Modifier
             .height(height)
             .fillMaxWidth()
             .background(MaterialTheme.colorScheme.surfaceVariant)
-            .clickable { onClick() }
+            .pointerInput(info.storage.id, onRefresh) {
+                detectTapGestures(
+                    onTap = { onClick() },
+                    onLongPress = {
+                        if (null != onRefresh) menuExpanded = true
+                    }
+                )
+            }
     ) {
         info.cover?.let { StorageCover(it) }
 
-        Row(Modifier.align(Alignment.BottomStart)) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.align(Alignment.BottomStart)
+        ) {
             Box(Modifier.clip(RoundedCornerShape(50))) {
                 StorageTypeIcon(type = info.storage.type)
             }
@@ -83,6 +101,16 @@ fun StorageCard(
                 modifier = Modifier.weight(1f)
             )
 
+            if (isRefreshing) {
+                CircularProgressIndicator(
+                    modifier = Modifier
+                        .padding(end = 8.dp)
+                        .size(18.dp),
+                    strokeWidth = 2.dp,
+                    color = contentColor
+                )
+            }
+
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(4.dp),
@@ -92,6 +120,21 @@ fun StorageCard(
             ) {
                 Counter(R.drawable.photo, info.statistics.photoCount, contentColor)
                 Counter(R.drawable.videocam, info.statistics.videoCount, contentColor)
+            }
+        }
+
+        if (null != onRefresh) {
+            FloatingDropdownMenu(
+                expanded = menuExpanded,
+                onDismissRequest = { menuExpanded = false }
+            ) {
+                FloatingMenuItem(
+                    text = stringResource(R.string.storage_refresh),
+                    onClick = {
+                        menuExpanded = false
+                        onRefresh()
+                    }
+                )
             }
         }
     }

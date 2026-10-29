@@ -5,7 +5,7 @@ import java.util.Date
 
 data class Resource(
     @SerializedName("file")
-    val file: String,
+    val file: String? = null,
     @SerializedName("name")
     val name: String,
     @SerializedName("path")
@@ -20,10 +20,10 @@ data class Resource(
     val size: Long,
     @SerializedName("created")
     val created: Date,
-    @SerializedName("modifier")
-    val modified: Date,
+    @SerializedName("modified")
+    val modified: Date? = null,
     @SerializedName("sizes")
-    val sizes: List<Thumbnail>,
+    val sizes: List<Thumbnail>? = null,
     @SerializedName("exif")
-    val exif: Exif?
+    val exif: Exif? = null
 )

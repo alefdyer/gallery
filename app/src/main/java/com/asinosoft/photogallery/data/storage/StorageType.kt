@@ -20,6 +20,14 @@ enum class StorageType {
     YANDEX {
         override val isEditable = false
         override val isDeletable = true
+    },
+    GOOGLE_DRIVE {
+        override val isEditable = false
+        override val isDeletable = true
+    },
+    ONEDRIVE {
+        override val isEditable = false
+        override val isDeletable = true
     };
 
     abstract val isEditable: Boolean

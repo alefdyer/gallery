@@ -7,6 +7,7 @@ import androidx.core.net.toUri
 import com.asinosoft.photogallery.data.Image
 import com.asinosoft.photogallery.data.Media
 import com.asinosoft.photogallery.data.Video
+import com.asinosoft.photogallery.data.mediaParentPath
 import com.asinosoft.photogallery.data.storage.Storage
 import com.asinosoft.photogallery.data.storage.StorageCheckResult
 import com.asinosoft.photogallery.data.storage.StorageProvider
@@ -27,6 +28,9 @@ import okhttp3.Request
 class WebDavStorageProvider(override val storage: Storage) : StorageProvider {
     private val webdav = OkHttpSardine().apply {
         setCredentials(storage.login, storage.password)
+    }
+    private val rootPath: String by lazy {
+        runCatching { URI(rootUrl()).path }.getOrNull().orEmpty()
     }
 
     override fun authorize(request: Request): Request {
@@ -93,7 +97,7 @@ class WebDavStorageProvider(override val storage: Storage) : StorageProvider {
                         uri = resolve(item.href).toUri(),
                         date = datetime.toLocalDate(),
                         time = datetime.toLocalTime(),
-                        path = item.path.dropLastWhile { it != '/' },
+                        path = mediaParentPath(item.path, rootPath),
                         size = item.contentLength,
                         filename = item.name,
                         mimeType = mimeType,

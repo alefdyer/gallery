@@ -14,6 +14,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
@@ -37,12 +38,15 @@ import coil3.request.ImageRequest
 import coil3.request.allowHardware
 import coil3.video.videoFrameMillis
 import com.asinosoft.photogallery.R
+import com.asinosoft.photogallery.data.bestVideoDurationMs
 import com.asinosoft.photogallery.data.EXTERNAL_STORAGE_ID
 import com.asinosoft.photogallery.data.Media
 import com.asinosoft.photogallery.data.ThumbnailCache
 import com.asinosoft.photogallery.model.MediaViewModel
 import com.asinosoft.photogallery.ui.theme.FavoriteRed
 import com.asinosoft.photogallery.ui.theme.isDarkColorScheme
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 private const val LOCAL_STORAGE_ID = 1L
@@ -101,30 +105,62 @@ fun MediaThumbnail(
 
         val cacheKey = remember(media.id) { "media-${media.id}" }
         val cacheFile = remember(media.id) { ThumbnailCache.getFile(context, media.id) }
-        val cached = remember(media.id) { persistentCache && cacheFile.exists() && cacheFile.length() > 0 }
+        var cached by remember(media.id) {
+            mutableStateOf(persistentCache && cacheFile.exists() && cacheFile.length() > 0)
+        }
         val isRemoteVideo = media.video != null &&
                 LOCAL_STORAGE_ID != media.storageId &&
                 EXTERNAL_STORAGE_ID != media.storageId
-        val immediateData: Any? = remember(media, cached) {
+        val hasNativeThumb = media.thumbnail != null
+        // После «Обновить» thumb с локального двойника может появиться, пока клетка на экране.
+        LaunchedEffect(media.id, persistentCache, cached, isRemoteVideo) {
+            if (!persistentCache || cached || !isRemoteVideo) return@LaunchedEffect
+            repeat(80) {
+                if (!isActive) return@LaunchedEffect
+                if (cacheFile.exists() && cacheFile.length() > 0) {
+                    cached = true
+                    return@LaunchedEffect
+                }
+                delay(750)
+            }
+        }
+        val immediateData: Any? = remember(media, cached, hasNativeThumb) {
             when {
                 cached -> cacheFile
-                // Удалённое видео без кэша: не кормим Coil http-URL — VideoFrameDecoder
-                // скачивает ролик целиком и ловит OOM на десятках ГБ.
-                isRemoteVideo -> null
+                // Удалённое видео без native preview: не кормим Coil полный http-URL —
+                // VideoFrameDecoder скачивает ролик целиком и ловит OOM.
+                isRemoteVideo && !hasNativeThumb -> null
+                hasNativeThumb -> media.thumbnail
                 LOCAL_STORAGE_ID == media.storageId || EXTERNAL_STORAGE_ID == media.storageId -> media.uri
                 else -> null
             }
         }
-        val remoteData by produceState<Any?>(null, media, immediateData, isRemoteVideo) {
-            if (null != immediateData || isRemoteVideo) {
+        val remoteData by produceState<Any?>(
+            null,
+            media,
+            immediateData,
+            isRemoteVideo,
+            hasNativeThumb
+        ) {
+            if (null != immediateData) {
                 value = null
                 return@produceState
             }
-            value = model.getThumbnailUri(media)
+            val uri = model.getThumbnailUri(media)
+            // Remote video: разрешаем только safe URI (file/content/custom fetcher),
+            // не полный http(s) файл — иначе VideoFrameDecoder качает ролик целиком.
+            value = if (isRemoteVideo && !hasNativeThumb) {
+                uri.takeUnless { it.scheme == "http" || it.scheme == "https" }
+            } else {
+                uri
+            }
         }
         val data = immediateData ?: remoteData
 
-        var loaded by remember(media.id) { mutableStateOf(cached) }
+        var loaded by remember(media.id) { mutableStateOf(false) }
+        LaunchedEffect(cached, media.id) {
+            if (cached) loaded = true
+        }
         val request = remember(data, cacheKey, media.video != null) {
             if (null == data) return@remember null
             ImageRequest.Builder(context)
@@ -200,9 +236,14 @@ fun MediaThumbnail(
                     modifier = Modifier.size(14.dp),
                     tint = Color.White
                 )
-                if (video.duration > 0) {
+                bestVideoDurationMs(
+                    media.size,
+                    media.filename,
+                    media.mimeType,
+                    video.duration,
+                ).takeIf { it > 0 }?.let { durationMs ->
                     Text(
-                        text = formatDuration(video.duration),
+                        text = formatDuration(durationMs),
                         style = MaterialTheme.typography.labelSmall,
                         fontWeight = FontWeight.SemiBold,
                         color = Color.White

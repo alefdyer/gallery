@@ -12,8 +12,13 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -25,15 +30,22 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import coil3.compose.rememberAsyncImagePainter
 import coil3.request.CachePolicy
 import coil3.request.ImageRequest
 import coil3.request.allowHardware
 import com.asinosoft.photogallery.R
 import com.asinosoft.photogallery.data.AlbumWithCover
+import com.asinosoft.photogallery.data.EXTERNAL_STORAGE_ID
 import com.asinosoft.photogallery.data.Media
 import com.asinosoft.photogallery.data.ThumbnailCache
+import com.asinosoft.photogallery.model.MediaViewModel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+
+private const val LOCAL_STORAGE_ID = 1L
 
 @Composable
 fun AlbumCover(
@@ -85,6 +97,7 @@ fun AlbumCover(
 private fun AlbumThumbnail(
     cover: Media?,
     modifier: Modifier = Modifier,
+    model: MediaViewModel = hiltViewModel(),
 ) {
     if (null == cover) {
         Box(modifier, contentAlignment = Alignment.Center) {
@@ -95,41 +108,93 @@ private fun AlbumThumbnail(
                 modifier = Modifier.size(40.dp)
             )
         }
-    } else {
-        val context = LocalContext.current
-        val scope = rememberCoroutineScope()
+        return
+    }
 
-        val cacheKey = remember(cover.id) { "media-${cover.id}" }
-        val request = remember(cover, context, cacheKey) {
-            val file = ThumbnailCache.getFile(context, cover.id)
-            val data = when {
-                file.exists() && file.length() > 0 -> file
-                // Remote video URI через Coil = OOM; без кэша показываем плейсхолдер.
-                cover.video != null &&
-                        (cover.uri?.scheme == "http" || cover.uri?.scheme == "https") -> null
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val cacheKey = remember(cover.id) { "media-${cover.id}" }
+    val cacheFile = remember(cover.id) { ThumbnailCache.getFile(context, cover.id) }
+    var cached by remember(cover.id) {
+        mutableStateOf(cacheFile.exists() && cacheFile.length() > 0)
+    }
+    val isRemoteVideo = cover.video != null &&
+            LOCAL_STORAGE_ID != cover.storageId &&
+            EXTERNAL_STORAGE_ID != cover.storageId
+    val hasNativeThumb = cover.thumbnail != null
 
-                else -> cover.uri
-            } ?: return@remember null
-
-            ImageRequest.Builder(context)
-                .data(data)
-                .size(300, 300)
-                .memoryCacheKey(cacheKey)
-                .diskCacheKey(cacheKey)
-                .placeholderMemoryCacheKey(cacheKey)
-                .memoryCachePolicy(CachePolicy.ENABLED)
-                .diskCachePolicy(CachePolicy.ENABLED)
-                .allowHardware(true)
-                .listener(onSuccess = { _, result ->
-                    if (!file.exists()) {
-                        scope.launch {
-                            ThumbnailCache.save(context, cover.id, result.image)
-                        }
-                    }
-                })
-                .build()
+    LaunchedEffect(cover.id, cached) {
+        if (cached) return@LaunchedEffect
+        repeat(80) {
+            if (!isActive) return@LaunchedEffect
+            if (cacheFile.exists() && cacheFile.length() > 0) {
+                cached = true
+                return@LaunchedEffect
+            }
+            delay(750)
         }
+    }
 
+    val immediateData: Any? = remember(cover, cached, hasNativeThumb) {
+        when {
+            cached -> cacheFile
+            isRemoteVideo && !hasNativeThumb -> null
+            hasNativeThumb -> cover.thumbnail
+            LOCAL_STORAGE_ID == cover.storageId || EXTERNAL_STORAGE_ID == cover.storageId -> cover.uri
+            else -> null
+        }
+    }
+    val remoteData by produceState<Any?>(
+        null,
+        cover,
+        immediateData,
+        isRemoteVideo,
+        hasNativeThumb
+    ) {
+        if (null != immediateData) {
+            value = null
+            return@produceState
+        }
+        val uri = model.getThumbnailUri(cover)
+        value = if (isRemoteVideo && !hasNativeThumb) {
+            uri.takeUnless { it.scheme == "http" || it.scheme == "https" }
+        } else {
+            uri
+        }
+    }
+    val data = immediateData ?: remoteData
+
+    val request = remember(data, cacheKey, cover.id) {
+        if (null == data) return@remember null
+        ImageRequest.Builder(context)
+            .data(data)
+            .size(300, 300)
+            .memoryCacheKey(cacheKey)
+            .diskCacheKey(cacheKey)
+            .placeholderMemoryCacheKey(cacheKey)
+            .memoryCachePolicy(CachePolicy.ENABLED)
+            .diskCachePolicy(CachePolicy.ENABLED)
+            .allowHardware(true)
+            .listener(onSuccess = { _, result ->
+                if (!cacheFile.exists()) {
+                    scope.launch {
+                        ThumbnailCache.save(context, cover.id, result.image)
+                    }
+                }
+            })
+            .build()
+    }
+
+    if (null == request) {
+        Box(modifier, contentAlignment = Alignment.Center) {
+            Icon(
+                painter = painterResource(R.drawable.album),
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(40.dp)
+            )
+        }
+    } else {
         Image(
             painter = rememberAsyncImagePainter(model = request),
             contentDescription = null,

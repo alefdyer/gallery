@@ -1,9 +1,11 @@
 package com.asinosoft.photogallery.data.storage.dropbox
 
+import android.content.Context
 import android.net.Uri
 import androidx.core.net.toUri
 import com.asinosoft.photogallery.data.Image
 import com.asinosoft.photogallery.data.Media
+import com.asinosoft.photogallery.data.ThumbnailCache
 import com.asinosoft.photogallery.data.Video
 import com.asinosoft.photogallery.data.storage.Storage
 import com.asinosoft.photogallery.data.storage.StorageCheckResult
@@ -25,7 +27,10 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 
-class DropboxStorageProvider(override val storage: Storage) : StorageProvider {
+class DropboxStorageProvider(
+    override val storage: Storage,
+    private val context: Context
+) : StorageProvider {
     private val client = OkHttpClient()
     private val gson = Gson()
 
@@ -117,7 +122,57 @@ class DropboxStorageProvider(override val storage: Storage) : StorageProvider {
         link.toUri()
     }
 
-    override suspend fun getThumbnailUri(media: Media): Uri = getMediaUri(media)
+    override suspend fun getThumbnailUri(media: Media): Uri = withContext(Dispatchers.IO) {
+        if (media.id > 0) {
+            val cached = ThumbnailCache.getFile(context, media.id)
+            if (cached.exists() && cached.length() > 0) return@withContext cached.toUri()
+            if (downloadThumbnail(media.storageItemId, cached)) {
+                return@withContext cached.toUri()
+            }
+        }
+        // Без media.id или при ошибке API — не тянем полный файл.
+        "dropbox-thumb-missing://".toUri()
+    }
+
+    private fun downloadThumbnail(pathOrId: String, target: java.io.File): Boolean {
+        val token = storage.password ?: return false
+        val arg =
+            """{"resource":{".tag":"path","path":${jsonString(pathOrId)}},"format":"jpeg","size":"w256h256","mode":"strict"}"""
+        val request = Request.Builder()
+            .url("https://content.dropboxapi.com/2/files/get_thumbnail_v2")
+            .post(ByteArray(0).toRequestBody("application/octet-stream".toMediaType()))
+            .header("Authorization", "Bearer $token")
+            .header("Dropbox-API-Arg", arg)
+            .build()
+        return try {
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) return false
+                val bytes = response.body?.bytes() ?: return false
+                if (bytes.isEmpty()) return false
+                target.parentFile?.mkdirs()
+                target.writeBytes(bytes)
+                true
+            }
+        } catch (_: Throwable) {
+            false
+        }
+    }
+
+    private fun jsonString(value: String): String =
+        buildString {
+            append('"')
+            value.forEach { c ->
+                when (c) {
+                    '\\' -> append("\\\\")
+                    '"' -> append("\\\"")
+                    '\n' -> append("\\n")
+                    '\r' -> append("\\r")
+                    '\t' -> append("\\t")
+                    else -> append(c)
+                }
+            }
+            append('"')
+        }
 
     private fun apiPost(path: String, payload: String = "{}"): String? {
         val request = Request.Builder()
@@ -179,7 +234,8 @@ private data class DropboxListEntry(
             OffsetDateTime.parse(serverModified).atZoneSameInstant(ZoneId.systemDefault())
         }.getOrNull() ?: return null
 
-        val parentPath = pathDisplay?.substringBeforeLast('/', "") ?: ""
+        // Корневой файл: path_display "/file.jpg" → parent "" → альбом «Главная».
+        val parentPath = pathDisplay?.substringBeforeLast('/', "")?.trim('/') ?: ""
 
         return Media(
             date = modified.toLocalDate(),

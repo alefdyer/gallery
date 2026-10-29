@@ -1,0 +1,15 @@
+## Copy relevant keys into local.properties (not committed).
+
+sdk.dir=C\:\\Users\\YOU\\AppData\\Local\\Android\\Sdk
+
+# Yandex Disk OAuth — register Redirect URI in Yandex OAuth app settings
+yandex.appKey=b9d5243b463f443ab96529bd0ae607d4
+yandex.redirectUri=com.asinosoft.photogallery://yandex-auth
+
+# Dropbox OAuth — register redirect in Dropbox App Console
+dropbox.appKey=
+dropbox.redirectUri=com.asinosoft.photogallery://dropbox-auth
+
+# OneDrive (Azure App Registration, public client / mobile redirect)
+onedrive.clientId=
+onedrive.redirectUri=com.asinosoft.photogallery://onedrive-auth

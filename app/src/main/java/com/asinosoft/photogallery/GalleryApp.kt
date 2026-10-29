@@ -36,7 +36,9 @@ class GalleryApp : Application() {
         httpClient =
             OkHttpClient
                 .Builder()
-                .addInterceptor { chain ->
+                // Network: Drive alt=media часто редиректит на googleusercontent —
+                // application-interceptor не увидит второй hop, Bearer пропадёт.
+                .addNetworkInterceptor { chain ->
                     chain.proceed(storageAuthProvider.authorize(chain.request()))
                 }.build()
 

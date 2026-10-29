@@ -11,6 +11,10 @@ object MessageBus {
     private val messagesFlow = MutableSharedFlow<String>(extraBufferCapacity = 1)
     val messages: SharedFlow<String> = messagesFlow
 
+    fun emit(message: String) {
+        messagesFlow.tryEmit(message)
+    }
+
     val context = CoroutineExceptionHandler { _, throwable ->
         Log.w("message", throwable.toString())
         messagesFlow.tryEmit(throwable.toString())

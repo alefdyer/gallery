@@ -40,6 +40,7 @@ import com.asinosoft.photogallery.model.ViewerTarget
 import com.asinosoft.photogallery.model.ViewerViewModel
 import com.asinosoft.photogallery.ui.DummyView
 import com.asinosoft.photogallery.ui.FloatingCircle
+import com.asinosoft.photogallery.ui.GoogleDriveReauthHandler
 import com.asinosoft.photogallery.ui.ImageView
 import com.asinosoft.photogallery.ui.PagerView
 import com.asinosoft.photogallery.ui.VideoView
@@ -68,6 +69,7 @@ class ViewerActivity : ComponentActivity() {
 
         setContent {
             GalleryTheme {
+                GoogleDriveReauthHandler()
                 val target by viewer.target.collectAsState()
 
                 when (val current = if (hasMediaPermissions()) target else ViewerTarget.NotFound) {
