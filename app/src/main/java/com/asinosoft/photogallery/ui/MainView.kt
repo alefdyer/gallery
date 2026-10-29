@@ -8,9 +8,7 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -47,7 +45,6 @@ import kotlinx.coroutines.launch
 import kotlin.math.abs
 import kotlin.time.Duration.Companion.milliseconds
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MainView(
     onMediaClick: (Media, Set<String>, DateFilter?, MediaType?) -> Unit,
@@ -62,16 +59,9 @@ fun MainView(
     onReturnHandled: () -> Unit = {},
     model: ImageListViewModel = hiltViewModel()
 ) {
-    val isFetching by model.isFetching.collectAsState(false)
     val pagerState = rememberPagerState { 2 }
     val coroutineScope = rememberCoroutineScope()
     val selection by model.selection.collectAsState()
-    // Верхний индикатор — только после pull-to-refresh пользователем.
-    // Скан WebDAV показывает крутилку у категории на вкладке Альбомы.
-    var pullRefreshing by remember { mutableStateOf(false) }
-    LaunchedEffect(isFetching) {
-        if (!isFetching) pullRefreshing = false
-    }
 
     var navbarHeight by remember { mutableFloatStateOf(0f) }
     var navbarOffset by remember { mutableFloatStateOf(0f) }
@@ -147,42 +137,33 @@ fun MainView(
     Scaffold(
         modifier = modifier.nestedScroll(syncPanelsScrollConnection)
     ) { paddingValues ->
-        PullToRefreshBox(
-            isRefreshing = pullRefreshing && isFetching && pagerState.currentPage == 0,
-            onRefresh = {
-                pullRefreshing = true
-                model.fetch()
-            },
-            modifier = Modifier.fillMaxSize()
-        ) {
-            Box(Modifier.fillMaxSize()) {
-                val contentPadding = PaddingValues(
-                    top = 36.dp + paddingValues.calculateTopPadding(),
-                    bottom = paddingValues.calculateBottomPadding()
-                )
+        Box(Modifier.fillMaxSize()) {
+            val contentPadding = PaddingValues(
+                top = 36.dp + paddingValues.calculateTopPadding(),
+                bottom = paddingValues.calculateBottomPadding()
+            )
 
-                HorizontalPager(state = pagerState, userScrollEnabled = false) { page ->
-                    key(page) {
-                        when (page) {
-                            0 -> ImageListView(
-                                onMediaClick = onMediaClick,
-                                onClose = {},
-                                scrollBehavior = null,
-                                contentPadding = contentPadding,
-                                bottomPanelHeight = with(density) { navbarHeight.toDp() } - 24.dp,
-                                returnMediaId = returnMediaId,
-                                onReturnHandled = onReturnHandled,
-                                showFeatureTips = true
-                            )
+            HorizontalPager(state = pagerState, userScrollEnabled = false) { page ->
+                key(page) {
+                    when (page) {
+                        0 -> ImageListView(
+                            onMediaClick = onMediaClick,
+                            onClose = {},
+                            scrollBehavior = null,
+                            contentPadding = contentPadding,
+                            bottomPanelHeight = with(density) { navbarHeight.toDp() } - 24.dp,
+                            returnMediaId = returnMediaId,
+                            onReturnHandled = onReturnHandled,
+                            showFeatureTips = true
+                        )
 
-                            1 -> AlbumListView(
-                                onAlbumClick = onAlbumClick,
-                                onStorageClick = onStorageClick,
-                                nestedScroll = syncPanelsScrollConnection,
-                                contentPadding = contentPadding,
-                                bottomPanelHidden = navbarHeight > 0f && navbarOffset > navbarHeight / 2f
-                            )
-                        }
+                        1 -> AlbumListView(
+                            onAlbumClick = onAlbumClick,
+                            onStorageClick = onStorageClick,
+                            nestedScroll = syncPanelsScrollConnection,
+                            contentPadding = contentPadding,
+                            bottomPanelHidden = navbarHeight > 0f && navbarOffset > navbarHeight / 2f
+                        )
                     }
                 }
             }

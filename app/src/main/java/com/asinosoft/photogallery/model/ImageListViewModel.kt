@@ -16,9 +16,7 @@ import com.asinosoft.photogallery.data.MediaDao
 import com.asinosoft.photogallery.data.MediaService
 import com.asinosoft.photogallery.data.launchAndCatch
 import com.asinosoft.photogallery.data.storage.MediaStatistics
-import com.asinosoft.photogallery.data.storage.StorageDao
 import com.asinosoft.photogallery.data.storage.StorageProviderRegistry
-import com.asinosoft.photogallery.data.storage.StorageService
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
@@ -27,7 +25,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
@@ -77,8 +74,6 @@ class ImageListViewModel @Inject constructor(
     applicationDao: ApplicationDao,
     storageProviderRegistry: StorageProviderRegistry,
     private val mediaService: MediaService,
-    private val storageDao: StorageDao,
-    private val storageService: StorageService,
     private val analytics: AppAnalytics,
     @param:ApplicationContext private val context: Context
 ) : MediaViewModel(storageProviderRegistry) {
@@ -118,8 +113,6 @@ class ImageListViewModel @Inject constructor(
         started = SharingStarted.Lazily,
         initialValue = emptyList()
     )
-
-    val isFetching = storageService.isFetching
 
     private val allImages: StateFlow<List<Media>> = (
             if (favoritesOnly) {
@@ -406,14 +399,6 @@ class ImageListViewModel @Inject constructor(
                 }
             }
         )
-    }
-
-    fun fetch() = viewModelScope.launchAndCatch {
-        val storages = storageDao.getAccounts().first()
-        storages.forEach {
-            storageService.fetch(it)
-        }
-        if (storages.isNotEmpty()) analytics.scanCompleted()
     }
 
     fun clearSelection() {

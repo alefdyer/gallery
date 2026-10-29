@@ -8,3 +8,6 @@
 .externalNativeBuild
 .cxx
 local.properties
+
+# Локальные дампы/тесты — не в репозиторий
+/store/
