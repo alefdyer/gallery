@@ -108,6 +108,7 @@ import com.asinosoft.photogallery.ui.component.ScrollToTopButton
 import com.asinosoft.photogallery.ui.component.SelectionControlBar
 import com.asinosoft.photogallery.ui.component.SelectionInfoBar
 import com.asinosoft.photogallery.ui.component.ThumbnailPlaceholderTile
+import com.asinosoft.photogallery.ui.component.TIP_ALBUM_SWIPE
 import com.asinosoft.photogallery.ui.component.TIP_DAY_SWIPE
 import com.asinosoft.photogallery.ui.component.TIP_PHOTO_APPS_FILTER
 import com.asinosoft.photogallery.ui.component.TIP_PHOTO_COUNTERS
@@ -329,6 +330,15 @@ fun ImageListView(
     val currentNextAlbum by rememberUpdatedState(nextAlbum)
     val currentOnSwitchAlbum by rememberUpdatedState(onSwitchAlbum)
     val albumSwipeEnabled = null == dateFilter && (null != previousAlbum || null != nextAlbum)
+    // Открытый альбом в категории: подсказать про свайп на соседний.
+    val albumSwipeTip = rememberFeatureTip(
+        key = TIP_ALBUM_SWIPE,
+        enabled = showFeatureTips &&
+                albumSwipeEnabled &&
+                selection.isEmpty() &&
+                !daySwipeTip.visible,
+        delayMs = 700L
+    )
     var committingAlbum by remember { mutableStateOf<Album?>(null) }
     val previewAlbum = committingAlbum ?: when {
         null != dateFilter -> null
@@ -611,6 +621,21 @@ fun ImageListView(
             FeatureTipCard(
                 text = stringResource(R.string.tip_day_swipe),
                 onDismiss = daySwipeTip.dismiss,
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(
+                        bottom = maxOf(
+                            contentPadding.calculateBottomPadding(),
+                            bottomPanelHeight
+                        ) + 80.dp
+                    )
+            )
+        }
+
+        if (albumSwipeTip.visible) {
+            FeatureTipCard(
+                text = stringResource(R.string.tip_album_swipe),
+                onDismiss = albumSwipeTip.dismiss,
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .padding(

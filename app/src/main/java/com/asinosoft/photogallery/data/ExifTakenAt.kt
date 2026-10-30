@@ -19,7 +19,7 @@ data class ExifProbe(
  */
 object ExifTakenAt {
     private const val TAG = "ExifTakenAt"
-    private const val HEAD_BYTES = 512 * 1024L
+    private const val HEAD_BYTES = 128 * 1024L
 
     fun fromHttp(
         client: OkHttpClient,

@@ -224,57 +224,65 @@ fun VideoView(
             delay(150.milliseconds)
         }
     }
-    // Remote: плеер только на активной странице — соседние в pager иначе держат буферы → OOM.
-    LaunchedEffect(media.id, isActive) {
-        val isLocal = 1L == media.storageId || EXTERNAL_STORAGE_ID == media.storageId
-        if (!isLocal && !isActive) {
+    val isLocalMedia = 1L == media.storageId || EXTERNAL_STORAGE_ID == media.storageId
+
+    // Плеер только на активной странице (и local, и remote): соседние Exo + буферы → OOM 512МБ.
+    DisposableEffect(media.id, isActive) {
+        if (!isActive) {
             player = null
-            return@LaunchedEffect
-        }
-        if (player != null) return@LaunchedEffect
-        if (!isLocal) {
-            // Перед стримом с WebDAV освобождаем Coil — иначе вместе с буфером Exo ловим OOM.
-            SingletonImageLoader.get(context).memoryCache?.clear()
-        }
-        // DefaultDataSource: file:// после «Загрузить» + http через OkHttp для remote.
-        // Чистый OkHttpDataSource на локальный файл даёт Source error.
-        val dataSourceFactory = if (isLocal) {
-            DefaultDataSource.Factory(context)
+            onDispose { }
         } else {
-            DefaultDataSource.Factory(
-                context,
-                OkHttpDataSource.Factory(app.httpClient)
-                    .setDefaultRequestProperties(
-                        mapOf(
-                            StorageAuthProvider.HEADER_STORAGE_ID to media.storageId.toString()
-                        )
-                    ),
-            )
-        }
-        val mediaSourceFactory = DefaultMediaSourceFactory(dataSourceFactory)
-        val loadControl = DefaultLoadControl.Builder()
-            .setBufferDurationsMs(
-                if (isLocal) MIN_BUFFER_MS else REMOTE_MIN_BUFFER_MS,
-                if (isLocal) MAX_BUFFER_MS else REMOTE_MAX_BUFFER_MS,
-                BUFFER_FOR_PLAYBACK_MS,
-                BUFFER_FOR_PLAYBACK_AFTER_REBUFFER_MS
-            )
-            .apply {
-                if (!isLocal) {
-                    // Жёсткий потолок буфера в байтах — не раздуваем кучу на huge remote MKV.
-                    setTargetBufferBytes(REMOTE_TARGET_BUFFER_BYTES)
-                    setPrioritizeTimeOverSizeThresholds(false)
+            if (!isLocalMedia) {
+                SingletonImageLoader.get(context).memoryCache?.clear()
+            }
+            // DefaultDataSource: file:// после «Загрузить» + http через OkHttp для remote.
+            val dataSourceFactory = if (isLocalMedia) {
+                DefaultDataSource.Factory(context)
+            } else {
+                DefaultDataSource.Factory(
+                    context,
+                    OkHttpDataSource.Factory(app.httpClient)
+                        .setDefaultRequestProperties(
+                            mapOf(
+                                StorageAuthProvider.HEADER_STORAGE_ID to media.storageId.toString()
+                            )
+                        ),
+                )
+            }
+            val loadControl = DefaultLoadControl.Builder()
+                .setBufferDurationsMs(
+                    if (isLocalMedia) MIN_BUFFER_MS else REMOTE_MIN_BUFFER_MS,
+                    if (isLocalMedia) MAX_BUFFER_MS else REMOTE_MAX_BUFFER_MS,
+                    BUFFER_FOR_PLAYBACK_MS,
+                    BUFFER_FOR_PLAYBACK_AFTER_REBUFFER_MS
+                )
+                .apply {
+                    if (!isLocalMedia) {
+                        setTargetBufferBytes(REMOTE_TARGET_BUFFER_BYTES)
+                        setPrioritizeTimeOverSizeThresholds(false)
+                    }
+                }
+                .build()
+            val created = ExoPlayer.Builder(context.applicationContext)
+                .setMediaSourceFactory(DefaultMediaSourceFactory(dataSourceFactory))
+                .setLoadControl(loadControl)
+                .build()
+                .apply {
+                    playWhenReady = false
+                    repeatMode = Player.REPEAT_MODE_ONE
+                }
+            player = created
+            onDispose {
+                runCatching { created.playWhenReady = false }
+                runCatching { created.stop() }
+                runCatching { created.clearMediaItems() }
+                runCatching { created.release() }
+                if (player === created) player = null
+                if (!isLocalMedia) {
+                    SingletonImageLoader.get(context).memoryCache?.clear()
                 }
             }
-            .build()
-        player = ExoPlayer.Builder(context.applicationContext)
-            .setMediaSourceFactory(mediaSourceFactory)
-            .setLoadControl(loadControl)
-            .build()
-            .apply {
-                playWhenReady = false
-                repeatMode = Player.REPEAT_MODE_ONE
-            }
+        }
     }
 
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -431,7 +439,7 @@ fun VideoView(
     }
 
     DisposableEffect(player) {
-        val current = player
+        val current = player ?: return@DisposableEffect onDispose { }
         val listener =
             object : Player.Listener {
                 override fun onPlaybackStateChanged(playbackState: Int) {
@@ -498,12 +506,12 @@ fun VideoView(
                     }
                 }
             }
-        current?.addListener(listener)
-        isPlaying = true == current?.isPlaying
-        buffering = Player.STATE_BUFFERING == current?.playbackState
+        current.addListener(listener)
+        isPlaying = current.isPlaying
+        buffering = Player.STATE_BUFFERING == current.playbackState
         onDispose {
-            current?.removeListener(listener)
-            current?.release()
+            current.removeListener(listener)
+            // release — в DisposableEffect(isActive), здесь только listener.
         }
     }
 
@@ -863,10 +871,12 @@ private const val MAX_DISPLAY_DURATION_MS = 12L * 60 * 60 * 1000
 private const val DOUBLE_TAP_SEEK_MS = 5_000L
 private const val SEEK_HINT_MS = 700
 private const val MIN_BUFFER_MS = 2_000
-private const val MAX_BUFFER_MS = 30_000
-private const val REMOTE_MIN_BUFFER_MS = 1_500
-private const val REMOTE_MAX_BUFFER_MS = 6_000
-private const val REMOTE_TARGET_BUFFER_BYTES = 4 * 1024 * 1024
+private const val MAX_BUFFER_MS = 15_000
+private const val REMOTE_MIN_BUFFER_MS = 1_000
+private const val REMOTE_MAX_BUFFER_MS = 3_000
+
+/** Жёсткий потолок: иначе при свайпе WebDAV-видео куча упирается в 512МБ. */
+private const val REMOTE_TARGET_BUFFER_BYTES = 2 * 1024 * 1024
 private const val BUFFER_FOR_PLAYBACK_MS = 250
-private const val BUFFER_FOR_PLAYBACK_AFTER_REBUFFER_MS = 1_000
+private const val BUFFER_FOR_PLAYBACK_AFTER_REBUFFER_MS = 750
 private val SEEK_THUMB_RADIUS = 9.dp

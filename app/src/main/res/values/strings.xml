@@ -212,4 +212,5 @@
     <string name="tip_album_category">Long-press a category to reorder it or open the menu</string>
     <string name="tip_album_drag">Drag albums into another category or onto New category</string>
     <string name="tip_day_swipe">Swipe left or right to switch between days</string>
+    <string name="tip_album_swipe">Swipe left or right to switch to a neighboring album in this category</string>
 </resources>

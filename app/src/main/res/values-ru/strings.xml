@@ -211,4 +211,5 @@
     <string name="tip_album_category">Долгое нажатие на категорию — перетаскивание или меню</string>
     <string name="tip_album_drag">Перетаскивайте альбомы в другие категории или на «Новая категория»</string>
     <string name="tip_day_swipe">Листайте влево или вправо, чтобы переключаться между днями</string>
+    <string name="tip_album_swipe">Листайте влево или вправо, чтобы перейти к соседнему альбому в этой категории</string>
 </resources>

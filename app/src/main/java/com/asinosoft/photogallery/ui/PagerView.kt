@@ -260,6 +260,8 @@ fun PagerView(
             HorizontalPager(
                 state = pagerState,
                 pageSpacing = 16.dp,
+                // Не держим соседние VideoView/Exo — на WebDAV это OOM.
+                beyondViewportPageCount = 0,
                 key = { items.getOrNull(it)?.id ?: -1 },
                 modifier =
                     Modifier

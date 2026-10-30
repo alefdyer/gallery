@@ -48,6 +48,7 @@ fun AlbumView(
             previousAlbum = siblings.getOrNull(index - 1).takeIf { index >= 0 },
             nextAlbum = siblings.getOrNull(index + 1).takeIf { index >= 0 },
             onSwitchAlbum = onSwitchAlbum,
+            showFeatureTips = true,
             model = model
         )
     }
