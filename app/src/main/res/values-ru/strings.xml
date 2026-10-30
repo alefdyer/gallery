@@ -6,6 +6,7 @@
     <string name="photos">Все</string>
     <string name="albums">Альбомы</string>
     <string name="storages">Хранилища</string>
+    <string name="storage">Хранилище</string>
     <string name="network">Сеть</string>
     <string name="network_section">Подключения</string>
     <string name="gallery_tab">Галерея</string>
@@ -65,6 +66,9 @@
     <string name="privacy_policy_url">https://asinosoft.ru/gallery_privacy_policy.html</string>
     <string name="share_app_text">Попробуйте Gallery: https://play.google.com/store/apps/details?id=com.asinosoft.gallery</string>
     <string name="share">Поделиться</string>
+    <string name="video_loading">Загрузка видео…</string>
+    <string name="video_download">Загрузить</string>
+    <string name="video_downloading">Скачивание видео…</string>
     <string name="share_preparing">Подготовка к отправке…</string>
     <string name="share_converting">Конвертация видео для мессенджеров…</string>
     <string name="share_failed">Не удалось подготовить файл для отправки</string>

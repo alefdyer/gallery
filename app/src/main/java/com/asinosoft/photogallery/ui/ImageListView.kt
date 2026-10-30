@@ -253,6 +253,7 @@ fun ImageListView(
 
     val album by model.album.collectAsState()
     val albumCategory by model.albumCategory.collectAsState()
+    val albumCategorySubtitle by model.albumCategorySubtitle.collectAsState()
     val listTitle = album?.name
         ?: stringResource(if (model.favoritesOnly) R.string.favorites else R.string.all_photos)
     val title = dateFilter?.let { dateFilterTitle(it) } ?: listTitle
@@ -502,7 +503,7 @@ fun ImageListView(
                 images = if (target.id == previousAlbum?.id) previousAlbumImages else nextAlbumImages,
                 title = target.name,
                 // Соседние альбомы — из той же категории, что и текущий.
-                subtitle = albumCategory?.let { it.name() },
+                subtitle = albumCategorySubtitle,
                 showPhotos = true,
                 showVideos = true,
                 columns = gridColumns,
@@ -583,7 +584,7 @@ fun ImageListView(
                 photosEnabled = showPhotos,
                 videosEnabled = showVideos,
                 sizeBytes = totalSize,
-                subtitle = albumCategory?.let { it.name() },
+                subtitle = albumCategorySubtitle,
                 onPhotosClick = {
                     scrollToTopOnUpdate.pending = true
                     model.togglePhotos()

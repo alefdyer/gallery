@@ -1,16 +1,19 @@
 package com.asinosoft.photogallery.data.storage.gdrive
 
+import android.content.Context
 import android.net.Uri
 import android.util.Log
 import androidx.core.net.toUri
 import com.asinosoft.photogallery.data.Image
 import com.asinosoft.photogallery.data.Media
+import com.asinosoft.photogallery.data.ThumbnailCache
 import com.asinosoft.photogallery.data.Video
 import com.asinosoft.photogallery.data.bestVideoDurationMs
 import com.asinosoft.photogallery.data.storage.Storage
 import com.asinosoft.photogallery.data.storage.StorageCheckResult
 import com.asinosoft.photogallery.data.storage.StorageProvider
 import com.google.gson.Gson
+import java.io.File
 import java.net.ConnectException
 import java.net.SocketTimeoutException
 import java.net.UnknownHostException
@@ -23,7 +26,10 @@ import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
 
-class GoogleDriveStorageProvider(override val storage: Storage) : StorageProvider {
+class GoogleDriveStorageProvider(
+    override val storage: Storage,
+    private val context: Context,
+) : StorageProvider {
     private val client = OkHttpClient()
     private val gson = Gson()
 
@@ -132,8 +138,72 @@ class GoogleDriveStorageProvider(override val storage: Storage) : StorageProvide
         // acknowledgeAbuse — иначе часть файлов, помеченных Drive как risky, отдаёт 403.
         "$DRIVE_FILES/${media.storageItemId}?alt=media&acknowledgeAbuse=true".toUri()
 
-    override suspend fun getThumbnailUri(media: Media): Uri =
-        media.thumbnail ?: getMediaUri(media)
+    /**
+     * thumbnailLink в Drive живёт часы — в БД он быстро протухает.
+     * Как у Dropbox: качаем свежую превью в [ThumbnailCache], не отдаём полный alt=media.
+     */
+    override suspend fun getThumbnailUri(media: Media): Uri = withContext(Dispatchers.IO) {
+        if (media.id > 0) {
+            val cached = ThumbnailCache.getFile(context, media.id)
+            if (cached.exists() && cached.length() > 0) return@withContext cached.toUri()
+            if (downloadThumbnail(media, cached)) {
+                return@withContext cached.toUri()
+            }
+        }
+        "gdrive-thumb-missing://".toUri()
+    }
+
+    private fun downloadThumbnail(media: Media, target: File): Boolean {
+        val token = storage.password ?: return false
+        val link = fetchThumbnailLink(token, media.storageItemId)
+            ?: media.thumbnail?.toString()
+            ?: return false
+        val url = bumpThumbnailSize(link)
+        val request = Request.Builder()
+            .url(url)
+            .header("Authorization", "Bearer $token")
+            .get()
+            .build()
+        return try {
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) {
+                    Log.w(TAG, "Thumb download HTTP ${response.code} ${media.filename}")
+                    return false
+                }
+                val bytes = response.body?.bytes() ?: return false
+                if (bytes.isEmpty()) return false
+                target.parentFile?.mkdirs()
+                target.writeBytes(bytes)
+                true
+            }
+        } catch (ex: Throwable) {
+            Log.w(TAG, "Thumb download failed ${media.filename}", ex)
+            false
+        }
+    }
+
+    private fun fetchThumbnailLink(token: String, fileId: String): String? {
+        val request = Request.Builder()
+            .url("$DRIVE_FILES/$fileId?fields=thumbnailLink")
+            .header("Authorization", "Bearer $token")
+            .get()
+            .build()
+        return try {
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) return null
+                response.body?.use {
+                    gson.fromJson(it.string(), DriveFile::class.java)?.thumbnailLink
+                }
+            }
+        } catch (ex: Throwable) {
+            Log.w(TAG, "thumbnailLink fetch failed $fileId", ex)
+            null
+        }
+    }
+
+    /** Drive отдаёт =s220; для сетки чуть крупнее. */
+    private fun bumpThumbnailSize(link: String): String =
+        THUMB_SIZE_REGEX.replace(link, "=s400")
 
     private fun fetchRootId(token: String): String? {
         val request = Request.Builder()
@@ -229,6 +299,7 @@ class GoogleDriveStorageProvider(override val storage: Storage) : StorageProvide
     companion object {
         private const val TAG = "gdrive"
         private const val LIST_PAGE_SIZE = 1000
+        private val THUMB_SIZE_REGEX = Regex("=s\\d+")
         const val DRIVE_READONLY_SCOPE = "https://www.googleapis.com/auth/drive.readonly"
         const val DRIVE_FILES = "https://www.googleapis.com/drive/v3/files"
         const val USERINFO = "https://www.googleapis.com/oauth2/v2/userinfo"

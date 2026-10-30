@@ -13,9 +13,13 @@ import com.asinosoft.photogallery.data.ApplicationDao
 import com.asinosoft.photogallery.data.Filter
 import com.asinosoft.photogallery.data.Media
 import com.asinosoft.photogallery.data.MediaDao
+import com.asinosoft.photogallery.R
 import com.asinosoft.photogallery.data.MediaService
+import com.asinosoft.photogallery.data.RemoteVideoThumbQueue
 import com.asinosoft.photogallery.data.launchAndCatch
+import com.asinosoft.photogallery.data.storageIdOrNull
 import com.asinosoft.photogallery.data.storage.MediaStatistics
+import com.asinosoft.photogallery.data.storage.StorageDao
 import com.asinosoft.photogallery.data.storage.StorageProviderRegistry
 import com.asinosoft.photogallery.data.storage.StorageService
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -73,12 +77,14 @@ class ImageListViewModel @Inject constructor(
     private val albumDao: AlbumDao,
     mediaDao: MediaDao,
     applicationDao: ApplicationDao,
+    private val storageDao: StorageDao,
     storageProviderRegistry: StorageProviderRegistry,
     storageService: StorageService,
+    remoteVideoThumbQueue: RemoteVideoThumbQueue,
     private val mediaService: MediaService,
     private val analytics: AppAnalytics,
     @param:ApplicationContext private val context: Context
-) : MediaViewModel(storageProviderRegistry, storageService, mediaDao) {
+) : MediaViewModel(storageProviderRegistry, storageService, mediaDao, remoteVideoThumbQueue) {
     val storageId: Long = state["storageId"] ?: 1
 
     val albumId: Long? = state["albumId"]
@@ -89,6 +95,9 @@ class ImageListViewModel @Inject constructor(
 
     val album = MutableStateFlow<Album?>(null)
     val albumCategory = MutableStateFlow<AlbumCategory?>(null)
+
+    /** Подпись категории в шапке: «Google Drive» / email, не сырой :storage:id. */
+    val albumCategorySubtitle = MutableStateFlow<String?>(null)
 
     // Соседние альбомы для листания свайпом: только своя категория и с первой
     // композиции экрана, а не после перехода навигации и загрузки всех категорий —
@@ -212,6 +221,9 @@ class ImageListViewModel @Inject constructor(
                 // Категорию ставим первой: в UI она появится одним кадром с названием альбома,
                 // а не вторым запросом после него.
                 albumCategory.emit(category)
+                albumCategorySubtitle.emit(
+                    category?.let { resolveCategorySubtitle(it) }
+                )
                 album.emit(value)
             }
 
@@ -475,5 +487,20 @@ class ImageListViewModel @Inject constructor(
     fun removeSelectionFromAlbum(albumId: Long) = viewModelScope.launchAndCatch {
         mediaService.removeFromAlbum(selection.value, albumId)
         clearSelection()
+    }
+
+    private suspend fun resolveCategorySubtitle(category: AlbumCategory): String {
+        val storageId = category.storageIdOrNull()
+        if (storageId != null) {
+            val storage = runCatching { storageDao.getStorageById(storageId) }.getOrNull()
+            if (storage != null) return storage.categoryTitle(context)
+            return context.getString(R.string.storage)
+        }
+        return when (category.name) {
+            ":other" -> context.getString(R.string.other)
+            AlbumCategory.MESSENGERS_NAME -> context.getString(R.string.messengers)
+            AlbumCategory.WEBDAV_NAME -> context.getString(R.string.storage_type_webdav)
+            else -> category.name
+        }
     }
 }

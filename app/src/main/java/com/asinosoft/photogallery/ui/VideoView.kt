@@ -21,7 +21,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -30,6 +29,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableLongStateOf
@@ -39,6 +39,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -49,7 +50,6 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -77,10 +77,13 @@ import com.asinosoft.photogallery.GalleryApp
 import com.asinosoft.photogallery.R
 import android.graphics.Bitmap
 import android.media.MediaMetadataRetriever
+import android.net.Uri
 import android.os.Build
 import android.util.Log
+import androidx.core.net.toUri
 import com.asinosoft.photogallery.data.EXTERNAL_STORAGE_ID
 import com.asinosoft.photogallery.data.Media
+import com.asinosoft.photogallery.data.ShareUi
 import com.asinosoft.photogallery.data.ThumbnailCache
 import com.asinosoft.photogallery.data.storage.StorageAuthProvider
 import com.asinosoft.photogallery.model.MediaViewModel
@@ -92,6 +95,7 @@ import kotlinx.coroutines.withContext
 import kotlin.math.roundToInt
 import kotlin.time.Duration.Companion.milliseconds
 import com.asinosoft.photogallery.ui.component.LocalDismissDrag
+import com.asinosoft.photogallery.ui.component.StatusBanner
 import com.asinosoft.photogallery.ui.component.ZoomableMediaBox
 import com.asinosoft.photogallery.ui.component.dismissDragTransform
 import com.asinosoft.photogallery.ui.component.isOpeningTransition
@@ -133,11 +137,32 @@ fun VideoView(
     var isPlaying by remember { mutableStateOf(false) }
     var buffering by remember(media.id) { mutableStateOf(false) }
     var showProgress by remember(media.id) { mutableStateOf(false) }
-    LaunchedEffect(buffering) {
-        showProgress = false
+    var loadProgress by remember(media.id) { mutableStateOf<Float?>(null) }
+    var downloading by remember(media.id) { mutableStateOf(false) }
+    var localPlaybackUri by remember(media.id) { mutableStateOf<Uri?>(null) }
+
+    /** После «Загрузить» — сразу play, не ждём opening/гонок paused. */
+    var startAfterDownload by remember(media.id) { mutableStateOf(false) }
+    val isRemoteMedia = LOCAL_PHONE_STORAGE_ID != media.storageId &&
+            EXTERNAL_STORAGE_ID != media.storageId
+    LaunchedEffect(media.id) {
+        if (!isRemoteMedia) return@LaunchedEffect
+        model.cachedVideoFile(app, media)?.let { localPlaybackUri = it.toUri() }
+    }
+    LaunchedEffect(buffering, downloading) {
+        if (downloading) {
+            showProgress = true
+            return@LaunchedEffect
+        }
         if (buffering) {
             delay(PROGRESS_DELAY_MS.milliseconds)
-            showProgress = true
+            if (buffering && !downloading) {
+                showProgress = true
+                if (loadProgress == null) loadProgress = 0f
+            }
+        } else {
+            showProgress = false
+            loadProgress = null
         }
     }
     var position by remember { mutableLongStateOf(0L) }
@@ -172,21 +197,59 @@ fun VideoView(
      * PlayerView и смена aspectRatio — только после неё, чтобы не дёргать shared element.
      */
     var player by remember(media.id) { mutableStateOf<ExoPlayer?>(null) }
-    LaunchedEffect(media.id) {
+    LaunchedEffect(player, showProgress, media.id) {
+        val current = player
+        if (!showProgress || current == null) {
+            return@LaunchedEffect
+        }
+        if (loadProgress == null) loadProgress = 0f
+        while (true) {
+            val pct = current.bufferedPercentage
+            val dur = current.duration
+            val buffered = current.bufferedPosition
+            val fromBuffer = if (dur > 0L && buffered >= 0L) {
+                (buffered.toFloat() / dur.toFloat()).coerceIn(0f, 1f)
+            } else {
+                null
+            }
+            val fromPct = when {
+                pct in 0..100 -> pct / 100f
+                else -> null
+            }
+            val next = listOfNotNull(fromBuffer, fromPct).maxOrNull()
+                ?.takeIf { it.isFinite() }
+            if (next != null && next >= (loadProgress ?: 0f)) {
+                loadProgress = next
+            }
+            delay(150.milliseconds)
+        }
+    }
+    // Remote: плеер только на активной странице — соседние в pager иначе держат буферы → OOM.
+    LaunchedEffect(media.id, isActive) {
         val isLocal = 1L == media.storageId || EXTERNAL_STORAGE_ID == media.storageId
+        if (!isLocal && !isActive) {
+            player = null
+            return@LaunchedEffect
+        }
+        if (player != null) return@LaunchedEffect
         if (!isLocal) {
             // Перед стримом с WebDAV освобождаем Coil — иначе вместе с буфером Exo ловим OOM.
             SingletonImageLoader.get(context).memoryCache?.clear()
         }
+        // DefaultDataSource: file:// после «Загрузить» + http через OkHttp для remote.
+        // Чистый OkHttpDataSource на локальный файл даёт Source error.
         val dataSourceFactory = if (isLocal) {
             DefaultDataSource.Factory(context)
         } else {
-            OkHttpDataSource.Factory(app.httpClient)
-                .setDefaultRequestProperties(
-                    mapOf(
-                        StorageAuthProvider.HEADER_STORAGE_ID to media.storageId.toString()
-                    )
-                )
+            DefaultDataSource.Factory(
+                context,
+                OkHttpDataSource.Factory(app.httpClient)
+                    .setDefaultRequestProperties(
+                        mapOf(
+                            StorageAuthProvider.HEADER_STORAGE_ID to media.storageId.toString()
+                        )
+                    ),
+            )
         }
         val mediaSourceFactory = DefaultMediaSourceFactory(dataSourceFactory)
         val loadControl = DefaultLoadControl.Builder()
@@ -234,47 +297,132 @@ fun VideoView(
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
-    LaunchedEffect(player, isActive, resumed, paused, opening) {
-        player?.playWhenReady = isActive && resumed && !paused && !opening
+    val shareBusy by ShareUi.status.collectAsState()
+    LaunchedEffect(
+        player,
+        isActive,
+        resumed,
+        paused,
+        opening,
+        shareBusy,
+        downloading,
+        startAfterDownload
+    ) {
+        // Во время share / полной закачки не играем.
+        // startAfterDownload: после «Загрузить» игнорируем opening.
+        val ready = isActive && resumed && !paused &&
+                shareBusy == null && !downloading &&
+                (startAfterDownload || !opening)
+        player?.playWhenReady = ready
     }
 
     LaunchedEffect(player, muted) {
         player?.volume = if (muted) 0f else 1f
     }
 
-    LaunchedEffect(player, media.id) {
+    LaunchedEffect(downloading, media.id) {
+        if (!downloading) return@LaunchedEffect
+        val current = player
+        startAfterDownload = false
+        paused = true
+        current?.playWhenReady = false
+        runCatching { current?.stop() }
+        playbackError = null
+        loadProgress = 0f
+        showProgress = true
+        try {
+            val file = model.downloadFullVideo(app, media) { p -> loadProgress = p }
+            Log.i(
+                TAG,
+                "Full download ok media=${media.id} path=${file.absolutePath} size=${file.length()}"
+            )
+            // Сначала снимаем downloading — иначе prepare-эффект выходит early и не перезапускается.
+            loadProgress = 1f
+            showProgress = false
+            paused = false
+            startAfterDownload = true
+            downloading = false
+            localPlaybackUri = file.toUri()
+        } catch (ex: CancellationException) {
+            downloading = false
+            startAfterDownload = false
+            throw ex
+        } catch (ex: Throwable) {
+            Log.w(TAG, "Full download failed media=${media.id}", ex)
+            playbackError = ex.message ?: "download error"
+            downloading = false
+            startAfterDownload = false
+            showProgress = false
+        }
+    }
+
+    LaunchedEffect(player, media.id, localPlaybackUri, downloading, startAfterDownload) {
         val current = player ?: return@LaunchedEffect
+        if (downloading) return@LaunchedEffect
         playbackError = null
         firstFrameRendered = false
         try {
-            val uri = model.getMediaUri(media)
+            val local = localPlaybackUri
+            val uri = if (local != null) {
+                local
+            } else {
+                model.getMediaUri(media)
+            }
+            Log.i(
+                TAG,
+                "Exo setMedia media=${media.id} uri=$uri local=${local != null} auto=$startAfterDownload"
+            )
             // mime не навязываем: для .MPG/Drive sniff надёжнее, чем video/mpeg.
             current.setMediaItem(MediaItem.fromUri(uri))
             current.prepare()
+            if (startAfterDownload && isActive) {
+                current.playWhenReady = true
+                current.play()
+                Log.i(TAG, "Exo play after download media=${media.id}")
+            }
         } catch (ex: CancellationException) {
             // Свайп/уход с экрана — не ошибка воспроизведения.
             throw ex
         } catch (ex: Throwable) {
             Log.w(TAG, "Can't open video ${media.id}", ex)
             playbackError = ex.message ?: "playback error"
+            startAfterDownload = false
+        }
+    }
+
+    LaunchedEffect(firstFrameRendered, startAfterDownload) {
+        if (firstFrameRendered && startAfterDownload) {
+            startAfterDownload = false
         }
     }
 
     LaunchedEffect(player) {
         val current = player ?: return@LaunchedEffect
+        var savedDuration = false
         while (true) {
             position = current.currentPosition.coerceAtLeast(0L)
             // Exo на MPEG-PS иногда отдаёт мусорную «огромную» duration — режем.
-            duration = saneDurationMs(current.duration)
+            val next = saneDurationMs(current.duration)
                 ?: saneDurationMs(metadataDuration)
-                        ?: 0L
+                ?: 0L
+            duration = next
+            if (!savedDuration && next > 0L &&
+                (media.video?.duration ?: 0L) <= 0L
+            ) {
+                savedDuration = true
+                model.saveVideoDuration(media.id, next)
+            }
             delay(200.milliseconds)
         }
     }
 
-    // Старые контейнеры часто «висят» без кадра — уходим в LibVLC/FFmpeg.
+    // Старые локальные контейнеры часто «висят» без кадра — уходим в LibVLC/FFmpeg.
+    // Remote (WebDAV и т.п.): 4с буфера на сотнях МБ нормальны; LibVLC иначе качает файл целиком.
     LaunchedEffect(player, media.id, firstFrameRendered, playbackError) {
         if (player == null || firstFrameRendered || playbackError != null) return@LaunchedEffect
+        val isRemote = LOCAL_PHONE_STORAGE_ID != media.storageId &&
+                EXTERNAL_STORAGE_ID != media.storageId
+        if (isRemote) return@LaunchedEffect
         delay(PLAYBACK_STALL_MS.milliseconds)
         if (!firstFrameRendered && playbackError == null) {
             Log.i(TAG, "Exo stall → LibVLC media=${media.id} file=${media.filename}")
@@ -304,7 +452,7 @@ fun VideoView(
                     val supported = videoGroups.any { group ->
                         (0 until group.length).any { group.isTrackSupported(it) }
                     }
-                    if (!supported) {
+                    if (!supported && !isHardwareFriendlyContainer(media.filename)) {
                         Log.i(TAG, "Exo unsupported tracks → LibVLC media=${media.id}")
                         forceSoftware = true
                     }
@@ -319,8 +467,15 @@ fun VideoView(
                         PlaybackException.ERROR_CODE_PARSING_CONTAINER_UNSUPPORTED,
                         PlaybackException.ERROR_CODE_PARSING_CONTAINER_MALFORMED,
                             -> {
-                            Log.i(TAG, "Exo decode/container error → LibVLC media=${media.id}")
-                            forceSoftware = true
+                            // .mp4 с WebDAV не гоняем в LibVLC: там лишний download и ложные size.
+                            if (isHardwareFriendlyContainer(media.filename)) {
+                                playbackError = error.message?.takeIf { it.isNotBlank() }
+                                    ?: "Error ${error.errorCode}"
+                                buffering = false
+                            } else {
+                                Log.i(TAG, "Exo decode/container error → LibVLC media=${media.id}")
+                                forceSoftware = true
+                            }
                         }
 
                         else -> {
@@ -407,12 +562,29 @@ fun VideoView(
             }
         }
 
-        if (showProgress && playbackError == null) {
-            CircularProgressIndicator(
-                color = Color.White,
-                modifier = Modifier.align(Alignment.Center)
-            )
+        val loadingBanner = when {
+            shareBusy != null -> null
+            downloading -> stringResource(R.string.video_downloading)
+            isRemoteMedia && showProgress && playbackError == null ->
+                stringResource(R.string.video_loading)
+
+            else -> null
         }
+        StatusBanner(
+            text = loadingBanner,
+            progress = loadProgress.takeIf { isRemoteMedia || downloading },
+            dark = true,
+            actionLabel = stringResource(R.string.video_download).takeIf {
+                isRemoteMedia &&
+                        !downloading &&
+                        localPlaybackUri == null &&
+                        loadingBanner != null &&
+                        shareBusy == null
+            },
+            onAction = { downloading = true }.takeIf {
+                isRemoteMedia && !downloading && localPlaybackUri == null
+            },
+        )
 
         playbackError?.let { message ->
             Text(
@@ -693,8 +865,8 @@ private const val SEEK_HINT_MS = 700
 private const val MIN_BUFFER_MS = 2_000
 private const val MAX_BUFFER_MS = 30_000
 private const val REMOTE_MIN_BUFFER_MS = 1_500
-private const val REMOTE_MAX_BUFFER_MS = 8_000
-private const val REMOTE_TARGET_BUFFER_BYTES = 8 * 1024 * 1024
+private const val REMOTE_MAX_BUFFER_MS = 6_000
+private const val REMOTE_TARGET_BUFFER_BYTES = 4 * 1024 * 1024
 private const val BUFFER_FOR_PLAYBACK_MS = 250
 private const val BUFFER_FOR_PLAYBACK_AFTER_REBUFFER_MS = 1_000
 private val SEEK_THUMB_RADIUS = 9.dp

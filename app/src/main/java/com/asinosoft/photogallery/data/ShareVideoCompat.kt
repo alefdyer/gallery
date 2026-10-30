@@ -1,21 +1,13 @@
 package com.asinosoft.photogallery.data
 
 import android.content.Context
-import android.media.MediaExtractor
-import android.media.MediaFormat
-import android.net.Uri
 import android.util.Log
-import androidx.media3.common.MediaItem
-import androidx.media3.common.MimeTypes
-import androidx.media3.transformer.Composition
-import androidx.media3.transformer.EditedMediaItem
-import androidx.media3.transformer.ExportException
-import androidx.media3.transformer.ExportResult
-import androidx.media3.transformer.Transformer
+import com.asinosoft.photogallery.R
 import java.io.File
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.coroutines.resume
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import org.videolan.libvlc.LibVLC
@@ -23,11 +15,10 @@ import org.videolan.libvlc.Media
 import org.videolan.libvlc.MediaPlayer
 
 /**
- * Мессенджеры (Telegram/WhatsApp) часто показывают чёрный экран + звук
- * на HEVC/MPEG — им нужен H.264 + AAC в MP4.
+ * Конвертация только для контейнеров, которые мессенджеры реально не принимают
+ * (.MPG/.AVI/…). HEVC/H.264 с телефона — как есть (раньше так и шарилось).
  *
- * HEVC и др. с MediaCodec → Media3 Transformer.
- * MPEG/.MPG/.AVI без MediaCodec → LibVLC (FFmpeg) transcode.
+ * Legacy → LibVLC (FFmpeg) в H.264 MP4.
  */
 object ShareVideoCompat {
     private const val TAG = "ShareVideoCompat"
@@ -42,46 +33,27 @@ object ShareVideoCompat {
                 name.endsWith(".wmv") ||
                 name.endsWith(".asf") ||
                 name.endsWith(".flv") ||
-                name.endsWith(".divx")
+                name.endsWith(".divx") ||
+                name.endsWith(".3gp") ||
+                name.endsWith(".3gpp")
     }
 
     fun needsTranscodeForMessenger(file: File): Boolean {
         if (!file.exists() || file.length() <= 0L) return false
-        if (isLegacySoftwareContainer(file.name)) return true
-        val extractor = MediaExtractor()
-        return try {
-            extractor.setDataSource(file.absolutePath)
-            var hasVideo = false
-            var h264 = false
-            for (i in 0 until extractor.trackCount) {
-                val mime = extractor.getTrackFormat(i)
-                    .getString(MediaFormat.KEY_MIME)
-                    ?.lowercase()
-                    ?: continue
-                if (!mime.startsWith("video/")) continue
-                hasVideo = true
-                if (mime == MimeTypes.VIDEO_H264 || mime == "video/avc") {
-                    h264 = true
-                }
-            }
-            hasVideo && !h264
-        } catch (ex: Throwable) {
-            Log.w(TAG, "probe failed ${file.name}", ex)
-            val name = file.name.lowercase()
-            name.endsWith(".mov") || name.endsWith(".mkv")
-        } finally {
-            runCatching { extractor.release() }
-        }
+        return isLegacySoftwareContainer(file.name)
     }
+
+    fun needsTranscodeForMessenger(filename: String): Boolean =
+        isLegacySoftwareContainer(filename)
 
     /**
      * @return файл+MIME для шаринга, или null если конвертация обязательна и не удалась
      * (сырой .MPG в WhatsApp слать нельзя).
+     * Вызывать под [LibVlcCoordinator.withExclusive] (share уже оборачивает).
      */
     suspend fun ensureMessengerCompatible(
         context: Context,
         input: File,
-        onProgressMessage: () -> Unit,
     ): Pair<File, String>? {
         if (!needsTranscodeForMessenger(input)) {
             return input to guessMime(input)
@@ -95,68 +67,16 @@ object ShareVideoCompat {
         ) {
             return out to "video/mp4"
         }
-        onProgressMessage()
+        ShareUi.setStatus(context.getString(R.string.share_converting), progress = 0f)
         out.delete()
-        val legacy = isLegacySoftwareContainer(input.name)
-        val ok = if (legacy) {
-            transcodeWithLibVlc(context, input, out)
-        } else {
-            transcodeWithTransformer(context, input, out)
-        }
+        val ok = transcodeWithLibVlc(context, input, out)
         if (!ok || !out.exists() || out.length() < MIN_OUTPUT_BYTES) {
             out.delete()
-            Log.w(TAG, "transcode failed for ${input.name} legacy=$legacy")
-            if (legacy) return null
-            // HEVC: в крайнем случае отдаём оригинал (иногда WA всё же примет).
-            return input to guessMime(input)
+            Log.w(TAG, "transcode failed for ${input.name}")
+            return null
         }
+        ShareUi.setProgress(1f)
         return out to "video/mp4"
-    }
-
-    private suspend fun transcodeWithTransformer(
-        context: Context,
-        input: File,
-        output: File,
-    ): Boolean = withContext(Dispatchers.Main) {
-        suspendCancellableCoroutine { cont ->
-            val transformer = Transformer.Builder(context.applicationContext)
-                .setVideoMimeType(MimeTypes.VIDEO_H264)
-                .setAudioMimeType(MimeTypes.AUDIO_AAC)
-                .addListener(
-                    object : Transformer.Listener {
-                        override fun onCompleted(
-                            composition: Composition,
-                            exportResult: ExportResult,
-                        ) {
-                            if (cont.isActive) cont.resume(true)
-                        }
-
-                        override fun onError(
-                            composition: Composition,
-                            exportResult: ExportResult,
-                            exportException: ExportException,
-                        ) {
-                            Log.w(TAG, "Transformer error", exportException)
-                            if (cont.isActive) cont.resume(false)
-                        }
-                    },
-                )
-                .build()
-
-            cont.invokeOnCancellation {
-                runCatching { transformer.cancel() }
-            }
-
-            val edited = EditedMediaItem.Builder(
-                MediaItem.fromUri(Uri.fromFile(input)),
-            ).build()
-            runCatching {
-                transformer.start(edited, output.absolutePath)
-            }.onFailure {
-                Log.w(TAG, "Transformer start failed", it)
-                if (cont.isActive) cont.resume(false)
-            }
-        }
     }
 
     /**
@@ -167,8 +87,25 @@ object ShareVideoCompat {
         context: Context,
         input: File,
         output: File,
-    ): Boolean = LibVlcCoordinator.withExclusive {
-        withContext(Dispatchers.Main) {
+    ): Boolean = withContext(Dispatchers.Main) {
+        // Оценка: выход обычно меньше входа; растущий файл → шкала.
+        val inputBytes = input.length().coerceAtLeast(1L)
+        val progressJob = kotlinx.coroutines.CoroutineScope(Dispatchers.IO).launch {
+            var last = -1
+            while (true) {
+                kotlinx.coroutines.delay(250L)
+                val written = output.length().coerceAtLeast(0L)
+                // Транскод часто ~30–70% размера; берём 50% как «полный» ориентир.
+                val pct = ((written * 100L) / (inputBytes / 2).coerceAtLeast(1L))
+                    .toInt()
+                    .coerceIn(0, 99)
+                if (pct != last) {
+                    last = pct
+                    ShareUi.setProgress(pct / 100f)
+                }
+            }
+        }
+        try {
             suspendCancellableCoroutine { cont ->
                 val done = AtomicBoolean(false)
                 val options = arrayListOf(
@@ -204,7 +141,6 @@ object ShareVideoCompat {
                             Log.i(TAG, "LibVLC sout EndReached size=${output.length()}")
                             finish(true)
                         }
-
                         MediaPlayer.Event.EncounteredError -> {
                             Log.w(TAG, "LibVLC sout EncounteredError")
                             finish(false)
@@ -235,6 +171,8 @@ object ShareVideoCompat {
                     finish(false)
                 }
             }
+        } finally {
+            progressJob.cancel()
         }
     }
 

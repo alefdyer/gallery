@@ -42,6 +42,7 @@ import com.asinosoft.photogallery.data.bestVideoDurationMs
 import com.asinosoft.photogallery.data.EXTERNAL_STORAGE_ID
 import com.asinosoft.photogallery.data.Media
 import com.asinosoft.photogallery.data.ThumbnailCache
+import com.asinosoft.photogallery.data.storage.StorageType
 import com.asinosoft.photogallery.model.MediaViewModel
 import com.asinosoft.photogallery.ui.theme.FavoriteRed
 import com.asinosoft.photogallery.ui.theme.isDarkColorScheme
@@ -112,6 +113,15 @@ fun MediaThumbnail(
                 LOCAL_STORAGE_ID != media.storageId &&
                 EXTERNAL_STORAGE_ID != media.storageId
         val hasNativeThumb = media.thumbnail != null
+        // Drive thumbnailLink протухает за часы — не даём Coil грузить URL из БД,
+        // только свежая закачка в ThumbnailCache через getThumbnailUri.
+        val useStoredThumb =
+            hasNativeThumb && media.storageType != StorageType.GOOGLE_DRIVE
+        // Видимая remote-клетка без duration/thumb — в фоновую очередь (не блокирует UI).
+        LaunchedEffect(media.id, isRemoteVideo, media.video?.duration, cached) {
+            if (!isRemoteVideo) return@LaunchedEffect
+            model.enqueueRemoteVideoMeta(media, context.applicationContext)
+        }
         // После «Обновить» thumb с локального двойника может появиться, пока клетка на экране.
         LaunchedEffect(media.id, persistentCache, cached, isRemoteVideo) {
             if (!persistentCache || cached || !isRemoteVideo) return@LaunchedEffect
@@ -124,13 +134,13 @@ fun MediaThumbnail(
                 delay(750)
             }
         }
-        val immediateData: Any? = remember(media, cached, hasNativeThumb) {
+        val immediateData: Any? = remember(media, cached, useStoredThumb) {
             when {
                 cached -> cacheFile
                 // Удалённое видео без native preview: не кормим Coil полный http-URL —
                 // VideoFrameDecoder скачивает ролик целиком и ловит OOM.
-                isRemoteVideo && !hasNativeThumb -> null
-                hasNativeThumb -> media.thumbnail
+                isRemoteVideo && !hasNativeThumb && media.storageType != StorageType.GOOGLE_DRIVE -> null
+                useStoredThumb -> media.thumbnail
                 LOCAL_STORAGE_ID == media.storageId || EXTERNAL_STORAGE_ID == media.storageId -> media.uri
                 else -> null
             }
@@ -149,10 +159,12 @@ fun MediaThumbnail(
             val uri = model.getThumbnailUri(media)
             // Remote video: разрешаем только safe URI (file/content/custom fetcher),
             // не полный http(s) файл — иначе VideoFrameDecoder качает ролик целиком.
-            value = if (isRemoteVideo && !hasNativeThumb) {
+            // Drive getThumbnailUri уже кладёт JPEG в ThumbnailCache (file://).
+            value =
+                if (isRemoteVideo && !hasNativeThumb && media.storageType != StorageType.GOOGLE_DRIVE) {
                 uri.takeUnless { it.scheme == "http" || it.scheme == "https" }
             } else {
-                uri
+                    uri.takeUnless { it.scheme == "gdrive-thumb-missing" || it.scheme == "dropbox-thumb-missing" }
             }
         }
         val data = immediateData ?: remoteData

@@ -126,13 +126,18 @@ class WebDavStorageProvider(override val storage: Storage) : StorageProvider {
     override suspend fun getThumbnailUri(media: Media): Uri = media.uri!!
 
     private fun mimeTypeOf(contentType: String?, name: String?): String {
+        val extension = name?.substringAfterLast('.', "")?.lowercase().orEmpty()
+        val fromName = MimeTypeMap.getSingleton().getMimeTypeFromExtension(extension)
+        // Расширение надёжнее: серверы WebDAV часто отдают video/mpeg / application/octet-stream.
+        if (fromName != null &&
+            (fromName.startsWith("image/") || fromName.startsWith("video/"))
+        ) {
+            return fromName
+        }
         if (null != contentType && (contentType.startsWith("image/") || contentType.startsWith("video/"))) {
             return contentType
         }
-        val extension = name?.substringAfterLast('.', "")?.lowercase().orEmpty()
-        return MimeTypeMap.getSingleton().getMimeTypeFromExtension(extension)
-            ?: contentType
-            ?: ""
+        return contentType ?: ""
     }
 
     private fun rootUrl(): String {

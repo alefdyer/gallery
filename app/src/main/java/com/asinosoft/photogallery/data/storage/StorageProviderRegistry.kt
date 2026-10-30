@@ -35,7 +35,7 @@ class StorageProviderRegistry
         StorageType.NEXTCLOUD -> NextCloudStorageProvider(storage)
         StorageType.WEBDAV -> WebDavStorageProvider(storage)
         StorageType.YANDEX -> YandexStorageProvider(storage)
-        StorageType.GOOGLE_DRIVE -> GoogleDriveStorageProvider(storage)
+        StorageType.GOOGLE_DRIVE -> GoogleDriveStorageProvider(storage, context)
         StorageType.ONEDRIVE -> OneDriveStorageProvider(storage)
     }
 }

@@ -6,6 +6,8 @@
     <string name="photos">All</string>
     <string name="albums">Albums</string>
     <string name="storages">Storage</string>
+    <!-- Подпись категории у альбома из облака (не сырой ключ :storage:id). -->
+    <string name="storage">Storage</string>
     <string name="network">Network</string>
     <string name="network_section">Connections</string>
     <string name="gallery_tab">Gallery</string>
@@ -65,6 +67,9 @@
     <string name="privacy_policy_url">https://asinosoft.ru/gallery_privacy_policy.html</string>
     <string name="share_app_text">Try Gallery: https://play.google.com/store/apps/details?id=com.asinosoft.gallery</string>
     <string name="share">Share</string>
+    <string name="video_loading">Loading video…</string>
+    <string name="video_download">Download</string>
+    <string name="video_downloading">Downloading video…</string>
     <string name="share_preparing">Preparing to share…</string>
     <string name="share_converting">Converting video for messengers…</string>
     <string name="share_failed">Couldn\'t prepare file for sharing</string>

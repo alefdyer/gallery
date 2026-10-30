@@ -34,11 +34,13 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.asinosoft.photogallery.data.Album
 import com.asinosoft.photogallery.data.Media
+import com.asinosoft.photogallery.data.ShareUi
 import com.asinosoft.photogallery.data.storage.Storage
 import com.asinosoft.photogallery.model.DateFilter
 import com.asinosoft.photogallery.model.MediaType
 import com.asinosoft.photogallery.model.ImageListViewModel
 import com.asinosoft.photogallery.ui.component.CachingProgressIndicator
+import com.asinosoft.photogallery.ui.component.StatusBanner
 import com.asinosoft.photogallery.ui.component.ViewModeBar
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -171,6 +173,12 @@ fun MainView(
             }
 
             CachingProgressIndicator(paddingValues)
+
+            val shareStatus by ShareUi.status.collectAsState()
+            StatusBanner(
+                text = shareStatus?.message,
+                progress = shareStatus?.progress,
+            )
 
             ViewModeBar(
                 visible = selection.isEmpty(),

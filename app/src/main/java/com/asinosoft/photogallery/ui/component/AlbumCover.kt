@@ -40,6 +40,7 @@ import com.asinosoft.photogallery.data.AlbumWithCover
 import com.asinosoft.photogallery.data.EXTERNAL_STORAGE_ID
 import com.asinosoft.photogallery.data.Media
 import com.asinosoft.photogallery.data.ThumbnailCache
+import com.asinosoft.photogallery.data.storage.StorageType
 import com.asinosoft.photogallery.model.MediaViewModel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
@@ -122,6 +123,8 @@ private fun AlbumThumbnail(
             LOCAL_STORAGE_ID != cover.storageId &&
             EXTERNAL_STORAGE_ID != cover.storageId
     val hasNativeThumb = cover.thumbnail != null
+    val useStoredThumb =
+        hasNativeThumb && cover.storageType != StorageType.GOOGLE_DRIVE
 
     LaunchedEffect(cover.id, cached) {
         if (cached) return@LaunchedEffect
@@ -135,11 +138,11 @@ private fun AlbumThumbnail(
         }
     }
 
-    val immediateData: Any? = remember(cover, cached, hasNativeThumb) {
+    val immediateData: Any? = remember(cover, cached, useStoredThumb) {
         when {
             cached -> cacheFile
-            isRemoteVideo && !hasNativeThumb -> null
-            hasNativeThumb -> cover.thumbnail
+            isRemoteVideo && !hasNativeThumb && cover.storageType != StorageType.GOOGLE_DRIVE -> null
+            useStoredThumb -> cover.thumbnail
             LOCAL_STORAGE_ID == cover.storageId || EXTERNAL_STORAGE_ID == cover.storageId -> cover.uri
             else -> null
         }
@@ -156,10 +159,11 @@ private fun AlbumThumbnail(
             return@produceState
         }
         val uri = model.getThumbnailUri(cover)
-        value = if (isRemoteVideo && !hasNativeThumb) {
+        value =
+            if (isRemoteVideo && !hasNativeThumb && cover.storageType != StorageType.GOOGLE_DRIVE) {
             uri.takeUnless { it.scheme == "http" || it.scheme == "https" }
         } else {
-            uri
+                uri.takeUnless { it.scheme == "gdrive-thumb-missing" || it.scheme == "dropbox-thumb-missing" }
         }
     }
     val data = immediateData ?: remoteData

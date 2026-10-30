@@ -52,6 +52,7 @@ fun AlbumCategory.name(): String =
         name == ":other" -> stringResource(R.string.other)
         name == AlbumCategory.MESSENGERS_NAME -> stringResource(R.string.messengers)
         name == AlbumCategory.WEBDAV_NAME -> stringResource(R.string.storage_type_webdav)
-        isStorageCategory() -> name // подпись хранилища подставляет UI
+        // Не сырой :storage:id — в шапке альбома «Хранилище» / Storage.
+        isStorageCategory() -> stringResource(R.string.storage)
         else -> name
     }

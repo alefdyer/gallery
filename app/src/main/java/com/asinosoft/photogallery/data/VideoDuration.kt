@@ -8,15 +8,40 @@ private const val MAX_DURATION_MS = 12L * 60 * 60 * 1000
  */
 private const val MIN_PLAUSIBLE_BITRATE_BPS = 300_000L
 
+/** 3GP/старые телефоны: часто 40–200 кбит/с — порог 300k их убивал в сетке. */
+private const val MIN_LOW_BITRATE_MOBILE_BPS = 24_000L
+
 /** Типичный MPEG-2 PS с камеры (Handycam и т.п.) — для оценки, если метаданные врут. */
 private const val TYPICAL_MPEG_PS_BITRATE_BPS = 5_000_000L
 
+fun looksLikeLowBitrateMobileVideo(filename: String, mimeType: String): Boolean {
+    val name = filename.lowercase()
+    val mime = mimeType.lowercase()
+    return name.endsWith(".3gp") ||
+            name.endsWith(".3gpp") ||
+            name.endsWith(".3g2") ||
+            name.endsWith(".amr") ||
+            mime == "video/3gpp" ||
+            mime == "video/3gpp2" ||
+            mime.contains("3gp")
+}
+
 /** @return durationMs или null, если значение неправдоподобно. */
-fun plausibleVideoDurationMs(sizeBytes: Long, durationMs: Long): Long? {
+fun plausibleVideoDurationMs(
+    sizeBytes: Long,
+    durationMs: Long,
+    filename: String = "",
+    mimeType: String = "",
+): Long? {
     if (durationMs <= 0L || durationMs > MAX_DURATION_MS) return null
     if (sizeBytes <= 0L) return durationMs
     val bitrateBps = sizeBytes * 8_000L / durationMs
-    return durationMs.takeIf { bitrateBps >= MIN_PLAUSIBLE_BITRATE_BPS }
+    val minBitrate = if (looksLikeLowBitrateMobileVideo(filename, mimeType)) {
+        MIN_LOW_BITRATE_MOBILE_BPS
+    } else {
+        MIN_PLAUSIBLE_BITRATE_BPS
+    }
+    return durationMs.takeIf { bitrateBps >= minBitrate }
 }
 
 fun looksLikeMpegProgramStream(filename: String, mimeType: String): Boolean {
@@ -51,7 +76,7 @@ fun bestVideoDurationMs(
 ): Long {
     var best: Long? = null
     for (value in candidates) {
-        val ok = plausibleVideoDurationMs(sizeBytes, value) ?: continue
+        val ok = plausibleVideoDurationMs(sizeBytes, value, filename, mimeType) ?: continue
         best = best?.let { minOf(it, ok) } ?: ok
     }
     if (best != null) return best

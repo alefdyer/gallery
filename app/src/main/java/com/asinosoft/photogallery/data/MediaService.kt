@@ -106,52 +106,65 @@ class MediaService @Inject constructor(
     suspend fun share(mediaIds: Collection<Long>, context: Context) {
         val media = withContext(Dispatchers.IO) { mediaDao.getByIds(mediaIds) }
         if (media.isEmpty()) return
+        if (ShareUi.isBusy) return
 
-        val needsDownload = media.any { !isLocalShareableUri(it.uri) }
-        if (needsDownload) {
-            MessageBus.emit(context.getString(R.string.share_preparing))
-        }
-
-        val items = media.mapNotNull { item ->
-            runCatching { resolveShareContent(item) }
-                .onFailure { Log.w(TAG, "Share resolve failed media=${item.id}", it) }
-                .getOrNull()
-        }
-        if (items.isEmpty()) {
-            MessageBus.emit(context.getString(R.string.share_failed))
-            return
-        }
-
-        val uris = items.map { it.first }
-        val type = shareMimeType(items.map { it.second })
-        val send =
-            if (1 == uris.size) {
-                Intent(Intent.ACTION_SEND).apply {
-                    this.type = type
-                    putExtra(Intent.EXTRA_STREAM, uris.first())
-                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                    // Явный MIME в ClipData — Telegram/MAX иначе иногда не читают URI.
-                    clipData = ClipData(
-                        "media",
-                        arrayOf(type),
-                        ClipData.Item(uris.first()),
-                    )
+        suspend fun prepareAndShare() {
+            ShareUi.setStatus(context.getString(R.string.share_preparing), progress = 0f)
+            try {
+                val items = media.mapNotNull { item ->
+                    runCatching { resolveShareContent(item) }
+                        .onFailure { Log.w(TAG, "Share resolve failed media=${item.id}", it) }
+                        .getOrNull()
                 }
-            } else {
-                Intent(Intent.ACTION_SEND_MULTIPLE).apply {
-                    this.type = type
-                    putParcelableArrayListExtra(Intent.EXTRA_STREAM, ArrayList(uris))
-                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                    clipData = ClipData(
-                        "media",
-                        arrayOf(type),
-                        ClipData.Item(uris.first()),
-                    ).also { clip ->
-                        uris.drop(1).forEach { clip.addItem(ClipData.Item(it)) }
+                if (items.isEmpty()) {
+                    MessageBus.emit(context.getString(R.string.share_failed))
+                    return
+                }
+
+                val uris = items.map { it.first }
+                val type = shareMimeType(items.map { it.second })
+                val send =
+                    if (1 == uris.size) {
+                        Intent(Intent.ACTION_SEND).apply {
+                            this.type = type
+                            putExtra(Intent.EXTRA_STREAM, uris.first())
+                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                            // Явный MIME в ClipData — Telegram/MAX иначе иногда не читают URI.
+                            clipData = ClipData(
+                                "media",
+                                arrayOf(type),
+                                ClipData.Item(uris.first()),
+                            )
+                        }
+                    } else {
+                        Intent(Intent.ACTION_SEND_MULTIPLE).apply {
+                            this.type = type
+                            putParcelableArrayListExtra(Intent.EXTRA_STREAM, ArrayList(uris))
+                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                            clipData = ClipData(
+                                "media",
+                                arrayOf(type),
+                                ClipData.Item(uris.first()),
+                            ).also { clip ->
+                                uris.drop(1).forEach { clip.addItem(ClipData.Item(it)) }
+                            }
+                        }
                     }
-                }
+                startShareChooser(context, send, uris)
+            } finally {
+                ShareUi.setStatus(null)
             }
-        startShareChooser(context, send, uris)
+        }
+
+        // Exclusive только если реально будет LibVLC-транскод (иначе OOM/crash на getTime).
+        val needsLibVlcExclusive = media.any {
+            it.video != null && ShareVideoCompat.isLegacySoftwareContainer(it.filename)
+        }
+        if (needsLibVlcExclusive) {
+            LibVlcCoordinator.withExclusive { prepareAndShare() }
+        } else {
+            prepareAndShare()
+        }
     }
 
     /**
@@ -233,15 +246,16 @@ class MediaService @Inject constructor(
     /** content/file URI или скачанный/сконвертированный файл + MIME. */
     private suspend fun resolveShareContent(media: Media): Pair<Uri, String>? {
         media.uri?.takeIf { isLocalShareableUri(it) }?.let { localUri ->
-            // Локальный MediaStore — при HEVC тоже конвертим во временный файл.
             if (media.video == null) return localUri to mimeForShare(media)
+            // Камера/HEVC/H.264 — сразу content URI. Конверт только .MPG/.AVI и т.п.
+            if (!ShareVideoCompat.needsTranscodeForMessenger(media.filename)) {
+                return localUri to mimeForShare(media)
+            }
+            SingletonImageLoader.get(context).memoryCache?.clear()
             val copied =
                 copyLocalToShareCache(media, localUri) ?: return localUri to mimeForShare(media)
-            val converted = ShareVideoCompat.ensureMessengerCompatible(context, copied) {
-                MessageBus.emit(context.getString(R.string.share_converting))
-            } ?: run {
-                error(context.getString(R.string.share_convert_failed))
-            }
+            val converted = ShareVideoCompat.ensureMessengerCompatible(context, copied)
+                ?: error(context.getString(R.string.share_convert_failed))
             return fileProviderUri(converted.first) to converted.second
         }
 
@@ -249,14 +263,9 @@ class MediaService @Inject constructor(
         if (media.video == null) {
             return fileProviderUri(file) to mimeForShare(media)
         }
-        val converted = ShareVideoCompat.ensureMessengerCompatible(context, file) {
-            MessageBus.emit(context.getString(R.string.share_converting))
-        }
-        if (converted == null) {
-            error(context.getString(R.string.share_convert_failed))
-        }
-        val (ready, mime) = converted
-        return fileProviderUri(ready) to mime
+        val converted = ShareVideoCompat.ensureMessengerCompatible(context, file)
+            ?: error(context.getString(R.string.share_convert_failed))
+        return fileProviderUri(converted.first) to converted.second
     }
 
     private suspend fun resolveShareFile(media: Media): File? {
@@ -334,8 +343,26 @@ class MediaService @Inject constructor(
             val body = response.body ?: error("Empty body")
             val contentLength = response.header("Content-Length")?.toLongOrNull()
                 ?.takeIf { it > 0 }
+                ?: media.size.takeIf { it > 0 }
             FileOutputStream(tmp).use { output ->
-                body.byteStream().use { input -> input.copyTo(output) }
+                body.byteStream().use { input ->
+                    val buf = ByteArray(64 * 1024)
+                    var read = 0L
+                    var lastPct = -1
+                    while (true) {
+                        val n = input.read(buf)
+                        if (n < 0) break
+                        output.write(buf, 0, n)
+                        read += n
+                        if (contentLength != null && contentLength > 0) {
+                            val pct = ((read * 100L) / contentLength).toInt().coerceIn(0, 100)
+                            if (pct != lastPct) {
+                                lastPct = pct
+                                ShareUi.setProgress(pct / 100f)
+                            }
+                        }
+                    }
+                }
             }
             if (!tmp.exists() || tmp.length() <= 0L) {
                 tmp.delete()
@@ -669,27 +696,31 @@ class MediaService @Inject constructor(
                 if (!isLocal) {
                     // Thumb из локального двойника — и для новых, и для уже известных
                     // (после «Обновить» toInsert пуст, иначе миниатюры так и не появятся).
-                    val knownIds = media.associate { it.storageItemId to it.id }
-                    val newItemIds = toInsert.map { it.storageItemId }.toSet()
+                    val knownByItem = media.associateBy { it.storageItemId }
                     for (item in fetched) {
-                        val realId = knownIds[item.storageItemId]
+                        if (item.video == null) continue
+                        val existing = knownByItem[item.storageItemId]
+                        val realId = existing?.id
                             ?: mediaDao.getMediaId(item.storageId, item.storageItemId)
                             ?: continue
                         if (realId <= 0) continue
 
                         val filled = fillRemoteThumbFromLocalTwin(realId, item)
-                        if (!filled &&
-                            item.storageItemId in newItemIds &&
-                            item.thumbnail == null &&
-                            item.video != null
-                        ) {
+                        val hasThumbFile = ThumbnailCache.getFile(context, realId)
+                            .let { it.exists() && it.length() > 0 }
+                        val needThumb = !filled && !hasThumbFile && item.thumbnail == null
+                        // Новые remote-видео и старые с duration=0 — длительность в фоне.
+                        val needDuration = (existing?.video?.duration ?: 0L) <= 0L
+                        if (needThumb || needDuration) {
                             remoteVideoThumbQueue.enqueue(
                                 RemoteVideoThumbQueue.Job(
                                     mediaId = realId,
                                     storageId = item.storageId,
                                     storageItemId = item.storageItemId,
                                     size = item.size,
-                                    uri = item.uri?.toString()
+                                    uri = item.uri?.toString(),
+                                    needThumb = needThumb,
+                                    needDuration = needDuration,
                                 )
                             )
                         }
@@ -739,11 +770,14 @@ class MediaService @Inject constructor(
             val file = ThumbnailCache.getFile(context, coverId)
             if (file.exists() && file.length() > 0) continue
             val media = covers[coverId] ?: continue
-            val uri = media.thumbnail
-                ?: runCatching { provider.getThumbnailUri(media) }.getOrNull()
+            // Drive/Dropbox getThumbnailUri сами пишут в ThumbnailCache.
+            val uri = runCatching { provider.getThumbnailUri(media) }.getOrNull()
+                ?: media.thumbnail
                 ?: continue
+            if (file.exists() && file.length() > 0) continue
             val scheme = uri.scheme
             val isHttp = scheme == "http" || scheme == "https"
+            if (scheme == "gdrive-thumb-missing" || scheme == "dropbox-thumb-missing") continue
             // Полный remote-видео файл не качаем; native preview / локальный twin — ок.
             if (media.video != null && isHttp && media.thumbnail == null) continue
             ThumbnailCache.preload(

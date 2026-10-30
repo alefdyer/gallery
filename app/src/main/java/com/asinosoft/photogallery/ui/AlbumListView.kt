@@ -45,6 +45,7 @@ import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
@@ -580,9 +581,18 @@ private fun AlbumCategoriesRow(
                 }
             } else {
                 val rowState = rememberLazyListState()
+                // Сбрасываем горизонтальный скролл только если сменился первый альбом
+                // (перестановка/новые данные). Не трогаем при возврате из альбома —
+                // иначе LaunchedEffect снова крутит к 0 и затирает rememberSaveable.
                 val firstAlbumId = category.albums.firstOrNull()?.album?.id
+                var seenFirstAlbumId by rememberSaveable(category.category.id) {
+                    mutableStateOf(firstAlbumId)
+                }
                 LaunchedEffect(firstAlbumId) {
-                    rowState.scrollToItem(0)
+                    if (firstAlbumId != seenFirstAlbumId) {
+                        seenFirstAlbumId = firstAlbumId
+                        rowState.scrollToItem(0)
+                    }
                 }
 
                 LazyRow(

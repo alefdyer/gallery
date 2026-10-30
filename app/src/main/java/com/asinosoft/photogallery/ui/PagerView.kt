@@ -61,6 +61,7 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.asinosoft.photogallery.R
 import com.asinosoft.photogallery.data.Album
 import com.asinosoft.photogallery.data.Media
+import com.asinosoft.photogallery.data.ShareUi
 import com.asinosoft.photogallery.model.PagerViewModel
 import com.asinosoft.photogallery.ui.component.ActiveSharedMedia
 import com.asinosoft.photogallery.ui.component.AddToAlbumDialog
@@ -68,6 +69,7 @@ import com.asinosoft.photogallery.ui.component.Carousel
 import com.asinosoft.photogallery.ui.component.DismissDragState
 import com.asinosoft.photogallery.ui.component.LocalDismissDrag
 import com.asinosoft.photogallery.ui.component.MoveToPrivateDialog
+import com.asinosoft.photogallery.ui.component.StatusBanner
 import com.asinosoft.photogallery.ui.component.dragToDismiss
 import com.asinosoft.photogallery.ui.component.isOpeningTransition
 import com.asinosoft.photogallery.ui.component.rememberAutoplayVideo
@@ -351,6 +353,13 @@ fun PagerView(
         ) {
             actionsBar()
         }
+
+        val shareStatus by ShareUi.status.collectAsState()
+        StatusBanner(
+            text = shareStatus?.message,
+            progress = shareStatus?.progress,
+            dark = true,
+        )
 
         BackHandler(onBack = onClose)
     }

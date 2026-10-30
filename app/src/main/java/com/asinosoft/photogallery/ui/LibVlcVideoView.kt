@@ -12,9 +12,9 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.ui.res.stringResource
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -40,13 +40,17 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.currentStateAsState
 import androidx.compose.runtime.collectAsState
 import com.asinosoft.photogallery.GalleryApp
+import com.asinosoft.photogallery.R
 import com.asinosoft.photogallery.data.LibVlcCoordinator
 import com.asinosoft.photogallery.data.Media
+import com.asinosoft.photogallery.data.ShareUi
 import com.asinosoft.photogallery.data.VlcMediaCache
 import com.asinosoft.photogallery.data.bestVideoDurationMs
 import com.asinosoft.photogallery.data.plausibleVideoDurationMs
+import com.asinosoft.photogallery.data.storage.StorageType
 import com.asinosoft.photogallery.model.MediaViewModel
 import com.asinosoft.photogallery.ui.component.LocalDismissDrag
+import com.asinosoft.photogallery.ui.component.StatusBanner
 import com.asinosoft.photogallery.ui.component.ZoomableMediaBox
 import com.asinosoft.photogallery.ui.component.dismissDragTransform
 import com.asinosoft.photogallery.ui.component.isOpeningTransition
@@ -67,8 +71,8 @@ import org.videolan.libvlc.util.VLCVideoLayout
 
 /**
  * Soft-decode через LibVLC (FFmpeg) для MPEG/.MPG.
- * Remote (Drive): сначала качаем своим OkHttp с Bearer — LibVLC http-headers к Drive
- * часто не проходит, из‑за этого вечный спиннер.
+ * Drive (≤300 МБ): качаем OkHttp с Bearer — LibVLC headers на редиректах Drive часто ломаются.
+ * WebDAV / огромные файлы: стрим с Authorization, без полной закачки.
  */
 @Composable
 fun LibVlcVideoView(
@@ -89,11 +93,31 @@ fun LibVlcVideoView(
     var isPlaying by remember { mutableStateOf(false) }
     var buffering by remember(media.id) { mutableStateOf(true) }
     var showProgress by remember(media.id) { mutableStateOf(false) }
-    LaunchedEffect(buffering) {
-        showProgress = false
+    var loadProgress by remember(media.id) { mutableStateOf<Float?>(null) }
+    var downloading by remember(media.id) { mutableStateOf(false) }
+    var localFilePath by remember(media.id) { mutableStateOf<String?>(null) }
+
+    /** После «Загрузить» — сразу play. */
+    var startAfterDownload by remember(media.id) { mutableStateOf(false) }
+    val isRemoteMedia = media.storageType != StorageType.LOCAL
+    LaunchedEffect(media.id) {
+        if (!isRemoteMedia) return@LaunchedEffect
+        model.cachedVideoFile(app, media)?.let { localFilePath = it.absolutePath }
+    }
+    LaunchedEffect(buffering, downloading) {
+        if (downloading) {
+            showProgress = true
+            return@LaunchedEffect
+        }
         if (buffering) {
             delay(400.milliseconds)
-            showProgress = true
+            if (buffering && !downloading) {
+                showProgress = true
+                if (loadProgress == null) loadProgress = 0f
+            }
+        } else {
+            showProgress = false
+            loadProgress = null
         }
     }
 
@@ -147,20 +171,23 @@ fun LibVlcVideoView(
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
-    // generation/exclusive: при шаринге освобождаем LibVLC и не создаём второй экземпляр.
-    DisposableEffect(media.id, vlcGeneration, vlcExclusive) {
-        if (vlcExclusive) {
+    // generation/exclusive/isActive: соседние страницы и share не держат LibVLC (OOM / getTime).
+    DisposableEffect(media.id, vlcGeneration, vlcExclusive, isActive) {
+        if (vlcExclusive || !isActive) {
             libVlc = null
             vlcPlayer = null
             videoLayout = null
             mediaReady = false
-            LibVlcCoordinator.onPlaybackReleased()
+            if (!vlcExclusive) {
+                // isActive=false: экземпляр уже снят в onDispose предыдущего эффекта
+            }
             onDispose { }
         } else {
             // hw=none: MPEG-2 на телефоне без аппаратного декодера
+            // network-caching умеренный: WebDAV-стрим иначе раздувает кучу.
             val options = arrayListOf(
-                "--network-caching=3000",
-                "--file-caching=1500",
+                "--network-caching=1500",
+                "--file-caching=1000",
                 "--avcodec-hw=none",
                 "--no-audio-time-stretch",
             )
@@ -192,7 +219,11 @@ fun LibVlcVideoView(
 
                     MediaPlayer.Event.Paused, MediaPlayer.Event.Stopped -> isPlaying = false
                     MediaPlayer.Event.Buffering -> {
-                        buffering = event.buffering in 0f..<100f
+                        val pct = event.buffering
+                        buffering = pct in 0f..<100f
+                        if (pct.isFinite() && pct in 0f..100f) {
+                            loadProgress = (pct / 100f).coerceIn(0f, 1f)
+                        }
                     }
 
                     MediaPlayer.Event.EncounteredError -> {
@@ -204,6 +235,7 @@ fun LibVlcVideoView(
 
                     MediaPlayer.Event.EndReached -> {
                         isPlaying = false
+                        if (vlcPlayer != player) return@EventListener
                         val endedAt = runCatching { player.time }.getOrDefault(-1L)
                             .takeIf { it > 0 } ?: position
                         plausibleVideoDurationMs(media.size, endedAt)?.let { real ->
@@ -213,9 +245,11 @@ fun LibVlcVideoView(
                                 Log.i(TAG, "Duration from EndReached: $real ms")
                             }
                         }
-                        runCatching {
-                            player.stop()
-                            player.play()
+                        if (vlcPlayer == player) {
+                            runCatching {
+                                player.stop()
+                                player.play()
+                            }
                         }
                     }
 
@@ -242,34 +276,86 @@ fun LibVlcVideoView(
             player.setEventListener(eventListener)
 
             onDispose {
+                // Сначала обнуляем ref — иначе EventListener/getTime ловят released native.
+                vlcPlayer = null
+                libVlc = null
+                videoLayout = null
+                mediaReady = false
                 player.setEventListener(null)
                 runCatching { player.stop() }
                 runCatching { player.detachViews() }
                 runCatching { player.release() }
                 runCatching { lib.release() }
-                vlcPlayer = null
-                libVlc = null
-                videoLayout = null
-                mediaReady = false
                 LibVlcCoordinator.onPlaybackReleased()
             }
         }
     }
 
+    LaunchedEffect(downloading, media.id) {
+        if (!downloading) return@LaunchedEffect
+        startAfterDownload = false
+        paused = true
+        runCatching { vlcPlayer?.stop() }
+        mediaReady = false
+        playbackError = null
+        loadProgress = 0f
+        showProgress = true
+        try {
+            val file = model.downloadFullVideo(app, media) { p -> loadProgress = p }
+            Log.i(
+                TAG,
+                "Full download ok media=${media.id} path=${file.absolutePath} size=${file.length()}"
+            )
+            // Сначала снимаем downloading — иначе prepare-эффект выходит early и не перезапускается.
+            loadProgress = 1f
+            showProgress = false
+            paused = false
+            startAfterDownload = true
+            downloading = false
+            localFilePath = file.absolutePath
+        } catch (ex: CancellationException) {
+            downloading = false
+            startAfterDownload = false
+            throw ex
+        } catch (ex: Throwable) {
+            Log.w(TAG, "Full download failed media=${media.id}", ex)
+            playbackError = ex.message ?: "download error"
+            downloading = false
+            startAfterDownload = false
+            showProgress = false
+        }
+    }
+
     // Готовим media (скачивание Drive → файл), поверхность может подключиться позже.
-    LaunchedEffect(vlcPlayer, media.id) {
+    LaunchedEffect(vlcPlayer, media.id, localFilePath, downloading) {
         val player = vlcPlayer ?: return@LaunchedEffect
         val lib = libVlc ?: return@LaunchedEffect
+        if (downloading) return@LaunchedEffect
         playbackError = null
         buffering = true
         mediaReady = false
         try {
-            val source = model.getPlaybackSource(media)
-            Log.i(TAG, "Playback source scheme=${source.uri.scheme} headers=${source.headers.keys}")
-            val playUri = resolvePlayableUri(app, media, source.uri, source.headers)
+            val playUri: String
+            val streamHeaders: Map<String, String>
+            val cached = localFilePath
+            if (cached != null && File(cached).exists()) {
+                playUri = cached
+                streamHeaders = emptyMap()
+                Log.i(TAG, "Play cached file=$cached")
+            } else {
+                val source = model.getPlaybackSource(media)
+                Log.i(
+                    TAG,
+                    "Playback source scheme=${source.uri.scheme} headers=${source.headers.keys}",
+                )
+                val resolved = resolvePlayableUri(app, media, source.uri, source.headers)
+                if (vlcPlayer != player || libVlc != lib) return@LaunchedEffect
+                playUri = resolved.pathOrUri
+                streamHeaders = resolved.streamHeaders
+            }
             // После suspend плеер могли освободить (share / exclusive).
             if (vlcPlayer != player || libVlc != lib) return@LaunchedEffect
-            Log.i(TAG, "Play path/uri=$playUri")
+            Log.i(TAG, "Play path/uri=$playUri stream=${streamHeaders.isNotEmpty()}")
             val fileSize = when {
                 playUri.startsWith("/") -> File(playUri).length()
                 playUri.startsWith("file:") -> File(playUri.removePrefix("file://")).length()
@@ -286,7 +372,9 @@ fun LibVlcVideoView(
                     VlcMedia(lib, playUri.removePrefix("file://"))
 
                 else ->
-                    VlcMedia(lib, android.net.Uri.parse(playUri))
+                    VlcMedia(lib, android.net.Uri.parse(playUri)).also {
+                        applyHttpHeaders(it, streamHeaders)
+                    }
             }
             runCatching {
                 player.media = vlcMedia
@@ -321,16 +409,28 @@ fun LibVlcVideoView(
         }.onFailure { Log.w(TAG, "attachViews failed", it) }
     }
 
-    LaunchedEffect(vlcPlayer, mediaReady, isActive, resumed, paused) {
+    LaunchedEffect(
+        vlcPlayer,
+        mediaReady,
+        isActive,
+        resumed,
+        paused,
+        downloading,
+        startAfterDownload
+    ) {
         val player = vlcPlayer ?: return@LaunchedEffect
-        if (!mediaReady) return@LaunchedEffect
+        if (!mediaReady || downloading) return@LaunchedEffect
         // Не ждём конец shared-element: иначе VLC так и не стартует.
         val shouldPlay = isActive && resumed && !paused
         val playing = runCatching { player.isPlaying }.getOrDefault(false)
-        Log.i(TAG, "playState shouldPlay=$shouldPlay isPlaying=$playing")
+        Log.i(
+            TAG,
+            "playState shouldPlay=$shouldPlay isPlaying=$playing afterDl=$startAfterDownload"
+        )
         runCatching {
             if (shouldPlay) {
                 if (!playing) player.play()
+                if (startAfterDownload) startAfterDownload = false
             } else if (playing) {
                 player.pause()
             }
@@ -348,10 +448,14 @@ fun LibVlcVideoView(
         }
     }
 
-    LaunchedEffect(vlcPlayer) {
+    LaunchedEffect(vlcPlayer, vlcExclusive, isActive) {
         val player = vlcPlayer ?: return@LaunchedEffect
-        while (vlcPlayer == player) {
-            val time = runCatching { player.time }.getOrDefault(-1L)
+        if (vlcExclusive || !isActive) return@LaunchedEffect
+        while (vlcPlayer == player && !vlcExclusive && isActive) {
+            // Native getTime после release → IllegalStateException; ловим и выходим.
+            val timeResult = runCatching { player.time }
+            if (timeResult.isFailure) break
+            val time = timeResult.getOrDefault(-1L)
             if (time >= 0) position = time
             val len = runCatching { player.length }.getOrDefault(-1L)
             mergeVlcDuration(
@@ -451,12 +555,30 @@ fun LibVlcVideoView(
             }
         }
 
-        if (showProgress && playbackError == null) {
-            CircularProgressIndicator(
-                color = Color.White,
-                modifier = Modifier.align(Alignment.Center),
-            )
+        val shareStatus by ShareUi.status.collectAsState()
+        val loadingBanner = when {
+            shareStatus != null -> null // общая плашка share поверх PagerView
+            downloading -> stringResource(R.string.video_downloading)
+            isRemoteMedia && showProgress && playbackError == null ->
+                stringResource(R.string.video_loading)
+
+            else -> null
         }
+        StatusBanner(
+            text = loadingBanner,
+            progress = loadProgress.takeIf { isRemoteMedia || downloading },
+            dark = true,
+            actionLabel = stringResource(R.string.video_download).takeIf {
+                isRemoteMedia &&
+                        !downloading &&
+                        localFilePath == null &&
+                        loadingBanner != null &&
+                        shareStatus == null
+            },
+            onAction = { downloading = true }.takeIf {
+                isRemoteMedia && !downloading && localFilePath == null
+            },
+        )
 
         playbackError?.let { message ->
             Text(
@@ -481,32 +603,61 @@ fun LibVlcVideoView(
                 isPlaying = isPlaying,
                 position = position,
                 duration = duration,
-                onPlayPause = { paused = vlcPlayer?.isPlaying == true },
+                onPlayPause = {
+                    paused = runCatching { vlcPlayer?.isPlaying == true }.getOrDefault(true)
+                },
                 onSeek = { target ->
                     position = target
-                    vlcPlayer?.time = target
+                    runCatching { vlcPlayer?.time = target }
                 },
             )
         }
     }
 }
 
+private data class ResolvedPlayback(
+    val pathOrUri: String,
+    val streamHeaders: Map<String, String> = emptyMap(),
+)
+
+private fun applyHttpHeaders(media: VlcMedia, headers: Map<String, String>) {
+    if (headers.isEmpty()) return
+    val extra = buildString {
+        headers.forEach { (k, v) ->
+            append(k)
+            append(": ")
+            append(v)
+            append("\r\n")
+        }
+    }
+    media.addOption(":http-extra-headers=$extra")
+}
+
 /**
- * Local/content — как есть. Remote http(s) — скачать OkHttp (с auth) во временный файл,
- * иначе LibVLC не протаскивает Bearer на редиректы Drive.
+ * Local/content — как есть.
+ * WebDAV/Nextcloud и файлы > лимита кэша — стрим с Authorization (без полной закачки).
+ * Drive/OAuth — скачать OkHttp (Bearer + редиректы), иначе LibVLC часто крутит вечный буфер.
  */
 private suspend fun resolvePlayableUri(
     app: GalleryApp,
     media: Media,
     uri: android.net.Uri,
     headers: Map<String, String>,
-): String = withContext(Dispatchers.IO) {
+): ResolvedPlayback = withContext(Dispatchers.IO) {
     val scheme = uri.scheme?.lowercase()
     if (scheme != "http" && scheme != "https") {
-        return@withContext uri.toString()
+        return@withContext ResolvedPlayback(uri.toString())
     }
-    if (media.size > MAX_DOWNLOAD_BYTES) {
-        error("File too large for software player (${media.size} bytes)")
+    val preferStream =
+        media.storageType == StorageType.WEBDAV ||
+                media.storageType == StorageType.NEXTCLOUD ||
+                media.size > MAX_DOWNLOAD_BYTES
+    if (preferStream) {
+        Log.i(
+            TAG,
+            "Stream remote media=${media.id} type=${media.storageType} size=${media.size}",
+        )
+        return@withContext ResolvedPlayback(uri.toString(), headers)
     }
     val out = VlcMediaCache.fileFor(app, media.id, media.filename)
     if (out.exists() && out.length() > 0 &&
@@ -514,7 +665,7 @@ private suspend fun resolvePlayableUri(
     ) {
         VlcMediaCache.touch(out)
         Log.i(TAG, "Using cached ${out.length()} bytes")
-        return@withContext out.absolutePath
+        return@withContext ResolvedPlayback(out.absolutePath)
     }
     // Место под новый файл: вытесняем старые до (лимит − размер).
     VlcMediaCache.trim(app)
@@ -541,7 +692,7 @@ private suspend fun resolvePlayableUri(
     VlcMediaCache.touch(out)
     VlcMediaCache.trim(app, keep = out)
     Log.i(TAG, "Downloaded ${out.length()} bytes")
-    out.absolutePath
+    ResolvedPlayback(out.absolutePath)
 }
 
 /**
