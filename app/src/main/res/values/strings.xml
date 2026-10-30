@@ -65,6 +65,11 @@
     <string name="privacy_policy_url">https://asinosoft.ru/gallery_privacy_policy.html</string>
     <string name="share_app_text">Try Gallery: https://play.google.com/store/apps/details?id=com.asinosoft.gallery</string>
     <string name="share">Share</string>
+    <string name="share_preparing">Preparing to share…</string>
+    <string name="share_converting">Converting video for messengers…</string>
+    <string name="share_failed">Couldn\'t prepare file for sharing</string>
+    <string name="share_convert_failed">Couldn\'t convert this video for WhatsApp/Telegram. Try another format.</string>
+    <string name="share_too_large">File is too large to share from the cloud</string>
     <string name="edit">Edit</string>
     <string name="search">Search</string>
     <string name="delete">Delete</string>

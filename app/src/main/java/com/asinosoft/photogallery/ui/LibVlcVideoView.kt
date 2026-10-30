@@ -38,7 +38,9 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.currentStateAsState
+import androidx.compose.runtime.collectAsState
 import com.asinosoft.photogallery.GalleryApp
+import com.asinosoft.photogallery.data.LibVlcCoordinator
 import com.asinosoft.photogallery.data.Media
 import com.asinosoft.photogallery.data.VlcMediaCache
 import com.asinosoft.photogallery.data.bestVideoDurationMs
@@ -122,6 +124,8 @@ fun LibVlcVideoView(
         label = "vlcThumbnail"
     )
 
+    val vlcGeneration by LibVlcCoordinator.generation.collectAsState()
+    val vlcExclusive by LibVlcCoordinator.exclusive.collectAsState()
     var libVlc by remember(media.id) { mutableStateOf<LibVLC?>(null) }
     var vlcPlayer by remember(media.id) { mutableStateOf<MediaPlayer?>(null) }
     var videoLayout by remember(media.id) { mutableStateOf<VLCVideoLayout?>(null) }
@@ -143,88 +147,112 @@ fun LibVlcVideoView(
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
-    DisposableEffect(media.id) {
-        // hw=none: MPEG-2 на телефоне без аппаратного декодера
-        val options = arrayListOf(
-            "--network-caching=3000",
-            "--file-caching=1500",
-            "--avcodec-hw=none",
-            "--no-audio-time-stretch",
-        )
-        val lib = LibVLC(appContext, options)
-        val player = MediaPlayer(lib)
-        libVlc = lib
-        vlcPlayer = player
-        mediaReady = false
-        Log.i(TAG, "LibVLC created for media=${media.id} file=${media.filename}")
-
-        val eventListener = MediaPlayer.EventListener { event ->
-            when (event.type) {
-                MediaPlayer.Event.Opening -> buffering = true
-                MediaPlayer.Event.Playing -> {
-                    isPlaying = true
-                    buffering = false
-                    firstFrameRendered = true
-                    playbackError = null
-                }
-
-                MediaPlayer.Event.Paused, MediaPlayer.Event.Stopped -> isPlaying = false
-                MediaPlayer.Event.Buffering -> {
-                    buffering = event.buffering in 0f..<100f
-                }
-
-                MediaPlayer.Event.EncounteredError -> {
-                    buffering = false
-                    isPlaying = false
-                    playbackError = "VLC playback error"
-                    Log.w(TAG, "LibVLC EncounteredError media=${media.id}")
-                }
-
-                MediaPlayer.Event.EndReached -> {
-                    isPlaying = false
-                    val endedAt = player.time.takeIf { it > 0 } ?: position
-                    plausibleVideoDurationMs(media.size, endedAt)?.let { real ->
-                        if (!durationTrusted || duration <= 0L || real < duration) {
-                            duration = real
-                            durationTrusted = true
-                            Log.i(TAG, "Duration from EndReached: $real ms")
-                        }
-                    }
-                    player.stop()
-                    player.play()
-                }
-
-                MediaPlayer.Event.LengthChanged -> {
-                    // MPEG-PS: VLC часто врёт length (часы вместо минут) — не затираем доверенную.
-                    mergeVlcDuration(
-                        duration,
-                        durationTrusted,
-                        player.length,
-                        media.size,
-                    )?.let { (next, trusted) ->
-                        duration = next
-                        durationTrusted = trusted
-                    }
-                }
-
-                MediaPlayer.Event.Vout -> {
-                    firstFrameRendered = true
-                    buffering = false
-                }
-            }
-        }
-        player.setEventListener(eventListener)
-
-        onDispose {
-            player.setEventListener(null)
-            runCatching { player.stop() }
-            runCatching { player.detachViews() }
-            runCatching { player.release() }
-            runCatching { lib.release() }
-            vlcPlayer = null
+    // generation/exclusive: при шаринге освобождаем LibVLC и не создаём второй экземпляр.
+    DisposableEffect(media.id, vlcGeneration, vlcExclusive) {
+        if (vlcExclusive) {
             libVlc = null
+            vlcPlayer = null
             videoLayout = null
             mediaReady = false
+            LibVlcCoordinator.onPlaybackReleased()
+            onDispose { }
+        } else {
+            // hw=none: MPEG-2 на телефоне без аппаратного декодера
+            val options = arrayListOf(
+                "--network-caching=3000",
+                "--file-caching=1500",
+                "--avcodec-hw=none",
+                "--no-audio-time-stretch",
+            )
+            val lib = LibVLC(appContext, options)
+            val player = MediaPlayer(lib)
+            LibVlcCoordinator.onPlaybackAcquired()
+            libVlc = lib
+            vlcPlayer = player
+            mediaReady = false
+            firstFrameRendered = false
+            buffering = true
+            playbackError = null
+            Log.i(
+                TAG,
+                "LibVLC created for media=${media.id} file=${media.filename} gen=$vlcGeneration"
+            )
+
+            val eventListener = MediaPlayer.EventListener { event ->
+                // После release LibVLC кидает IllegalStateException на getTime/length.
+                if (vlcPlayer != player) return@EventListener
+                when (event.type) {
+                    MediaPlayer.Event.Opening -> buffering = true
+                    MediaPlayer.Event.Playing -> {
+                        isPlaying = true
+                        buffering = false
+                        firstFrameRendered = true
+                        playbackError = null
+                    }
+
+                    MediaPlayer.Event.Paused, MediaPlayer.Event.Stopped -> isPlaying = false
+                    MediaPlayer.Event.Buffering -> {
+                        buffering = event.buffering in 0f..<100f
+                    }
+
+                    MediaPlayer.Event.EncounteredError -> {
+                        buffering = false
+                        isPlaying = false
+                        playbackError = "VLC playback error"
+                        Log.w(TAG, "LibVLC EncounteredError media=${media.id}")
+                    }
+
+                    MediaPlayer.Event.EndReached -> {
+                        isPlaying = false
+                        val endedAt = runCatching { player.time }.getOrDefault(-1L)
+                            .takeIf { it > 0 } ?: position
+                        plausibleVideoDurationMs(media.size, endedAt)?.let { real ->
+                            if (!durationTrusted || duration <= 0L || real < duration) {
+                                duration = real
+                                durationTrusted = true
+                                Log.i(TAG, "Duration from EndReached: $real ms")
+                            }
+                        }
+                        runCatching {
+                            player.stop()
+                            player.play()
+                        }
+                    }
+
+                    MediaPlayer.Event.LengthChanged -> {
+                        val len = runCatching { player.length }.getOrDefault(-1L)
+                        // MPEG-PS: VLC часто врёт length (часы вместо минут) — не затираем доверенную.
+                        mergeVlcDuration(
+                            duration,
+                            durationTrusted,
+                            len,
+                            media.size,
+                        )?.let { (next, trusted) ->
+                            duration = next
+                            durationTrusted = trusted
+                        }
+                    }
+
+                    MediaPlayer.Event.Vout -> {
+                        firstFrameRendered = true
+                        buffering = false
+                    }
+                }
+            }
+            player.setEventListener(eventListener)
+
+            onDispose {
+                player.setEventListener(null)
+                runCatching { player.stop() }
+                runCatching { player.detachViews() }
+                runCatching { player.release() }
+                runCatching { lib.release() }
+                vlcPlayer = null
+                libVlc = null
+                videoLayout = null
+                mediaReady = false
+                LibVlcCoordinator.onPlaybackReleased()
+            }
         }
     }
 
@@ -239,6 +267,8 @@ fun LibVlcVideoView(
             val source = model.getPlaybackSource(media)
             Log.i(TAG, "Playback source scheme=${source.uri.scheme} headers=${source.headers.keys}")
             val playUri = resolvePlayableUri(app, media, source.uri, source.headers)
+            // После suspend плеер могли освободить (share / exclusive).
+            if (vlcPlayer != player || libVlc != lib) return@LaunchedEffect
             Log.i(TAG, "Play path/uri=$playUri")
             val fileSize = when {
                 playUri.startsWith("/") -> File(playUri).length()
@@ -250,6 +280,7 @@ fun LibVlcVideoView(
                 durationTrusted = true
                 Log.i(TAG, "Trusted duration from file: $probed ms")
             }
+            if (vlcPlayer != player || libVlc != lib) return@LaunchedEffect
             val vlcMedia = when {
                 playUri.startsWith("/") || playUri.startsWith("file:") ->
                     VlcMedia(lib, playUri.removePrefix("file://"))
@@ -257,13 +288,23 @@ fun LibVlcVideoView(
                 else ->
                     VlcMedia(lib, android.net.Uri.parse(playUri))
             }
-            player.media = vlcMedia
-            vlcMedia.release()
-            player.volume = if (muted) 0 else 100
-            mediaReady = true
+            runCatching {
+                player.media = vlcMedia
+                vlcMedia.release()
+                player.volume = if (muted) 0 else 100
+                mediaReady = true
+            }.onFailure {
+                runCatching { vlcMedia.release() }
+                if (vlcPlayer == player) {
+                    Log.w(TAG, "LibVLC set media failed media=${media.id}", it)
+                    playbackError = it.message ?: "playback error"
+                    buffering = false
+                }
+            }
         } catch (ex: CancellationException) {
             throw ex
         } catch (ex: Throwable) {
+            if (vlcPlayer != player) return@LaunchedEffect
             Log.w(TAG, "LibVLC open failed media=${media.id}", ex)
             playbackError = ex.message ?: "playback error"
             buffering = false
@@ -285,16 +326,20 @@ fun LibVlcVideoView(
         if (!mediaReady) return@LaunchedEffect
         // Не ждём конец shared-element: иначе VLC так и не стартует.
         val shouldPlay = isActive && resumed && !paused
-        Log.i(TAG, "playState shouldPlay=$shouldPlay isPlaying=${player.isPlaying}")
-        if (shouldPlay) {
-            if (!player.isPlaying) player.play()
-        } else if (player.isPlaying) {
-            player.pause()
+        val playing = runCatching { player.isPlaying }.getOrDefault(false)
+        Log.i(TAG, "playState shouldPlay=$shouldPlay isPlaying=$playing")
+        runCatching {
+            if (shouldPlay) {
+                if (!playing) player.play()
+            } else if (playing) {
+                player.pause()
+            }
         }
     }
 
     LaunchedEffect(vlcPlayer, muted) {
-        vlcPlayer?.volume = if (muted) 0 else 100
+        val player = vlcPlayer ?: return@LaunchedEffect
+        runCatching { player.volume = if (muted) 0 else 100 }
     }
 
     LaunchedEffect(media.id, duration, durationTrusted) {
@@ -305,13 +350,14 @@ fun LibVlcVideoView(
 
     LaunchedEffect(vlcPlayer) {
         val player = vlcPlayer ?: return@LaunchedEffect
-        while (true) {
-            val time = player.time
+        while (vlcPlayer == player) {
+            val time = runCatching { player.time }.getOrDefault(-1L)
             if (time >= 0) position = time
+            val len = runCatching { player.length }.getOrDefault(-1L)
             mergeVlcDuration(
                 duration,
                 durationTrusted,
-                player.length,
+                len,
                 media.size,
             )?.let { (next, trusted) ->
                 duration = next
@@ -321,11 +367,25 @@ fun LibVlcVideoView(
         }
     }
 
-    // Если так и не стартовали — покажем ошибку вместо вечного спиннера
-    LaunchedEffect(media.id, firstFrameRendered, playbackError, mediaReady) {
+    // Таймаут только пока реально грузим кадр. Не считать время в MAX/шаринге
+    // (exclusive / !resumed) — иначе «Timeout loading video» по возврату.
+    LaunchedEffect(
+        vlcPlayer,
+        mediaReady,
+        firstFrameRendered,
+        playbackError,
+        resumed,
+        vlcExclusive,
+    ) {
+        if (vlcExclusive || !resumed || vlcPlayer == null || !mediaReady) return@LaunchedEffect
         if (playbackError != null || firstFrameRendered) return@LaunchedEffect
         delay(20_000.milliseconds)
-        if (!firstFrameRendered && playbackError == null) {
+        if (!vlcExclusive &&
+            resumed &&
+            vlcPlayer != null &&
+            !firstFrameRendered &&
+            playbackError == null
+        ) {
             playbackError = "Timeout loading video"
             buffering = false
             Log.w(TAG, "Timeout media=${media.id} ready=$mediaReady")
@@ -347,15 +407,17 @@ fun LibVlcVideoView(
             onTap = onTap,
             onDoubleTapSeekBackward = {
                 val player = vlcPlayer ?: return@ZoomableMediaBox
-                val target = (player.time - 5_000L).coerceAtLeast(0L)
-                player.time = target
+                val now = runCatching { player.time }.getOrDefault(position)
+                val target = (now - 5_000L).coerceAtLeast(0L)
+                runCatching { player.time = target }
                 position = target
             },
             onDoubleTapSeekForward = {
                 val player = vlcPlayer ?: return@ZoomableMediaBox
                 val lim = duration.takeIf { it > 0 } ?: Long.MAX_VALUE
-                val target = (player.time + 5_000L).coerceAtMost(lim)
-                player.time = target
+                val now = runCatching { player.time }.getOrDefault(position)
+                val target = (now + 5_000L).coerceAtMost(lim)
+                runCatching { player.time = target }
                 position = target
             },
         ) {

@@ -3,28 +3,37 @@ package com.asinosoft.photogallery.data
 import android.content.ClipData
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
 import android.provider.MediaStore
 import android.util.Log
+import androidx.core.content.FileProvider
 import androidx.core.content.edit
 import coil3.SingletonImageLoader
 import com.asinosoft.photogallery.GalleryApp
 import com.asinosoft.photogallery.R
+import com.asinosoft.photogallery.data.storage.StorageAuthProvider
 import com.asinosoft.photogallery.data.storage.StorageDao
 import com.asinosoft.photogallery.data.storage.StorageProvider
+import com.asinosoft.photogallery.data.storage.StorageProviderRegistry
+import com.asinosoft.photogallery.data.storage.StorageService
 import com.asinosoft.photogallery.data.storage.StorageType
 import com.asinosoft.photogallery.di.IntentHelper
+import dagger.Lazy
 import dagger.hilt.android.qualifiers.ApplicationContext
+import java.io.File
+import java.io.FileOutputStream
+import javax.inject.Inject
+import javax.inject.Singleton
+import kotlin.system.measureTimeMillis
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.chunked
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.io.File
-import javax.inject.Inject
-import javax.inject.Singleton
-import kotlin.system.measureTimeMillis
+import okhttp3.Request
 
 @Singleton
 class MediaService @Inject constructor(
@@ -37,6 +46,8 @@ class MediaService @Inject constructor(
     private val trash: Trash,
     private val analytics: AppAnalytics,
     private val remoteVideoThumbQueue: RemoteVideoThumbQueue,
+    private val storageProviderRegistry: StorageProviderRegistry,
+    private val storageService: Lazy<StorageService>,
     @param:ApplicationContext private val context: Context
 ) {
     private val intentHelper = IntentHelper
@@ -94,8 +105,22 @@ class MediaService @Inject constructor(
 
     suspend fun share(mediaIds: Collection<Long>, context: Context) {
         val media = withContext(Dispatchers.IO) { mediaDao.getByIds(mediaIds) }
-        val items = media.mapNotNull { item -> item.uri?.let { it to item.mimeType } }
-        if (items.isEmpty()) return
+        if (media.isEmpty()) return
+
+        val needsDownload = media.any { !isLocalShareableUri(it.uri) }
+        if (needsDownload) {
+            MessageBus.emit(context.getString(R.string.share_preparing))
+        }
+
+        val items = media.mapNotNull { item ->
+            runCatching { resolveShareContent(item) }
+                .onFailure { Log.w(TAG, "Share resolve failed media=${item.id}", it) }
+                .getOrNull()
+        }
+        if (items.isEmpty()) {
+            MessageBus.emit(context.getString(R.string.share_failed))
+            return
+        }
 
         val uris = items.map { it.first }
         val type = shareMimeType(items.map { it.second })
@@ -105,21 +130,60 @@ class MediaService @Inject constructor(
                     this.type = type
                     putExtra(Intent.EXTRA_STREAM, uris.first())
                     addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                    clipData = ClipData.newUri(context.contentResolver, null, uris.first())
+                    // Явный MIME в ClipData — Telegram/MAX иначе иногда не читают URI.
+                    clipData = ClipData(
+                        "media",
+                        arrayOf(type),
+                        ClipData.Item(uris.first()),
+                    )
                 }
             } else {
                 Intent(Intent.ACTION_SEND_MULTIPLE).apply {
                     this.type = type
                     putParcelableArrayListExtra(Intent.EXTRA_STREAM, ArrayList(uris))
                     addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                    clipData =
-                        ClipData.newUri(context.contentResolver, null, uris.first()).also { clip ->
-                            uris.drop(1).forEach { clip.addItem(ClipData.Item(it)) }
-                        }
+                    clipData = ClipData(
+                        "media",
+                        arrayOf(type),
+                        ClipData.Item(uris.first()),
+                    ).also { clip ->
+                        uris.drop(1).forEach { clip.addItem(ClipData.Item(it)) }
+                    }
                 }
             }
+        startShareChooser(context, send, uris)
+    }
+
+    /**
+     * Grant URI всем кандидатам chooser'а: WhatsApp часто прощает отсутствие,
+     * Telegram/MAX — нет (особенно из Application context + NEW_TASK).
+     */
+    private fun startShareChooser(context: Context, send: Intent, uris: List<Uri>) {
+        val grantFlags = Intent.FLAG_GRANT_READ_URI_PERMISSION
+        val targets = context.packageManager.queryIntentActivities(
+            send,
+            PackageManager.MATCH_DEFAULT_ONLY,
+        )
+        for (uri in uris) {
+            for (info in targets) {
+                runCatching {
+                    context.grantUriPermission(
+                        info.activityInfo.packageName,
+                        uri,
+                        grantFlags,
+                    )
+                }
+            }
+        }
         val chooser = Intent.createChooser(send, null).apply {
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or grantFlags)
+            clipData = send.clipData
+        }
+        // Chooser сам тоже должен читать URI.
+        chooser.`package`?.let { pkg ->
+            for (uri in uris) {
+                runCatching { context.grantUriPermission(pkg, uri, grantFlags) }
+            }
         }
         context.startActivity(chooser)
     }
@@ -133,6 +197,212 @@ class MediaService @Inject constructor(
             else -> "*/*"
         }
     }
+
+    private fun mimeForShare(media: Media): String {
+        val declared = media.mimeType.trim()
+        if (declared.isNotEmpty() &&
+            declared != "application/octet-stream" &&
+            declared != "*/*"
+        ) {
+            return declared
+        }
+        val name = media.filename.lowercase()
+        return when {
+            name.endsWith(".mp4") || name.endsWith(".m4v") -> "video/mp4"
+            name.endsWith(".mov") -> "video/quicktime"
+            name.endsWith(".webm") -> "video/webm"
+            name.endsWith(".mkv") -> "video/x-matroska"
+            name.endsWith(".avi") -> "video/x-msvideo"
+            name.endsWith(".mpg") || name.endsWith(".mpeg") -> "video/mpeg"
+            name.endsWith(".3gp") -> "video/3gpp"
+            name.endsWith(".jpg") || name.endsWith(".jpeg") -> "image/jpeg"
+            name.endsWith(".png") -> "image/png"
+            name.endsWith(".gif") -> "image/gif"
+            name.endsWith(".webp") -> "image/webp"
+            media.video != null -> "video/*"
+            media.image != null -> "image/*"
+            else -> "*/*"
+        }
+    }
+
+    private fun isLocalShareableUri(uri: Uri?): Boolean {
+        val scheme = uri?.scheme?.lowercase() ?: return false
+        return scheme == "content" || scheme == "file"
+    }
+
+    /** content/file URI или скачанный/сконвертированный файл + MIME. */
+    private suspend fun resolveShareContent(media: Media): Pair<Uri, String>? {
+        media.uri?.takeIf { isLocalShareableUri(it) }?.let { localUri ->
+            // Локальный MediaStore — при HEVC тоже конвертим во временный файл.
+            if (media.video == null) return localUri to mimeForShare(media)
+            val copied =
+                copyLocalToShareCache(media, localUri) ?: return localUri to mimeForShare(media)
+            val converted = ShareVideoCompat.ensureMessengerCompatible(context, copied) {
+                MessageBus.emit(context.getString(R.string.share_converting))
+            } ?: run {
+                error(context.getString(R.string.share_convert_failed))
+            }
+            return fileProviderUri(converted.first) to converted.second
+        }
+
+        val file = resolveShareFile(media) ?: return null
+        if (media.video == null) {
+            return fileProviderUri(file) to mimeForShare(media)
+        }
+        val converted = ShareVideoCompat.ensureMessengerCompatible(context, file) {
+            MessageBus.emit(context.getString(R.string.share_converting))
+        }
+        if (converted == null) {
+            error(context.getString(R.string.share_convert_failed))
+        }
+        val (ready, mime) = converted
+        return fileProviderUri(ready) to mime
+    }
+
+    private suspend fun resolveShareFile(media: Media): File? {
+        val cachedVlc = VlcMediaCache.fileFor(context, media.id, media.filename)
+        // Уже скачан для LibVLC-плеера — берём его, даже если Drive size чуть врёт.
+        if (cachedVlc.exists() &&
+            cachedVlc.length() > 0L &&
+            !looksLikeErrorPayload(cachedVlc)
+        ) {
+            return cachedVlc
+        }
+
+        if (media.storageType == StorageType.LOCAL ||
+            media.storageId == EXTERNAL_STORAGE_ID
+        ) {
+            return null
+        }
+
+        return downloadRemoteForShare(media)
+    }
+
+    private suspend fun copyLocalToShareCache(media: Media, uri: Uri): File? =
+        withContext(Dispatchers.IO) {
+            runCatching {
+                val dir =
+                    File(context.cacheDir, "$SHARE_CACHE_DIR/${media.id}").also { it.mkdirs() }
+                val safe = media.filename.ifBlank { "media.bin" }
+                    .replace(Regex("[^a-zA-Z0-9._-]"), "_")
+                val out = File(dir, safe)
+                if (isCompleteShareFile(out, media.size)) return@runCatching out
+                context.contentResolver.openInputStream(uri)?.use { input ->
+                    FileOutputStream(out).use { output -> input.copyTo(output) }
+                } ?: return@runCatching null
+                out.takeIf { it.exists() && it.length() > 0L }
+            }.getOrNull()
+        }
+
+    private suspend fun downloadRemoteForShare(media: Media): File = withContext(Dispatchers.IO) {
+        if (media.size > MAX_SHARE_DOWNLOAD_BYTES) {
+            error(context.getString(R.string.share_too_large))
+        }
+        val service = storageService.get()
+        checkNotNull(service.ensureFreshAuth(media.storageId)) {
+            "Waiting for Google sign-in"
+        }
+        storageProviderRegistry.invalidate(media.storageId)
+        val provider = storageProviderRegistry.getStorageProvider(media.storageId)
+        val remoteUri = provider.getMediaUri(media)
+
+        // Имя без префикса id — мессенджеры берут DISPLAY_NAME из FileProvider.
+        val dir = File(context.cacheDir, "$SHARE_CACHE_DIR/${media.id}").also { it.mkdirs() }
+        val safe = media.filename.ifBlank { "media.bin" }
+            .replace(Regex("[^a-zA-Z0-9._-]"), "_")
+        val out = File(dir, safe)
+        if (isCompleteShareFile(out, media.size)) {
+            return@withContext out
+        }
+
+        val tmp = File(dir, "$safe.part")
+        tmp.delete()
+        out.delete()
+        val app = context.applicationContext as GalleryApp
+        // Как у Exo: auth через network-interceptor (+ storage id), без ручного Bearer —
+        // иначе на редиректе Drive/googleusercontent легко получить битое тело.
+        val request = Request.Builder()
+            .url(remoteUri.toString())
+            .get()
+            .header(StorageAuthProvider.HEADER_STORAGE_ID, media.storageId.toString())
+            .build()
+        Log.i(TAG, "Share download media=${media.id} → ${out.name}")
+        app.httpClient.newCall(request).execute().use { response ->
+            if (!response.isSuccessful) {
+                error("Download HTTP ${response.code}")
+            }
+            val body = response.body ?: error("Empty body")
+            val contentLength = response.header("Content-Length")?.toLongOrNull()
+                ?.takeIf { it > 0 }
+            FileOutputStream(tmp).use { output ->
+                body.byteStream().use { input -> input.copyTo(output) }
+            }
+            if (!tmp.exists() || tmp.length() <= 0L) {
+                tmp.delete()
+                error("Empty download")
+            }
+            // Content-Length — источник истины; media.size с Drive иногда врёт.
+            if (contentLength != null && tmp.length() != contentLength) {
+                Log.w(
+                    TAG,
+                    "Share size mismatch media=${media.id}: got ${tmp.length()} expected $contentLength"
+                )
+                tmp.delete()
+                error(context.getString(R.string.share_failed))
+            } else if (media.size > 0L &&
+                contentLength == null &&
+                tmp.length() != media.size
+            ) {
+                Log.w(
+                    TAG,
+                    "Share size≠Drive meta media=${media.id}: got ${tmp.length()} meta=${media.size}"
+                )
+            }
+            if (looksLikeErrorPayload(tmp)) {
+                tmp.delete()
+                error(context.getString(R.string.share_failed))
+            }
+        }
+        if (out.exists()) out.delete()
+        if (!tmp.renameTo(out)) {
+            tmp.copyTo(out, overwrite = true)
+            tmp.delete()
+        }
+        if (looksLikeErrorPayload(out) || out.length() <= 0L) {
+            out.delete()
+            error(context.getString(R.string.share_failed))
+        }
+        out
+    }
+
+    private fun isCompleteShareFile(file: File, expectedSize: Long): Boolean {
+        if (!file.exists() || file.length() <= 0L) return false
+        if (looksLikeErrorPayload(file)) return false
+        if (expectedSize > 0L && file.length() != expectedSize) return false
+        return true
+    }
+
+    /** JSON/HTML вместо медиа (типичный сбой auth/редиректа Drive). */
+    private fun looksLikeErrorPayload(file: File): Boolean {
+        return runCatching {
+            file.inputStream().use { input ->
+                val buf = ByteArray(96)
+                val n = input.read(buf)
+                if (n <= 0) return true
+                val head = buf.decodeToString(endIndex = n).trimStart()
+                head.startsWith("{") ||
+                        head.startsWith("<") ||
+                        head.startsWith("error", ignoreCase = true)
+            }
+        }.getOrDefault(true)
+    }
+
+    private fun fileProviderUri(file: File): Uri =
+        FileProvider.getUriForFile(
+            context,
+            "${context.packageName}.fileprovider",
+            file,
+        )
 
     suspend fun setFavorite(mediaIds: Collection<Long>, favorite: Boolean) {
         mediaDao.setFavorite(mediaIds, favorite)
@@ -596,6 +866,7 @@ class MediaService @Inject constructor(
     }
 
     private companion object {
+        const val TAG = "MediaService"
         const val LOCAL_STORAGE_ID = 1L
         const val LOCAL_FETCH_CHUNK = 500
         const val REMOTE_FETCH_CHUNK = 50
@@ -603,5 +874,7 @@ class MediaService @Inject constructor(
         const val PREFS_NAME = "media_service"
         const val KEY_ALBUMS_REPAIRED = "albums_repaired_"
         const val KEY_DUPLICATES_MERGED = "duplicates_merged"
+        const val SHARE_CACHE_DIR = "share"
+        const val MAX_SHARE_DOWNLOAD_BYTES = 2L * 1024 * 1024 * 1024
     }
 }

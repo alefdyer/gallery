@@ -183,6 +183,9 @@ dependencies {
     implementation("androidx.media3:media3-exoplayer:1.11.1")
     implementation("androidx.media3:media3-ui:1.11.1")
     implementation("androidx.media3:media3-datasource-okhttp:1.11.1")
+    // H.264 для шаринга в мессенджеры (HEVC там часто чёрный экран + звук)
+    implementation("androidx.media3:media3-transformer:1.11.1")
+    implementation("androidx.media3:media3-effect:1.11.1")
     // FFmpeg через LibVLC — MPEG/.MPG и прочие кодеки без MediaCodec
     implementation("org.videolan.android:libvlc-all:3.6.5")
 

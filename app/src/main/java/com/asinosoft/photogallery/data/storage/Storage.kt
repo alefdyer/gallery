@@ -59,7 +59,7 @@ data class Storage(
         StorageType.NEXTCLOUD -> login?.takeIf { it.isNotBlank() }
             ?: context.getString(R.string.nextcloud)
 
-        StorageType.WEBDAV -> albumLabel()
+        StorageType.WEBDAV -> context.getString(R.string.webdav)
         StorageType.YANDEX -> context.getString(R.string.yandex)
         StorageType.GOOGLE_DRIVE -> login?.takeIf { it.isNotBlank() }
             ?: context.getString(R.string.google_drive)
