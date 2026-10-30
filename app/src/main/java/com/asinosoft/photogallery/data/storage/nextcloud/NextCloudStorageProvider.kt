@@ -7,6 +7,8 @@ import com.asinosoft.photogallery.data.Image
 import com.asinosoft.photogallery.data.Media
 import com.asinosoft.photogallery.data.Video
 import com.asinosoft.photogallery.data.mediaParentPath
+import com.asinosoft.photogallery.data.mediaSortDateTime
+import com.asinosoft.photogallery.data.parseTakenAtFromFilename
 import com.asinosoft.photogallery.data.storage.Storage
 import com.asinosoft.photogallery.data.storage.StorageCheckResult
 import com.asinosoft.photogallery.data.storage.StorageProvider
@@ -15,8 +17,6 @@ import java.net.ConnectException
 import java.net.SocketTimeoutException
 import java.net.URLEncoder
 import java.net.UnknownHostException
-import java.time.ZoneId
-import java.time.ZonedDateTime
 import java.util.ArrayDeque
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
@@ -86,16 +86,16 @@ class NextCloudStorageProvider(override val storage: Storage) : StorageProvider 
                 ) {
                     continue
                 }
-                val datetime =
-                    item.modified?.toInstant()?.atZone(ZoneId.systemDefault())
-                        ?: ZonedDateTime.now()
+                val modifiedAt = item.modified?.toInstant()?.toEpochMilli()?.takeIf { it > 0L }
+                val takenAt = parseTakenAtFromFilename(item.name)
+                val (sortDate, sortTime) = mediaSortDateTime(takenAt, modifiedAt, null)
                 val isImage = item.contentType.startsWith("image/")
                 emit(
                     Media(
                         id = 0,
                         uri = buildUrl(item.href.toString()).toUri(),
-                        date = datetime.toLocalDate(),
-                        time = datetime.toLocalTime(),
+                        date = sortDate,
+                        time = sortTime,
                         path = mediaParentPath(item.path, rootPath),
                         size = item.contentLength,
                         filename = item.name,
@@ -109,7 +109,9 @@ class NextCloudStorageProvider(override val storage: Storage) : StorageProvider 
                             height = 0,
                             orientation = 0
                         ).takeIf { isImage },
-                        video = Video(duration = 0).takeIf { !isImage }
+                        video = Video(duration = 0).takeIf { !isImage },
+                        takenAt = takenAt,
+                        modifiedAt = modifiedAt,
                     )
                 )
             }

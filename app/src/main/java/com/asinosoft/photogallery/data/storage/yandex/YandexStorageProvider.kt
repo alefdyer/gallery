@@ -7,15 +7,16 @@ import com.asinosoft.photogallery.data.Image
 import com.asinosoft.photogallery.data.Media
 import com.asinosoft.photogallery.data.Video
 import com.asinosoft.photogallery.data.mediaParentPath
+import com.asinosoft.photogallery.data.mediaSortDateTime
 import com.asinosoft.photogallery.data.storage.Storage
 import com.asinosoft.photogallery.data.storage.StorageCheckResult
 import com.asinosoft.photogallery.data.storage.StorageProvider
+import com.asinosoft.photogallery.data.toEpochMillis
 import com.google.gson.Gson
 import java.net.ConnectException
 import java.net.SocketTimeoutException
 import java.net.URLEncoder
 import java.net.UnknownHostException
-import java.time.ZoneId
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
@@ -90,9 +91,10 @@ class YandexStorageProvider(override val storage: Storage) : StorageProvider {
             resources.items
                 .filter { it.mediaType == "image" || it.mediaType == "video" }
                 .forEach { item ->
-                    val datetime = (item.exif?.datetime ?: item.modified ?: item.created)
-                        .toInstant()
-                        .atZone(ZoneId.systemDefault())
+                    val takenAt = item.exif?.datetime.toEpochMillis()
+                    val modifiedAt = item.modified.toEpochMillis()
+                    val createdAt = item.created.toEpochMillis()
+                    val (sortDate, sortTime) = mediaSortDateTime(takenAt, modifiedAt, createdAt)
                     val isVideo = item.mediaType == "video"
                     val preview = item.sizes
                         .orEmpty()
@@ -102,8 +104,8 @@ class YandexStorageProvider(override val storage: Storage) : StorageProvider {
 
                     emit(
                         Media(
-                            date = datetime.toLocalDate(),
-                            time = datetime.toLocalTime(),
+                            date = sortDate,
+                            time = sortTime,
                             path = mediaParentPath(item.path, "disk:/"),
                             size = item.size,
                             filename = item.name,
@@ -112,6 +114,9 @@ class YandexStorageProvider(override val storage: Storage) : StorageProvider {
                             storageType = storage.type,
                             storageItemId = item.path,
                             thumbnail = preview,
+                            takenAt = takenAt,
+                            createdAt = createdAt,
+                            modifiedAt = modifiedAt,
                             image = Image().takeIf { !isVideo },
                             video = Video(duration = 0).takeIf { isVideo }
                         )

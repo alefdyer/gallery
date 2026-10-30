@@ -434,6 +434,27 @@ class MediaService @Inject constructor(
             file,
         )
 
+    /** WebDAV/облако: добрать takenAt и разрешение фото (EXIF Range). */
+    fun enqueueRemoteImageMeta(media: Media) {
+        if (media.image == null) return
+        if (media.storageType == StorageType.LOCAL) return
+        val needTaken = media.takenAt == null || media.takenAt <= 0L
+        val needSize = media.image.width <= 0 || media.image.height <= 0
+        if (!needTaken && !needSize) return
+        remoteVideoThumbQueue.enqueue(
+            RemoteVideoThumbQueue.Job(
+                mediaId = media.id,
+                storageId = media.storageId,
+                storageItemId = media.storageItemId,
+                size = media.size,
+                uri = media.uri?.toString(),
+                needThumb = false,
+                needDuration = false,
+                needTakenAt = true,
+            )
+        )
+    }
+
     suspend fun setFavorite(mediaIds: Collection<Long>, favorite: Boolean) {
         mediaDao.setFavorite(mediaIds, favorite)
         if (favorite && mediaIds.isNotEmpty()) analytics.favoriteAdded()
@@ -590,49 +611,53 @@ class MediaService @Inject constructor(
                 val existingByItemId = media.associateBy { it.storageItemId }
                 val rootAlbum = context.getString(R.string.album_root)
 
-                // Уже известные remote: обновить path/метаданные; альбом — только
-                // если папка сменилась (полный remap на каждом refresh слишком дорог).
-                if (isRemote) {
-                    for (item in fetched) {
-                        val existing = existingByItemId[item.storageItemId] ?: continue
-                        val pathChanged = existing.path != item.path
-                        val mergedDuration = bestVideoDurationMs(
-                            item.size.takeIf { it > 0 } ?: existing.size,
-                            item.filename,
-                            item.mimeType,
-                            existing.video?.duration ?: 0L,
-                            item.video?.duration ?: 0L,
-                        )
-                        val mergedVideo = when {
-                            item.video != null || existing.video != null ->
-                                Video(duration = mergedDuration)
+                // Уже известные: обновить метаданные (даты/size); remote-альбом — при смене папки.
+                for (item in fetched) {
+                    val existing = existingByItemId[item.storageItemId] ?: continue
+                    val pathChanged = existing.path != item.path
+                    val mergedDuration = bestVideoDurationMs(
+                        item.size.takeIf { it > 0 } ?: existing.size,
+                        item.filename,
+                        item.mimeType,
+                        existing.video?.duration ?: 0L,
+                        item.video?.duration ?: 0L,
+                    )
+                    val mergedVideo = when {
+                        item.video != null || existing.video != null ->
+                            Video(duration = mergedDuration)
 
-                            else -> null
-                        }
-                        val durationChanged =
-                            (existing.video?.duration ?: 0L) != (mergedVideo?.duration ?: 0L)
-                        if (pathChanged ||
-                            durationChanged ||
-                            existing.filename != item.filename ||
-                            existing.size != item.size ||
-                            existing.thumbnail != item.thumbnail
-                        ) {
-                            mediaDao.upsert(
-                                item.copy(
-                                    id = existing.id,
-                                    favorite = existing.favorite,
-                                    uri = item.uri ?: existing.uri,
-                                    video = mergedVideo,
-                                )
+                        else -> null
+                    }
+                    val durationChanged =
+                        (existing.video?.duration ?: 0L) != (mergedVideo?.duration ?: 0L)
+                    val datesChanged =
+                        existing.takenAt != item.takenAt ||
+                                existing.createdAt != item.createdAt ||
+                                existing.modifiedAt != item.modifiedAt ||
+                                existing.date != item.date ||
+                                existing.time != item.time
+                    if (pathChanged ||
+                        durationChanged ||
+                        datesChanged ||
+                        existing.filename != item.filename ||
+                        existing.size != item.size ||
+                        existing.thumbnail != item.thumbnail
+                    ) {
+                        mediaDao.upsert(
+                            item.copy(
+                                id = existing.id,
+                                favorite = existing.favorite,
+                                uri = item.uri ?: existing.uri,
+                                video = mergedVideo,
                             )
-                        }
-                        if (pathChanged) {
-                            ensureRemoteFolderAlbum(
-                                mediaId = existing.id,
-                                albumName = folderAlbumName(item.path, rootAlbum),
-                                storageId = provider.storage.id,
-                            )
-                        }
+                        )
+                    }
+                    if (isRemote && pathChanged) {
+                        ensureRemoteFolderAlbum(
+                            mediaId = existing.id,
+                            albumName = folderAlbumName(item.path, rootAlbum),
+                            storageId = provider.storage.id,
+                        )
                     }
                 }
 
@@ -701,31 +726,51 @@ class MediaService @Inject constructor(
                     // (после «Обновить» toInsert пуст, иначе миниатюры так и не появятся).
                     val knownByItem = media.associateBy { it.storageItemId }
                     for (item in fetched) {
-                        if (item.video == null) continue
                         val existing = knownByItem[item.storageItemId]
                         val realId = existing?.id
                             ?: mediaDao.getMediaId(item.storageId, item.storageItemId)
                             ?: continue
                         if (realId <= 0) continue
 
-                        val filled = fillRemoteThumbFromLocalTwin(realId, item)
-                        val hasThumbFile = ThumbnailCache.getFile(context, realId)
-                            .let { it.exists() && it.length() > 0 }
-                        val needThumb = !filled && !hasThumbFile && item.thumbnail == null
-                        // Новые remote-видео и старые с duration=0 — длительность в фоне.
-                        val needDuration = (existing?.video?.duration ?: 0L) <= 0L
-                        if (needThumb || needDuration) {
-                            remoteVideoThumbQueue.enqueue(
-                                RemoteVideoThumbQueue.Job(
-                                    mediaId = realId,
-                                    storageId = item.storageId,
-                                    storageItemId = item.storageItemId,
-                                    size = item.size,
-                                    uri = item.uri?.toString(),
-                                    needThumb = needThumb,
-                                    needDuration = needDuration,
+                        if (item.video != null) {
+                            val filled = fillRemoteThumbFromLocalTwin(realId, item)
+                            val hasThumbFile = ThumbnailCache.getFile(context, realId)
+                                .let { it.exists() && it.length() > 0 }
+                            val needThumb = !filled && !hasThumbFile && item.thumbnail == null
+                            // Новые remote-видео и старые с duration=0 — длительность в фоне.
+                            val needDuration = (existing?.video?.duration ?: 0L) <= 0L
+                            if (needThumb || needDuration) {
+                                remoteVideoThumbQueue.enqueue(
+                                    RemoteVideoThumbQueue.Job(
+                                        mediaId = realId,
+                                        storageId = item.storageId,
+                                        storageItemId = item.storageItemId,
+                                        size = item.size,
+                                        uri = item.uri?.toString(),
+                                        needThumb = needThumb,
+                                        needDuration = needDuration,
+                                    )
                                 )
-                            )
+                            }
+                        } else if (item.image != null) {
+                            val knownTaken = existing?.takenAt ?: item.takenAt
+                            val knownW = existing?.image?.width ?: item.image.width
+                            val needImageMeta =
+                                knownTaken == null || knownTaken <= 0L || knownW <= 0
+                            if (needImageMeta) {
+                                remoteVideoThumbQueue.enqueue(
+                                    RemoteVideoThumbQueue.Job(
+                                        mediaId = realId,
+                                        storageId = item.storageId,
+                                        storageItemId = item.storageItemId,
+                                        size = item.size,
+                                        uri = item.uri?.toString(),
+                                        needThumb = false,
+                                        needDuration = false,
+                                        needTakenAt = true,
+                                    )
+                                )
+                            }
                         }
                     }
 

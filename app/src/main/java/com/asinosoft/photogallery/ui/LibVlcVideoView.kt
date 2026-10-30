@@ -183,6 +183,17 @@ fun LibVlcVideoView(
             }
             onDispose { }
         } else {
+            // LibVLC select() → FD_SETSIZE 1024: при FD≥1024 native abort (SIGABRT).
+            val fdCount = openFdCount()
+            if (fdCount >= LIBVLC_SAFE_FD_LIMIT) {
+                Log.e(
+                    TAG,
+                    "Skip LibVLC media=${media.id}: open FDs=$fdCount ≥ $LIBVLC_SAFE_FD_LIMIT"
+                )
+                playbackError = "Too many open files"
+                buffering = false
+                onDispose { }
+            } else {
             // hw=none: MPEG-2 на телефоне без аппаратного декодера
             // network-caching умеренный: WebDAV-стрим иначе раздувает кучу.
             val options = arrayListOf(
@@ -202,7 +213,7 @@ fun LibVlcVideoView(
             playbackError = null
             Log.i(
                 TAG,
-                "LibVLC created for media=${media.id} file=${media.filename} gen=$vlcGeneration"
+                "LibVLC created for media=${media.id} file=${media.filename} gen=$vlcGeneration fds=$fdCount"
             )
 
             val eventListener = MediaPlayer.EventListener { event ->
@@ -288,6 +299,7 @@ fun LibVlcVideoView(
                 runCatching { lib.release() }
                 LibVlcCoordinator.onPlaybackReleased()
             }
+            } // fdCount ok
         }
     }
 
@@ -741,3 +753,9 @@ private const val MAX_DOWNLOAD_BYTES = VlcMediaCache.MAX_BYTES
 
 /** Во сколько раз VLC length может быть больше доверенной, прежде чем отбросить. */
 private const val DURATION_INFLATE_FACTOR = 1.5
+
+/** Запас до FD_SETSIZE(1024): LibVLC select() абортит процесс при FD ≥ 1024. */
+private const val LIBVLC_SAFE_FD_LIMIT = 900
+
+private fun openFdCount(): Int =
+    runCatching { File("/proc/self/fd").list()?.size ?: 0 }.getOrDefault(0)

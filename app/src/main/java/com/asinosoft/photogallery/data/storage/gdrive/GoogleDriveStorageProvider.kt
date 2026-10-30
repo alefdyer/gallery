@@ -9,6 +9,8 @@ import com.asinosoft.photogallery.data.Media
 import com.asinosoft.photogallery.data.ThumbnailCache
 import com.asinosoft.photogallery.data.Video
 import com.asinosoft.photogallery.data.bestVideoDurationMs
+import com.asinosoft.photogallery.data.mediaSortDateTime
+import com.asinosoft.photogallery.data.parseRfc3339Millis
 import com.asinosoft.photogallery.data.storage.Storage
 import com.asinosoft.photogallery.data.storage.StorageCheckResult
 import com.asinosoft.photogallery.data.storage.StorageProvider
@@ -17,8 +19,6 @@ import java.io.File
 import java.net.ConnectException
 import java.net.SocketTimeoutException
 import java.net.UnknownHostException
-import java.time.OffsetDateTime
-import java.time.ZoneId
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
@@ -91,7 +91,11 @@ class GoogleDriveStorageProvider(
                     append(DRIVE_FILES)
                     append("?pageSize=$LIST_PAGE_SIZE")
                     append("&q=").append(Uri.encode(q))
-                    append("&fields=nextPageToken,files(id,name,mimeType,size,modifiedTime,thumbnailLink,parents,videoMediaMetadata(durationMillis))")
+                    append(
+                        "&fields=nextPageToken,files(id,name,mimeType,size,createdTime,modifiedTime," +
+                                "thumbnailLink,parents,imageMediaMetadata(time)," +
+                                "videoMediaMetadata(durationMillis))"
+                    )
                     if (pageToken != null) append("&pageToken=").append(Uri.encode(pageToken))
                 }
                 val page = withContext(Dispatchers.IO) {
@@ -334,9 +338,11 @@ private data class DriveFile(
     val name: String? = null,
     val mimeType: String? = null,
     val size: String? = null,
+    val createdTime: String? = null,
     val modifiedTime: String? = null,
     val thumbnailLink: String? = null,
     val parents: List<String>? = null,
+    val imageMediaMetadata: DriveImageMetadata? = null,
     val videoMediaMetadata: DriveVideoMetadata? = null,
 ) {
     fun toMedia(
@@ -350,9 +356,11 @@ private data class DriveFile(
         val isImage = mime.startsWith("image/")
         val isVideo = mime.startsWith("video/")
         if (!isImage && !isVideo) return null
-        val modified = runCatching {
-            OffsetDateTime.parse(modifiedTime).atZoneSameInstant(ZoneId.systemDefault())
-        }.getOrNull() ?: return null
+        val modifiedAt = parseRfc3339Millis(modifiedTime)
+        val createdAt = parseRfc3339Millis(createdTime)
+        val takenAt = parseRfc3339Millis(imageMediaMetadata?.time)
+        if (modifiedAt == null && createdAt == null && takenAt == null) return null
+        val (sortDate, sortTime) = mediaSortDateTime(takenAt, modifiedAt, createdAt)
 
         val parentId = parents?.firstOrNull()
         val path = when {
@@ -369,8 +377,8 @@ private data class DriveFile(
         val durationMs = bestVideoDurationMs(fileSize, filename, mime, rawDuration)
 
         return Media(
-            date = modified.toLocalDate(),
-            time = modified.toLocalTime(),
+            date = sortDate,
+            time = sortTime,
             path = path,
             size = fileSize,
             filename = filename,
@@ -380,10 +388,18 @@ private data class DriveFile(
             storageItemId = id,
             thumbnail = thumbnailLink?.toUri(),
             image = Image().takeIf { isImage },
-            video = Video(duration = durationMs).takeIf { isVideo }
+            video = Video(duration = durationMs).takeIf { isVideo },
+            takenAt = takenAt,
+            createdAt = createdAt,
+            modifiedAt = modifiedAt,
         )
     }
 }
+
+private data class DriveImageMetadata(
+    /** RFC 3339, дата/время съёмки из EXIF. */
+    val time: String? = null,
+)
 
 private data class DriveVideoMetadata(
     val durationMillis: Long? = null,

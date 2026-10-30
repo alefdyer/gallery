@@ -7,6 +7,8 @@ import com.asinosoft.photogallery.data.Image
 import com.asinosoft.photogallery.data.Media
 import com.asinosoft.photogallery.data.ThumbnailCache
 import com.asinosoft.photogallery.data.Video
+import com.asinosoft.photogallery.data.mediaSortDateTime
+import com.asinosoft.photogallery.data.parseRfc3339Millis
 import com.asinosoft.photogallery.data.storage.Storage
 import com.asinosoft.photogallery.data.storage.StorageCheckResult
 import com.asinosoft.photogallery.data.storage.StorageProvider
@@ -16,8 +18,6 @@ import java.net.ConnectException
 import java.net.SocketTimeoutException
 import java.net.URLConnection
 import java.net.UnknownHostException
-import java.time.OffsetDateTime
-import java.time.ZoneId
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
@@ -220,6 +220,8 @@ private data class DropboxListEntry(
     val pathDisplay: String?,
     @SerializedName("server_modified")
     val serverModified: String?,
+    @SerializedName("client_modified")
+    val clientModified: String?,
     val size: Long?
 ) {
     fun toMedia(storage: Storage): Media? {
@@ -230,16 +232,18 @@ private data class DropboxListEntry(
         val isVideo = mimeType.startsWith("video/")
         if (!isImage && !isVideo) return null
 
-        val modified = runCatching {
-            OffsetDateTime.parse(serverModified).atZoneSameInstant(ZoneId.systemDefault())
-        }.getOrNull() ?: return null
+        val modifiedAt = parseRfc3339Millis(serverModified)
+        // client_modified у камерных загрузок часто ≈ время съёмки; отдельного EXIF в list нет.
+        val takenAt = parseRfc3339Millis(clientModified)
+        if (modifiedAt == null && takenAt == null) return null
+        val (sortDate, sortTime) = mediaSortDateTime(takenAt, modifiedAt, null)
 
         // Корневой файл: path_display "/file.jpg" → parent "" → альбом «Главная».
         val parentPath = pathDisplay?.substringBeforeLast('/', "")?.trim('/') ?: ""
 
         return Media(
-            date = modified.toLocalDate(),
-            time = modified.toLocalTime(),
+            date = sortDate,
+            time = sortTime,
             path = parentPath,
             size = size ?: -1,
             filename = filename,
@@ -248,7 +252,10 @@ private data class DropboxListEntry(
             storageType = storage.type,
             storageItemId = itemId,
             image = if (isImage) Image() else null,
-            video = if (isVideo) Video() else null
+            video = if (isVideo) Video() else null,
+            takenAt = takenAt?.takeUnless { it == modifiedAt },
+            createdAt = null,
+            modifiedAt = modifiedAt,
         )
     }
 }

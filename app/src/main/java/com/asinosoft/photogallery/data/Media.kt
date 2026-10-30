@@ -22,6 +22,7 @@ data class Media(
     @PrimaryKey(autoGenerate = true)
     val id: Long = 0,
     val uri: Uri? = null,
+    /** Ключ сортировки: съёмка → изменение → создание. */
     val date: LocalDate = LocalDate.now(),
     val time: LocalTime = LocalTime.now(),
     val path: String = "",
@@ -36,5 +37,9 @@ data class Media(
     val image: Image? = null,
     val video: Video? = null,
     @ColumnInfo(defaultValue = "0")
-    val favorite: Boolean = false
+    val favorite: Boolean = false,
+    /** Epoch ms; null = неизвестно. */
+    val takenAt: Long? = null,
+    val createdAt: Long? = null,
+    val modifiedAt: Long? = null,
 )

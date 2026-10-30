@@ -94,8 +94,22 @@ class PagerViewModel @Inject constructor(
             initialValue = emptyList()
         )
 
+    /** Актуальная строка из БД (после EXIF: разрешение / съёмка). */
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val infoMedia: StateFlow<Media?> = mediaFlow
+        .flatMapLatest { id ->
+            if (id <= 0L) kotlinx.coroutines.flow.flowOf(null)
+            else mediaDao.observeById(id)
+        }
+        .stateIn(
+            viewModelScope,
+            started = SharingStarted.Lazily,
+            initialValue = null
+        )
+
     fun getMediaInfo(media: Media) {
         mediaFlow.value = media.id
+        mediaService.enqueueRemoteImageMeta(media)
     }
 
     /**

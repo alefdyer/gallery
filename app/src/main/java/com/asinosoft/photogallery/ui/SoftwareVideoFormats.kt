@@ -21,9 +21,7 @@ fun needsSoftwareVideoPlayer(media: Media): Boolean {
         mime == "video/x-msvideo" ||
         mime == "video/x-ms-wmv" ||
         mime == "video/x-flv" ||
-        mime == "video/x-divx" ||
-        mime == "video/3gpp" ||
-        mime == "video/3gpp2"
+        mime == "video/x-divx"
     ) {
         return true
     }
@@ -45,7 +43,10 @@ fun isHardwareFriendlyContainer(filename: String): Boolean {
             name.endsWith(".m4v") ||
             name.endsWith(".mov") ||
             name.endsWith(".mkv") ||
-            name.endsWith(".webm")
+            name.endsWith(".webm") ||
+            // 3GP — родной для MediaCodec; LibVLC на Android падает при FD≥1024 (select).
+            name.endsWith(".3gp") ||
+            name.endsWith(".3gpp")
 }
 
 fun isLegacySoftwareContainer(filename: String): Boolean {
@@ -58,7 +59,5 @@ fun isLegacySoftwareContainer(filename: String): Boolean {
             name.endsWith(".wmv") ||
             name.endsWith(".asf") ||
             name.endsWith(".flv") ||
-            name.endsWith(".divx") ||
-            name.endsWith(".3gp") ||
-            name.endsWith(".3gpp")
+            name.endsWith(".divx")
 }

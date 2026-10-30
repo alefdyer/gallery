@@ -28,9 +28,8 @@ import okhttp3.Request
 import kotlin.math.roundToInt
 
 /**
- * Фоновая очередь для remote-видео: первый кадр и/или длительность.
- * Один job за раз; auth-заголовки обязательны (Drive/WebDAV).
- * После ошибки — cooldown, чтобы сетка не крутила бесконечный enqueue → OOM/FD.
+ * Фоновая очередь remote: превью/длительность видео и EXIF takenAt для фото (WebDAV).
+ * Один job за раз; auth обязателен. После ошибки — cooldown (OOM/FD).
  */
 @Singleton
 class RemoteVideoThumbQueue @Inject constructor(
@@ -48,6 +47,8 @@ class RemoteVideoThumbQueue @Inject constructor(
         val uri: String? = null,
         val needThumb: Boolean = true,
         val needDuration: Boolean = false,
+        /** WebDAV/Nextcloud: EXIF DateTimeOriginal (Range), если нет takenAt. */
+        val needTakenAt: Boolean = false,
     )
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -60,7 +61,7 @@ class RemoteVideoThumbQueue @Inject constructor(
     private val gson = Gson()
 
     fun enqueue(job: Job) {
-        if (!job.needThumb && !job.needDuration) return
+        if (!job.needThumb && !job.needDuration && !job.needTakenAt) return
         val until = cooldownUntil[job.mediaId] ?: 0L
         if (SystemClock.elapsedRealtime() < until) return
         if (!enqueued.add(job.mediaId)) return
@@ -100,7 +101,11 @@ class RemoteVideoThumbQueue @Inject constructor(
         var needDuration = job.needDuration &&
                 (existing?.video?.duration ?: 0L) <= 0L &&
                 existing?.video != null
-        if (!needThumb && !needDuration) return
+        val image = existing?.image
+        val needImageMeta = job.needTakenAt &&
+                image != null &&
+                (positiveEpoch(existing.takenAt) == null || image.width <= 0 || image.height <= 0)
+        if (!needThumb && !needDuration && !needImageMeta) return
 
         val storage = storageService.get()
         if (storage.ensureFreshAuth(job.storageId) == null) {
@@ -112,6 +117,49 @@ class RemoteVideoThumbQueue @Inject constructor(
         val filename = existing?.filename.orEmpty()
         val mime = existing?.mimeType.orEmpty()
         val size = existing?.size?.takeIf { it > 0 } ?: job.size
+
+        if (needImageMeta) {
+            val fromName = parseTakenAtFromFilename(filename)
+            val url = job.uri?.takeIf { it.startsWith("http") }
+                ?: runCatching {
+                    storageProviderRegistry.getStorageProvider(job.storageId)
+                        .getMediaUri(
+                            Media(
+                                id = job.mediaId,
+                                storageId = job.storageId,
+                                storageItemId = job.storageItemId,
+                                size = size,
+                                image = Image(),
+                            )
+                        ).toString()
+                }.getOrNull()
+            val probe = if (url != null &&
+                (url.startsWith("http://") || url.startsWith("https://"))
+            ) {
+                val app = context.applicationContext as? GalleryApp
+                app?.httpClient?.let { ExifTakenAt.probeHttp(it, url, headers) } ?: ExifProbe()
+            } else {
+                ExifProbe()
+            }
+            val taken = positiveEpoch(existing.takenAt) ?: probe.takenAt ?: fromName
+            val width = image.width.takeIf { it > 0 } ?: probe.width
+            val height = image.height.takeIf { it > 0 } ?: probe.height
+            if (taken != null || width > 0) {
+                saveImageMeta(
+                    mediaId = job.mediaId,
+                    takenAt = taken,
+                    width = width,
+                    height = height,
+                    orientation = probe.orientation.takeIf { it != 0 } ?: image.orientation,
+                )
+                Log.i(
+                    TAG,
+                    "Image meta media=${job.mediaId} taken=$taken ${width}x$height"
+                )
+            } else {
+                markCooldown(job.mediaId, FAIL_COOLDOWN_MS)
+            }
+        }
 
         // Drive: files.get. У телефонных .mp4/.mkv videoMediaMetadata часто пустой
         // (в «Олеся» 710 mp4 с duration=0, 3gp — ок). MMR на сотни файлов → OOM/FD,
@@ -276,6 +324,42 @@ class RemoteVideoThumbQueue @Inject constructor(
         mediaDao.upsert(media.copy(video = Video(duration = next)))
         cooldownUntil.remove(mediaId)
         Log.i(TAG, "Duration saved media=$mediaId → ${next}ms")
+    }
+
+    private suspend fun saveImageMeta(
+        mediaId: Long,
+        takenAt: Long?,
+        width: Int,
+        height: Int,
+        orientation: Int,
+    ) {
+        val media = mediaDao.getById(mediaId) ?: return
+        val img = media.image ?: return
+        val nextTaken = positiveEpoch(media.takenAt) ?: positiveEpoch(takenAt)
+        val nextW = img.width.takeIf { it > 0 } ?: width
+        val nextH = img.height.takeIf { it > 0 } ?: height
+        val nextOrient = if (img.orientation != 0) img.orientation else orientation
+        val (sortDate, sortTime) = if (nextTaken != null) {
+            mediaSortDateTime(nextTaken, media.modifiedAt, media.createdAt)
+        } else {
+            media.date to media.time
+        }
+        if (nextTaken == media.takenAt &&
+            nextW == img.width &&
+            nextH == img.height &&
+            nextOrient == img.orientation
+        ) {
+            return
+        }
+        mediaDao.upsert(
+            media.copy(
+                takenAt = nextTaken,
+                date = sortDate,
+                time = sortTime,
+                image = Image(width = nextW, height = nextH, orientation = nextOrient),
+            )
+        )
+        cooldownUntil.remove(mediaId)
     }
 
     private fun supportsRange(url: String, headers: Map<String, String>): Boolean {

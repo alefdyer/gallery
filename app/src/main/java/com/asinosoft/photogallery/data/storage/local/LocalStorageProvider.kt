@@ -12,6 +12,7 @@ import androidx.core.database.getStringOrNull
 import com.asinosoft.photogallery.data.Image
 import com.asinosoft.photogallery.data.Media
 import com.asinosoft.photogallery.data.Video
+import com.asinosoft.photogallery.data.mediaSortDateTime
 import com.asinosoft.photogallery.data.storage.Storage
 import com.asinosoft.photogallery.data.storage.StorageCheckResult
 import com.asinosoft.photogallery.data.storage.StorageProvider
@@ -78,6 +79,7 @@ class LocalStorageProvider(
                 FileColumns.MEDIA_TYPE,
                 FileColumns.DATE_ADDED,
                 FileColumns.DATE_TAKEN,
+                FileColumns.DATE_MODIFIED,
                 FileColumns.WIDTH,
                 FileColumns.HEIGHT,
                 FileColumns.ORIENTATION,
@@ -106,6 +108,7 @@ class LocalStorageProvider(
                 val mediaTypeColumn = cursor.getColumnIndexOrThrow(FileColumns.MEDIA_TYPE)
                 val dateAddedColumn = cursor.getColumnIndexOrThrow(FileColumns.DATE_ADDED)
                 val dateTakenColumn = cursor.getColumnIndexOrThrow(FileColumns.DATE_TAKEN)
+                val dateModifiedColumn = cursor.getColumnIndexOrThrow(FileColumns.DATE_MODIFIED)
                 val widthColumn = cursor.getColumnIndexOrThrow(FileColumns.WIDTH)
                 val heightColumn = cursor.getColumnIndexOrThrow(FileColumns.HEIGHT)
                 val orientationColumn = cursor.getColumnIndexOrThrow(FileColumns.ORIENTATION)
@@ -132,18 +135,24 @@ class LocalStorageProvider(
                 while (cursor.moveToNext()) {
                     val id = cursor.getLong(idColumn)
                     val isVideo = cursor.getInt(mediaTypeColumn) == FileColumns.MEDIA_TYPE_VIDEO
-                    val dateAdded: Long = cursor.getLong(dateAddedColumn)
-                    val dateTaken: Long = cursor.getLong(dateTakenColumn)
-                    val date = if (dateTaken > 0) dateTaken else (dateAdded * 1000)
+                    val dateAddedSec: Long = cursor.getLong(dateAddedColumn)
+                    val dateTakenMs: Long = cursor.getLong(dateTakenColumn)
+                    val dateModifiedSec: Long = cursor.getLong(dateModifiedColumn)
+                    val takenAt = dateTakenMs.takeIf { it > 0L }
+                    val createdAt = (dateAddedSec * 1000L).takeIf { dateAddedSec > 0L }
+                    val modifiedAt = (dateModifiedSec * 1000L).takeIf { dateModifiedSec > 0L }
+                    val (sortDate, sortTime) = mediaSortDateTime(
+                        takenAt,
+                        modifiedAt,
+                        createdAt,
+                        zoneId,
+                    )
                     val collection = if (isVideo) {
                         Videos.Media.EXTERNAL_CONTENT_URI
                     } else {
                         Images.Media.EXTERNAL_CONTENT_URI
                     }
                     val uri = ContentUris.withAppendedId(collection, id)
-                    val datetime = java.time.Instant.ofEpochMilli(date)
-                        .atZone(zoneId)
-                        .toLocalDateTime()
                     val path: String = pathColumn?.let { cursor.getString(pathColumn) } ?: ""
                     val owner: String? = ownerColumn?.let { cursor.getStringOrNull(ownerColumn) }
 
@@ -151,8 +160,8 @@ class LocalStorageProvider(
                         Media(
                             id = 0,
                             uri = uri,
-                            date = datetime.toLocalDate(),
-                            time = datetime.toLocalTime(),
+                            date = sortDate,
+                            time = sortTime,
                             path = path,
                             size = cursor.getLong(sizeColumn),
                             filename = cursor.getString(dataColumn),
@@ -171,7 +180,10 @@ class LocalStorageProvider(
                                 )
                             },
                             video = if (isVideo) Video(cursor.getLong(durationColumn)) else null,
-                            favorite = favoriteColumn?.let { 1 == cursor.getInt(it) } ?: false
+                            favorite = favoriteColumn?.let { 1 == cursor.getInt(it) } ?: false,
+                            takenAt = takenAt,
+                            createdAt = createdAt,
+                            modifiedAt = modifiedAt,
                         )
                     )
                 }

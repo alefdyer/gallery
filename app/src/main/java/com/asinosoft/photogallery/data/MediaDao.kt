@@ -87,6 +87,9 @@ interface MediaDao {
     @Query("SELECT * FROM media WHERE id = :id")
     suspend fun getById(id: Long): Media?
 
+    @Query("SELECT * FROM media WHERE id = :id")
+    fun observeById(id: Long): Flow<Media?>
+
     @Query("SELECT * FROM media WHERE id IN (:mediaIds)")
     suspend fun getByIds(mediaIds: Collection<Long>): List<Media>
 

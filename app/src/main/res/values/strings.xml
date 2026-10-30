@@ -81,7 +81,11 @@
     <string name="info">Info</string>
     <string name="path">File path</string>
     <string name="size">Size</string>
+    <string name="resolution">Resolution</string>
     <string name="date">Date</string>
+    <string name="date_taken">Date taken</string>
+    <string name="date_created">Date created</string>
+    <string name="date_modified">Date modified</string>
     <string name="storage_action_add">Add</string>
     <string name="save">Save</string>
     <string name="storage_not_implemented">Not implemented</string>

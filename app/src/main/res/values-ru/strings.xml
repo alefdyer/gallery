@@ -80,7 +80,11 @@
     <string name="info">Информация</string>
     <string name="path">Путь к файлу</string>
     <string name="size">Размер</string>
+    <string name="resolution">Разрешение</string>
     <string name="date">Дата</string>
+    <string name="date_taken">Дата съёмки</string>
+    <string name="date_created">Дата создания</string>
+    <string name="date_modified">Дата изменения</string>
     <string name="storage_action_add">Добавить</string>
     <string name="save">Сохранить</string>
     <string name="storage_not_implemented">Не реализовано</string>

@@ -41,6 +41,11 @@ import com.asinosoft.photogallery.R
 import com.asinosoft.photogallery.data.Album
 import com.asinosoft.photogallery.data.AlbumWithCover
 import com.asinosoft.photogallery.data.Media
+import com.asinosoft.photogallery.data.epochToLocalDateTime
+import com.asinosoft.photogallery.data.parseTakenAtFromFilename
+import com.asinosoft.photogallery.data.positiveEpoch
+import com.asinosoft.photogallery.data.sortDateTimeEpochMillis
+import com.asinosoft.photogallery.data.storage.StorageType
 import com.asinosoft.photogallery.model.PagerViewModel
 import com.asinosoft.photogallery.ui.component.AddToAlbumDialog
 import com.asinosoft.photogallery.ui.component.AlbumCover
@@ -57,7 +62,12 @@ fun MediaInfoSheet(
     onAlbumClick: (Album) -> Unit,
     onDismissRequest: () -> Unit
 ) {
-    val size = Formatter.formatShortFileSize(LocalContext.current, media.size)
+    val context = LocalContext.current
+    val infoMedia by model.infoMedia.collectAsState()
+    val m = infoMedia?.takeIf { it.id == media.id } ?: media
+    val fileSize = remember(m.size) {
+        m.size.takeIf { it > 0L }?.let { Formatter.formatShortFileSize(context, it) }
+    }
     val locale = LocalConfiguration.current.locales[0]
     val dateFormatter = remember(locale) {
         DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).withLocale(locale)
@@ -65,21 +75,49 @@ fun MediaInfoSheet(
     val timeFormatter = remember(locale) {
         DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT).withLocale(locale)
     }
-    val date = media.date.format(dateFormatter)
-    val time = media.time.format(timeFormatter)
+    fun formatEpoch(ms: Long?): String? {
+        val epoch = positiveEpoch(ms) ?: return null
+        val dt = epochToLocalDateTime(epoch)
+        return "${dt.toLocalDate().format(dateFormatter)} ${dt.toLocalTime().format(timeFormatter)}"
+    }
+
+    // До рескана колонки null — берём старый date/time как изменение (или съёмку на телефоне).
+    val hasExplicitDates =
+        positiveEpoch(m.takenAt) != null ||
+                positiveEpoch(m.createdAt) != null ||
+                positiveEpoch(m.modifiedAt) != null
+    val derivedEpoch = remember(m.date, m.time, hasExplicitDates) {
+        if (hasExplicitDates) null else m.sortDateTimeEpochMillis()
+    }
+    val takenText = formatEpoch(m.takenAt)
+        ?: formatEpoch(parseTakenAtFromFilename(m.filename))
+        ?: if (!hasExplicitDates && m.storageType == StorageType.LOCAL) {
+            formatEpoch(derivedEpoch)
+        } else {
+            null
+        }
+    val createdText = formatEpoch(m.createdAt)
+    val modifiedText = formatEpoch(m.modifiedAt)
+        ?: if (!hasExplicitDates && m.storageType != StorageType.LOCAL) {
+            formatEpoch(derivedEpoch)
+        } else if (!hasExplicitDates && takenText == null) {
+            formatEpoch(derivedEpoch)
+        } else {
+            null
+        }
     val coverSize = LocalWindowInfo.current.containerDpSize.width / 3
     var showAddToAlbum by remember { mutableStateOf(false) }
 
-    LaunchedEffect(media) {
+    LaunchedEffect(media.id) {
         model.getMediaInfo(media)
     }
 
     if (showAddToAlbum) {
         AddToAlbumDialog(
-            onPickAlbum = { model.addToAlbum(media.id, it.id) },
-            onCreateAlbum = { name, category -> model.addToNewAlbum(media.id, name, category) },
+            onPickAlbum = { model.addToAlbum(m.id, it.id) },
+            onCreateAlbum = { name, category -> model.addToNewAlbum(m.id, name, category) },
             onCreateAlbumInNewCategory = { name, categoryName ->
-                model.addToNewAlbumInNewCategory(media.id, name, categoryName)
+                model.addToNewAlbumInNewCategory(m.id, name, categoryName)
             },
             onDismiss = { showAddToAlbum = false }
         )
@@ -106,7 +144,7 @@ fun MediaInfoSheet(
                             .clickable { onAlbumClick(album.album) }
                     )
                     RemoveFromAlbumButton(
-                        onClick = { model.removeFromAlbum(media.id, album.album.id) },
+                        onClick = { model.removeFromAlbum(m.id, album.album.id) },
                         modifier = Modifier.align(Alignment.TopEnd)
                     )
                 }
@@ -129,22 +167,49 @@ fun MediaInfoSheet(
         ListItem(
             leadingContent = { Icon(painterResource(R.drawable.folder), null) },
             headlineContent = { Text(stringResource(R.string.path)) },
-            supportingContent = { Text(media.filename) }
+            supportingContent = { Text(m.filename) }
         )
-        media.image?.let {
+        fileSize?.let { sizeText ->
             ListItem(
                 leadingContent = { Icon(painterResource(R.drawable.aspect_ratio), null) },
                 headlineContent = { Text(stringResource(R.string.size)) },
-                supportingContent = { Text("${it.width}×${it.height}, $size") }
+                supportingContent = { Text(sizeText) }
             )
         }
-        ListItem(
-            leadingContent = { Icon(painterResource(R.drawable.calendar_today), null) },
-            headlineContent = { Text(stringResource(R.string.date)) },
-            supportingContent = {
-                Text("$date $time")
+        m.image?.let { image ->
+            if (image.width > 0 && image.height > 0) {
+                ListItem(
+                    leadingContent = { Icon(painterResource(R.drawable.aspect_ratio), null) },
+                    headlineContent = { Text(stringResource(R.string.resolution)) },
+                    supportingContent = { Text("${image.width}×${image.height}") }
+                )
             }
-        )
+        }
+        takenText?.let { text ->
+            ListItem(
+                leadingContent = { Icon(painterResource(R.drawable.calendar_today), null) },
+                headlineContent = { Text(stringResource(R.string.date_taken)) },
+                supportingContent = { Text(text) }
+            )
+        }
+        modifiedText?.let { text ->
+            ListItem(
+                leadingContent = { Icon(painterResource(R.drawable.calendar_today), null) },
+                headlineContent = { Text(stringResource(R.string.date_modified)) },
+                supportingContent = { Text(text) }
+            )
+        }
+        // Создание — если есть и не совпадает с изменением/съёмкой.
+        if (createdText != null &&
+            createdText != modifiedText &&
+            createdText != takenText
+        ) {
+            ListItem(
+                leadingContent = { Icon(painterResource(R.drawable.calendar_today), null) },
+                headlineContent = { Text(stringResource(R.string.date_created)) },
+                supportingContent = { Text(createdText) }
+            )
+        }
     }
 }
 

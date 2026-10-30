@@ -5,6 +5,8 @@ import androidx.core.net.toUri
 import com.asinosoft.photogallery.data.Image
 import com.asinosoft.photogallery.data.Media
 import com.asinosoft.photogallery.data.Video
+import com.asinosoft.photogallery.data.mediaSortDateTime
+import com.asinosoft.photogallery.data.parseRfc3339Millis
 import com.asinosoft.photogallery.data.storage.Storage
 import com.asinosoft.photogallery.data.storage.StorageCheckResult
 import com.asinosoft.photogallery.data.storage.StorageProvider
@@ -13,8 +15,6 @@ import com.google.gson.annotations.SerializedName
 import java.net.ConnectException
 import java.net.SocketTimeoutException
 import java.net.UnknownHostException
-import java.time.OffsetDateTime
-import java.time.ZoneId
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
@@ -70,7 +70,8 @@ class OneDriveStorageProvider(override val storage: Storage) : StorageProvider {
         return flow {
             var url: String? =
                 "${OneDriveApi.GRAPH_BASE}/me/drive/root/delta" +
-                        "?\$select=id,name,size,lastModifiedDateTime,file,folder,parentReference" +
+                        "?\$select=id,name,size,createdDateTime,lastModifiedDateTime," +
+                        "file,folder,parentReference,photo" +
                         "&\$expand=thumbnails"
             while (url != null) {
                 val page = withContext(Dispatchers.IO) {
@@ -128,9 +129,11 @@ private data class DriveItem(
     val id: String? = null,
     val name: String? = null,
     val size: Long? = null,
+    val createdDateTime: String? = null,
     val lastModifiedDateTime: String? = null,
     val file: DriveFileFacet? = null,
     val folder: Any? = null,
+    val photo: PhotoFacet? = null,
     val parentReference: ParentRef? = null,
     val thumbnails: List<ThumbnailSet>? = null,
     @SerializedName("@microsoft.graph.downloadUrl")
@@ -144,14 +147,16 @@ private data class DriveItem(
         val isImage = mime.startsWith("image/")
         val isVideo = mime.startsWith("video/")
         if (!isImage && !isVideo) return null
-        val modified = runCatching {
-            OffsetDateTime.parse(lastModifiedDateTime).atZoneSameInstant(ZoneId.systemDefault())
-        }.getOrNull() ?: return null
+        val modifiedAt = parseRfc3339Millis(lastModifiedDateTime)
+        val createdAt = parseRfc3339Millis(createdDateTime)
+        val takenAt = parseRfc3339Millis(photo?.takenDateTime)
+        if (modifiedAt == null && createdAt == null && takenAt == null) return null
+        val (sortDate, sortTime) = mediaSortDateTime(takenAt, modifiedAt, createdAt)
         val thumb = thumbnails?.firstOrNull()?.medium?.url?.toUri()
             ?: thumbnails?.firstOrNull()?.large?.url?.toUri()
         return Media(
-            date = modified.toLocalDate(),
-            time = modified.toLocalTime(),
+            date = sortDate,
+            time = sortTime,
             path = parentReference?.path.orEmpty(),
             size = size ?: -1,
             filename = filename,
@@ -161,12 +166,16 @@ private data class DriveItem(
             storageItemId = id,
             thumbnail = thumb,
             image = Image().takeIf { isImage },
-            video = Video(duration = 0).takeIf { isVideo }
+            video = Video(duration = 0).takeIf { isVideo },
+            takenAt = takenAt,
+            createdAt = createdAt,
+            modifiedAt = modifiedAt,
         )
     }
 }
 
 private data class DriveFileFacet(val mimeType: String? = null)
+private data class PhotoFacet(val takenDateTime: String? = null)
 private data class ParentRef(val path: String? = null, val id: String? = null)
 private data class ThumbnailSet(
     val medium: ThumbUrl? = null,
