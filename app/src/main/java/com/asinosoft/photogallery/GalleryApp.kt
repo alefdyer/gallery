@@ -11,6 +11,7 @@ import coil3.network.okhttp.OkHttpNetworkFetcherFactory
 import coil3.request.CachePolicy
 import coil3.svg.SvgDecoder
 import coil3.video.VideoFrameDecoder
+import com.asinosoft.photogallery.data.ShareCache
 import com.asinosoft.photogallery.data.storage.StorageAuthProvider
 import com.yandex.mobile.ads.common.YandexAds
 import dagger.hilt.android.HiltAndroidApp
@@ -32,6 +33,9 @@ class GalleryApp : Application() {
         super.onCreate()
 
         YandexAds.initialize(this) { }
+
+        // Старый share-кэш (копии/h264) иначе копится на гигабайты.
+        ShareCache.trimOnStartup(this)
 
         httpClient =
             OkHttpClient

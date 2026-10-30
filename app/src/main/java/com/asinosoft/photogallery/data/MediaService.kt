@@ -151,6 +151,8 @@ class MediaService @Inject constructor(
                         }
                     }
                 startShareChooser(context, send, uris)
+                // Мессенджер ещё читает FileProvider — чистим share-кэш с задержкой.
+                ShareCache.schedulePurgeAfterShare(context)
             } finally {
                 ShareUi.setStatus(null)
             }
@@ -307,6 +309,7 @@ class MediaService @Inject constructor(
         if (media.size > MAX_SHARE_DOWNLOAD_BYTES) {
             error(context.getString(R.string.share_too_large))
         }
+        ShareCache.trim(context)
         val service = storageService.get()
         checkNotNull(service.ensureFreshAuth(media.storageId)) {
             "Waiting for Google sign-in"
