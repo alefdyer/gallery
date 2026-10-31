@@ -12,9 +12,12 @@ import java.util.UUID
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import android.util.Log
 import okhttp3.FormBody
+import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
 
 object DropboxApi {
     const val BASE_URL = "https://api.dropboxapi.com/2/"
@@ -45,7 +48,7 @@ object DropboxApi {
             .build()
     }
 
-    suspend fun getTokenFromUrl(uri: Uri): Result<String> = runCatching {
+    suspend fun getTokenFromUrl(uri: Uri): Result<TokenResult> = runCatching {
         val url = uri.toString()
         if (!url.startsWith(BuildConfig.DROPBOX_REDIRECT_URI)) {
             throw IllegalStateException("Invalid redirect uri")
@@ -90,7 +93,7 @@ object DropboxApi {
     private suspend fun exchangeCodeForToken(
         code: String,
         client: OkHttpClient = OkHttpClient()
-    ): Result<String> = withContext(Dispatchers.IO) {
+    ): Result<TokenResult> = withContext(Dispatchers.IO) {
         runCatching {
             val body = FormBody.Builder()
                 .add("code", code)
@@ -112,11 +115,41 @@ object DropboxApi {
                     }.getOrNull()
                     throw IllegalStateException(error ?: "HTTP ${response.code}")
                 }
-                parseDropboxTokenResponse(payload)?.accessToken
+                val token = parseDropboxTokenResponse(payload)?.accessToken
                     ?: throw IllegalStateException("Empty token response")
+                TokenResult(
+                    accessToken = token,
+                    email = fetchEmail(token, client)
+                )
             }
         }
     }
+
+    fun fetchEmail(accessToken: String, client: OkHttpClient = OkHttpClient()): String? {
+        // Dropbox RPC без аргументов: тело `null`, Content-Type application/json.
+        val request = Request.Builder()
+            .url("${BASE_URL}users/get_current_account")
+            .header("Authorization", "Bearer $accessToken")
+            .post("null".toRequestBody("application/json".toMediaType()))
+            .build()
+        return try {
+            client.newCall(request).execute().use { response ->
+                val body = response.body?.string().orEmpty()
+                if (!response.isSuccessful) {
+                    Log.w(TAG, "get_current_account HTTP ${response.code}: $body")
+                    return null
+                }
+                val account = Gson().fromJson(body, DropboxAccountResponse::class.java)
+                account.email?.takeIf { it.isNotBlank() }
+                    ?: account.name?.displayName?.takeIf { it.isNotBlank() }
+            }
+        } catch (ex: Throwable) {
+            Log.w(TAG, "get_current_account failed", ex)
+            null
+        }
+    }
+
+    private const val TAG = "DropboxApi"
 
     private fun parseDropboxTokenResponse(payload: String): DropboxTokenResponse? {
         val raw = Gson().fromJson(payload, DropboxTokenRawResponse::class.java) ?: return null
@@ -127,6 +160,8 @@ object DropboxApi {
             uid = raw.uid
         )
     }
+
+    data class TokenResult(val accessToken: String, val email: String?)
 }
 
 data class DropboxTokenResponse(val accessToken: String, val accountId: String?, val uid: String?)
@@ -137,6 +172,16 @@ private data class DropboxTokenRawResponse(
     @SerializedName("account_id")
     val accountId: String?,
     val uid: String?
+)
+
+private data class DropboxAccountResponse(
+    val email: String? = null,
+    val name: DropboxNameResponse? = null
+)
+
+private data class DropboxNameResponse(
+    @SerializedName("display_name")
+    val displayName: String? = null
 )
 
 private data class DropboxErrorResponse(

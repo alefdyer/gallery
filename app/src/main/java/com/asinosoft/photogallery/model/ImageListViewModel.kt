@@ -22,6 +22,7 @@ import com.asinosoft.photogallery.data.storage.MediaStatistics
 import com.asinosoft.photogallery.data.storage.StorageDao
 import com.asinosoft.photogallery.data.storage.StorageProviderRegistry
 import com.asinosoft.photogallery.data.storage.StorageService
+import com.asinosoft.photogallery.ui.component.drawableRes
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
@@ -98,6 +99,12 @@ class ImageListViewModel @Inject constructor(
 
     /** Подпись категории в шапке: «Google Drive» / email, не сырой :storage:id. */
     val albumCategorySubtitle = MutableStateFlow<String?>(null)
+
+    /** Иконка слева от подписи: тип хранилища или папка. */
+    val albumCategorySubtitleIcon = MutableStateFlow(R.drawable.folder)
+
+    /** Цветные иконки провайдеров без tint; folder — с белым tint. */
+    val albumCategorySubtitleIconTinted = MutableStateFlow(true)
 
     // Соседние альбомы для листания свайпом: только своя категория и с первой
     // композиции экрана, а не после перехода навигации и загрузки всех категорий —
@@ -224,6 +231,9 @@ class ImageListViewModel @Inject constructor(
                 albumCategorySubtitle.emit(
                     category?.let { resolveCategorySubtitle(it) }
                 )
+                val storageIcon = category?.let { resolveCategorySubtitleIcon(it) }
+                albumCategorySubtitleIcon.emit(storageIcon ?: R.drawable.folder)
+                albumCategorySubtitleIconTinted.emit(storageIcon == null)
                 album.emit(value)
             }
 
@@ -502,5 +512,15 @@ class ImageListViewModel @Inject constructor(
             AlbumCategory.WEBDAV_NAME -> context.getString(R.string.storage_type_webdav)
             else -> category.name
         }
+    }
+
+    private suspend fun resolveCategorySubtitleIcon(category: AlbumCategory): Int? {
+        val storageId = category.storageIdOrNull() ?: return when (category.name) {
+            AlbumCategory.WEBDAV_NAME -> R.drawable.webdav
+            else -> null
+        }
+        val storage = runCatching { storageDao.getStorageById(storageId) }.getOrNull()
+            ?: return null
+        return storage.type.drawableRes()
     }
 }

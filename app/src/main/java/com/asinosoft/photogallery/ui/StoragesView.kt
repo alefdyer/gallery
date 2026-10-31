@@ -403,12 +403,6 @@ private fun StorageEditor(
                     modifier = Modifier.weight(1f)
                 )
 
-                StorageType.YANDEX -> YandexStorageForm(
-                    onSave = ::submitStorage,
-                    onCancel = onCancel,
-                    modifier = Modifier.weight(1f)
-                )
-
                 StorageType.GOOGLE_DRIVE -> GoogleDriveStorageForm(
                     existingEmails = existingGoogleDriveEmails,
                     forceAccountPicker = hasGoogleDrive,
@@ -417,10 +411,11 @@ private fun StorageEditor(
                     modifier = Modifier.weight(1f)
                 )
 
-                StorageType.ONEDRIVE -> OneDriveStorageForm(
-                    onSave = ::submitStorage,
-                    onCancel = onCancel,
-                    modifier = Modifier.weight(1f)
+                // Yandex Disk / OneDrive — отключены до следующей версии
+                StorageType.YANDEX,
+                StorageType.ONEDRIVE -> Text(
+                    stringResource(R.string.storage_not_implemented),
+                    modifier = Modifier.padding(16.dp)
                 )
 
                 else -> Text(
@@ -481,24 +476,10 @@ private fun StorageTypeSelector(
             )
             SettingsGroupDivider()
             StorageProviderOption(
-                type = StorageType.ONEDRIVE,
-                title = stringResource(R.string.storage_type_onedrive),
-                subtitle = stringResource(R.string.storage_type_onedrive_hint),
-                onClick = { onSelect(StorageType.ONEDRIVE) }
-            )
-            SettingsGroupDivider()
-            StorageProviderOption(
                 type = StorageType.DROPBOX,
                 title = stringResource(R.string.storage_type_dropbox),
                 subtitle = stringResource(R.string.storage_type_dropbox_hint),
                 onClick = { onSelect(StorageType.DROPBOX) }
-            )
-            SettingsGroupDivider()
-            StorageProviderOption(
-                type = StorageType.YANDEX,
-                title = stringResource(R.string.storage_type_yandex_disk),
-                subtitle = stringResource(R.string.storage_type_yandex_hint),
-                onClick = { onSelect(StorageType.YANDEX) }
             )
             SettingsGroupDivider()
             StorageProviderOption(
@@ -829,12 +810,13 @@ private fun DropboxStorageForm(
     LaunchedEffect(Unit) {
         OAuthRedirectBus.events.collect { uri ->
             DropboxApi.getTokenFromUrl(uri)
-                .onSuccess {
+                .onSuccess { result ->
                     onSave(
                         Storage(
                             type = StorageType.DROPBOX,
                             url = DropboxApi.BASE_URL.toUri(),
-                            password = it
+                            login = result.email,
+                            password = result.accessToken
                         )
                     )
                 }

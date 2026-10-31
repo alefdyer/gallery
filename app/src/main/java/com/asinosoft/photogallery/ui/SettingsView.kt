@@ -126,7 +126,10 @@ fun SettingsView(
                 val pageModifier = Modifier.fillMaxSize()
                 when (page) {
                     TAB_GALLERY -> GallerySettingsTab(pageModifier)
-                    TAB_NETWORK -> StoragesView(pageModifier)
+                    TAB_NETWORK -> StoragesView(
+                        modifier = pageModifier,
+                        onOpenTerms = onOpenTerms,
+                    )
                     else -> AboutAppTab(
                         version = "${BuildConfig.VERSION_NAME}.${BuildConfig.VERSION_CODE}",
                         onSayThanks = {

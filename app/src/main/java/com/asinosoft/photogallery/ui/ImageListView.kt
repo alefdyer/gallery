@@ -255,6 +255,8 @@ fun ImageListView(
     val album by model.album.collectAsState()
     val albumCategory by model.albumCategory.collectAsState()
     val albumCategorySubtitle by model.albumCategorySubtitle.collectAsState()
+    val albumCategorySubtitleIcon by model.albumCategorySubtitleIcon.collectAsState()
+    val albumCategorySubtitleIconTinted by model.albumCategorySubtitleIconTinted.collectAsState()
     val listTitle = album?.name
         ?: stringResource(if (model.favoritesOnly) R.string.favorites else R.string.all_photos)
     val title = dateFilter?.let { dateFilterTitle(it) } ?: listTitle
@@ -514,6 +516,8 @@ fun ImageListView(
                 title = target.name,
                 // Соседние альбомы — из той же категории, что и текущий.
                 subtitle = albumCategorySubtitle,
+                subtitleIcon = albumCategorySubtitleIcon,
+                subtitleIconTinted = albumCategorySubtitleIconTinted,
                 showPhotos = true,
                 showVideos = true,
                 columns = gridColumns,
@@ -595,6 +599,8 @@ fun ImageListView(
                 videosEnabled = showVideos,
                 sizeBytes = totalSize,
                 subtitle = albumCategorySubtitle,
+                subtitleIcon = albumCategorySubtitleIcon,
+                subtitleIconTinted = albumCategorySubtitleIconTinted,
                 onPhotosClick = {
                     scrollToTopOnUpdate.pending = true
                     model.togglePhotos()
@@ -917,7 +923,9 @@ private fun DatePreviewPage(
     headerHeight: Dp,
     contentPadding: PaddingValues,
     modifier: Modifier = Modifier,
-    subtitle: String? = null
+    subtitle: String? = null,
+    subtitleIcon: Int = R.drawable.folder,
+    subtitleIconTinted: Boolean = true,
 ) {
     val videoCount = remember(images) { images.count { null != it.video } }
     val photoCount = images.size - videoCount
@@ -954,6 +962,8 @@ private fun DatePreviewPage(
             videosEnabled = !typeFilterActive || showVideos,
             sizeBytes = totalSize,
             subtitle = subtitle,
+            subtitleIcon = subtitleIcon,
+            subtitleIconTinted = subtitleIconTinted,
             modifier = Modifier
                 .fillMaxWidth()
                 .height(headerHeight)

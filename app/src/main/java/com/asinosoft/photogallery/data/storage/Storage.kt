@@ -62,7 +62,8 @@ data class Storage(
     /** Заголовок категории на вкладке «Альбомы». */
     fun categoryTitle(context: Context): String = when (type) {
         StorageType.LOCAL -> context.getString(R.string.phone)
-        StorageType.DROPBOX -> context.getString(R.string.dropbox)
+        StorageType.DROPBOX -> login?.takeIf { it.isNotBlank() }
+            ?: context.getString(R.string.dropbox)
         StorageType.NEXTCLOUD -> login?.takeIf { it.isNotBlank() }
             ?: context.getString(R.string.nextcloud)
 

@@ -29,6 +29,7 @@ class StoragesViewModel @Inject constructor(
     init {
         viewModelScope.launchAndCatch {
             storageService.backfillMissingGoogleDriveEmails()
+            storageService.backfillMissingDropboxEmails()
         }
     }
 

@@ -10,6 +10,7 @@ import com.asinosoft.photogallery.data.MediaService
 import com.asinosoft.photogallery.data.MessageBus
 import com.asinosoft.photogallery.data.ThumbnailCache
 import android.app.PendingIntent
+import com.asinosoft.photogallery.data.storage.dropbox.DropboxApi
 import com.asinosoft.photogallery.data.storage.gdrive.GoogleDriveGalleryAuth
 import com.asinosoft.photogallery.data.storage.gdrive.GoogleDriveReauthRequest
 import com.asinosoft.photogallery.data.storage.gdrive.GoogleDriveStorageProvider
@@ -71,8 +72,15 @@ class StorageService @Inject constructor(
     }
 
     suspend fun addStorage(storage: Storage): Storage {
-        val insertedId = storageDao.upsert(storage)
-        val saved = if (insertedId > 0) storage.withId(insertedId) else storage
+        var toSave = storage
+        if (toSave.type == StorageType.DROPBOX &&
+            toSave.login.isNullOrBlank() &&
+            !toSave.password.isNullOrBlank()
+        ) {
+            toSave = toSave.copy(login = DropboxApi.fetchEmail(toSave.password!!))
+        }
+        val insertedId = storageDao.upsert(toSave)
+        val saved = if (insertedId > 0) toSave.withId(insertedId) else toSave
         storageProviderRegistry.invalidate(saved.id)
         storageAuthProvider.refresh()
         enqueueFetch(saved)
@@ -191,6 +199,20 @@ class StorageService @Inject constructor(
         storageAuthProvider.refresh()
         Log.i(TAG, "Applied Google Drive token for storage $storageId")
         if (retryFetch) enqueueFetch(updated)
+    }
+
+    /** Старые Dropbox без login — email через users/get_current_account. */
+    suspend fun backfillMissingDropboxEmails() = withContext(Dispatchers.IO) {
+        val missing = storageDao.getStorages().first().filter {
+            it.type == StorageType.DROPBOX &&
+                    it.login.isNullOrBlank() &&
+                    !it.password.isNullOrBlank()
+        }
+        for (storage in missing) {
+            val email = DropboxApi.fetchEmail(storage.password!!) ?: continue
+            storageDao.upsert(storage.copy(login = email))
+            Log.i(TAG, "Backfilled Dropbox email for storage ${storage.id}")
+        }
     }
 
     /** Старые Drive без login — подпись email для вкладки «Сеть». */

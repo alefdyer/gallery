@@ -52,6 +52,7 @@ class GalleryApp : Application() {
         appScope.launch {
             runCatching { storageDao.migratePlaintextPasswords() }
             runCatching { storageService.backfillMissingGoogleDriveEmails() }
+            runCatching { storageService.backfillMissingDropboxEmails() }
         }
 
         httpClient =

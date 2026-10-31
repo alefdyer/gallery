@@ -3,6 +3,7 @@ package com.asinosoft.photogallery.ui.component
 import android.text.format.Formatter
 import androidx.annotation.DrawableRes
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -28,6 +29,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -94,6 +96,8 @@ fun ImageListHeaderInfo(
     videosEnabled: Boolean = true,
     sizeBytes: Long? = null,
     subtitle: String? = null,
+    @DrawableRes subtitleIcon: Int = R.drawable.folder,
+    subtitleIconTinted: Boolean = true,
     onPhotosClick: (() -> Unit)? = null,
     onVideosClick: (() -> Unit)? = null
 ) {
@@ -109,16 +113,20 @@ fun ImageListHeaderInfo(
                 .padding(start = 16.dp, end = 16.dp, bottom = 14.dp)
         ) {
             val style = MaterialTheme.typography.headlineSmall
-            Column(Modifier.weight(1f)) {
+            Column(modifier = Modifier.weight(1f)) {
                 if (!subtitle.isNullOrBlank()) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
-                        Icon(
-                            painter = painterResource(R.drawable.folder),
+                        Image(
+                            painter = painterResource(subtitleIcon),
                             contentDescription = null,
-                            tint = Color.White.copy(alpha = 0.85f),
+                            colorFilter = if (subtitleIconTinted) {
+                                ColorFilter.tint(Color.White.copy(alpha = 0.85f))
+                            } else {
+                                null
+                            },
                             modifier = Modifier.size(18.dp)
                         )
                         Text(
