@@ -445,11 +445,16 @@ private fun AppNavHost(
                     )
                 },
                 onOpenPrivacy = { nav.navigate("privacy") },
+                onOpenTerms = { nav.navigate("terms") },
             )
         }
 
         composable("privacy") {
             PrivacyPolicyView(onClose = nav::navigateUp)
+        }
+
+        composable("terms") {
+            TermsOfUseView(onClose = nav::navigateUp)
         }
     }
 }

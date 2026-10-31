@@ -12,6 +12,7 @@ import com.asinosoft.photogallery.data.ThumbnailCache
 import android.app.PendingIntent
 import com.asinosoft.photogallery.data.storage.gdrive.GoogleDriveGalleryAuth
 import com.asinosoft.photogallery.data.storage.gdrive.GoogleDriveReauthRequest
+import com.asinosoft.photogallery.data.storage.gdrive.GoogleDriveStorageProvider
 import com.google.android.gms.auth.api.identity.Identity
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
@@ -23,6 +24,7 @@ import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
@@ -181,12 +183,96 @@ class StorageService @Inject constructor(
         val storage = runCatching { storageDao.getStorageById(storageId) }.getOrNull()
             ?: return@withContext
         if (storage.type != StorageType.GOOGLE_DRIVE) return@withContext
-        val updated = storage.copy(password = token)
+        val email = storage.login?.takeIf { it.isNotBlank() }
+            ?: GoogleDriveStorageProvider.fetchEmail(token)
+        val updated = storage.copy(password = token, login = email ?: storage.login)
         storageDao.upsert(updated)
         storageProviderRegistry.invalidate(storageId)
         storageAuthProvider.refresh()
         Log.i(TAG, "Applied Google Drive token for storage $storageId")
         if (retryFetch) enqueueFetch(updated)
+    }
+
+    /** Старые Drive без login — подпись email для вкладки «Сеть». */
+    suspend fun backfillMissingGoogleDriveEmails() = withContext(Dispatchers.IO) {
+        val all = storageDao.getStorages().first()
+        val missing = all.filter {
+            it.type == StorageType.GOOGLE_DRIVE && it.login.isNullOrBlank()
+        }
+        if (missing.isEmpty()) return@withContext
+
+        val usedEmails = all
+            .filter { it.type == StorageType.GOOGLE_DRIVE }
+            .mapNotNull { it.login?.lowercase()?.takeIf(String::isNotBlank) }
+            .toMutableSet()
+        val googleAccounts = android.accounts.AccountManager.get(context)
+            .getAccountsByType("com.google")
+            .toList()
+
+        for (storage in missing) {
+            var token = storage.password?.takeIf { it.isNotBlank() }
+            var email = token?.let { GoogleDriveStorageProvider.fetchEmail(it) }
+
+            // 1) API по сохранённому токену
+            // 2) единственный Google-аккаунт на устройстве, ещё не привязанный к другому Drive
+            // 3) silent authorize по каждому свободному аккаунту
+            if (email.isNullOrBlank()) {
+                val free = googleAccounts.filter { it.name.lowercase() !in usedEmails }
+                if (free.size == 1) {
+                    email = free[0].name
+                    Log.i(TAG, "Drive ${storage.id}: email from sole free Google account")
+                } else {
+                    for (account in free) {
+                        val fresh = runCatching {
+                            Identity.getAuthorizationClient(context)
+                                .authorize(GoogleDriveGalleryAuth.authorizationRequest(account))
+                                .await()
+                        }.getOrNull() ?: continue
+                        if (fresh.hasResolution()) continue
+                        val access = fresh.accessToken?.takeIf { it.isNotBlank() } ?: continue
+                        val fromApi = GoogleDriveStorageProvider.fetchEmail(access)
+                        val resolved = fromApi
+                            ?: fresh.toGoogleSignInAccount()?.email
+                            ?: account.name
+                        if (resolved.lowercase() in usedEmails) continue
+                        token = access
+                        email = resolved
+                        break
+                    }
+                }
+            }
+
+            // Несколько Drive без login и несколько аккаунтов — сопоставить по порядку
+            if (email.isNullOrBlank() && missing.size == googleAccounts.size) {
+                val idx = missing.indexOf(storage)
+                if (idx in googleAccounts.indices) {
+                    val candidate = googleAccounts[idx].name
+                    if (candidate.lowercase() !in usedEmails) {
+                        email = candidate
+                        Log.i(TAG, "Drive ${storage.id}: email by account index $idx")
+                    }
+                }
+            }
+
+            if (email.isNullOrBlank()) {
+                Log.w(
+                    TAG,
+                    "Could not backfill email for Drive ${storage.id}; " +
+                            "googleAccounts=${googleAccounts.map { it.name }}, used=$usedEmails"
+                )
+                continue
+            }
+            usedEmails.add(email.lowercase())
+            storageDao.upsert(
+                storage.copy(
+                    login = email,
+                    password = token ?: storage.password,
+                )
+            )
+            storageProviderRegistry.invalidate(storage.id)
+            storageAuthProvider.refresh()
+            Log.i(TAG, "Backfilled Google Drive email for storage ${storage.id}: $email")
+        }
     }
 
     fun cancelGoogleDriveReauth(storageId: Long) {
@@ -221,9 +307,19 @@ class StorageService @Inject constructor(
                 }
                 val token = result.accessToken?.takeIf { it.isNotBlank() }
                     ?: return@withContext storage
-                if (token == storage.password) return@withContext storage
-                val updated = storage.copy(password = token)
+                val email = storage.login?.takeIf { it.isNotBlank() }
+                    ?: GoogleDriveStorageProvider.fetchEmail(token)
+                if (token == storage.password &&
+                    (email.isNullOrBlank() || email == storage.login)
+                ) {
+                    return@withContext storage
+                }
+                val updated = storage.copy(
+                    password = token,
+                    login = email ?: storage.login,
+                )
                 storageDao.upsert(updated)
+                storageProviderRegistry.invalidate(storage.id)
                 Log.i(TAG, "Refreshed Google Drive access token for storage ${storage.id}")
                 updated
             } catch (ex: Throwable) {

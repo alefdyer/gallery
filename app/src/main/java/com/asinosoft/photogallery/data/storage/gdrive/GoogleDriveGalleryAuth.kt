@@ -42,7 +42,14 @@ object GoogleDriveGalleryAuth {
 
     fun authorizationRequest(account: Account? = null): AuthorizationRequest {
         val builder = AuthorizationRequest.builder()
-            .setRequestedScopes(listOf(Scope(GoogleDriveStorageProvider.DRIVE_READONLY_SCOPE)))
+            .setRequestedScopes(
+                listOf(
+                    Scope(GoogleDriveStorageProvider.DRIVE_READONLY_SCOPE),
+                    Scope("email"),
+                    Scope("profile"),
+                    Scope("openid"),
+                )
+            )
         if (account != null) {
             builder.setAccount(account)
         }

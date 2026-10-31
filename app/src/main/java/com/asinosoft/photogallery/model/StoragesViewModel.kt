@@ -26,6 +26,12 @@ class StoragesViewModel @Inject constructor(
         initialValue = emptyList()
     )
 
+    init {
+        viewModelScope.launchAndCatch {
+            storageService.backfillMissingGoogleDriveEmails()
+        }
+    }
+
     fun addStorage(storage: Storage) = viewModelScope.launchAndCatch {
         storageService.addStorage(storage)
         analytics.storageAdded(storage.type.name.lowercase())

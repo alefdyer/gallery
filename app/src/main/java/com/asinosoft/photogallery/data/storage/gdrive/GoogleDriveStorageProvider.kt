@@ -309,17 +309,41 @@ class GoogleDriveStorageProvider(
         const val USERINFO = "https://www.googleapis.com/oauth2/v2/userinfo"
 
         fun fetchEmail(token: String): String? {
-            val client = OkHttpClient()
+            // Drive about — надёжнее с drive.readonly, чем oauth userinfo.
+            fetchEmailFromDriveAbout(token)?.let { return it }
+            return fetchEmailFromUserInfo(token)
+        }
+
+        private fun fetchEmailFromDriveAbout(token: String): String? {
+            val about = Request.Builder()
+                .url("https://www.googleapis.com/drive/v3/about?fields=user")
+                .header("Authorization", "Bearer $token")
+                .get()
+                .build()
+            return try {
+                OkHttpClient().newCall(about).execute().use { response ->
+                    if (!response.isSuccessful) return null
+                    val body = response.body?.string() ?: return null
+                    Gson().fromJson(body, DriveAbout::class.java)?.user?.emailAddress
+                        ?.takeIf { it.isNotBlank() }
+                }
+            } catch (_: Throwable) {
+                null
+            }
+        }
+
+        private fun fetchEmailFromUserInfo(token: String): String? {
             val request = Request.Builder()
                 .url(USERINFO)
                 .header("Authorization", "Bearer $token")
                 .get()
                 .build()
             return try {
-                client.newCall(request).execute().use { response ->
+                OkHttpClient().newCall(request).execute().use { response ->
                     if (!response.isSuccessful) return null
                     val body = response.body?.string() ?: return null
                     Gson().fromJson(body, UserInfo::class.java)?.email
+                        ?.takeIf { it.isNotBlank() }
                 }
             } catch (_: Throwable) {
                 null
@@ -406,3 +430,7 @@ private data class DriveVideoMetadata(
 )
 
 private data class UserInfo(val email: String? = null)
+
+private data class DriveAbout(val user: DriveAboutUser? = null)
+
+private data class DriveAboutUser(val emailAddress: String? = null)

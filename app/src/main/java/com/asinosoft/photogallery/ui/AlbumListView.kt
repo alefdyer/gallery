@@ -25,6 +25,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyRow
@@ -77,6 +78,7 @@ import com.asinosoft.photogallery.data.Album
 import com.asinosoft.photogallery.data.AlbumCategory
 import com.asinosoft.photogallery.data.AlbumWithCover
 import com.asinosoft.photogallery.data.CategoryWithAlbums
+import com.asinosoft.photogallery.data.isStorageCategory
 import com.asinosoft.photogallery.data.isSystem
 import com.asinosoft.photogallery.data.name
 import com.asinosoft.photogallery.data.storageIdOrNull
@@ -431,10 +433,14 @@ fun AlbumListView(
     }
 
     renamingCategory?.let { category ->
+        val storageId = category.storageIdOrNull()
+        val storageInfo = storageId?.let { remoteStorages[it] }
+        val defaultTitle = storageId?.let { model.defaultStorageCategoryTitle(it) }
         NewAlbumCategoryDialog(
             title = stringResource(R.string.rename_category),
-            initialName = category.name,
+            initialName = storageInfo?.title ?: category.name,
             confirmText = stringResource(R.string.save),
+            resetToName = defaultTitle,
             onCreateCategory = { name -> model.renameCategory(category, name) },
             onDismiss = { renamingCategory = null }
         )
@@ -506,6 +512,7 @@ private fun AlbumCategoriesRow(
                 title = title,
                 titleIcon = titleIcon,
                 count = category.albums.size,
+                titleMaxWidth = cardSize * 2 + CARD_SPACING,
                 showLoading = showLoading,
                 expanded = expanded.takeIf { expandable },
                 onToggleExpand = onToggleExpand,
@@ -528,7 +535,8 @@ private fun AlbumCategoriesRow(
             ) {
                 FloatingMenuItem(
                     text = stringResource(R.string.rename),
-                    enabled = !category.category.isSystem(),
+                    enabled = !category.category.isSystem() ||
+                            category.category.isStorageCategory(),
                     onClick = onRenameClick
                 )
                 if (expandable) {
@@ -719,6 +727,7 @@ private fun SectionTitle(
     count: Int? = null,
     modifier: Modifier = Modifier,
     titleIcon: Int? = null,
+    titleMaxWidth: Dp? = null,
     showLoading: Boolean = false,
     expanded: Boolean? = null,
     onToggleExpand: () -> Unit = {},
@@ -750,7 +759,9 @@ private fun SectionTitle(
             color = MaterialTheme.colorScheme.onBackground,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f, fill = false)
+            modifier = Modifier
+                .weight(1f, fill = false)
+                .then(if (titleMaxWidth != null) Modifier.widthIn(max = titleMaxWidth) else Modifier)
         )
         if (null != count) {
             Text(

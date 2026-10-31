@@ -13,17 +13,29 @@ import coil3.svg.SvgDecoder
 import coil3.video.VideoFrameDecoder
 import com.asinosoft.photogallery.data.ShareCache
 import com.asinosoft.photogallery.data.storage.StorageAuthProvider
+import com.asinosoft.photogallery.data.storage.StorageDao
+import com.asinosoft.photogallery.data.storage.StorageService
 import com.yandex.mobile.ads.common.YandexAds
 import dagger.hilt.android.HiltAndroidApp
 import javax.inject.Inject
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import okhttp3.OkHttpClient
 
 @HiltAndroidApp
 class GalleryApp : Application() {
     @Inject lateinit var storageAuthProvider: StorageAuthProvider
+    @Inject
+    lateinit var storageDao: StorageDao
+    @Inject
+    lateinit var storageService: StorageService
 
     lateinit var httpClient: OkHttpClient
         private set
+
+    private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     companion object {
         const val TAG = "gallery.app"
@@ -36,6 +48,11 @@ class GalleryApp : Application() {
 
         // Старый share-кэш (копии/h264) иначе копится на гигабайты.
         ShareCache.trimOnStartup(this)
+
+        appScope.launch {
+            runCatching { storageDao.migratePlaintextPasswords() }
+            runCatching { storageService.backfillMissingGoogleDriveEmails() }
+        }
 
         httpClient =
             OkHttpClient

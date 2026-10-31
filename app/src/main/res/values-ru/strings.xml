@@ -64,6 +64,9 @@
     <string name="privacy_policy_hint">asinosoft.ru</string>
     <string name="support_email">asinosoft+gallery@gmail.com</string>
     <string name="privacy_policy_url">https://asinosoft.ru/gallery_privacy_policy.html</string>
+    <string name="storage_terms_of_use">Условия использования</string>
+    <string name="storage_terms_of_use_url">https://asinosoft.ru/gallery_terms_of_use.html</string>
+    <string name="storage_password_encrypted_hint">Пароль будет храниться в зашифрованном виде локально на этом телефоне и никуда не пересылается за пределы этого устройства.</string>
     <string name="share_app_text">Попробуйте Gallery: https://play.google.com/store/apps/details?id=com.asinosoft.gallery</string>
     <string name="share">Поделиться</string>
     <string name="video_loading">Загрузка видео…</string>
@@ -93,6 +96,8 @@
     <string name="storage_add_subtitle">Выберите облако или сервер для просмотра фото и видео</string>
     <string name="storage_empty_hint">Пока нет удалённых хранилищ. Добавьте Dropbox, Google Drive, OneDrive, Яндекс Диск, Nextcloud или WebDAV.</string>
     <string name="storage_connected">Подключено</string>
+    <string name="storage_needs_reauth">Нужен повторный вход</string>
+    <string name="storage_reauth">Войти</string>
     <string name="storage_type_dropbox_hint">Фото и видео из Dropbox</string>
     <string name="storage_type_google_drive_hint">Фото и видео из Google Drive</string>
     <string name="storage_type_onedrive_hint">Фото и видео из OneDrive</string>

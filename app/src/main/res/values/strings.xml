@@ -65,6 +65,9 @@
     <string name="privacy_policy_hint">asinosoft.ru</string>
     <string name="support_email">asinosoft+gallery@gmail.com</string>
     <string name="privacy_policy_url">https://asinosoft.ru/gallery_privacy_policy.html</string>
+    <string name="storage_terms_of_use">Terms of use</string>
+    <string name="storage_terms_of_use_url">https://asinosoft.ru/gallery_terms_of_use.html</string>
+    <string name="storage_password_encrypted_hint">The password is stored encrypted locally on this phone and is never sent beyond this device.</string>
     <string name="share_app_text">Try Gallery: https://play.google.com/store/apps/details?id=com.asinosoft.gallery</string>
     <string name="share">Share</string>
     <string name="video_loading">Loading video…</string>
@@ -94,6 +97,8 @@
     <string name="storage_add_subtitle">Choose a cloud or server to browse photos and videos</string>
     <string name="storage_empty_hint">No remote storages yet. Add Dropbox, Google Drive, OneDrive, Yandex, Nextcloud or WebDAV.</string>
     <string name="storage_connected">Connected</string>
+    <string name="storage_needs_reauth">Sign-in required</string>
+    <string name="storage_reauth">Sign in</string>
     <string name="storage_type_dropbox_hint">Your Dropbox photos and videos</string>
     <string name="storage_type_google_drive_hint">Photos and videos from Google Drive</string>
     <string name="storage_type_onedrive_hint">Photos and videos from OneDrive</string>

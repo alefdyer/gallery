@@ -33,8 +33,7 @@ data class Storage(
             StorageType.NEXTCLOUD -> stringResource(R.string.nextcloud)
             StorageType.WEBDAV -> stringResource(R.string.webdav)
             StorageType.YANDEX -> stringResource(R.string.yandex)
-            StorageType.GOOGLE_DRIVE -> login?.takeIf { it.isNotBlank() }
-                ?: stringResource(R.string.google_drive)
+            StorageType.GOOGLE_DRIVE -> stringResource(R.string.google_drive)
 
             StorageType.ONEDRIVE -> login?.takeIf { it.isNotBlank() }
                 ?: stringResource(R.string.onedrive)
@@ -52,6 +51,14 @@ data class Storage(
         }
     }
 
+    /** Хост WebDAV без схемы и пути (для заголовка категории на «Альбомы»). */
+    fun webDavServerLabel(): String? {
+        val uri = url ?: return null
+        val host = uri.host?.takeIf { it.isNotBlank() } ?: return null
+        val port = uri.port
+        return if (port != -1 && port != 80 && port != 443) "$host:$port" else host
+    }
+
     /** Заголовок категории на вкладке «Альбомы». */
     fun categoryTitle(context: Context): String = when (type) {
         StorageType.LOCAL -> context.getString(R.string.phone)
@@ -59,7 +66,8 @@ data class Storage(
         StorageType.NEXTCLOUD -> login?.takeIf { it.isNotBlank() }
             ?: context.getString(R.string.nextcloud)
 
-        StorageType.WEBDAV -> context.getString(R.string.webdav)
+        StorageType.WEBDAV -> webDavServerLabel()
+            ?: context.getString(R.string.webdav)
         StorageType.YANDEX -> context.getString(R.string.yandex)
         StorageType.GOOGLE_DRIVE -> login?.takeIf { it.isNotBlank() }
             ?: context.getString(R.string.google_drive)

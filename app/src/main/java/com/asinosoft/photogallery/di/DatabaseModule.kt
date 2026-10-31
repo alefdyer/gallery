@@ -4,7 +4,7 @@ import android.content.Context
 import com.asinosoft.photogallery.data.AlbumDao
 import com.asinosoft.photogallery.data.AppDatabase
 import com.asinosoft.photogallery.data.MediaDao
-import com.asinosoft.photogallery.data.storage.StorageDao
+import com.asinosoft.photogallery.data.storage.StorageRoomDao
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -27,5 +27,5 @@ object DatabaseModule {
     fun provideImageDao(appDatabase: AppDatabase): MediaDao = appDatabase.imageDao()
 
     @Provides
-    fun provideStorageDao(appDatabase: AppDatabase): StorageDao = appDatabase.storageDao()
+    fun provideStorageRoomDao(appDatabase: AppDatabase): StorageRoomDao = appDatabase.storageDao()
 }

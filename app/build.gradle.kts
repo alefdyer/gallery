@@ -212,6 +212,9 @@ dependencies {
     implementation("io.coil-kt.coil3:coil-network-okhttp:3.6.3")
     implementation("io.coil-kt.coil3:coil-video:3.6.3")
 
+    // Encrypted credentials (WebDAV/Nextcloud passwords, OAuth tokens)
+    implementation("androidx.security:security-crypto:1.1.0")
+
     // DI
     implementation("com.google.dagger:hilt-android:2.60.1")
     implementation("androidx.hilt:hilt-navigation-compose:1.4.0")

@@ -46,6 +46,7 @@ fun SettingsView(
     onClose: () -> Unit,
     onOpenLicenses: () -> Unit,
     onOpenPrivacy: () -> Unit,
+    onOpenTerms: () -> Unit,
 ) {
     val context = LocalContext.current
     val resources = LocalResources.current

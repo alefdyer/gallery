@@ -1,5 +1,7 @@
 package com.asinosoft.photogallery.ui.component
 
+import androidx.compose.foundation.text.input.delete
+import androidx.compose.foundation.text.input.insert
 import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -17,6 +19,8 @@ fun NewAlbumCategoryDialog(
     title: String = stringResource(R.string.new_category),
     initialName: String = "",
     confirmText: String = stringResource(R.string.add),
+    /** Если задано — кнопка «Сбросить» подставляет это имя в поле. */
+    resetToName: String? = null,
 ) {
     val newCategoryName = rememberTextFieldState(initialName)
     val focus = remember { FocusRequester() }
@@ -37,6 +41,14 @@ fun NewAlbumCategoryDialog(
         title = title,
         onDismissRequest = onDismiss,
         dismissText = stringResource(R.string.cancel),
+        neutralText = resetToName?.let { stringResource(R.string.reset) },
+        onNeutral = {
+            val def = resetToName ?: return@OneUiDialog
+            newCategoryName.edit {
+                delete(0, length)
+                insert(0, def)
+            }
+        },
         confirmText = confirmText,
         confirmEnabled = canSubmit,
         onConfirm = submit

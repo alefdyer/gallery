@@ -4,6 +4,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
@@ -16,6 +17,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.text.BasicText
+import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.text.input.KeyboardActionHandler
@@ -44,7 +47,10 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.asinosoft.photogallery.R
@@ -56,6 +62,8 @@ fun OneUiDialog(
     onDismissRequest: () -> Unit,
     dismissText: String,
     modifier: Modifier = Modifier,
+    neutralText: String? = null,
+    onNeutral: () -> Unit = {},
     confirmText: String? = null,
     confirmEnabled: Boolean = true,
     onConfirm: () -> Unit = {},
@@ -108,6 +116,14 @@ fun OneUiDialog(
                     ) {
                         OneUiDialogButton(dismissText, onClick = onDismissRequest)
 
+                        if (null != neutralText) {
+                            VerticalDivider(
+                                modifier = Modifier.height(20.dp),
+                                color = MaterialTheme.colorScheme.outlineVariant
+                            )
+                            OneUiDialogButton(neutralText, onClick = onNeutral)
+                        }
+
                         if (null != confirmText) {
                             VerticalDivider(
                                 modifier = Modifier.height(20.dp),
@@ -131,14 +147,30 @@ private fun RowScope.OneUiDialogButton(
     TextButton(
         onClick = onClick,
         enabled = enabled,
+        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp),
         modifier = Modifier
             .weight(1f)
             .height(48.dp)
     ) {
-        Text(
+        val style = MaterialTheme.typography.titleMedium.copy(
+            fontWeight = FontWeight.SemiBold,
+            color = if (enabled) {
+                MaterialTheme.colorScheme.primary
+            } else {
+                MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+            },
+            textAlign = TextAlign.Center,
+        )
+        BasicText(
             text = text,
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.SemiBold
+            style = style,
+            maxLines = 1,
+            autoSize = TextAutoSize.StepBased(
+                minFontSize = 11.sp,
+                maxFontSize = 16.sp,
+                stepSize = 0.5.sp,
+            ),
+            modifier = Modifier.fillMaxWidth(),
         )
     }
 }

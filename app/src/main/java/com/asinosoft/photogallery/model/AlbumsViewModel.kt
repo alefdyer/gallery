@@ -63,17 +63,20 @@ class AlbumsViewModel @Inject constructor(
     val alwaysExpandedCategories: StateFlow<Set<Long>> = alwaysExpandedCategoriesFlow
     private val expandedCategoriesFlow = MutableStateFlow(alwaysExpandedCategoriesFlow.value)
     val expandedCategories: StateFlow<Set<Long>> = expandedCategoriesFlow
+    private val storageTitleOverrides = MutableStateFlow(loadStorageTitleOverrides())
 
     val fetchingStorageIds: StateFlow<Set<Long>> = storageService.fetchingStorageIds
 
     val remoteStorages: StateFlow<Map<Long, StorageCategoryInfo>> =
-        storageDao.getStorages()
-            .map { storages ->
-                storages
-                    .filter { it.type != StorageType.LOCAL }
-                    .associate { it.id to StorageCategoryInfo(it, it.categoryTitle(context)) }
-            }
-            .stateIn(viewModelScope, SharingStarted.Eagerly, emptyMap())
+        combine(storageDao.getStorages(), storageTitleOverrides) { storages, overrides ->
+            storages
+                .filter { it.type != StorageType.LOCAL }
+                .associate { storage ->
+                    val title = overrides[storage.id]?.takeIf { it.isNotBlank() }
+                        ?: storage.categoryTitle(context)
+                    storage.id to StorageCategoryInfo(storage, title)
+                }
+        }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyMap())
 
     init {
         viewModelScope.launch {
@@ -142,13 +145,42 @@ class AlbumsViewModel @Inject constructor(
     }
 
     fun renameCategory(category: AlbumCategory, name: String) = viewModelScope.launch {
-        if (category.isStorageCategory() || category.name.startsWith(":")) return@launch
         val newName = name.trim()
-        if (newName.isEmpty() || newName == category.name) return@launch
+        if (newName.isEmpty()) return@launch
+
+        val storageId = category.storageIdOrNull()
+        if (storageId != null) {
+            renameStorageCategoryTitle(storageId, newName)
+            return@launch
+        }
+        if (category.name.startsWith(":")) return@launch
+        if (newName == category.name) return@launch
 
         runCatching { albumDao.renameCategory(category.id, newName) }
             .onSuccess { analytics.categoryRenamed() }
             .onFailure { Log.w(GalleryApp.TAG, "Can't rename category ${category.id}", it) }
+    }
+
+    /** Имя категории хранилища по умолчанию (без пользовательского override). */
+    fun defaultStorageCategoryTitle(storageId: Long): String? {
+        val storage = remoteStorages.value[storageId]?.storage
+            ?: return null
+        return storage.categoryTitle(context)
+    }
+
+    private fun renameStorageCategoryTitle(storageId: Long, title: String) {
+        val defaultTitle = defaultStorageCategoryTitle(storageId) ?: return
+        val trimmed = title.trim()
+        if (trimmed.isEmpty()) return
+        prefs.edit {
+            if (trimmed == defaultTitle) {
+                remove(storageTitleKey(storageId))
+            } else {
+                putString(storageTitleKey(storageId), trimmed)
+            }
+        }
+        storageTitleOverrides.value = loadStorageTitleOverrides()
+        analytics.categoryRenamed()
     }
 
     fun renameAlbum(album: Album, name: String) = viewModelScope.launch {
@@ -217,9 +249,20 @@ class AlbumsViewModel @Inject constructor(
             ?.mapNotNull { it.toLongOrNull() }
             ?: emptyList()
 
+    private fun loadStorageTitleOverrides(): Map<Long, String> =
+        prefs.all.mapNotNull { (key, value) ->
+            if (!key.startsWith(KEY_TITLE_PREFIX)) return@mapNotNull null
+            val id = key.removePrefix(KEY_TITLE_PREFIX).toLongOrNull() ?: return@mapNotNull null
+            val title = (value as? String)?.takeIf { it.isNotBlank() } ?: return@mapNotNull null
+            id to title
+        }.toMap()
+
     private companion object {
         const val PREFS_NAME = "album_categories"
         const val KEY_ORDER = "order"
         const val KEY_EXPANDED = "expanded"
+        const val KEY_TITLE_PREFIX = "title_"
+
+        fun storageTitleKey(storageId: Long) = "$KEY_TITLE_PREFIX$storageId"
     }
 }

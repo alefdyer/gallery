@@ -8,7 +8,7 @@ import androidx.room.TypeConverters
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.asinosoft.photogallery.data.storage.Storage
-import com.asinosoft.photogallery.data.storage.StorageDao
+import com.asinosoft.photogallery.data.storage.StorageRoomDao
 
 @Database(
     entities = [
@@ -26,7 +26,7 @@ abstract class AppDatabase : RoomDatabase() {
 
     abstract fun imageDao(): MediaDao
 
-    abstract fun storageDao(): StorageDao
+    abstract fun storageDao(): StorageRoomDao
 
     companion object {
         @Volatile

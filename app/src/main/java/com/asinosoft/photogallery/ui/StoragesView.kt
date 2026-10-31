@@ -56,6 +56,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
@@ -84,7 +85,11 @@ import java.util.regex.Pattern
 import kotlinx.coroutines.launch
 
 @Composable
-fun StoragesView(modifier: Modifier = Modifier, model: StoragesViewModel = hiltViewModel()) {
+fun StoragesView(
+    modifier: Modifier = Modifier,
+    onOpenTerms: () -> Unit = {},
+    model: StoragesViewModel = hiltViewModel(),
+) {
     val storages by model.storages.collectAsState(initial = listOf())
 
     val showStorageEditor = remember { mutableStateOf(false) }
@@ -96,19 +101,35 @@ fun StoragesView(modifier: Modifier = Modifier, model: StoragesViewModel = hiltV
     }
 
     if (showStorageEditor.value) {
+        val editing = account.value
         StorageEditor(
-            storage = account.value,
+            storage = editing,
             existingGoogleDriveEmails = storages
-                .filter { it.type == StorageType.GOOGLE_DRIVE }
+                .filter {
+                    it.type == StorageType.GOOGLE_DRIVE &&
+                            (editing == null || it.id != editing.id)
+                }
                 .mapNotNull { it.login?.lowercase()?.takeIf(String::isNotBlank) }
                 .toSet(),
-            hasGoogleDrive = storages.any { it.type == StorageType.GOOGLE_DRIVE },
+            hasGoogleDrive = storages.any {
+                it.type == StorageType.GOOGLE_DRIVE &&
+                        (editing == null || it.id != editing.id)
+            },
             onCheckStorageConnection = model::checkStorage,
             onSave = { storage ->
-                model.addStorage(storage)
+                val toSave = if (editing != null && editing.id != 0L) {
+                    storage.withId(editing.id).copy(
+                        login = storage.login ?: editing.login,
+                        url = storage.url ?: editing.url,
+                    )
+                } else {
+                    storage
+                }
+                model.addStorage(toSave)
                 showStorageEditor.value = false
             },
             onCancel = { showStorageEditor.value = false },
+            onOpenTerms = onOpenTerms,
             modifier = modifier
         )
     } else {
@@ -128,6 +149,10 @@ fun StoragesView(modifier: Modifier = Modifier, model: StoragesViewModel = hiltV
                     ConnectedStorageRow(
                         storage = storage,
                         onEdit = {
+                            account.value = storage
+                            showStorageEditor.value = true
+                        },
+                        onReauth = {
                             account.value = storage
                             showStorageEditor.value = true
                         },
@@ -180,8 +205,14 @@ fun StoragesView(modifier: Modifier = Modifier, model: StoragesViewModel = hiltV
 private fun ConnectedStorageRow(
     storage: Storage,
     onEdit: () -> Unit,
+    onReauth: () -> Unit,
     onDelete: () -> Unit,
 ) {
+    // Drive без login — старый аккаунт; просим войти, чтобы сохранить почту.
+    val needsReauth = storage.type != StorageType.LOCAL && (
+            storage.password.isNullOrBlank() ||
+                    (storage.type == StorageType.GOOGLE_DRIVE && storage.login.isNullOrBlank())
+            )
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
@@ -208,17 +239,22 @@ private fun ConnectedStorageRow(
             )
             Spacer(modifier = Modifier.height(2.dp))
             Text(
-                text = stringResource(R.string.storage_connected),
+                text = storageSubtitle(storage, needsReauth),
                 style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.primary
+                color = if (needsReauth) {
+                    MaterialTheme.colorScheme.error
+                } else {
+                    MaterialTheme.colorScheme.primary
+                },
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
             )
         }
-        Icon(
-            painter = painterResource(R.drawable.check),
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.size(20.dp)
-        )
+        if (needsReauth && !storage.type.isEditable) {
+            TextButton(onClick = onReauth) {
+                Text(stringResource(R.string.storage_reauth))
+            }
+        }
         if (storage.type.isEditable) {
             IconButton(onClick = onEdit) {
                 Icon(
@@ -248,6 +284,7 @@ private fun StorageEditor(
     onCheckStorageConnection: suspend (Storage) -> StorageCheckResult,
     onSave: (Storage) -> Unit,
     onCancel: () -> Unit,
+    onOpenTerms: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     var type by remember(storage) { mutableStateOf(storage?.type) }
@@ -322,6 +359,12 @@ private fun StorageEditor(
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f)
                 )
+                if (type == StorageType.WEBDAV || type == StorageType.NEXTCLOUD) {
+                    StorageTypeIcon(
+                        type = type!!,
+                        modifier = Modifier.padding(end = 12.dp)
+                    )
+                }
             }
 
             when (type) {
@@ -336,6 +379,7 @@ private fun StorageEditor(
                     checkError = checkError,
                     isChecking = isChecking,
                     onInputChange = ::clearCheckError,
+                    onOpenTerms = onOpenTerms,
                     modifier = Modifier
                         .weight(1f)
                         .verticalScroll(rememberScrollState())
@@ -347,6 +391,7 @@ private fun StorageEditor(
                     checkError = checkError,
                     isChecking = isChecking,
                     onInputChange = ::clearCheckError,
+                    onOpenTerms = onOpenTerms,
                     modifier = Modifier
                         .weight(1f)
                         .verticalScroll(rememberScrollState())
@@ -384,6 +429,23 @@ private fun StorageEditor(
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun storageSubtitle(storage: Storage, needsReauth: Boolean): String {
+    if (needsReauth) return stringResource(R.string.storage_needs_reauth)
+    if (storage.type == StorageType.LOCAL) {
+        return stringResource(R.string.storage_connected)
+    }
+    return when (storage.type) {
+        StorageType.WEBDAV ->
+            storage.url?.toString()?.takeIf { it.isNotBlank() }
+                ?: stringResource(R.string.storage_connected)
+
+        else ->
+            storage.login?.takeIf { it.isNotBlank() }
+                ?: stringResource(R.string.storage_connected)
     }
 }
 
@@ -510,6 +572,7 @@ private fun WebDavStorageForm(
     checkError: String?,
     isChecking: Boolean,
     onInputChange: () -> Unit,
+    onOpenTerms: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     var url by remember(storage) { mutableStateOf(storage?.url?.toString() ?: "") }
@@ -529,6 +592,7 @@ private fun WebDavStorageForm(
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
+        StorageCredentialLegalBlock(onOpenTerms = onOpenTerms)
         OutlinedTextField(
             value = url,
             singleLine = true,
@@ -614,6 +678,7 @@ private fun NextCloudStorageForm(
     checkError: String?,
     isChecking: Boolean,
     onInputChange: () -> Unit,
+    onOpenTerms: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     var host by remember(storage) { mutableStateOf(storage?.url?.toString() ?: "") }
@@ -655,6 +720,7 @@ private fun NextCloudStorageForm(
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
+        StorageCredentialLegalBlock(onOpenTerms = onOpenTerms)
         OutlinedTextField(
             value = host,
             singleLine = true,
@@ -722,6 +788,31 @@ private fun NextCloudStorageForm(
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun StorageCredentialLegalBlock(onOpenTerms: () -> Unit) {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        Text(
+            text = stringResource(R.string.storage_password_encrypted_hint),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Text(
+            text = stringResource(R.string.storage_terms_of_use),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.primary,
+            fontWeight = FontWeight.Medium,
+            textAlign = TextAlign.Center,
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable(onClick = onOpenTerms)
+                .padding(vertical = 4.dp),
+        )
     }
 }
 
