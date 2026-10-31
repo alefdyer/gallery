@@ -110,6 +110,7 @@
     <string name="storage_yandex_signed_in">Аккаунт авторизован</string>
     <string name="storage_gdrive_sign_in">Войти через Google</string>
     <string name="storage_gdrive_auth_title">Авторизация Google Drive</string>
+    <string name="storage_gdrive_already_connected">Этот аккаунт Google уже подключён</string>
     <string name="storage_onedrive_sign_in">Войти через Microsoft</string>
     <string name="storage_onedrive_auth_title">Авторизация OneDrive</string>
     <string name="storage_webdav_connect">Подключить WebDAV</string>

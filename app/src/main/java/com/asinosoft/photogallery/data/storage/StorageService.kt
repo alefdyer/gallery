@@ -82,10 +82,16 @@ class StorageService @Inject constructor(
         ThumbnailCache.deleteAll(context, mediaIds)
         mediaDao.deleteStorage(storage.id)
         albumDao.deleteEmptyAlbums()
+        // categoryId у album NOT NULL + FK SET_NULL → DELETE категории падает.
+        // Сначала явно сносим альбомы категории хранилища.
         albumDao.findCategoryByName(AlbumCategory.storageCategoryName(storage.id))
-            ?.let { albumDao.deleteCategory(it.id) }
+            ?.let { cat ->
+                albumDao.deleteAlbumsByCategory(cat.id)
+                albumDao.deleteCategory(cat.id)
+            }
         if (storage.type == StorageType.WEBDAV) {
             albumDao.findCategoryByName(AlbumCategory.WEBDAV_NAME)?.let { legacy ->
+                albumDao.deleteAlbumsByCategory(legacy.id)
                 albumDao.deleteCategory(legacy.id)
             }
         }

@@ -29,6 +29,10 @@ data class Album(
     val name: String,
     val categoryId: Long = AlbumCategory.OTHER.id,
     val count: Int = 0,
+    @androidx.room.ColumnInfo(defaultValue = "0")
+    val photoCount: Int = 0,
+    @androidx.room.ColumnInfo(defaultValue = "0")
+    val videoCount: Int = 0,
     val size: Long = 0,
     val coverId: Long? = null,
     val date: LocalDate = LocalDate.now(),

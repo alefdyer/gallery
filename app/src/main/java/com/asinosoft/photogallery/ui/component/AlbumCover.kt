@@ -1,9 +1,12 @@
 package com.asinosoft.photogallery.ui.component
 
+import androidx.annotation.DrawableRes
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -53,6 +56,10 @@ fun AlbumCover(
     album: AlbumWithCover,
     modifier: Modifier = Modifier,
 ) {
+    val photoCount = album.album.photoCount
+    val videoCount = album.album.videoCount
+    val hasSplit = photoCount > 0 || videoCount > 0
+
     Box(
         modifier
             .clip(RoundedCornerShape(12.dp))
@@ -74,7 +81,8 @@ fun AlbumCover(
         Column(
             Modifier
                 .align(Alignment.BottomStart)
-                .padding(horizontal = 8.dp, vertical = 6.dp)
+                .padding(horizontal = 8.dp, vertical = 6.dp),
+            verticalArrangement = Arrangement.spacedBy(2.dp)
         ) {
             Text(
                 text = album.album.name,
@@ -84,13 +92,53 @@ fun AlbumCover(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
-            Text(
-                text = "${album.album.count}",
-                style = MaterialTheme.typography.labelSmall,
-                color = Color.White.copy(alpha = 0.8f),
-                maxLines = 1
-            )
+            if (hasSplit) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(2.dp)
+                ) {
+                    if (photoCount > 0) {
+                        CoverCounter(R.drawable.photo, photoCount)
+                    }
+                    if (videoCount > 0) {
+                        CoverCounter(R.drawable.videocam, videoCount)
+                    }
+                }
+            } else if (album.album.count > 0) {
+                // До обновления stats после миграции.
+                Text(
+                    text = "${album.album.count}",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Color.White.copy(alpha = 0.8f),
+                    maxLines = 1
+                )
+            }
         }
+    }
+}
+
+@Composable
+private fun CoverCounter(
+    @DrawableRes icon: Int,
+    count: Int,
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(3.dp),
+        modifier = Modifier.padding(end = 4.dp)
+    ) {
+        Icon(
+            painter = painterResource(icon),
+            contentDescription = null,
+            tint = Color.White.copy(alpha = 0.9f),
+            modifier = Modifier.size(12.dp)
+        )
+        Text(
+            text = "$count",
+            style = MaterialTheme.typography.labelSmall,
+            color = Color.White.copy(alpha = 0.9f),
+            maxLines = 1
+        )
     }
 }
 

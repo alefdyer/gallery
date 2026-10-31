@@ -124,6 +124,9 @@ interface AlbumDao {
     @Query("DELETE FROM album WHERE id = :albumId")
     suspend fun delete(albumId: Long)
 
+    @Query("DELETE FROM album WHERE categoryId = :categoryId")
+    suspend fun deleteAlbumsByCategory(categoryId: Long)
+
     @Delete
     suspend fun deleteAll(albums: List<Album>)
 
@@ -182,6 +185,8 @@ interface AlbumDao {
         """
         SELECT
             COUNT(m.id) AS count,
+            IFNULL(SUM(CASE WHEN m.id IS NOT NULL AND m.video IS NULL THEN 1 ELSE 0 END), 0) AS photoCount,
+            IFNULL(SUM(CASE WHEN m.video IS NOT NULL THEN 1 ELSE 0 END), 0) AS videoCount,
             IFNULL(SUM(m.size), 0) AS size,
             (
                 SELECT m2.id
@@ -200,13 +205,40 @@ interface AlbumDao {
     )
     suspend fun getAlbumStats(albumId: Long): AlbumStats
 
-    @Query("UPDATE album SET count = :count, size = :size, coverId = :coverId, date = :date WHERE id = :albumId")
-    suspend fun setAlbumStats(albumId: Long, count: Int, size: Long, coverId: Long, date: LocalDate)
+    @Query(
+        """
+        UPDATE album SET
+            count = :count,
+            photoCount = :photoCount,
+            videoCount = :videoCount,
+            size = :size,
+            coverId = :coverId,
+            date = :date
+        WHERE id = :albumId
+        """
+    )
+    suspend fun setAlbumStats(
+        albumId: Long,
+        count: Int,
+        photoCount: Int,
+        videoCount: Int,
+        size: Long,
+        coverId: Long,
+        date: LocalDate,
+    )
 
     suspend fun updateAlbumStats(albumId: Long) {
         val stats = getAlbumStats(albumId)
         if (stats.count > 0) {
-            setAlbumStats(albumId, stats.count, stats.size, stats.coverId, stats.date)
+            setAlbumStats(
+                albumId,
+                stats.count,
+                stats.photoCount,
+                stats.videoCount,
+                stats.size,
+                stats.coverId,
+                stats.date,
+            )
         } else {
             delete(albumId)
         }

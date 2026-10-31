@@ -17,7 +17,7 @@ import com.asinosoft.photogallery.data.storage.StorageDao
         Media::class,
         MediaAlbum::class,
         Storage::class],
-    version = 7,
+    version = 8,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -38,7 +38,7 @@ abstract class AppDatabase : RoomDatabase() {
 
         private fun buildDatabase(context: Context): AppDatabase = Room
             .databaseBuilder(context, AppDatabase::class.java, "media.db")
-            .addMigrations(MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
+            .addMigrations(MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8)
             .fallbackToDestructiveMigration(true)
             .addCallback(AppDatabaseInitializer())
             .build()
@@ -71,6 +71,32 @@ abstract class AppDatabase : RoomDatabase() {
                 db.execSQL("ALTER TABLE media ADD COLUMN takenAt INTEGER")
                 db.execSQL("ALTER TABLE media ADD COLUMN createdAt INTEGER")
                 db.execSQL("ALTER TABLE media ADD COLUMN modifiedAt INTEGER")
+            }
+        }
+
+        private val MIGRATION_7_8 = object : Migration(7, 8) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "ALTER TABLE album ADD COLUMN photoCount INTEGER NOT NULL DEFAULT 0"
+                )
+                db.execSQL(
+                    "ALTER TABLE album ADD COLUMN videoCount INTEGER NOT NULL DEFAULT 0"
+                )
+                db.execSQL(
+                    """
+                    UPDATE album SET
+                        photoCount = (
+                            SELECT COUNT(*) FROM media_album ma
+                            INNER JOIN media m ON m.id = ma.mediaId
+                            WHERE ma.albumId = album.id AND m.video IS NULL
+                        ),
+                        videoCount = (
+                            SELECT COUNT(*) FROM media_album ma
+                            INNER JOIN media m ON m.id = ma.mediaId
+                            WHERE ma.albumId = album.id AND m.video IS NOT NULL
+                        )
+                    """.trimIndent()
+                )
             }
         }
     }

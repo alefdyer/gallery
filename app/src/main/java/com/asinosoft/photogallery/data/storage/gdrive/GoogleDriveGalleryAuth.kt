@@ -1,7 +1,10 @@
 package com.asinosoft.photogallery.data.storage.gdrive
 
+import android.accounts.Account
+import android.accounts.AccountManager
 import android.app.Activity
 import android.app.PendingIntent
+import android.content.Intent
 import androidx.activity.result.ActivityResult
 import com.google.android.gms.auth.api.identity.AuthorizationRequest
 import com.google.android.gms.auth.api.identity.Identity
@@ -14,14 +17,44 @@ import kotlinx.coroutines.withContext
 
 /** OAuth для галереи Google Drive (отдельно от backup App Data). */
 object GoogleDriveGalleryAuth {
-    fun authorizationRequest(): AuthorizationRequest =
-        AuthorizationRequest.builder()
-            .setRequestedScopes(listOf(Scope(GoogleDriveStorageProvider.DRIVE_READONLY_SCOPE)))
-            .build()
+    /** Системный выбор Google-аккаунта (setPrompt у AuthorizationClient часто игнорируется). */
+    fun accountChooserIntent(): Intent =
+        AccountManager.newChooseAccountIntent(
+            /* selectedAccount = */ null,
+            /* allowableAccounts = */ null,
+            /* allowableAccountTypes = */ arrayOf("com.google"),
+            /* descriptionOverride = */ null,
+            /* addAccountAuthTokenType = */ null,
+            /* addAccountRequiredFeatures = */ null,
+            /* addAccountOptions = */ null,
+        )
 
-    suspend fun beginAuthorize(activity: Activity): AuthStart {
+    fun accountFromChooserResult(result: ActivityResult): Account? {
+        if (result.resultCode != Activity.RESULT_OK) return null
+        val name = result.data?.getStringExtra(AccountManager.KEY_ACCOUNT_NAME)
+            ?.takeIf { it.isNotBlank() }
+            ?: return null
+        val type = result.data?.getStringExtra(AccountManager.KEY_ACCOUNT_TYPE)
+            ?.takeIf { it.isNotBlank() }
+            ?: "com.google"
+        return Account(name, type)
+    }
+
+    fun authorizationRequest(account: Account? = null): AuthorizationRequest {
+        val builder = AuthorizationRequest.builder()
+            .setRequestedScopes(listOf(Scope(GoogleDriveStorageProvider.DRIVE_READONLY_SCOPE)))
+        if (account != null) {
+            builder.setAccount(account)
+        }
+        return builder.build()
+    }
+
+    suspend fun beginAuthorize(
+        activity: Activity,
+        account: Account? = null,
+    ): AuthStart {
         val result = Identity.getAuthorizationClient(activity)
-            .authorize(authorizationRequest())
+            .authorize(authorizationRequest(account))
             .await()
         if (result.hasResolution()) {
             val pending = result.pendingIntent
@@ -35,7 +68,8 @@ object GoogleDriveGalleryAuth {
 
     suspend fun handleAuthorizeResult(
         activity: Activity,
-        result: ActivityResult
+        result: ActivityResult,
+        account: Account? = null,
     ): AuthOutcome = withContext(Dispatchers.IO) {
         if (result.resultCode == Activity.RESULT_CANCELED && result.data == null) {
             return@withContext AuthOutcome.Cancelled
@@ -56,7 +90,7 @@ object GoogleDriveGalleryAuth {
         }
 
         try {
-            when (val again = beginAuthorize(activity)) {
+            when (val again = beginAuthorize(activity, account)) {
                 is AuthStart.Success -> AuthOutcome.Success(again.token)
                 is AuthStart.NeedsUi ->
                     AuthOutcome.Failed("Consent UI returned without token")

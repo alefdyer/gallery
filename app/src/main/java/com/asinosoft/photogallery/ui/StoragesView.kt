@@ -98,6 +98,11 @@ fun StoragesView(modifier: Modifier = Modifier, model: StoragesViewModel = hiltV
     if (showStorageEditor.value) {
         StorageEditor(
             storage = account.value,
+            existingGoogleDriveEmails = storages
+                .filter { it.type == StorageType.GOOGLE_DRIVE }
+                .mapNotNull { it.login?.lowercase()?.takeIf(String::isNotBlank) }
+                .toSet(),
+            hasGoogleDrive = storages.any { it.type == StorageType.GOOGLE_DRIVE },
             onCheckStorageConnection = model::checkStorage,
             onSave = { storage ->
                 model.addStorage(storage)
@@ -238,6 +243,8 @@ private fun ConnectedStorageRow(
 @Composable
 private fun StorageEditor(
     storage: Storage?,
+    existingGoogleDriveEmails: Set<String> = emptySet(),
+    hasGoogleDrive: Boolean = false,
     onCheckStorageConnection: suspend (Storage) -> StorageCheckResult,
     onSave: (Storage) -> Unit,
     onCancel: () -> Unit,
@@ -358,6 +365,8 @@ private fun StorageEditor(
                 )
 
                 StorageType.GOOGLE_DRIVE -> GoogleDriveStorageForm(
+                    existingEmails = existingGoogleDriveEmails,
+                    forceAccountPicker = hasGoogleDrive,
                     onSave = ::submitStorage,
                     onCancel = onCancel,
                     modifier = Modifier.weight(1f)
@@ -787,6 +796,8 @@ private fun DropboxStorageForm(
 
 @Composable
 private fun GoogleDriveStorageForm(
+    existingEmails: Set<String> = emptySet(),
+    forceAccountPicker: Boolean = false,
     onSave: (Storage) -> Unit,
     onCancel: () -> Unit,
     modifier: Modifier = Modifier,
@@ -797,12 +808,26 @@ private fun GoogleDriveStorageForm(
     val scope = rememberCoroutineScope()
     var error by remember { mutableStateOf<String?>(null) }
     var busy by remember { mutableStateOf(false) }
+    var selectedAccount by remember { mutableStateOf<android.accounts.Account?>(null) }
+    val alreadyConnectedText = stringResource(R.string.storage_gdrive_already_connected)
 
-    fun finishWithToken(token: String) {
+    fun finishWithToken(token: String, preferredEmail: String? = null) {
         scope.launch {
             busy = true
-            val email = withContext(Dispatchers.IO) {
-                GoogleDriveStorageProvider.fetchEmail(token)
+            val email = preferredEmail?.takeIf { it.isNotBlank() }
+                ?: withContext(Dispatchers.IO) {
+                    GoogleDriveStorageProvider.fetchEmail(token)
+                }
+            if (!email.isNullOrBlank() && email.lowercase() in existingEmails) {
+                busy = false
+                error = alreadyConnectedText
+                return@launch
+            }
+            // Уже есть Drive, а email не узнали — не добавляем «безликий» дубликат.
+            if (forceAccountPicker && email.isNullOrBlank()) {
+                busy = false
+                error = alreadyConnectedText
+                return@launch
             }
             onSave(
                 Storage(
@@ -822,8 +847,16 @@ private fun GoogleDriveStorageForm(
         val host = activity ?: return@rememberLauncherForActivityResult
         scope.launch {
             busy = true
-            when (val outcome = GoogleDriveGalleryAuth.handleAuthorizeResult(host, result)) {
-                is GoogleDriveGalleryAuth.AuthOutcome.Success -> finishWithToken(outcome.token)
+            when (
+                val outcome = GoogleDriveGalleryAuth.handleAuthorizeResult(
+                    host,
+                    result,
+                    selectedAccount
+                )
+            ) {
+                is GoogleDriveGalleryAuth.AuthOutcome.Success ->
+                    finishWithToken(outcome.token, selectedAccount?.name)
+
                 GoogleDriveGalleryAuth.AuthOutcome.Cancelled -> {
                     busy = false
                     onCancel()
@@ -837,10 +870,51 @@ private fun GoogleDriveStorageForm(
         }
     }
 
+    val accountPickerLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        val host = activity ?: return@rememberLauncherForActivityResult
+        val account = GoogleDriveGalleryAuth.accountFromChooserResult(result)
+        if (account == null) {
+            onCancel()
+            return@rememberLauncherForActivityResult
+        }
+        if (account.name.lowercase() in existingEmails) {
+            error = alreadyConnectedText
+            busy = false
+            return@rememberLauncherForActivityResult
+        }
+        selectedAccount = account
+        scope.launch {
+            busy = true
+            runCatching {
+                when (val start = GoogleDriveGalleryAuth.beginAuthorize(host, account)) {
+                    is GoogleDriveGalleryAuth.AuthStart.Success ->
+                        finishWithToken(start.token, account.name)
+
+                    is GoogleDriveGalleryAuth.AuthStart.NeedsUi -> {
+                        busy = false
+                        authLauncher.launch(
+                            IntentSenderRequest.Builder(start.pendingIntent.intentSender).build()
+                        )
+                    }
+                }
+            }.onFailure {
+                busy = false
+                error = it.message ?: "Authorization failed"
+            }
+        }
+    }
+
     LaunchedEffect(Unit) {
         val host = activity
         if (host == null) {
             error = "Activity required"
+            return@LaunchedEffect
+        }
+        if (forceAccountPicker) {
+            busy = false
+            accountPickerLauncher.launch(GoogleDriveGalleryAuth.accountChooserIntent())
             return@LaunchedEffect
         }
         busy = true

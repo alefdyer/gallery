@@ -111,6 +111,7 @@
     <string name="storage_yandex_signed_in">Account signed in</string>
     <string name="storage_gdrive_sign_in">Sign in with Google</string>
     <string name="storage_gdrive_auth_title">Google Drive sign-in</string>
+    <string name="storage_gdrive_already_connected">This Google account is already connected</string>
     <string name="storage_onedrive_sign_in">Sign in with Microsoft</string>
     <string name="storage_onedrive_auth_title">OneDrive sign-in</string>
     <string name="storage_webdav_connect">Connect WebDAV</string>
