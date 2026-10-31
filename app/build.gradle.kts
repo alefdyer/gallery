@@ -48,9 +48,9 @@ android {
         vectorDrawables {
             useSupportLibrary = true
         }
-        // LibVLC/FFmpeg: без лишних ABI (armeabi-v7a/x86) — экономия десятков МБ.
+        // LibVLC/FFmpeg: только arm64 (реальные устройства); без x86_64/armeabi — экономия десятков МБ.
         ndk {
-            abiFilters += listOf("arm64-v8a", "x86_64")
+            abiFilters += listOf("arm64-v8a")
         }
 
         val localProperties = Properties()
