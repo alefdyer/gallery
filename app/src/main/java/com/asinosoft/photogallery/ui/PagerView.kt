@@ -34,6 +34,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
@@ -111,8 +112,23 @@ fun PagerView(
         rememberPagerState(if (listReady) offset else 0) { items.size }
     }
 
+    fun closePager() {
+        model.cancelShare()
+        onClose()
+    }
+
+    // Стрелка назад / navigateUp / dispose — всегда гасим шаринг, иначе плашка «залипает».
+    DisposableEffect(Unit) {
+        onDispose { model.cancelShare() }
+    }
+
     LaunchedEffect(pagerState, items) {
+        var lastPage = pagerState.currentPage
         snapshotFlow { pagerState.currentPage }.collect { page ->
+            if (page != lastPage) {
+                model.cancelShare()
+                lastPage = page
+            }
             items.getOrNull(page)?.let { onCurrentMediaChange(it.id) }
         }
     }
@@ -143,7 +159,7 @@ fun PagerView(
         pendingFavorite = null
         if (Activity.RESULT_OK == result.resultCode) {
             model.setFavorite(media, favorite)
-            if (model.params.value.favoritesOnly && !favorite) onClose()
+            if (model.params.value.favoritesOnly && !favorite) closePager()
         }
     }
 
@@ -151,7 +167,7 @@ fun PagerView(
         items.getOrNull(pagerState.currentPage)?.let { media ->
             model.delete(media) {
                 if (1 == items.count()) {
-                    onClose()
+                    closePager()
                 }
             }
         }
@@ -169,7 +185,7 @@ fun PagerView(
                     pendingFavorite = media to favorite
                     favoriteLauncher.launch(IntentSenderRequest.Builder(request).build())
                 } else if (model.params.value.favoritesOnly && !favorite) {
-                    onClose()
+                    closePager()
                 }
             },
             onAddToAlbum = { showAddToAlbum = true },
@@ -192,7 +208,7 @@ fun PagerView(
                 onConfirm = {
                     confirmMoveToPrivate = null
                     model.moveToPrivate(media) {
-                        if (1 == items.size) onClose()
+                        if (1 == items.size) closePager()
                     }
                 },
                 onDismiss = { confirmMoveToPrivate = null }
@@ -281,7 +297,7 @@ fun PagerView(
                         }
                         .dragToDismiss(
                             state = dismissDrag,
-                            onDismiss = onClose,
+                            onDismiss = { closePager() },
                             onSwipeUp = { showInfo = true },
                             ignoreBottom = bottomGestureInset
                         )
@@ -296,7 +312,7 @@ fun PagerView(
             exit = slideOutVertically(tween(easing = LinearEasing))
         ) {
             PagerViewBar(
-                onBack = onClose,
+                onBack = { closePager() },
                 onShowInfo = { showInfo = true },
                 onAddToAlbum = { showAddToAlbum = true },
                 onMoveToPrivate = { confirmMoveToPrivate = items.getOrNull(pagerState.currentPage) },
@@ -361,8 +377,10 @@ fun PagerView(
             text = shareStatus?.message,
             progress = shareStatus?.progress,
             dark = true,
+            actionLabel = stringResource(R.string.cancel),
+            onAction = { model.cancelShare() },
         )
 
-        BackHandler(onBack = onClose)
+        BackHandler(onBack = { closePager() })
     }
 }

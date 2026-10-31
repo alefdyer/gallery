@@ -14,6 +14,7 @@ import com.asinosoft.photogallery.data.AppAnalytics
 import com.asinosoft.photogallery.data.Media
 import com.asinosoft.photogallery.data.MediaDao
 import com.asinosoft.photogallery.data.MediaService
+import com.asinosoft.photogallery.data.ShareUi
 import com.asinosoft.photogallery.data.launchAndCatch
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -147,6 +148,11 @@ class PagerViewModel @Inject constructor(
 
     fun share(media: Media) = viewModelScope.launchAndCatch {
         mediaService.share(setOf(media.id), context)
+    }
+
+    /** Свайп на другое видео / назад — сбросить «Подготовка к отправке…». */
+    fun cancelShare() {
+        ShareUi.cancel()
     }
 
     fun removeFromAlbum(mediaId: Long, albumId: Long) = viewModelScope.launchAndCatch {

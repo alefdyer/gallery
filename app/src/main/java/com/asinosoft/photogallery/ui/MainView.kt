@@ -28,10 +28,12 @@ import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import com.asinosoft.photogallery.R
 import com.asinosoft.photogallery.data.Album
 import com.asinosoft.photogallery.data.Media
 import com.asinosoft.photogallery.data.ShareUi
@@ -178,6 +180,8 @@ fun MainView(
             StatusBanner(
                 text = shareStatus?.message,
                 progress = shareStatus?.progress,
+                actionLabel = stringResource(R.string.cancel),
+                onAction = { ShareUi.cancel() },
             )
 
             ViewModeBar(

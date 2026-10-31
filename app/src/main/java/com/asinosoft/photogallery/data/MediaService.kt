@@ -27,10 +27,13 @@ import java.io.FileOutputStream
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.system.measureTimeMillis
+import kotlin.coroutines.coroutineContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.chunked
+import kotlinx.coroutines.job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import okhttp3.Request
@@ -108,14 +111,19 @@ class MediaService @Inject constructor(
         if (media.isEmpty()) return
         if (ShareUi.isBusy) return
 
+        val job = coroutineContext.job
+        ShareUi.bindJob(job)
+
         suspend fun prepareAndShare() {
             ShareUi.setStatus(context.getString(R.string.share_preparing), progress = 0f)
             try {
                 val items = media.mapNotNull { item ->
+                    coroutineContext.ensureActive()
                     runCatching { resolveShareContent(item) }
                         .onFailure { Log.w(TAG, "Share resolve failed media=${item.id}", it) }
                         .getOrNull()
                 }
+                coroutineContext.ensureActive()
                 if (items.isEmpty()) {
                     MessageBus.emit(context.getString(R.string.share_failed))
                     return
@@ -150,6 +158,7 @@ class MediaService @Inject constructor(
                             }
                         }
                     }
+                coroutineContext.ensureActive()
                 startShareChooser(context, send, uris)
                 // Мессенджер ещё читает FileProvider — чистим share-кэш с задержкой.
                 ShareCache.schedulePurgeAfterShare(context)
@@ -158,14 +167,18 @@ class MediaService @Inject constructor(
             }
         }
 
-        // Exclusive только если реально будет LibVLC-транскод (иначе OOM/crash на getTime).
-        val needsLibVlcExclusive = media.any {
-            it.video != null && ShareVideoCompat.isLegacySoftwareContainer(it.filename)
-        }
-        if (needsLibVlcExclusive) {
-            LibVlcCoordinator.withExclusive { prepareAndShare() }
-        } else {
-            prepareAndShare()
+        try {
+            // Exclusive только для LibVLC (legacy .mpg/.avi).
+            val needsLibVlcExclusive = media.any {
+                it.video != null && ShareVideoCompat.isLegacySoftwareContainer(it.filename)
+            }
+            if (needsLibVlcExclusive) {
+                LibVlcCoordinator.withExclusive { prepareAndShare() }
+            } else {
+                prepareAndShare()
+            }
+        } finally {
+            ShareUi.setStatus(null)
         }
     }
 
@@ -249,7 +262,7 @@ class MediaService @Inject constructor(
     private suspend fun resolveShareContent(media: Media): Pair<Uri, String>? {
         media.uri?.takeIf { isLocalShareableUri(it) }?.let { localUri ->
             if (media.video == null) return localUri to mimeForShare(media)
-            // Камера/HEVC/H.264 — сразу content URI. Конверт только .MPG/.AVI и т.п.
+            // Телефон/камера (.mp4 и т.п.) — напрямую. Конверт только .mpg/.avi/…
             if (!ShareVideoCompat.needsTranscodeForMessenger(media.filename)) {
                 return localUri to mimeForShare(media)
             }
@@ -263,6 +276,9 @@ class MediaService @Inject constructor(
 
         val file = resolveShareFile(media) ?: return null
         if (media.video == null) {
+            return fileProviderUri(file) to mimeForShare(media)
+        }
+        if (!ShareVideoCompat.needsTranscodeForMessenger(media.filename)) {
             return fileProviderUri(file) to mimeForShare(media)
         }
         val converted = ShareVideoCompat.ensureMessengerCompatible(context, file)
@@ -339,7 +355,9 @@ class MediaService @Inject constructor(
             .header(StorageAuthProvider.HEADER_STORAGE_ID, media.storageId.toString())
             .build()
         Log.i(TAG, "Share download media=${media.id} → ${out.name}")
-        app.httpClient.newCall(request).execute().use { response ->
+        val call = app.httpClient.newCall(request)
+        coroutineContext.job.invokeOnCompletion { call.cancel() }
+        call.execute().use { response ->
             if (!response.isSuccessful) {
                 error("Download HTTP ${response.code}")
             }
@@ -353,6 +371,7 @@ class MediaService @Inject constructor(
                     var read = 0L
                     var lastPct = -1
                     while (true) {
+                        coroutineContext.ensureActive()
                         val n = input.read(buf)
                         if (n < 0) break
                         output.write(buf, 0, n)

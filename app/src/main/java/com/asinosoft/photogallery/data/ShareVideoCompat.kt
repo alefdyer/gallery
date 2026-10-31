@@ -15,10 +15,10 @@ import org.videolan.libvlc.Media
 import org.videolan.libvlc.MediaPlayer
 
 /**
- * Конвертация только для контейнеров, которые мессенджеры реально не принимают
- * (.MPG/.AVI/…). HEVC/H.264 с телефона — как есть (раньше так и шарилось).
+ * Конвертация только когда мессенджер файл «как есть» не примет:
+ * .MPG/.AVI/.WMV/… → LibVLC/FFmpeg в H.264 MP4.
  *
- * Legacy → LibVLC (FFmpeg) в H.264 MP4.
+ * Камера/телефон (.mp4/.mov с H.264 или HEVC) — без конверта, напрямую.
  */
 object ShareVideoCompat {
     private const val TAG = "ShareVideoCompat"
@@ -33,23 +33,19 @@ object ShareVideoCompat {
                 name.endsWith(".wmv") ||
                 name.endsWith(".asf") ||
                 name.endsWith(".flv") ||
-                name.endsWith(".divx") ||
-                name.endsWith(".3gp") ||
-                name.endsWith(".3gpp")
+                name.endsWith(".divx")
     }
+
+    fun needsTranscodeForMessenger(filename: String): Boolean =
+        isLegacySoftwareContainer(filename)
 
     fun needsTranscodeForMessenger(file: File): Boolean {
         if (!file.exists() || file.length() <= 0L) return false
         return isLegacySoftwareContainer(file.name)
     }
 
-    fun needsTranscodeForMessenger(filename: String): Boolean =
-        isLegacySoftwareContainer(filename)
-
     /**
-     * @return файл+MIME для шаринга, или null если конвертация обязательна и не удалась
-     * (сырой .MPG в WhatsApp слать нельзя).
-     * Вызывать под [LibVlcCoordinator.withExclusive] (share уже оборачивает).
+     * @return файл+MIME для шаринга, или null если конвертация обязательна и не удалась.
      */
     suspend fun ensureMessengerCompatible(
         context: Context,
@@ -59,7 +55,6 @@ object ShareVideoCompat {
             return input to guessMime(input)
         }
         val outDir = File(context.cacheDir, "share/transcoded").also { it.mkdirs() }
-        // v2: faststart+baseline — старый кэш без moov в начале для MAX не годится.
         val out = File(outDir, "${input.nameWithoutExtension}_${input.length()}_h264_v2.mp4")
         if (out.exists() &&
             out.length() > MIN_OUTPUT_BYTES &&
@@ -79,23 +74,17 @@ object ShareVideoCompat {
         return out to "video/mp4"
     }
 
-    /**
-     * MPEG-1/2 и старые AVI декодирует только FFmpeg внутри LibVLC.
-     * sout → H.264 + AAC в MP4 без отрисовки на экран.
-     */
     private suspend fun transcodeWithLibVlc(
         context: Context,
         input: File,
         output: File,
     ): Boolean = withContext(Dispatchers.Main) {
-        // Оценка: выход обычно меньше входа; растущий файл → шкала.
         val inputBytes = input.length().coerceAtLeast(1L)
-        val progressJob = kotlinx.coroutines.CoroutineScope(Dispatchers.IO).launch {
+        val progressJob = launch(Dispatchers.IO) {
             var last = -1
             while (true) {
                 kotlinx.coroutines.delay(250L)
                 val written = output.length().coerceAtLeast(0L)
-                // Транскод часто ~30–70% размера; берём 50% как «полный» ориентир.
                 val pct = ((written * 100L) / (inputBytes / 2).coerceAtLeast(1L))
                     .toInt()
                     .coerceIn(0, 99)
@@ -117,20 +106,22 @@ object ShareVideoCompat {
                 val player = MediaPlayer(lib)
                 val dst = output.absolutePath.replace('\\', '/')
                 val escaped = dst.replace("'", "\\'")
-                // faststart — moov в начале (MAX/Telegram иначе первые секунды чёрные).
-                // Без venc=x264{...}: на Android LibVLC часто нет x264 и бывает native crash.
                 val sout =
                     ":sout=#transcode{" +
                             "vcodec=h264,vb=1500,fps=25," +
                             "acodec=mp4a,ab=128,channels=2,samplerate=44100" +
                             "}:std{access=file,mux=mp4{faststart},dst='$escaped'}"
 
-                fun finish(success: Boolean) {
-                    if (!done.compareAndSet(false, true)) return
+                fun releasePlayer() {
                     runCatching { player.setEventListener(null) }
                     runCatching { player.stop() }
                     runCatching { player.release() }
                     runCatching { lib.release() }
+                }
+
+                fun finish(success: Boolean) {
+                    if (!done.compareAndSet(false, true)) return
+                    releasePlayer()
                     val ok = success && output.exists() && output.length() >= MIN_OUTPUT_BYTES
                     if (cont.isActive) cont.resume(ok)
                 }
@@ -138,23 +129,18 @@ object ShareVideoCompat {
                 player.setEventListener { event ->
                     when (event.type) {
                         MediaPlayer.Event.EndReached -> {
-                            Log.i(TAG, "LibVLC sout EndReached size=${output.length()}")
-                            finish(true)
+                            kotlinx.coroutines.CoroutineScope(Dispatchers.Main).launch {
+                                kotlinx.coroutines.delay(FASTSTART_FLUSH_MS)
+                                finish(true)
+                            }
                         }
-                        MediaPlayer.Event.EncounteredError -> {
-                            Log.w(TAG, "LibVLC sout EncounteredError")
-                            finish(false)
-                        }
+
+                        MediaPlayer.Event.EncounteredError -> finish(false)
                     }
                 }
 
                 cont.invokeOnCancellation {
-                    if (done.compareAndSet(false, true)) {
-                        runCatching { player.setEventListener(null) }
-                        runCatching { player.stop() }
-                        runCatching { player.release() }
-                        runCatching { lib.release() }
-                    }
+                    if (done.compareAndSet(false, true)) releasePlayer()
                 }
 
                 runCatching {
@@ -164,7 +150,6 @@ object ShareVideoCompat {
                     media.addOption(":sout-keep")
                     player.media = media
                     media.release()
-                    Log.i(TAG, "LibVLC sout start ${input.name} → ${output.name}")
                     player.play()
                 }.onFailure {
                     Log.w(TAG, "LibVLC sout start failed", it)
@@ -191,4 +176,5 @@ object ShareVideoCompat {
     }
 
     private const val MIN_OUTPUT_BYTES = 1024L
+    private const val FASTSTART_FLUSH_MS = 800L
 }
