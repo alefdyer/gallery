@@ -55,9 +55,13 @@ import androidx.compose.ui.input.pointer.positionChanged
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.asinosoft.photogallery.R
 import com.asinosoft.photogallery.data.Album
@@ -76,6 +80,7 @@ import com.asinosoft.photogallery.ui.component.isOpeningTransition
 import com.asinosoft.photogallery.ui.component.rememberAutoplayVideo
 import com.asinosoft.photogallery.ui.component.rememberTrashIntro
 import com.asinosoft.photogallery.ui.component.rememberVideoSound
+import com.asinosoft.photogallery.ui.theme.StatusBarIconAppearance
 
 /** Нажатое фото: просмотр показывает его сразу, пока из базы грузится весь список */
 internal object OpenedMedia {
@@ -139,6 +144,35 @@ fun PagerView(
     val controlsVisible = showControls && !dragging && !openingTransition
     val lightTheme = MaterialTheme.colorScheme.background.luminance() > 0.5f
     val lightBackground = lightTheme && showControls
+    StatusBarIconAppearance(if (lightTheme && lightBackground) true else null)
+    val view = LocalView.current
+    val statusBarController = remember(view) {
+        (view.context as? Activity)?.window?.let { WindowCompat.getInsetsController(it, view) }
+    }
+    val defaultStatusBarBehavior = remember(statusBarController) {
+        statusBarController?.systemBarsBehavior
+    }
+    if (!view.isInEditMode && statusBarController != null) {
+        // Появление экрана прячет контролы само, статус-бар при этом не трогаем.
+        val hideStatusBar = !showControls || dragging
+        DisposableEffect(hideStatusBar) {
+            if (hideStatusBar) {
+                statusBarController.systemBarsBehavior =
+                    WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+                statusBarController.hide(WindowInsetsCompat.Type.statusBars())
+            } else {
+                defaultStatusBarBehavior?.let { statusBarController.systemBarsBehavior = it }
+                statusBarController.show(WindowInsetsCompat.Type.statusBars())
+            }
+            onDispose {}
+        }
+        DisposableEffect(statusBarController) {
+            onDispose {
+                defaultStatusBarBehavior?.let { statusBarController.systemBarsBehavior = it }
+                statusBarController.show(WindowInsetsCompat.Type.statusBars())
+            }
+        }
+    }
     val backgroundColor by animateColorAsState(
         targetValue = if (lightBackground) MaterialTheme.colorScheme.background else Color.Black,
         label = "pagerBackground"

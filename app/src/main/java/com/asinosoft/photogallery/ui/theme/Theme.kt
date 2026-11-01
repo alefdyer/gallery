@@ -9,7 +9,14 @@ import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
@@ -27,6 +34,25 @@ private val LightColorScheme =
         secondary = PurpleGrey40,
         tertiary = Pink40
     )
+
+private class StatusBarIconsState {
+    var lightAppearance by mutableStateOf<Boolean?>(null)
+}
+
+private val LocalStatusBarIcons = staticCompositionLocalOf { StatusBarIconsState() }
+
+/**
+ * Переопределяет цвет иконок статус-бара.
+ * `true` — тёмные иконки, `null` — как задаёт тема. Сбрасывается при уходе из композиции.
+ */
+@Composable
+fun StatusBarIconAppearance(light: Boolean?) {
+    val state = LocalStatusBarIcons.current
+    SideEffect { state.lightAppearance = light }
+    DisposableEffect(Unit) {
+        onDispose { state.lightAppearance = null }
+    }
+}
 
 @Composable
 fun GalleryTheme(
@@ -51,17 +77,22 @@ fun GalleryTheme(
             }
         }
 
+    val statusBarIcons = remember { StatusBarIconsState() }
+    val lightStatusBars = statusBarIcons.lightAppearance ?: darkTheme
+
     val view = LocalView.current
     if (!view.isInEditMode) {
         SideEffect {
             val window = (view.context as Activity).window
-            WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = darkTheme
+            WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = lightStatusBars
         }
     }
 
-    MaterialTheme(
-        colorScheme = colorScheme,
-        typography = Typography,
-        content = content
-    )
+    CompositionLocalProvider(LocalStatusBarIcons provides statusBarIcons) {
+        MaterialTheme(
+            colorScheme = colorScheme,
+            typography = Typography,
+            content = content
+        )
+    }
 }
