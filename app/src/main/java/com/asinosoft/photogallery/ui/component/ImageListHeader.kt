@@ -51,14 +51,20 @@ private val MIN_TITLE_SIZE = 14.sp
 @Composable
 fun ImageListHeaderBackground(
     cover: Media,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    /** Портретный кроп лица для альбома «Люди»; иначе обычная обложка медиа. */
+    faceThumbPath: String? = null,
 ) {
     val context = LocalContext.current
-    val request = remember(cover.id, context) {
-        val file = ThumbnailCache.getFile(context, cover.id)
+    val faceFile = remember(faceThumbPath) {
+        faceThumbPath?.let { java.io.File(it) }?.takeIf { it.exists() && it.length() > 0 }
+    }
+    val request = remember(cover.id, faceFile, context) {
         ImageRequest.Builder(context)
-            .data(cover.uri ?: file)
-            .placeholderMemoryCacheKey("media-${cover.id}")
+            .data(faceFile ?: cover.uri ?: ThumbnailCache.getFile(context, cover.id))
+            .placeholderMemoryCacheKey(
+                if (faceFile != null) "face-${faceFile.absolutePath}" else "media-${cover.id}"
+            )
             .crossfade(true)
             .build()
     }

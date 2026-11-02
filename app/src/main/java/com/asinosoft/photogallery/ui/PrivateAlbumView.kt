@@ -78,6 +78,8 @@ import com.asinosoft.photogallery.model.PrivateAlbumViewModel
 import com.asinosoft.photogallery.ui.component.DateFilterDialog
 import com.asinosoft.photogallery.ui.component.DismissDragState
 import com.asinosoft.photogallery.ui.component.DragSelectionState
+import com.asinosoft.photogallery.ui.component.FloatingDropdownMenu
+import com.asinosoft.photogallery.ui.component.FloatingMenuItem
 import com.asinosoft.photogallery.ui.component.ImageListHeaderBackground
 import com.asinosoft.photogallery.ui.component.ImageListHeaderInfo
 import com.asinosoft.photogallery.ui.component.LabeledIconButton
@@ -126,9 +128,10 @@ internal fun MediaFolderView(
     onClose: () -> Unit,
     model: MediaFolderViewModel,
     modifier: Modifier = Modifier,
+    onClearAll: (() -> Unit)? = null,
 ) {
     MediaSharedTransitionLayout(modifier.fillMaxSize()) {
-        MediaFolderContent(title, emptyText, restoreLabel, onClose, model)
+        MediaFolderContent(title, emptyText, restoreLabel, onClose, model, onClearAll = onClearAll)
     }
 }
 
@@ -140,6 +143,7 @@ private fun MediaFolderContent(
     onClose: () -> Unit,
     model: MediaFolderViewModel,
     modifier: Modifier = Modifier,
+    onClearAll: (() -> Unit)? = null,
 ) {
     val media by model.media.collectAsState()
     val items by model.visibleMedia.collectAsState()
@@ -153,6 +157,8 @@ private fun MediaFolderContent(
     var pagerIndex by rememberSaveable { mutableIntStateOf(0) }
     var pagerMediaId by rememberSaveable { mutableStateOf<Long?>(null) }
     var confirmDelete by remember { mutableStateOf(false) }
+    var confirmClearAll by remember { mutableStateOf(false) }
+    var showClearMenu by remember { mutableStateOf(false) }
     var showDateDialog by remember { mutableStateOf(false) }
     val thumbnailModel: MediaViewModel = hiltViewModel()
     val lazyGridState = rememberLazyGridState()
@@ -342,6 +348,36 @@ private fun MediaFolderContent(
                     }
                 }
             }
+
+            if (onClearAll != null && true == media?.isNotEmpty()) {
+                FloatingCircle(
+                    Modifier
+                        .align(Alignment.TopEnd)
+                        .statusBarsPadding()
+                        .padding(end = 8.dp, top = 8.dp)
+                ) {
+                    Box {
+                        IconButton(onClick = { showClearMenu = true }) {
+                            Icon(
+                                painter = painterResource(R.drawable.more_vert),
+                                contentDescription = stringResource(R.string.options)
+                            )
+                        }
+                        FloatingDropdownMenu(
+                            expanded = showClearMenu,
+                            onDismissRequest = { showClearMenu = false }
+                        ) {
+                            FloatingMenuItem(
+                                text = stringResource(R.string.clear),
+                                onClick = {
+                                    showClearMenu = false
+                                    confirmClearAll = true
+                                }
+                            )
+                        }
+                    }
+                }
+            }
         }
 
         AnimatedVisibility(
@@ -351,7 +387,11 @@ private fun MediaFolderContent(
                 .statusBarsPadding()
                 .padding(8.dp)
         ) {
-            SelectionInfoBar(selection = selection, onCancel = model::clearSelection)
+            SelectionInfoBar(
+                selection = selection,
+                onCancel = model::clearSelection,
+                onSelectAll = model::selectAll,
+            )
         }
 
         AnimatedVisibility(
@@ -401,18 +441,29 @@ private fun MediaFolderContent(
             onDismiss = { confirmDelete = false }
         )
     }
+
+    if (confirmClearAll && onClearAll != null) {
+        ConfirmDeleteDialog(
+            text = stringResource(R.string.trash_clear_confirm),
+            onConfirm = {
+                confirmClearAll = false
+                onClearAll()
+            },
+            onDismiss = { confirmClearAll = false }
+        )
+    }
 }
 
 @Composable
 private fun PrivateActionsBar(restoreLabel: String, onRestore: () -> Unit, onDelete: () -> Unit) {
     Surface(
-        modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(50),
         color = floatingPanelColor()
     ) {
         Row(
-            modifier = Modifier.padding(8.dp),
-            horizontalArrangement = Arrangement.SpaceEvenly
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
             LabeledIconButton(
                 label = restoreLabel,

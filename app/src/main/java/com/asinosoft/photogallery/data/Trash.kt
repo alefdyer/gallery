@@ -69,6 +69,13 @@ class Trash @Inject constructor(
         }
     }
 
+    /** Безвозвратно удаляет всё содержимое корзины. */
+    fun clear() {
+        if (!isSupported) return
+        val items = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) query() else emptyList()
+        delete(items)
+    }
+
     @RequiresApi(Build.VERSION_CODES.R)
     private fun query(): List<Media> {
         val args = Bundle().apply {

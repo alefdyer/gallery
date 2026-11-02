@@ -105,6 +105,16 @@ class ImageListViewModel @Inject constructor(
             albumId?.let { peopleRepository.observePersonByAlbumId(it) } ?: flowOf(null)
             ).stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
+    /** Портрет обложки человека для шапки альбома. */
+    val personCoverThumb: StateFlow<String?> =
+        if (albumId == null) {
+            MutableStateFlow(null)
+        } else {
+            peopleRepository.observePeopleCoverThumbs()
+                .map { thumbs -> thumbs[albumId] }
+                .stateIn(viewModelScope, SharingStarted.Eagerly, null)
+        }
+
     /** Подпись категории в шапке: «Google Drive» / email, не сырой :storage:id. */
     val albumCategorySubtitle = MutableStateFlow<String?>(null)
 
@@ -151,6 +161,13 @@ class ImageListViewModel @Inject constructor(
             started = SharingStarted.Eagerly,
             initialValue = emptyList()
         )
+
+    /** Медиа обложки альбома (coverId), без учёта фильтров списка. */
+    val albumCoverMedia: StateFlow<Media?> =
+        combine(album, allImages) { a, images ->
+            val coverId = a?.coverId?.takeIf { it != 0L } ?: return@combine null
+            images.firstOrNull { it.id == coverId }
+        }.stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
     val hasMedia: StateFlow<Boolean> = allImages.map { it.isNotEmpty() }
         .stateIn(viewModelScope, SharingStarted.Eagerly, false)

@@ -173,6 +173,8 @@
     <string name="trash">Trash</string>
     <string name="trash_empty">Trash is empty.\nDeleted photos and videos stay here for 30 days.</string>
     <string name="trash_unsupported">Trash is available on Android 11 and later</string>
+    <string name="trash_clear_confirm">Permanently delete everything in trash? This can\'t be undone.</string>
+    <string name="select_all">Select all</string>
     <string name="restore_from_trash">Restore</string>
     <string name="move_to_private_title">Move to private folder?</string>
     <string name="move_to_private_text">These photos and videos will be hidden. You won\'t see them in the gallery or other apps.</string>

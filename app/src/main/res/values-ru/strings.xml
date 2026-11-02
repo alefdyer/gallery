@@ -172,6 +172,8 @@
     <string name="trash">Корзина</string>
     <string name="trash_empty">Корзина пуста.\nУдалённые фото и видео хранятся здесь 30 дней.</string>
     <string name="trash_unsupported">Корзина доступна на Android 11 и новее</string>
+    <string name="trash_clear_confirm">Удалить всё из корзины навсегда? Это нельзя отменить.</string>
+    <string name="select_all">Выбрать все</string>
     <string name="restore_from_trash">Восстановить</string>
     <string name="move_to_private_title">Переместить в личную папку?</string>
     <string name="move_to_private_text">Эти фотографии и видео будут скрыты. Вы не увидите их в галерее и других приложениях.</string>

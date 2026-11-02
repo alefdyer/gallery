@@ -259,6 +259,8 @@ fun ImageListView(
     val albumCategorySubtitleIcon by model.albumCategorySubtitleIcon.collectAsState()
     val albumCategorySubtitleIconTinted by model.albumCategorySubtitleIconTinted.collectAsState()
     val person by model.person.collectAsState()
+    val personCoverThumb by model.personCoverThumb.collectAsState()
+    val albumCoverMedia by model.albumCoverMedia.collectAsState()
     val addNameLabel = stringResource(R.string.people_add_name)
     val listTitle = when {
         person != null -> person?.displayName?.takeIf { it.isNotBlank() } ?: addNameLabel
@@ -272,7 +274,10 @@ fun ImageListView(
         } else {
             null
         }
-    val cover = images.firstOrNull()
+    val cover = when {
+        person != null -> albumCoverMedia ?: images.firstOrNull()
+        else -> images.firstOrNull()
+    }
     val photoCount by model.photoCount.collectAsState()
     val videoCount by model.videoCount.collectAsState()
     // Размер — синхронно из уже собранного списка, как счётчики в превью соседнего альбома:
@@ -543,7 +548,13 @@ fun ImageListView(
             )
         }
 
-        cover?.let { ImageListHeaderBackground(cover = it, modifier = headerModifier) }
+        cover?.let {
+            ImageListHeaderBackground(
+                cover = it,
+                modifier = headerModifier,
+                faceThumbPath = personCoverThumb.takeIf { person != null },
+            )
+        }
 
         Column {
             LazyVerticalGrid(
