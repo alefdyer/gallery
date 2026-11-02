@@ -1,0 +1,16 @@
+---
+description: Always install and launch the app on the connected phone after code changes
+alwaysApply: true
+---
+
+# Deploy to phone
+
+After finishing Android app code changes (features, fixes, UI), always:
+
+1. Build and install: `.\gradlew :app:installDebug`
+2. Launch on the connected device via adb:
+   - adb: `%LOCALAPPDATA%\Android\Sdk\platform-tools\adb.exe` (not always on PATH)
+   - package / activity: `com.asinosoft.photogallery/.MainActivity`
+   - command: `& "$env:LOCALAPPDATA\Android\Sdk\platform-tools\adb.exe" shell am start -n com.asinosoft.photogallery/.MainActivity`
+3. Do this without waiting to be asked.
+4. If no device is connected, say so briefly and stop — don't only compile.

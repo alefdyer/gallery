@@ -97,6 +97,7 @@ fun PagerView(
     onClose: () -> Unit,
     modifier: Modifier = Modifier,
     onCurrentMediaChange: (Long) -> Unit = {},
+    onEdit: (Media) -> Unit = {},
     model: PagerViewModel = hiltViewModel()
 ) {
     val loadedItems by model.images.collectAsState(listOf())
@@ -224,7 +225,7 @@ fun PagerView(
             },
             onAddToAlbum = { showAddToAlbum = true },
             onShare = { model.share(items[pagerState.currentPage]) },
-            onEdit = { model.edit(items[pagerState.currentPage]) },
+            onEdit = { onEdit(items[pagerState.currentPage]) },
             onDelete = deleteCurrent
         )
     }

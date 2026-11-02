@@ -1,4 +1,4 @@
-package com.asinosoft.photogallery.ui
+﻿package com.asinosoft.photogallery.ui
 
 import androidx.compose.animation.AnimatedContentTransitionScope
 import androidx.compose.animation.AnimatedVisibilityScope
@@ -64,6 +64,9 @@ import com.asinosoft.photogallery.data.storage.Storage
 import com.asinosoft.photogallery.model.DateFilter
 import com.asinosoft.photogallery.model.MediaType
 import com.asinosoft.photogallery.ui.component.rememberDeviceAuth
+import com.asinosoft.photogallery.ui.editor.EditorScreen
+import com.asinosoft.photogallery.ui.editor.EditorViewModel
+import com.asinosoft.photogallery.ui.editor.StickerOrderScreen
 
 @OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
@@ -101,6 +104,7 @@ fun Navigation(
         nav.previousBackStackEntry?.savedStateHandle?.set(RETURN_MEDIA_ID, mediaId)
     }
     val openPrivateAlbum = rememberDeviceAuth { nav.navigate(PRIVATE_ROUTE) }
+    val openEditor: (Media) -> Unit = { media -> nav.navigate("editor/${media.id}") }
 
     val visibleEntries by nav.visibleEntries.collectAsState()
     val sharedElementsEnabled = visibleEntries.size <= 1 || visibleEntries.any { it.isPager() }
@@ -113,7 +117,11 @@ fun Navigation(
             ) {
                 AppNavHost(
                     nav, navigateToMedia, navigateToAlbum, navigateToAlbumMedia, navigateToStorage,
-                    navigateToStorageMedia, navigateToSettings, reportCurrentMedia, openPrivateAlbum
+                    navigateToStorageMedia,
+                    navigateToSettings,
+                    reportCurrentMedia,
+                    openPrivateAlbum,
+                    openEditor,
                 )
             }
         }
@@ -182,6 +190,7 @@ private fun AppNavHost(
     navigateToSettings: () -> Unit,
     reportCurrentMedia: (Long) -> Unit,
     openPrivateAlbum: () -> Unit,
+    openEditor: (Media) -> Unit,
 ) {
     NavHost(
         navController = nav,
@@ -308,7 +317,8 @@ private fun AppNavHost(
                 PagerView(
                     onAlbumClick = navigateToAlbum,
                     onClose = nav::navigateUp,
-                    onCurrentMediaChange = reportCurrentMedia
+                    onCurrentMediaChange = reportCurrentMedia,
+                    onEdit = openEditor,
                 )
             }
         }
@@ -326,7 +336,8 @@ private fun AppNavHost(
                 PagerView(
                     onAlbumClick = navigateToAlbum,
                     onClose = nav::navigateUp,
-                    onCurrentMediaChange = reportCurrentMedia
+                    onCurrentMediaChange = reportCurrentMedia,
+                    onEdit = openEditor,
                 )
             }
         }
@@ -394,7 +405,8 @@ private fun AppNavHost(
                 PagerView(
                     onAlbumClick = navigateToAlbum,
                     onClose = nav::navigateUp,
-                    onCurrentMediaChange = reportCurrentMedia
+                    onCurrentMediaChange = reportCurrentMedia,
+                    onEdit = openEditor,
                 )
             }
         }
@@ -427,7 +439,8 @@ private fun AppNavHost(
                 PagerView(
                     onAlbumClick = navigateToAlbum,
                     onClose = nav::navigateUp,
-                    onCurrentMediaChange = reportCurrentMedia
+                    onCurrentMediaChange = reportCurrentMedia,
+                    onEdit = openEditor,
                 )
             }
         }
@@ -455,6 +468,30 @@ private fun AppNavHost(
 
         composable("terms") {
             TermsOfUseView(onClose = nav::navigateUp)
+        }
+
+        composable(
+            "editor/{mediaId}",
+            arguments = listOf(navArgument("mediaId") { type = NavType.LongType }),
+        ) { entry ->
+            val mediaId = entry.arguments?.getLong("mediaId")!!
+            EditorScreen(
+                onClose = nav::navigateUp,
+                onOpenStickerOrder = { nav.navigate("editor/$mediaId/stickers/order") },
+            )
+        }
+
+        composable(
+            "editor/{mediaId}/stickers/order",
+            arguments = listOf(navArgument("mediaId") { type = NavType.LongType }),
+        ) { entry ->
+            val parentEntry = remember(entry) {
+                nav.getBackStackEntry("editor/${entry.arguments?.getLong("mediaId")}")
+            }
+            StickerOrderScreen(
+                onClose = nav::navigateUp,
+                model = hiltViewModel(parentEntry),
+            )
         }
     }
 }
