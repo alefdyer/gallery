@@ -98,6 +98,7 @@ fun ImageListHeaderInfo(
     subtitle: String? = null,
     @DrawableRes subtitleIcon: Int = R.drawable.folder,
     subtitleIconTinted: Boolean = true,
+    onTitleClick: (() -> Unit)? = null,
     onPhotosClick: (() -> Unit)? = null,
     onVideosClick: (() -> Unit)? = null
 ) {
@@ -149,7 +150,12 @@ fun ImageListHeaderInfo(
                     autoSize = TextAutoSize.StepBased(
                         minFontSize = MIN_TITLE_SIZE,
                         maxFontSize = style.fontSize
-                    )
+                    ),
+                    modifier = if (onTitleClick != null) {
+                        Modifier.clickable(onClick = onTitleClick)
+                    } else {
+                        Modifier
+                    }
                 )
             }
 

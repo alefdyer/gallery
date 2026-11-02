@@ -12,6 +12,8 @@ import coil3.request.CachePolicy
 import coil3.svg.SvgDecoder
 import coil3.video.VideoFrameDecoder
 import com.asinosoft.photogallery.data.ShareCache
+import com.asinosoft.photogallery.data.people.PeopleAlbums
+import com.asinosoft.photogallery.data.people.PeopleIndexQueue
 import com.asinosoft.photogallery.data.storage.StorageAuthProvider
 import com.asinosoft.photogallery.data.storage.StorageDao
 import com.asinosoft.photogallery.data.storage.StorageService
@@ -31,6 +33,12 @@ class GalleryApp : Application() {
     lateinit var storageDao: StorageDao
     @Inject
     lateinit var storageService: StorageService
+
+    @Inject
+    lateinit var peopleIndexQueue: PeopleIndexQueue
+
+    @Inject
+    lateinit var peopleAlbums: PeopleAlbums
 
     lateinit var httpClient: OkHttpClient
         private set
@@ -53,6 +61,8 @@ class GalleryApp : Application() {
             runCatching { storageDao.migratePlaintextPasswords() }
             runCatching { storageService.backfillMissingGoogleDriveEmails() }
             runCatching { storageService.backfillMissingDropboxEmails() }
+            runCatching { peopleAlbums.ensureCategory() }
+            peopleIndexQueue.startBackfill()
         }
 
         httpClient =

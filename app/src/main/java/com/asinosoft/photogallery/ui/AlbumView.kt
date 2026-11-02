@@ -25,6 +25,7 @@ fun AlbumView(
     onSwitchAlbum: (album: Album, forward: Boolean) -> Unit = { _, _ -> },
     returnMediaId: Long? = null,
     onReturnHandled: () -> Unit = {},
+    onPersonEdit: ((personId: Long) -> Unit)? = null,
     model: ImageListViewModel = hiltViewModel(),
 ) {
     // Соседи по категории запрашиваются сразу при открытии альбома (см. ImageListViewModel),
@@ -49,6 +50,7 @@ fun AlbumView(
             nextAlbum = siblings.getOrNull(index + 1).takeIf { index >= 0 },
             onSwitchAlbum = onSwitchAlbum,
             showFeatureTips = true,
+            onPersonEdit = onPersonEdit,
             model = model
         )
     }

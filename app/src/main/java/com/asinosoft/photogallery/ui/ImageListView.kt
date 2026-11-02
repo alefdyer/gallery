@@ -145,6 +145,7 @@ fun ImageListView(
     nextAlbum: Album? = null,
     onSwitchAlbum: (album: Album, forward: Boolean) -> Unit = { _, _ -> },
     showFeatureTips: Boolean = false,
+    onPersonEdit: ((personId: Long) -> Unit)? = null,
     model: ImageListViewModel = hiltViewModel()
 ) {
     val images by model.images.collectAsState()
@@ -257,9 +258,20 @@ fun ImageListView(
     val albumCategorySubtitle by model.albumCategorySubtitle.collectAsState()
     val albumCategorySubtitleIcon by model.albumCategorySubtitleIcon.collectAsState()
     val albumCategorySubtitleIconTinted by model.albumCategorySubtitleIconTinted.collectAsState()
-    val listTitle = album?.name
-        ?: stringResource(if (model.favoritesOnly) R.string.favorites else R.string.all_photos)
+    val person by model.person.collectAsState()
+    val addNameLabel = stringResource(R.string.people_add_name)
+    val listTitle = when {
+        person != null -> person?.displayName?.takeIf { it.isNotBlank() } ?: addNameLabel
+        else -> album?.name
+            ?: stringResource(if (model.favoritesOnly) R.string.favorites else R.string.all_photos)
+    }
     val title = dateFilter?.let { dateFilterTitle(it) } ?: listTitle
+    val onPersonTitleClick: (() -> Unit)? =
+        if (person != null && dateFilter == null && onPersonEdit != null) {
+            { onPersonEdit.invoke(person!!.id) }
+        } else {
+            null
+        }
     val cover = images.firstOrNull()
     val photoCount by model.photoCount.collectAsState()
     val videoCount by model.videoCount.collectAsState()
@@ -601,6 +613,7 @@ fun ImageListView(
                 subtitle = albumCategorySubtitle,
                 subtitleIcon = albumCategorySubtitleIcon,
                 subtitleIconTinted = albumCategorySubtitleIconTinted,
+                onTitleClick = onPersonTitleClick,
                 onPhotosClick = {
                     scrollToTopOnUpdate.pending = true
                     model.togglePhotos()

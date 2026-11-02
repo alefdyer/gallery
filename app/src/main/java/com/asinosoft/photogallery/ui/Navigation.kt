@@ -67,6 +67,9 @@ import com.asinosoft.photogallery.ui.component.rememberDeviceAuth
 import com.asinosoft.photogallery.ui.editor.EditorScreen
 import com.asinosoft.photogallery.ui.editor.EditorViewModel
 import com.asinosoft.photogallery.ui.editor.StickerOrderScreen
+import com.asinosoft.photogallery.ui.people.PersonEditScreen
+import com.asinosoft.photogallery.ui.people.PersonEditViewModel
+import com.asinosoft.photogallery.ui.people.RelationshipPickerScreen
 
 @OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
@@ -385,7 +388,10 @@ private fun AppNavHost(
                     },
                     onClose = nav::navigateUp,
                     returnMediaId = returnMediaId,
-                    onReturnHandled = { route.clearReturnMediaId() }
+                    onReturnHandled = { route.clearReturnMediaId() },
+                    onPersonEdit = { personId ->
+                        nav.navigate("person/$personId/edit")
+                    },
                 )
             }
         }
@@ -491,6 +497,57 @@ private fun AppNavHost(
             StickerOrderScreen(
                 onClose = nav::navigateUp,
                 model = hiltViewModel(parentEntry),
+            )
+        }
+
+        composable(
+            "person/{personId}/edit",
+            arguments = listOf(navArgument("personId") { type = NavType.LongType }),
+        ) { entry ->
+            val personId = entry.arguments?.getLong("personId")!!
+            val editModel: PersonEditViewModel = hiltViewModel(entry)
+            val relResult by entry.savedStateHandle
+                .getStateFlow<String?>("relationship_result", null)
+                .collectAsState()
+            LaunchedEffect(relResult) {
+                val value = relResult ?: return@LaunchedEffect
+                editModel.setRelationship(value.takeIf { it.isNotEmpty() })
+                entry.savedStateHandle["relationship_result"] = null
+            }
+            PersonEditScreen(
+                onClose = nav::navigateUp,
+                onPickRelationship = {
+                    nav.navigate("person/$personId/relationship")
+                },
+                onMerged = {
+                    nav.popBackStack("main", inclusive = false)
+                },
+                onSplitCreated = { newId ->
+                    nav.navigate("person/$newId/edit") {
+                        popUpTo("person/$personId/edit") { inclusive = true }
+                    }
+                },
+                model = editModel,
+            )
+        }
+
+        composable(
+            "person/{personId}/relationship",
+            arguments = listOf(navArgument("personId") { type = NavType.LongType }),
+        ) { entry ->
+            val personId = entry.arguments?.getLong("personId")!!
+            val parentEntry = remember(entry) {
+                nav.getBackStackEntry("person/$personId/edit")
+            }
+            val editModel: PersonEditViewModel = hiltViewModel(parentEntry)
+            val current by editModel.relationship.collectAsState()
+            RelationshipPickerScreen(
+                current = current,
+                onPick = { value ->
+                    parentEntry.savedStateHandle["relationship_result"] = value.orEmpty()
+                    nav.navigateUp()
+                },
+                onClose = nav::navigateUp,
             )
         }
     }

@@ -226,6 +226,9 @@ dependencies {
     implementation("androidx.room:room-ktx:$roomVersion")
     ksp("androidx.room:room-compiler:$roomVersion")
 
+    // Faces (People albums)
+    implementation("com.google.mlkit:face-detection:16.1.7")
+
     // KtLint
     ktlintRuleset("io.nlopez.compose.rules:ktlint:0.6.8")
 

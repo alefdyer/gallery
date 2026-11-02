@@ -4,6 +4,7 @@ import android.content.Context
 import com.asinosoft.photogallery.data.AlbumDao
 import com.asinosoft.photogallery.data.AppDatabase
 import com.asinosoft.photogallery.data.MediaDao
+import com.asinosoft.photogallery.data.people.PersonDao
 import com.asinosoft.photogallery.data.storage.StorageRoomDao
 import dagger.Module
 import dagger.Provides
@@ -28,4 +29,7 @@ object DatabaseModule {
 
     @Provides
     fun provideStorageRoomDao(appDatabase: AppDatabase): StorageRoomDao = appDatabase.storageDao()
+
+    @Provides
+    fun providePersonDao(appDatabase: AppDatabase): PersonDao = appDatabase.personDao()
 }

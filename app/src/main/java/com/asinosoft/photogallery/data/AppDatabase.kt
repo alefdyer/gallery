@@ -7,6 +7,9 @@ import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
+import com.asinosoft.photogallery.data.people.Face
+import com.asinosoft.photogallery.data.people.Person
+import com.asinosoft.photogallery.data.people.PersonDao
 import com.asinosoft.photogallery.data.storage.Storage
 import com.asinosoft.photogallery.data.storage.StorageRoomDao
 
@@ -16,8 +19,11 @@ import com.asinosoft.photogallery.data.storage.StorageRoomDao
         AlbumCategory::class,
         Media::class,
         MediaAlbum::class,
-        Storage::class],
-    version = 8,
+        Storage::class,
+        Person::class,
+        Face::class,
+    ],
+    version = 9,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -27,6 +33,8 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun imageDao(): MediaDao
 
     abstract fun storageDao(): StorageRoomDao
+
+    abstract fun personDao(): PersonDao
 
     companion object {
         @Volatile
@@ -38,7 +46,13 @@ abstract class AppDatabase : RoomDatabase() {
 
         private fun buildDatabase(context: Context): AppDatabase = Room
             .databaseBuilder(context, AppDatabase::class.java, "media.db")
-            .addMigrations(MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8)
+            .addMigrations(
+                MIGRATION_4_5,
+                MIGRATION_5_6,
+                MIGRATION_6_7,
+                MIGRATION_7_8,
+                MIGRATION_8_9,
+            )
             .fallbackToDestructiveMigration(true)
             .addCallback(AppDatabaseInitializer())
             .build()
@@ -54,7 +68,6 @@ abstract class AppDatabase : RoomDatabase() {
                 db.execSQL(
                     "ALTER TABLE album ADD COLUMN userCreated INTEGER NOT NULL DEFAULT 0"
                 )
-                // Альбомы в пользовательских категориях (не :other / :messengers)
                 db.execSQL(
                     """
                     UPDATE album SET userCreated = 1
@@ -97,6 +110,47 @@ abstract class AppDatabase : RoomDatabase() {
                         )
                     """.trimIndent()
                 )
+            }
+        }
+
+        private val MIGRATION_8_9 = object : Migration(8, 9) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS person (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        displayName TEXT,
+                        relationship TEXT,
+                        contactUri TEXT,
+                        contactId INTEGER,
+                        coverFaceId INTEGER,
+                        albumId INTEGER,
+                        updatedAt INTEGER NOT NULL
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS index_person_albumId ON person(albumId)"
+                )
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS face (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        mediaId INTEGER NOT NULL,
+                        personId INTEGER,
+                        left REAL NOT NULL,
+                        top REAL NOT NULL,
+                        right REAL NOT NULL,
+                        bottom REAL NOT NULL,
+                        embedding BLOB NOT NULL,
+                        thumbPath TEXT,
+                        FOREIGN KEY(mediaId) REFERENCES media(id) ON DELETE CASCADE,
+                        FOREIGN KEY(personId) REFERENCES person(id) ON DELETE SET NULL
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_face_mediaId ON face(mediaId)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_face_personId ON face(personId)")
             }
         }
     }

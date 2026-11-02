@@ -143,7 +143,7 @@ private fun CoverCounter(
 }
 
 @Composable
-private fun AlbumThumbnail(
+internal fun AlbumThumbnail(
     cover: Media?,
     modifier: Modifier = Modifier,
     model: MediaViewModel = hiltViewModel(),

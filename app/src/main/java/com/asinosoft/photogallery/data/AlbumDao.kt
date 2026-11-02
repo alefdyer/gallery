@@ -137,6 +137,9 @@ interface AlbumDao {
             FROM album a
             LEFT JOIN media_album ma ON ma.albumId = a.id
             WHERE ma.mediaId IS NULL
+              AND a.categoryId NOT IN (
+                  SELECT id FROM album_category WHERE name = ':people'
+              )
         )
         """
     )

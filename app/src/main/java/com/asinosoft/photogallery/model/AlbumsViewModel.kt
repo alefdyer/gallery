@@ -17,6 +17,9 @@ import com.asinosoft.photogallery.data.Media
 import com.asinosoft.photogallery.data.MediaDao
 import com.asinosoft.photogallery.data.StorageAlbums
 import com.asinosoft.photogallery.data.isStorageCategory
+import com.asinosoft.photogallery.data.people.PeopleIndexQueue
+import com.asinosoft.photogallery.data.people.PeopleRepository
+import com.asinosoft.photogallery.data.people.Person
 import com.asinosoft.photogallery.data.storageIdOrNull
 import com.asinosoft.photogallery.data.storage.Storage
 import com.asinosoft.photogallery.data.storage.StorageDao
@@ -55,7 +58,9 @@ class AlbumsViewModel @Inject constructor(
     private val analytics: AppAnalytics,
     private val storageAlbums: StorageAlbums,
     private val storageService: StorageService,
-    private val storageDao: StorageDao
+    private val storageDao: StorageDao,
+    peopleRepository: PeopleRepository,
+    peopleIndexQueue: PeopleIndexQueue,
 ) : ViewModel() {
     private val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
     private val categoryOrder = MutableStateFlow(loadCategoryOrder())
@@ -66,6 +71,19 @@ class AlbumsViewModel @Inject constructor(
     private val storageTitleOverrides = MutableStateFlow(loadStorageTitleOverrides())
 
     val fetchingStorageIds: StateFlow<Set<Long>> = storageService.fetchingStorageIds
+
+    val peopleIndexing: StateFlow<Boolean> = peopleIndexQueue.indexing
+        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
+
+    /** albumId → Person для секции «Люди». */
+    val peopleByAlbumId: StateFlow<Map<Long, Person>> = peopleRepository.observePeople()
+        .map { list -> list.mapNotNull { p -> p.albumId?.let { it to p } }.toMap() }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyMap())
+
+    /** albumId → путь к портретному кропу лица для обложки. */
+    val peopleCoverThumbs: StateFlow<Map<Long, String>> =
+        peopleRepository.observePeopleCoverThumbs()
+            .stateIn(viewModelScope, SharingStarted.Eagerly, emptyMap())
 
     val remoteStorages: StateFlow<Map<Long, StorageCategoryInfo>> =
         combine(storageDao.getStorages(), storageTitleOverrides) { storages, overrides ->
@@ -98,24 +116,38 @@ class AlbumsViewModel @Inject constructor(
             albumDao.getAlbums(),
             albumDao.getAlbumCategories(),
             categoryOrder,
-            remoteStorages
-        ) { albums, categories, order, remotes ->
+            remoteStorages,
+            peopleByAlbumId,
+        ) { albums, categories, order, remotes, peopleMap ->
             val byCategoryId = albums.groupBy { it.album.categoryId }
             val remoteCategoryNames = remotes.keys
                 .map { AlbumCategory.storageCategoryName(it) }
                 .toSet()
             categories
                 .map { category ->
-                    val categoryAlbums = byCategoryId[category.id].orEmpty().sortedWith(
-                        compareByDescending<AlbumWithCover> { it.album.date }
-                            .thenByDescending { it.cover?.time }
-                            .thenBy { it.album.name }
-                    )
+                    val raw = byCategoryId[category.id].orEmpty()
+                    val categoryAlbums = if (category.name == AlbumCategory.PEOPLE_NAME) {
+                        raw.sortedWith(
+                            compareBy<AlbumWithCover> {
+                                peopleMap[it.album.id]?.displayName.isNullOrBlank()
+                            }.thenBy {
+                                peopleMap[it.album.id]?.displayName?.lowercase().orEmpty()
+                            }.thenByDescending { it.album.date }
+                        )
+                    } else {
+                        raw.sortedWith(
+                            compareByDescending<AlbumWithCover> { it.album.date }
+                                .thenByDescending { it.cover?.time }
+                                .thenBy { it.album.name }
+                        )
+                    }
                     CategoryWithAlbums(category, categoryAlbums)
                 }
                 .filter {
-                    // Пустые — только живые категории подключённых хранилищ (спиннер скана).
-                    it.albums.isNotEmpty() || it.category.name in remoteCategoryNames
+                    // Пустые — живые remote / секция «Люди» (индексация лиц).
+                    it.albums.isNotEmpty() ||
+                            it.category.name in remoteCategoryNames ||
+                            it.category.name == AlbumCategory.PEOPLE_NAME
                 }
                 // Скрыть категории удалённых хранилищ и устаревший :webdav.
                 .filter {

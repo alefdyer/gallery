@@ -101,6 +101,7 @@ import com.asinosoft.photogallery.ui.component.ImageListHeaderBackground
 import com.asinosoft.photogallery.ui.component.ImageListHeaderTitle
 import com.asinosoft.photogallery.ui.component.NewAlbumCategoryDialog
 import com.asinosoft.photogallery.ui.component.NewAlbumPlaceholder
+import com.asinosoft.photogallery.ui.component.PersonAlbumCover
 import com.asinosoft.photogallery.ui.component.ScrollToTopButton
 import com.asinosoft.photogallery.ui.component.TIP_ALBUM_CATEGORY
 import com.asinosoft.photogallery.ui.component.TIP_ALBUM_DRAG
@@ -124,6 +125,9 @@ fun AlbumListView(
 ) {
     val scope = rememberCoroutineScope()
     val categories by model.albums.collectAsState()
+    val peopleByAlbumId by model.peopleByAlbumId.collectAsState()
+    val peopleCoverThumbs by model.peopleCoverThumbs.collectAsState()
+    val peopleIndexing by model.peopleIndexing.collectAsState()
     val remoteStorages by model.remoteStorages.collectAsState()
     val fetchingStorageIds by model.fetchingStorageIds.collectAsState()
     val lazyListState = rememberLazyListState()
@@ -406,7 +410,10 @@ fun AlbumListView(
                     onDragStart = { onCategoryDragStart(id) },
                     onDrag = ::onCategoryDrag,
                     onDragEnd = ::onCategoryDragEnd,
-                    showLoading = storageInfo?.storage?.id in fetchingStorageIds,
+                    peopleByAlbumId = peopleByAlbumId,
+                    peopleCoverThumbs = peopleCoverThumbs,
+                    showLoading = storageInfo?.storage?.id in fetchingStorageIds ||
+                            (category.category.name == AlbumCategory.PEOPLE_NAME && peopleIndexing),
                     showCategoryTip = isFirstCategory && categoryTip.visible,
                     onCategoryTipDismiss = categoryTip.dismiss,
                     showAlbumDragTip = isFirstCategory && albumDragTip.visible,
@@ -511,6 +518,8 @@ private fun AlbumCategoriesRow(
     onDragStart: () -> Unit,
     onDrag: (Float) -> Unit,
     onDragEnd: () -> Unit,
+    peopleByAlbumId: Map<Long, com.asinosoft.photogallery.data.people.Person> = emptyMap(),
+    peopleCoverThumbs: Map<Long, String> = emptyMap(),
     showLoading: Boolean = false,
     showCategoryTip: Boolean = false,
     onCategoryTipDismiss: () -> Unit = {},
@@ -518,6 +527,7 @@ private fun AlbumCategoriesRow(
     onAlbumDragTipDismiss: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
+    val isPeople = category.category.name == AlbumCategory.PEOPLE_NAME
     Column(
         modifier
             .fillMaxWidth()
@@ -610,7 +620,10 @@ private fun AlbumCategoriesRow(
                                     album = album,
                                     cardSize = cardSize,
                                     onAlbumClick = onAlbumClick,
-                                    onRenameClick = onAlbumRenameClick
+                                    onRenameClick = onAlbumRenameClick,
+                                    personDisplayName = peopleByAlbumId[album.album.id]?.displayName,
+                                    faceThumbPath = peopleCoverThumbs[album.album.id],
+                                    isPeople = isPeople,
                                 )
                             }
                         }
@@ -634,7 +647,10 @@ private fun AlbumCategoriesRow(
                                                 album = album,
                                                 cardSize = cardSize,
                                                 onAlbumClick = onAlbumClick,
-                                                onRenameClick = onAlbumRenameClick
+                                                onRenameClick = onAlbumRenameClick,
+                                                personDisplayName = peopleByAlbumId[album.album.id]?.displayName,
+                                                faceThumbPath = peopleCoverThumbs[album.album.id],
+                                                isPeople = isPeople,
                                             )
                                         }
                                     }
@@ -666,7 +682,10 @@ private fun AlbumCategoriesRow(
                             album = album,
                             cardSize = cardSize,
                             onAlbumClick = onAlbumClick,
-                            onRenameClick = onAlbumRenameClick
+                            onRenameClick = onAlbumRenameClick,
+                            personDisplayName = peopleByAlbumId[album.album.id]?.displayName,
+                            faceThumbPath = peopleCoverThumbs[album.album.id],
+                            isPeople = isPeople,
                         )
                     }
                 }
@@ -692,20 +711,24 @@ private fun AlbumCard(
     cardSize: Dp,
     onAlbumClick: (Album) -> Unit,
     onRenameClick: (Album) -> Unit,
+    personDisplayName: String? = null,
+    faceThumbPath: String? = null,
+    isPeople: Boolean = false,
 ) {
     var menuExpanded by remember(album.album.id) { mutableStateOf(false) }
     // Как у категорий: меню всегда; переименование — не для системных категорий
-    val canRename = album.album.userCreated || !album.category.isSystem()
+    val canRename = !isPeople && (album.album.userCreated || !album.category.isSystem())
     val haptic = LocalHapticFeedback.current
     val density = LocalDensity.current
     val moveThreshold = with(density) { CATEGORY_MOVE_THRESHOLD.toPx() }
 
-    Box {
-        AlbumCover(
-            album,
-            Modifier
-                .size(cardSize)
-                .dragAndDropSource(
+    val coverModifier = Modifier
+        .size(cardSize)
+        .then(
+            if (isPeople) {
+                Modifier
+            } else {
+                Modifier.dragAndDropSource(
                     block = {
                         var transferred = false
                         var dragDistance = 0f
@@ -732,10 +755,26 @@ private fun AlbumCard(
                         )
                     }
                 )
-                .pointerInput(album.album.id) {
-                    detectTapGestures(onTap = { onAlbumClick(album.album) })
-                }
+            }
         )
+        .pointerInput(album.album.id) {
+            detectTapGestures(
+                onTap = { onAlbumClick(album.album) },
+                onLongPress = { if (canRename) menuExpanded = true }
+            )
+        }
+
+    Box {
+        if (isPeople) {
+            PersonAlbumCover(
+                album = album,
+                displayName = personDisplayName,
+                faceThumbPath = faceThumbPath,
+                modifier = coverModifier,
+            )
+        } else {
+            AlbumCover(album, coverModifier)
+        }
 
         FloatingDropdownMenu(
             expanded = menuExpanded,

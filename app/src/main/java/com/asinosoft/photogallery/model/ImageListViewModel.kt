@@ -17,6 +17,8 @@ import com.asinosoft.photogallery.R
 import com.asinosoft.photogallery.data.MediaService
 import com.asinosoft.photogallery.data.RemoteVideoThumbQueue
 import com.asinosoft.photogallery.data.launchAndCatch
+import com.asinosoft.photogallery.data.people.PeopleRepository
+import com.asinosoft.photogallery.data.people.Person
 import com.asinosoft.photogallery.data.storageIdOrNull
 import com.asinosoft.photogallery.data.storage.MediaStatistics
 import com.asinosoft.photogallery.data.storage.StorageDao
@@ -84,6 +86,7 @@ class ImageListViewModel @Inject constructor(
     remoteVideoThumbQueue: RemoteVideoThumbQueue,
     private val mediaService: MediaService,
     private val analytics: AppAnalytics,
+    private val peopleRepository: PeopleRepository,
     @param:ApplicationContext private val context: Context
 ) : MediaViewModel(storageProviderRegistry, storageService, mediaDao, remoteVideoThumbQueue) {
     val storageId: Long = state["storageId"] ?: 1
@@ -96,6 +99,11 @@ class ImageListViewModel @Inject constructor(
 
     val album = MutableStateFlow<Album?>(null)
     val albumCategory = MutableStateFlow<AlbumCategory?>(null)
+
+    /** Person для альбома категории :people (иначе null). */
+    val person: StateFlow<Person?> = (
+            albumId?.let { peopleRepository.observePersonByAlbumId(it) } ?: flowOf(null)
+            ).stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
     /** Подпись категории в шапке: «Google Drive» / email, не сырой :storage:id. */
     val albumCategorySubtitle = MutableStateFlow<String?>(null)
@@ -509,6 +517,7 @@ class ImageListViewModel @Inject constructor(
         return when (category.name) {
             ":other" -> context.getString(R.string.other)
             AlbumCategory.MESSENGERS_NAME -> context.getString(R.string.messengers)
+            AlbumCategory.PEOPLE_NAME -> context.getString(R.string.people)
             AlbumCategory.WEBDAV_NAME -> context.getString(R.string.storage_type_webdav)
             else -> category.name
         }

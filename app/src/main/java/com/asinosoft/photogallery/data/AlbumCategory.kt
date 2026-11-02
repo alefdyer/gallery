@@ -21,6 +21,7 @@ data class AlbumCategory(
     companion object {
         val OTHER = AlbumCategory(1, ":other")
         const val MESSENGERS_NAME = ":messengers"
+        const val PEOPLE_NAME = ":people"
         const val WEBDAV_NAME = ":webdav"
         const val STORAGE_PREFIX = ":storage:"
 
@@ -51,6 +52,7 @@ fun AlbumCategory.name(): String =
     when {
         name == ":other" -> stringResource(R.string.other)
         name == AlbumCategory.MESSENGERS_NAME -> stringResource(R.string.messengers)
+        name == AlbumCategory.PEOPLE_NAME -> stringResource(R.string.people)
         name == AlbumCategory.WEBDAV_NAME -> stringResource(R.string.storage_type_webdav)
         // Не сырой :storage:id — в шапке альбома «Хранилище» / Storage.
         isStorageCategory() -> stringResource(R.string.storage)

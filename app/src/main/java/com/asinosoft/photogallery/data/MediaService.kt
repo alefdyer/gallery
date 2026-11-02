@@ -13,6 +13,7 @@ import androidx.core.content.edit
 import coil3.SingletonImageLoader
 import com.asinosoft.photogallery.GalleryApp
 import com.asinosoft.photogallery.R
+import com.asinosoft.photogallery.data.people.PeopleIndexQueue
 import com.asinosoft.photogallery.data.storage.StorageAuthProvider
 import com.asinosoft.photogallery.data.storage.StorageDao
 import com.asinosoft.photogallery.data.storage.StorageProvider
@@ -49,6 +50,7 @@ class MediaService @Inject constructor(
     private val trash: Trash,
     private val analytics: AppAnalytics,
     private val remoteVideoThumbQueue: RemoteVideoThumbQueue,
+    private val peopleIndexQueue: PeopleIndexQueue,
     private val storageProviderRegistry: StorageProviderRegistry,
     private val storageService: Lazy<StorageService>,
     @param:ApplicationContext private val context: Context
@@ -69,6 +71,9 @@ class MediaService @Inject constructor(
 
         CoroutineScope(Dispatchers.IO).launch {
             ThumbnailCache.preload(context, mediaId, media.uri, isVideo = media.video != null)
+        }
+        if (media.storageType == StorageType.LOCAL && media.video == null) {
+            peopleIndexQueue.enqueue(mediaId)
         }
     }
 
@@ -737,6 +742,21 @@ class MediaService @Inject constructor(
 
                     if (toPreload.isNotEmpty()) {
                         ThumbnailCache.preloadBatch(context, toPreload)
+                    }
+
+                    if (isLocal) {
+                        val faceIds = toInsert.mapIndexedNotNull { index, media ->
+                            if (media.video != null) return@mapIndexedNotNull null
+                            val rawId = rawMediaIds[index]
+                            val realId = if (rawId > 0) rawId else mediaDao.getMediaId(
+                                media.storageId,
+                                media.storageItemId
+                            ) ?: -1L
+                            realId.takeIf { it > 0 }
+                        }
+                        if (faceIds.isNotEmpty()) {
+                            peopleIndexQueue.enqueueAll(faceIds)
+                        }
                     }
                 }
 
