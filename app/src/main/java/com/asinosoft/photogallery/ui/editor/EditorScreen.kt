@@ -3,15 +3,21 @@ package com.asinosoft.photogallery.ui.editor
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.core.Animatable
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.calculatePan
+import androidx.compose.foundation.gestures.calculateZoom
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -43,15 +49,18 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.ColorMatrix
@@ -59,6 +68,7 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.positionChanged
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
@@ -70,6 +80,9 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.unit.toSize
+import androidx.compose.ui.util.fastAny
+import androidx.compose.ui.util.fastForEach
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.zIndex
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -82,11 +95,14 @@ import com.asinosoft.photogallery.R
 import com.asinosoft.photogallery.data.editor.EditorExport
 import com.asinosoft.photogallery.data.editor.StickerCategory
 import com.asinosoft.photogallery.data.editor.StickerItem
+import com.asinosoft.photogallery.ui.component.ZoomableMediaBox
 import kotlin.math.atan2
 import kotlin.math.hypot
+import kotlin.math.max
 import kotlin.math.roundToInt
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 
 @Composable
 fun EditorScreen(
@@ -189,7 +205,12 @@ fun EditorScreen(
                 val uri = media?.uri
                 if (uri != null) {
                     if (isVideo) {
-                        EditorVideoPreview(player = videoPlayer)
+                        ZoomableMediaBox(aspectRatio = null) {
+                            EditorVideoPreview(
+                                player = videoPlayer,
+                                modifier = Modifier.fillMaxSize(),
+                            )
+                        }
                     } else {
                         EditorPhotoPreview(
                             uri = uri,
@@ -339,132 +360,253 @@ private fun EditorPhotoPreview(
     )
     val density = LocalDensity.current
     val handleHitPx = with(density) { 44.dp.toPx() }
+    val zoomEnabled = tab != EditorTab.TRANSFORM
 
-    Box(
-        Modifier
-            .fillMaxSize()
-            .onSizeChanged { boxSize = it }
-            .then(if (tab == EditorTab.TRANSFORM) Modifier.systemGestureExclusion() else Modifier)
-            .then(
-                when {
-                    tab == EditorTab.ADD && addMode == 0 -> Modifier.pointerInput(Unit) {
-                        detectDragGestures(
-                            onDragStart = { offset ->
-                                draftStroke = listOf(
-                                    StrokePoint(offset.x / size.width, offset.y / size.height)
-                                )
-                            },
-                            onDrag = { change, _ ->
-                                change.consume()
-                                val p = change.position
-                                draftStroke = draftStroke + StrokePoint(
-                                    p.x / size.width,
-                                    p.y / size.height,
-                                )
-                            },
-                            onDragEnd = {
-                                if (draftStroke.size >= 2) {
-                                    model.addStroke(
-                                        DrawStroke(
-                                            points = draftStroke,
-                                            color = 0xFFFF5252,
-                                            width = 0.012f,
-                                        )
-                                    )
-                                }
-                                draftStroke = emptyList()
-                            },
-                        )
-                    }
-
-                    tab == EditorTab.TRANSFORM -> Modifier.pointerInput(quad, boxSize) {
-                        if (boxSize.width == 0) return@pointerInput
-                        fun corners(): List<Offset> = listOf(
-                            Offset(quad.topLeftX * size.width, quad.topLeftY * size.height),
-                            Offset(quad.topRightX * size.width, quad.topRightY * size.height),
-                            Offset(quad.bottomRightX * size.width, quad.bottomRightY * size.height),
-                            Offset(quad.bottomLeftX * size.width, quad.bottomLeftY * size.height),
-                        )
-                        detectDragGestures(
-                            onDragStart = { offset ->
-                                dragCorner = corners().indexOfFirst { c ->
-                                    hypot(c.x - offset.x, c.y - offset.y) <= handleHitPx
-                                }.takeIf { it >= 0 }
-                            },
-                            onDrag = { change, _ ->
-                                val idx = dragCorner ?: return@detectDragGestures
-                                change.consume()
-                                val nx = (change.position.x / size.width).coerceIn(0f, 1f)
-                                val ny = (change.position.y / size.height).coerceIn(0f, 1f)
-                                val next = when (idx) {
-                                    0 -> quad.copy(topLeftX = nx, topLeftY = ny)
-                                    1 -> quad.copy(topRightX = nx, topRightY = ny)
-                                    2 -> quad.copy(bottomRightX = nx, bottomRightY = ny)
-                                    else -> quad.copy(bottomLeftX = nx, bottomLeftY = ny)
-                                }
-                                model.setPerspective(next, recordHistory = false)
-                            },
-                            onDragEnd = { dragCorner = null },
-                            onDragCancel = { dragCorner = null },
-                        )
-                    }
-
-                    else -> Modifier
-                }
-            ),
-        contentAlignment = Alignment.Center,
-    ) {
-        AsyncImage(
-            model = uri,
-            contentDescription = null,
-            contentScale = ContentScale.Fit,
-            colorFilter = matrix,
-            modifier = Modifier
+    EditorZoomBox(zoomEnabled = zoomEnabled) {
+        Box(
+            Modifier
                 .fillMaxSize()
-                .clip(RoundedCornerShape(2.dp)),
-        )
-        if (tab == EditorTab.TRANSFORM && boxSize.width > 0) {
-            Canvas(Modifier.fillMaxSize()) {
-                val pts = listOf(
-                    Offset(quad.topLeftX * size.width, quad.topLeftY * size.height),
-                    Offset(quad.topRightX * size.width, quad.topRightY * size.height),
-                    Offset(quad.bottomRightX * size.width, quad.bottomRightY * size.height),
-                    Offset(quad.bottomLeftX * size.width, quad.bottomLeftY * size.height),
-                )
-                val path = Path().apply {
-                    moveTo(pts[0].x, pts[0].y)
-                    lineTo(pts[1].x, pts[1].y)
-                    lineTo(pts[2].x, pts[2].y)
-                    lineTo(pts[3].x, pts[3].y)
-                    close()
-                }
-                drawPath(path, Color.White.copy(alpha = 0.85f), style = Stroke(width = 2.dp.toPx()))
-                pts.forEach { p ->
-                    drawCircle(Color.White, radius = 11.dp.toPx(), center = p)
-                    drawCircle(Color(0xFFFFD54F), radius = 7.dp.toPx(), center = p)
+                .onSizeChanged { boxSize = it }
+                .then(if (tab == EditorTab.TRANSFORM) Modifier.systemGestureExclusion() else Modifier)
+                .then(
+                    when {
+                        tab == EditorTab.ADD && addMode == 0 -> Modifier.pointerInput(Unit) {
+                            detectDragGestures(
+                                onDragStart = { offset ->
+                                    draftStroke = listOf(
+                                        StrokePoint(offset.x / size.width, offset.y / size.height)
+                                    )
+                                },
+                                onDrag = { change, _ ->
+                                    change.consume()
+                                    val p = change.position
+                                    draftStroke = draftStroke + StrokePoint(
+                                        p.x / size.width,
+                                        p.y / size.height,
+                                    )
+                                },
+                                onDragEnd = {
+                                    if (draftStroke.size >= 2) {
+                                        model.addStroke(
+                                            DrawStroke(
+                                                points = draftStroke,
+                                                color = 0xFFFF5252,
+                                                width = 0.012f,
+                                            )
+                                        )
+                                    }
+                                    draftStroke = emptyList()
+                                },
+                            )
+                        }
+
+                        tab == EditorTab.TRANSFORM -> Modifier.pointerInput(quad, boxSize) {
+                            if (boxSize.width == 0) return@pointerInput
+                            fun corners(): List<Offset> = listOf(
+                                Offset(quad.topLeftX * size.width, quad.topLeftY * size.height),
+                                Offset(quad.topRightX * size.width, quad.topRightY * size.height),
+                                Offset(
+                                    quad.bottomRightX * size.width,
+                                    quad.bottomRightY * size.height
+                                ),
+                                Offset(
+                                    quad.bottomLeftX * size.width,
+                                    quad.bottomLeftY * size.height
+                                ),
+                            )
+                            detectDragGestures(
+                                onDragStart = { offset ->
+                                    dragCorner = corners().indexOfFirst { c ->
+                                        hypot(c.x - offset.x, c.y - offset.y) <= handleHitPx
+                                    }.takeIf { it >= 0 }
+                                },
+                                onDrag = { change, _ ->
+                                    val idx = dragCorner ?: return@detectDragGestures
+                                    change.consume()
+                                    val nx = (change.position.x / size.width).coerceIn(0f, 1f)
+                                    val ny = (change.position.y / size.height).coerceIn(0f, 1f)
+                                    val next = when (idx) {
+                                        0 -> quad.copy(topLeftX = nx, topLeftY = ny)
+                                        1 -> quad.copy(topRightX = nx, topRightY = ny)
+                                        2 -> quad.copy(bottomRightX = nx, bottomRightY = ny)
+                                        else -> quad.copy(bottomLeftX = nx, bottomLeftY = ny)
+                                    }
+                                    model.setPerspective(next, recordHistory = false)
+                                },
+                                onDragEnd = { dragCorner = null },
+                                onDragCancel = { dragCorner = null },
+                            )
+                        }
+
+                        else -> Modifier
+                    }
+                ),
+            contentAlignment = Alignment.Center,
+        ) {
+            AsyncImage(
+                model = uri,
+                contentDescription = null,
+                contentScale = ContentScale.Fit,
+                colorFilter = matrix,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .clip(RoundedCornerShape(2.dp)),
+            )
+            if (tab == EditorTab.TRANSFORM && boxSize.width > 0) {
+                Canvas(Modifier.fillMaxSize()) {
+                    val pts = listOf(
+                        Offset(quad.topLeftX * size.width, quad.topLeftY * size.height),
+                        Offset(quad.topRightX * size.width, quad.topRightY * size.height),
+                        Offset(quad.bottomRightX * size.width, quad.bottomRightY * size.height),
+                        Offset(quad.bottomLeftX * size.width, quad.bottomLeftY * size.height),
+                    )
+                    val path = Path().apply {
+                        moveTo(pts[0].x, pts[0].y)
+                        lineTo(pts[1].x, pts[1].y)
+                        lineTo(pts[2].x, pts[2].y)
+                        lineTo(pts[3].x, pts[3].y)
+                        close()
+                    }
+                    drawPath(
+                        path,
+                        Color.White.copy(alpha = 0.85f),
+                        style = Stroke(width = 2.dp.toPx())
+                    )
+                    pts.forEach { p ->
+                        drawCircle(Color.White, radius = 11.dp.toPx(), center = p)
+                        drawCircle(Color(0xFFFFD54F), radius = 7.dp.toPx(), center = p)
+                    }
                 }
             }
-        }
-        EditorStickersLayer(
-            stickers = edit.stickers,
-            interactive = tab == EditorTab.ADD && addMode != 0,
-            selectedId = selectedStickerId,
-            onSelect = model::selectSticker,
-            onUpdate = model::updateSticker,
-            onDuplicate = model::duplicateSticker,
-            onFlip = model::flipSticker,
-            onDelete = model::deleteSticker,
-        )
-        edit.texts.forEach { t ->
-            Text(
-                text = t.text,
-                color = Color(t.color),
-                fontSize = (22 * t.scale).sp,
-                fontWeight = FontWeight.Bold,
+            EditorStickersLayer(
+                stickers = edit.stickers,
+                interactive = tab == EditorTab.ADD && addMode != 0,
+                selectedId = selectedStickerId,
+                onSelect = model::selectSticker,
+                onUpdate = model::updateSticker,
+                onDuplicate = model::duplicateSticker,
+                onFlip = model::flipSticker,
+                onDelete = model::deleteSticker,
             )
+            edit.texts.forEach { t ->
+                Text(
+                    text = t.text,
+                    color = Color(t.color),
+                    fontSize = (22 * t.scale).sp,
+                    fontWeight = FontWeight.Bold,
+                )
+            }
         }
     }
 }
+
+/**
+ * Щипок для зума превью. Один палец при scale=1 не перехватывается —
+ * стикеры/рисование продолжают работать.
+ */
+@Composable
+private fun EditorZoomBox(
+    zoomEnabled: Boolean,
+    modifier: Modifier = Modifier,
+    content: @Composable BoxScope.() -> Unit,
+) {
+    val scope = rememberCoroutineScope()
+    var viewSize by remember { mutableStateOf(Size.Zero) }
+    var scale by remember { mutableFloatStateOf(1f) }
+    val offsetX = remember { Animatable(0f) }
+    val offsetY = remember { Animatable(0f) }
+
+    LaunchedEffect(zoomEnabled) {
+        if (!zoomEnabled) {
+            scale = 1f
+            offsetX.snapTo(0f)
+            offsetY.snapTo(0f)
+        }
+    }
+
+    Box(
+        modifier
+            .fillMaxSize()
+            .onSizeChanged { viewSize = it.toSize() },
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .graphicsLayer {
+                    scaleX = scale
+                    scaleY = scale
+                    translationX = offsetX.value
+                    translationY = offsetY.value
+                }
+                .then(
+                    if (!zoomEnabled || viewSize == Size.Zero) Modifier
+                    else Modifier.pointerInput(viewSize) {
+                        awaitEachGesture {
+                            awaitFirstDown(requireUnconsumed = false)
+                            do {
+                                val event = awaitPointerEvent()
+                                val pressed = event.changes.count { it.pressed }
+                                if (pressed >= 2) {
+                                    val zoom = event.calculateZoom()
+                                    val pan = event.calculatePan()
+                                    val newScale = (scale * zoom).coerceIn(1f, EDITOR_MAX_ZOOM)
+                                    val maxX =
+                                        max(0f, (viewSize.width * newScale - viewSize.width) / 2f)
+                                    val maxY =
+                                        max(0f, (viewSize.height * newScale - viewSize.height) / 2f)
+                                    scale = newScale
+                                    scope.launch {
+                                        offsetX.snapTo(
+                                            (offsetX.value * zoom + pan.x).coerceIn(-maxX, maxX),
+                                        )
+                                        offsetY.snapTo(
+                                            (offsetY.value * zoom + pan.y).coerceIn(-maxY, maxY),
+                                        )
+                                    }
+                                    event.changes.fastForEach {
+                                        if (it.positionChanged()) it.consume()
+                                    }
+                                } else if (scale > 1.01f && event.changes.none { it.isConsumed }) {
+                                    val pan = event.calculatePan()
+                                    val maxX =
+                                        max(0f, (viewSize.width * scale - viewSize.width) / 2f)
+                                    val maxY =
+                                        max(0f, (viewSize.height * scale - viewSize.height) / 2f)
+                                    scope.launch {
+                                        offsetX.snapTo(
+                                            (offsetX.value + pan.x).coerceIn(
+                                                -maxX,
+                                                maxX
+                                            )
+                                        )
+                                        offsetY.snapTo(
+                                            (offsetY.value + pan.y).coerceIn(
+                                                -maxY,
+                                                maxY
+                                            )
+                                        )
+                                    }
+                                    event.changes.fastForEach {
+                                        if (it.positionChanged()) it.consume()
+                                    }
+                                }
+                            } while (event.changes.fastAny { it.pressed })
+                            if (scale < 1.05f) {
+                                scale = 1f
+                                scope.launch {
+                                    offsetX.snapTo(0f)
+                                    offsetY.snapTo(0f)
+                                }
+                            }
+                        }
+                    },
+                ),
+            content = content,
+        )
+    }
+}
+
+private const val EDITOR_MAX_ZOOM = 5f
 
 @Composable
 private fun EditorStickersLayer(
@@ -751,7 +893,10 @@ private fun normalizeAngleRad(delta: Float): Float {
 }
 
 @Composable
-private fun EditorVideoPreview(player: ExoPlayer) {
+private fun EditorVideoPreview(
+    player: ExoPlayer,
+    modifier: Modifier = Modifier,
+) {
     AndroidView(
         factory = { ctx ->
             PlayerView(ctx).apply {
@@ -760,9 +905,7 @@ private fun EditorVideoPreview(player: ExoPlayer) {
             }
         },
         update = { it.player = player },
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(320.dp),
+        modifier = modifier.fillMaxSize(),
     )
 }
 
