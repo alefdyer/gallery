@@ -3,6 +3,14 @@ package com.asinosoft.photogallery.ui
 import android.content.ClipData
 import android.content.ClipDescription
 import android.content.Intent
+import android.content.res.Configuration
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.MutableTransitionState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -62,6 +70,7 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -314,9 +323,16 @@ fun AlbumListView(
     }
 
     BoxWithConstraints(modifier.fillMaxSize()) {
+        val albumsPerRow =
+            if (LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE) {
+                ALBUMS_PER_ROW_LANDSCAPE
+            } else {
+                ALBUMS_PER_ROW_PORTRAIT
+            }
         val rowHeight = (maxWidth - HEADER_GAP * 2) / 3
         val headerHeight = (contentPadding.calculateTopPadding() + rowHeight) / 2 * 1.5f
-        val cardSize = (maxWidth - SCREEN_PADDING * 2 - CARD_SPACING * (ALBUMS_PER_ROW - 1)) / ALBUMS_PER_ROW
+        val cardSize =
+            (maxWidth - SCREEN_PADDING * 2 - CARD_SPACING * (albumsPerRow - 1)) / albumsPerRow
 
         LazyColumn(
             state = lazyListState,
@@ -365,6 +381,7 @@ fun AlbumListView(
                     title = storageInfo?.title ?: category.category.name(),
                     titleIcon = storageInfo?.storage?.type?.drawableRes(),
                     cardSize = cardSize,
+                    albumsPerRow = albumsPerRow,
                     highlighted = isDragActive && category == dropCategory,
                     onAlbumClick = onAlbumClick,
                     expanded = id in expandedCategoryIds,
@@ -405,7 +422,9 @@ fun AlbumListView(
                             }
                             .background(surface)
                     } else {
-                        Modifier.animateItem()
+                        // Без placement: иначе при shrink категории снизу «дважды» доезжает
+                        // (LazyColumn + animateItem placement).
+                        Modifier.animateItem(placementSpec = null)
                     }
                 )
             }
@@ -476,6 +495,7 @@ private fun AlbumCategoriesRow(
     title: String,
     titleIcon: Int? = null,
     cardSize: Dp,
+    albumsPerRow: Int,
     highlighted: Boolean,
     onAlbumClick: (Album) -> Unit,
     expanded: Boolean,
@@ -505,7 +525,7 @@ private fun AlbumCategoriesRow(
             .dropHighlight(highlighted)
             .padding(bottom = 8.dp)
     ) {
-        val expandable = category.albums.size > ALBUMS_PER_ROW
+        val expandable = category.albums.size > albumsPerRow
 
         Box {
             SectionTitle(
@@ -567,21 +587,57 @@ private fun AlbumCategoriesRow(
         }
 
         Box {
-            if (expandable && expanded) {
-                Column(
-                    verticalArrangement = Arrangement.spacedBy(CARD_SPACING),
-                    modifier = Modifier.padding(horizontal = SCREEN_PADDING - 4.dp)
-                ) {
-                    category.albums.chunked(ALBUMS_PER_ROW).forEach { row ->
-                        Row(horizontalArrangement = Arrangement.spacedBy(CARD_SPACING)) {
-                            row.forEach { album ->
-                                key(album.album.id) {
-                                    AlbumCard(
-                                        album = album,
-                                        cardSize = cardSize,
-                                        onAlbumClick = onAlbumClick,
-                                        onRenameClick = onAlbumRenameClick
-                                    )
+            val albumRows = remember(category.albums, albumsPerRow) {
+                category.albums.chunked(albumsPerRow)
+            }
+            val firstRow = albumRows.firstOrNull().orEmpty()
+            val extraRows = albumRows.drop(1)
+
+            // Пока идёт expand/collapse — сетка; в покое свёрнуто — LazyRow со скроллом.
+            val expandTransition = remember {
+                MutableTransitionState(expandable && expanded && extraRows.isNotEmpty())
+            }
+            expandTransition.targetState = expandable && expanded && extraRows.isNotEmpty()
+            val showExpandedGrid =
+                expandTransition.currentState || expandTransition.targetState
+
+            if (showExpandedGrid) {
+                Column(modifier = Modifier.padding(horizontal = SCREEN_PADDING - 4.dp)) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(CARD_SPACING)) {
+                        firstRow.forEach { album ->
+                            key(album.album.id) {
+                                AlbumCard(
+                                    album = album,
+                                    cardSize = cardSize,
+                                    onAlbumClick = onAlbumClick,
+                                    onRenameClick = onAlbumRenameClick
+                                )
+                            }
+                        }
+                    }
+
+                    // Отступ сверху внутри AV — иначе после shrink дёргается нижняя категория.
+                    AnimatedVisibility(
+                        visibleState = expandTransition,
+                        enter = expandVertically(expandFrom = Alignment.Top) + fadeIn(),
+                        exit = shrinkVertically(shrinkTowards = Alignment.Top) + fadeOut(),
+                    ) {
+                        Column(
+                            verticalArrangement = Arrangement.spacedBy(CARD_SPACING),
+                            modifier = Modifier.padding(top = CARD_SPACING),
+                        ) {
+                            extraRows.forEach { row ->
+                                Row(horizontalArrangement = Arrangement.spacedBy(CARD_SPACING)) {
+                                    row.forEach { album ->
+                                        key(album.album.id) {
+                                            AlbumCard(
+                                                album = album,
+                                                cardSize = cardSize,
+                                                onAlbumClick = onAlbumClick,
+                                                onRenameClick = onAlbumRenameClick
+                                            )
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -589,9 +645,6 @@ private fun AlbumCategoriesRow(
                 }
             } else {
                 val rowState = rememberLazyListState()
-                // Сбрасываем горизонтальный скролл только если сменился первый альбом
-                // (перестановка/новые данные). Не трогаем при возврате из альбома —
-                // иначе LaunchedEffect снова крутит к 0 и затирает rememberSaveable.
                 val firstAlbumId = category.albums.firstOrNull()?.album?.id
                 var seenFirstAlbumId by rememberSaveable(category.category.id) {
                     mutableStateOf(firstAlbumId)
@@ -771,10 +824,12 @@ private fun SectionTitle(
             )
         }
         if (null != expanded) {
+            val arrowRotation by animateFloatAsState(
+                targetValue = if (expanded) 0f else -90f,
+                label = "categoryExpandArrow",
+            )
             Icon(
-                painter = painterResource(
-                    if (expanded) R.drawable.expand_more else R.drawable.chevron_right
-                ),
+                painter = painterResource(R.drawable.expand_more),
                 contentDescription = stringResource(
                     if (expanded) R.string.collapse else R.string.expand
                 ),
@@ -785,6 +840,7 @@ private fun SectionTitle(
                     .clickable(onClick = onToggleExpand)
                     .padding(4.dp)
                     .size(24.dp)
+                    .graphicsLayer { rotationZ = arrowRotation }
             )
         }
         if (showLoading) {
@@ -838,7 +894,8 @@ private fun LazyListState.keyAt(event: DragAndDropEvent): Any? {
 private const val HEADER_KEY = "header"
 private const val NEW_CATEGORY_KEY = "new_category"
 private val HEADER_GAP = 2.dp
-private const val ALBUMS_PER_ROW = 3
+private const val ALBUMS_PER_ROW_PORTRAIT = 3
+private const val ALBUMS_PER_ROW_LANDSCAPE = 5
 private val SCREEN_PADDING = 12.dp
 private val CARD_SPACING = 8.dp
 private val CATEGORY_MOVE_THRESHOLD = 12.dp
