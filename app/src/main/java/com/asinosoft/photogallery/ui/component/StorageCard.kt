@@ -150,17 +150,17 @@ private fun StorageCover(
     var request by remember { mutableStateOf<ImageRequest?>(null) }
 
     LaunchedEffect(cover) {
-        val file = ThumbnailCache.getFile(context, cover.id)
+        val file = ThumbnailCache.getFile(context, cover)
         val data = if (file.exists() && file.length() > 0) file else model.getThumbnailUri(cover)
         Log.i("view", "Storage cover = $data")
         request = ImageRequest.Builder(context)
             .data(data)
-            .placeholderMemoryCacheKey("storage-cover-${cover.id}")
+            .placeholderMemoryCacheKey(ThumbnailCache.memoryKey(cover))
             .crossfade(true)
             .listener(onSuccess = { _, result ->
                 if (!file.exists()) {
                     scope.launch {
-                        ThumbnailCache.save(context, cover.id, result.image)
+                        ThumbnailCache.save(context, cover, result.image)
                     }
                 }
             })

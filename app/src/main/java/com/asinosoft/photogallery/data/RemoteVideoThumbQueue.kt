@@ -94,10 +94,11 @@ class RemoteVideoThumbQueue @Inject constructor(
     }
 
     private suspend fun process(job: Job) {
-        val thumbFile = ThumbnailCache.getFile(context, job.mediaId)
+        val existing = mediaDao.getById(job.mediaId)
+        var thumbMedia = existing ?: Media(id = job.mediaId)
+        val thumbFile = ThumbnailCache.getFile(context, thumbMedia)
         val hasThumb = thumbFile.exists() && thumbFile.length() > 0
         val needThumb = job.needThumb && !hasThumb
-        val existing = mediaDao.getById(job.mediaId)
         var needDuration = job.needDuration &&
                 (existing?.video?.duration ?: 0L) <= 0L &&
                 existing?.video != null
@@ -152,6 +153,15 @@ class RemoteVideoThumbQueue @Inject constructor(
                     height = height,
                     orientation = probe.orientation.takeIf { it != 0 } ?: image.orientation,
                 )
+                if (width > 0 && height > 0) {
+                    thumbMedia = thumbMedia.copy(
+                        image = Image(
+                            width = width,
+                            height = height,
+                            orientation = probe.orientation.takeIf { it != 0 } ?: image.orientation,
+                        )
+                    )
+                }
                 Log.i(
                     TAG,
                     "Image meta media=${job.mediaId} taken=$taken ${width}x$height"
@@ -231,7 +241,7 @@ class RemoteVideoThumbQueue @Inject constructor(
             return
         }
         probed.bitmap?.let { bitmap ->
-            ThumbnailCache.saveBitmap(context, job.mediaId, bitmap)
+            ThumbnailCache.saveBitmap(context, thumbMedia, bitmap)
             bitmap.recycle()
         }
         if (needDuration && probed.durationMs > 0L) {

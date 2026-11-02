@@ -104,11 +104,11 @@ fun MediaThumbnail(
         val scope = rememberCoroutineScope()
         val size = rememberConstraintsSizeResolver()
 
-        val cacheKey = remember(media.id) { "media-${media.id}" }
-        val cacheFile = remember(media.id) { ThumbnailCache.getFile(context, media.id) }
-        var cached by remember(media.id) {
-            mutableStateOf(persistentCache && cacheFile.exists() && cacheFile.length() > 0)
+        val cacheKey = remember(media) { ThumbnailCache.memoryKey(media) }
+        var cached by remember(media) {
+            mutableStateOf(persistentCache && ThumbnailCache.hasFile(context, media))
         }
+        val cacheFile = remember(media, cached) { ThumbnailCache.getFile(context, media) }
         val isRemoteVideo = media.video != null &&
                 LOCAL_STORAGE_ID != media.storageId &&
                 EXTERNAL_STORAGE_ID != media.storageId
@@ -127,7 +127,7 @@ fun MediaThumbnail(
             if (!persistentCache || cached || !isRemoteVideo) return@LaunchedEffect
             repeat(80) {
                 if (!isActive) return@LaunchedEffect
-                if (cacheFile.exists() && cacheFile.length() > 0) {
+                if (ThumbnailCache.hasFile(context, media)) {
                     cached = true
                     return@LaunchedEffect
                 }
@@ -192,7 +192,7 @@ fun MediaThumbnail(
                     loaded = true
                     if (persistentCache && !cached) {
                         scope.launch {
-                            ThumbnailCache.save(context, media.id, result.image)
+                            ThumbnailCache.save(context, media, result.image)
                         }
                     }
                 })

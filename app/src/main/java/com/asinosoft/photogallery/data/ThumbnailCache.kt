@@ -31,6 +31,7 @@ import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileOutputStream
+import java.security.MessageDigest
 import kotlin.math.roundToInt
 
 data class PreloadProgress(
@@ -49,6 +50,8 @@ private const val IMAGE_PARALLELISM = 20
 /** Кадры видео упираются в системный медиасервис: больше параллельных роликов только отнимают время у фото */
 private const val VIDEO_PARALLELISM = 4
 
+private val SIZE_SUFFIX = Regex("""_(\d+)x(\d+)\.jpg$""")
+
 object ThumbnailCache {
     private val _progress = MutableStateFlow(PreloadProgress())
     val progress: StateFlow<PreloadProgress> = _progress.asStateFlow()
@@ -57,25 +60,48 @@ object ThumbnailCache {
         return File(context.cacheDir, "thumbnails").apply { if (!exists()) mkdirs() }
     }
 
-    fun getFile(context: Context, mediaId: Long): File {
-        return File(getDir(context), "thumb_$mediaId.jpg")
+    fun memoryKey(media: Media): String = "media-${identityStem(media)}"
+
+    fun getFile(context: Context, media: Media): File {
+        return findExisting(context, media) ?: writeTarget(context, media)
     }
 
-    fun deleteAll(context: Context, mediaIds: Collection<Long>) {
-        if (mediaIds.isEmpty()) return
+    fun hasFile(context: Context, media: Media): Boolean {
+        val file = findExisting(context, media)
+        return file != null && file.length() > 0
+    }
+
+    private fun writeTarget(context: Context, media: Media): File {
+        return File(getDir(context), identityFileName(media) ?: legacyFileName(media.id))
+    }
+
+    private fun findExisting(context: Context, media: Media): File? {
         val dir = getDir(context)
-        for (id in mediaIds) {
-            File(dir, "thumb_$id.jpg").delete()
+        identityFileName(media)?.let { name ->
+            File(dir, name).takeIf { it.exists() && it.length() > 0 }?.let { return it }
         }
+        matchByFilename(dir.list(), media)?.let { name ->
+            File(dir, name).takeIf { it.exists() && it.length() > 0 }?.let { return it }
+        }
+        if (media.id > 0) {
+            File(dir, legacyFileName(media.id)).takeIf { it.exists() && it.length() > 0 }?.let { return it }
+        }
+        return null
     }
 
     private fun getExistingFiles(context: Context): Set<String> {
         return getDir(context).list()?.toSet() ?: emptySet()
     }
 
-    suspend fun save(context: Context, mediaId: Long, image: Image) = withContext(Dispatchers.IO) {
+    private fun alreadyCached(existingFiles: Set<String>, media: Media): Boolean {
+        identityFileName(media)?.let { if (it in existingFiles) return true }
+        if (matchByFilename(existingFiles, media) != null) return true
+        return media.id > 0 && legacyFileName(media.id) in existingFiles
+    }
+
+    suspend fun save(context: Context, media: Media, image: Image) = withContext(Dispatchers.IO) {
         try {
-            val file = getFile(context, mediaId)
+            val file = writeTarget(context, media)
             if (!file.exists()) {
                 val bitmap = image.toBitmap()
                 saveBitmap(file, bitmap)
@@ -84,25 +110,10 @@ object ThumbnailCache {
         }
     }
 
-    fun saveBitmap(context: Context, mediaId: Long, bitmap: Bitmap) {
-        val file = getFile(context, mediaId)
+    fun saveBitmap(context: Context, media: Media, bitmap: Bitmap) {
+        val file = writeTarget(context, media)
         if (file.exists() && file.length() > 0) return
         saveBitmap(file, bitmap)
-    }
-
-    /** Копирует готовый thumb локального дубликата на remote mediaId. */
-    fun copyIfPresent(context: Context, fromMediaId: Long, toMediaId: Long): Boolean {
-        if (fromMediaId == toMediaId) return false
-        val source = getFile(context, fromMediaId)
-        if (!source.exists() || source.length() <= 0) return false
-        val target = getFile(context, toMediaId)
-        if (target.exists() && target.length() > 0) return true
-        return try {
-            source.copyTo(target, overwrite = true)
-            target.exists() && target.length() > 0
-        } catch (_: Throwable) {
-            false
-        }
     }
 
     private fun saveBitmap(file: File, bitmap: Bitmap) {
@@ -116,28 +127,25 @@ object ThumbnailCache {
 
     suspend fun preload(
         context: Context,
-        mediaId: Long,
-        uri: Uri?,
+        media: Media,
         existingFiles: Set<String>? = null,
-        isVideo: Boolean? = null
     ) = withContext(Dispatchers.IO) {
-        if (uri == null) return@withContext
-        val fileName = "thumb_$mediaId.jpg"
-        if (existingFiles?.contains(fileName) == true) return@withContext
+        val uri = media.uri ?: return@withContext
+        if (existingFiles != null && alreadyCached(existingFiles, media)) return@withContext
+        if (hasFile(context, media)) return@withContext
 
-        val file = getFile(context, mediaId)
-        if (file.exists() && file.length() > 0) return@withContext
-
+        val file = writeTarget(context, media)
+        val isVideo = media.video != null
         try {
             val scheme = uri.scheme
             val isRemote = scheme == "http" || scheme == "https"
             // Удалённые видео не прелоадим: скачивание кадра с WebDAV/облака
             // для файлов на десятки ГБ намертво блокирует скан.
-            if (isRemote && isVideo == true) return@withContext
+            if (isRemote && isVideo) return@withContext
 
             val isContent = scheme == "content"
-            val video = isContent && (isVideo
-                ?: (true == context.contentResolver.getType(uri)?.startsWith("video/")))
+            val video = isContent && (media.video != null
+                || (true == context.contentResolver.getType(uri)?.startsWith("video/")))
             val frame = if (video) loadFirstFrame(context, uri) else null
             if (frame != null) {
                 saveBitmap(file, frame)
@@ -154,12 +162,12 @@ object ThumbnailCache {
                     .scale(Scale.FILL)
                     .videoFrameMillis(0)
                     .memoryCachePolicy(CachePolicy.DISABLED)
-                    .diskCacheKey("media-$mediaId")
+                    .diskCacheKey(memoryKey(media))
                     .allowHardware(false)
                     .build()
 
                 val result = imageLoader.execute(request)
-                result.image?.let { save(context, mediaId, it) }
+                result.image?.let { save(context, media, it) }
             }
         } catch (_: Throwable) {
         }
@@ -198,7 +206,7 @@ object ThumbnailCache {
         }
     }
 
-    data class Request(val mediaId: Long, val uri: Uri?, val isVideo: Boolean)
+    data class Request(val media: Media)
 
     fun startPreload(total: Int) {
         _progress.value = PreloadProgress(total = total)
@@ -214,9 +222,9 @@ object ThumbnailCache {
     ) = withContext(Dispatchers.IO) {
         val existingFiles = getExistingFiles(context)
         val missing = items
-            .filter { it.uri != null && "thumb_${it.mediaId}.jpg" !in existingFiles }
-            .distinctBy { it.mediaId }
-            .sortedByDescending { it.isVideo }
+            .filter { it.media.uri != null && !alreadyCached(existingFiles, it.media) }
+            .distinctBy { identityStem(it.media) }
+            .sortedByDescending { it.media.video != null }
 
         // Добавляем прогресс по файлам, которые уже есть в кэше.
         // Если total заранее неизвестен, увеличиваем его на размер батча
@@ -233,11 +241,12 @@ object ThumbnailCache {
         val imageSemaphore = Semaphore(IMAGE_PARALLELISM)
         val videoSemaphore = Semaphore(VIDEO_PARALLELISM)
         coroutineScope {
-            missing.forEach { (mediaId, uri, isVideo) ->
+            missing.forEach { (media) ->
                 launch {
+                    val isVideo = media.video != null
                     (if (isVideo) videoSemaphore else imageSemaphore).withPermit {
                         try {
-                            preload(context, mediaId, uri, existingFiles, isVideo)
+                            preload(context, media, existingFiles)
                         } finally {
                             withContext(NonCancellable) {
                                 _progress.update { it.copy(current = it.current + 1) }
@@ -257,4 +266,49 @@ object ThumbnailCache {
             context.resources.displayMetrics.widthPixels / 3
         ).also { thumbnailSize = it }
     }
+}
+
+internal fun thumbBasename(filename: String, path: String = ""): String? {
+    val raw = filename.ifBlank { path }.substringAfterLast('/').substringAfterLast('\\').ifEmpty { null }
+    return raw?.md5()
+}
+
+internal fun identityFileName(filename: String, path: String, width: Int, height: Int): String? {
+    if (width <= 0 || height <= 0) return null
+    val base = thumbBasename(filename, path) ?: return null
+    return "thumb_${base}_${width}x${height}.jpg"
+}
+
+internal fun identityFileName(media: Media): String? {
+    val width = media.image?.width ?: 0
+    val height = media.image?.height ?: 0
+    return identityFileName(media.filename, media.path, width, height)
+}
+
+internal fun identityStem(media: Media): String =
+    identityFileName(media)?.removePrefix("thumb_")?.removeSuffix(".jpg")
+        ?: "id-${media.id}"
+
+internal fun legacyFileName(mediaId: Long) = "thumb_$mediaId.jpg"
+
+internal fun matchByFilename(names: Array<String>?, media: Media): String? =
+    matchByFilename(names?.asIterable(), media)
+
+internal fun matchByFilename(names: Iterable<String>?, media: Media): String? {
+    if (names == null) return null
+    val base = thumbBasename(media.filename, media.path) ?: return null
+    val prefix = "thumb_${base}_"
+    val width = media.image?.width ?: 0
+    val height = media.image?.height ?: 0
+    val matches = names.filter { it.startsWith(prefix) }
+    if (width > 0 && height > 0) {
+        return matches.firstOrNull { it == "thumb_${base}_${width}x${height}.jpg" }
+    }
+    return matches.singleOrNull()
+}
+
+private fun String.md5(): String {
+    val md = MessageDigest.getInstance("MD5")
+    val digest = md.digest(this.toByteArray(Charsets.UTF_8))
+    return digest.toHexString()
 }

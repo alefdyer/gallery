@@ -8,7 +8,6 @@ import com.asinosoft.photogallery.data.AlbumDao
 import com.asinosoft.photogallery.data.MediaDao
 import com.asinosoft.photogallery.data.MediaService
 import com.asinosoft.photogallery.data.MessageBus
-import com.asinosoft.photogallery.data.ThumbnailCache
 import android.app.PendingIntent
 import com.asinosoft.photogallery.data.storage.dropbox.DropboxApi
 import com.asinosoft.photogallery.data.storage.gdrive.GoogleDriveGalleryAuth
@@ -88,8 +87,6 @@ class StorageService @Inject constructor(
     }
 
     suspend fun deleteStorage(storage: Storage) = withContext(Dispatchers.IO) {
-        val mediaIds = mediaDao.getIdsForStorage(storage.id)
-        ThumbnailCache.deleteAll(context, mediaIds)
         mediaDao.deleteStorage(storage.id)
         albumDao.deleteEmptyAlbums()
         // categoryId у album NOT NULL + FK SET_NULL → DELETE категории падает.

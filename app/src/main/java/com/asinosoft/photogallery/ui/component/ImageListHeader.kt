@@ -54,8 +54,8 @@ fun ImageListHeaderBackground(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
-    val request = remember(cover.id, context) {
-        val file = ThumbnailCache.getFile(context, cover.id)
+    val request = remember(cover, context) {
+        val file = ThumbnailCache.getFile(context, cover)
         ImageRequest.Builder(context)
             .data(cover.uri ?: file)
             .placeholderMemoryCacheKey("media-${cover.id}")

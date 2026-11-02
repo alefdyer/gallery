@@ -148,7 +148,7 @@ class GoogleDriveStorageProvider(
      */
     override suspend fun getThumbnailUri(media: Media): Uri = withContext(Dispatchers.IO) {
         if (media.id > 0) {
-            val cached = ThumbnailCache.getFile(context, media.id)
+            val cached = ThumbnailCache.getFile(context, media)
             if (cached.exists() && cached.length() > 0) return@withContext cached.toUri()
             if (downloadThumbnail(media, cached)) {
                 return@withContext cached.toUri()

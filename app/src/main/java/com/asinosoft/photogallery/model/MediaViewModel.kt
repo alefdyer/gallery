@@ -84,8 +84,7 @@ open class MediaViewModel @Inject constructor(
         if (media.storageId == LOCAL_PHONE_STORAGE_ID || media.storageId == EXTERNAL_STORAGE_ID) {
             return
         }
-        val hasThumb = ThumbnailCache.getFile(appContext, media.id)
-            .let { it.exists() && it.length() > 0 }
+        val hasThumb = ThumbnailCache.hasFile(appContext, media)
         val needThumb = !hasThumb && media.thumbnail == null
         val needDuration = (media.video.duration) <= 0L
         if (!needThumb && !needDuration) return

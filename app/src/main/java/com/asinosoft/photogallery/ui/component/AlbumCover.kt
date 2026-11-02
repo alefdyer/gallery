@@ -162,11 +162,11 @@ private fun AlbumThumbnail(
 
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    val cacheKey = remember(cover.id) { "media-${cover.id}" }
-    val cacheFile = remember(cover.id) { ThumbnailCache.getFile(context, cover.id) }
-    var cached by remember(cover.id) {
-        mutableStateOf(cacheFile.exists() && cacheFile.length() > 0)
+    val cacheKey = remember(cover) { ThumbnailCache.memoryKey(cover) }
+    var cached by remember(cover) {
+        mutableStateOf(ThumbnailCache.hasFile(context, cover))
     }
+    val cacheFile = remember(cover, cached) { ThumbnailCache.getFile(context, cover) }
     val isRemoteVideo = cover.video != null &&
             LOCAL_STORAGE_ID != cover.storageId &&
             EXTERNAL_STORAGE_ID != cover.storageId
@@ -178,10 +178,10 @@ private fun AlbumThumbnail(
         if (cached) return@LaunchedEffect
         repeat(80) {
             if (!isActive) return@LaunchedEffect
-            if (cacheFile.exists() && cacheFile.length() > 0) {
-                cached = true
-                return@LaunchedEffect
-            }
+            if (ThumbnailCache.hasFile(context, cover)) {
+                    cached = true
+                    return@LaunchedEffect
+                }
             delay(750)
         }
     }
@@ -230,7 +230,7 @@ private fun AlbumThumbnail(
             .listener(onSuccess = { _, result ->
                 if (!cacheFile.exists()) {
                     scope.launch {
-                        ThumbnailCache.save(context, cover.id, result.image)
+                        ThumbnailCache.save(context, cover, result.image)
                     }
                 }
             })

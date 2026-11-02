@@ -812,7 +812,7 @@ private suspend fun saveRemoteVideoThumbIfNeeded(
     media: Media,
     model: MediaViewModel
 ) = withContext(Dispatchers.IO) {
-    val file = ThumbnailCache.getFile(context, media.id)
+    val file = ThumbnailCache.getFile(context, media)
     if (file.exists() && file.length() > 0) return@withContext
     if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O_MR1) return@withContext
     val uri = runCatching { model.getMediaUri(media) }.getOrNull() ?: return@withContext
@@ -835,7 +835,7 @@ private suspend fun saveRemoteVideoThumbIfNeeded(
             (width * scale).roundToInt().coerceAtLeast(1),
             (height * scale).roundToInt().coerceAtLeast(1)
         ) ?: return@withContext
-        ThumbnailCache.saveBitmap(context, media.id, frame)
+        ThumbnailCache.saveBitmap(context, media, frame)
         frame.recycle()
     } catch (_: Throwable) {
     } finally {

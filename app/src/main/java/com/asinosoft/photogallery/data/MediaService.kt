@@ -68,7 +68,7 @@ class MediaService @Inject constructor(
         )
 
         CoroutineScope(Dispatchers.IO).launch {
-            ThumbnailCache.preload(context, mediaId, media.uri, isVideo = media.video != null)
+            ThumbnailCache.preload(context, media.copy(id = mediaId))
         }
     }
 
@@ -524,9 +524,6 @@ class MediaService @Inject constructor(
             val albums = albumDao.getMediaAlbumIds(ids)
             mediaDao.deleteAll(ids)
             albums.forEach { albumDao.updateAlbumStats(it) }
-            withContext(Dispatchers.IO) {
-                ids.forEach { ThumbnailCache.getFile(context, it).delete() }
-            }
             privateAlbum.onMovedIn(ids.size)
             callback()
         }
@@ -729,9 +726,7 @@ class MediaService @Inject constructor(
                             media.storageItemId
                         ) ?: -1L
                         if (realId > 0) ThumbnailCache.Request(
-                            realId,
-                            uri,
-                            media.video != null
+                            media.copy(id = realId, uri = uri)
                         ) else null
                     }
 
@@ -753,8 +748,10 @@ class MediaService @Inject constructor(
 
                         if (item.video != null) {
                             val filled = fillRemoteThumbFromLocalTwin(realId, item)
-                            val hasThumbFile = ThumbnailCache.getFile(context, realId)
-                                .let { it.exists() && it.length() > 0 }
+                            val hasThumbFile = ThumbnailCache.hasFile(
+                                context,
+                                (existing ?: item).copy(id = realId)
+                            )
                             val needThumb = !filled && !hasThumbFile && item.thumbnail == null
                             // Новые remote-видео и старые с duration=0 — длительность в фоне.
                             val needDuration = (existing?.video?.duration ?: 0L) <= 0L
@@ -834,25 +831,19 @@ class MediaService @Inject constructor(
 
         val covers = mediaDao.getByIds(coverIds).associateBy { it.id }
         for (coverId in coverIds) {
-            val file = ThumbnailCache.getFile(context, coverId)
-            if (file.exists() && file.length() > 0) continue
             val media = covers[coverId] ?: continue
+            if (ThumbnailCache.hasFile(context, media)) continue
             // Drive/Dropbox getThumbnailUri сами пишут в ThumbnailCache.
             val uri = runCatching { provider.getThumbnailUri(media) }.getOrNull()
                 ?: media.thumbnail
                 ?: continue
-            if (file.exists() && file.length() > 0) continue
+            if (ThumbnailCache.hasFile(context, media)) continue
             val scheme = uri.scheme
             val isHttp = scheme == "http" || scheme == "https"
             if (scheme == "gdrive-thumb-missing" || scheme == "dropbox-thumb-missing") continue
             // Полный remote-видео файл не качаем; native preview / локальный twin — ок.
             if (media.video != null && isHttp && media.thumbnail == null) continue
-            ThumbnailCache.preload(
-                context,
-                coverId,
-                uri,
-                isVideo = media.video != null
-            )
+            ThumbnailCache.preload(context, media.copy(uri = uri))
         }
     }
 
@@ -948,13 +939,13 @@ class MediaService @Inject constructor(
      * (то же имя + size). Возвращает true, если файл thumb уже есть или удалось создать.
      */
     private suspend fun fillRemoteThumbFromLocalTwin(remoteId: Long, remote: Media): Boolean {
-        val thumb = ThumbnailCache.getFile(context, remoteId)
-        if (thumb.exists() && thumb.length() > 0) return true
+        val remoteMedia = remote.copy(id = remoteId)
+        if (ThumbnailCache.hasFile(context, remoteMedia)) return true
         if (remote.size <= 0 || remote.filename.isBlank()) return false
 
         val local = mediaDao.findLocalByBasenameAndSize(remote.filename, remote.size)
             ?: return false
-        if (ThumbnailCache.copyIfPresent(context, local.id, remoteId)) return true
+        if (ThumbnailCache.hasFile(context, local)) return true
 
         // Видеокадры при скане не декодируем — иначе refresh Drive на минуты (MediaCodec).
         if (local.video != null || remote.video != null) return false
@@ -962,8 +953,8 @@ class MediaService @Inject constructor(
         val uri = local.uri ?: return false
         val scheme = uri.scheme
         if (scheme != "content" && scheme != "file") return false
-        ThumbnailCache.preload(context, remoteId, uri, isVideo = false)
-        return thumb.exists() && thumb.length() > 0
+        ThumbnailCache.preload(context, local)
+        return ThumbnailCache.hasFile(context, local) || ThumbnailCache.hasFile(context, remoteMedia)
     }
 
     private companion object {
