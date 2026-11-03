@@ -54,10 +54,19 @@ fun ImageListHeaderBackground(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
-    val request = remember(cover, context) {
+    val heavyReady = LocalAlbumHeavyContentReady.current
+    val request = remember(cover, context, heavyReady) {
         val file = ThumbnailCache.getFile(context, cover)
+        val cached = file.exists() && file.length() > 0
+        // Видео-обложка: не декодируем кадр из uri, пока альбом ещё «лёгкий».
+        val data: Any? = when {
+            cached -> file
+            cover.video != null && !heavyReady -> null
+            else -> cover.uri ?: file.takeIf { it.exists() }
+        }
+        if (null == data) return@remember null
         ImageRequest.Builder(context)
-            .data(cover.uri ?: file)
+            .data(data)
             .placeholderMemoryCacheKey("media-${cover.id}")
             .crossfade(true)
             .build()
