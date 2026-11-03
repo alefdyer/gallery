@@ -13,6 +13,8 @@ class TrashViewModel @Inject constructor(
 
     fun refresh() = trash.refresh()
 
+    fun clear() = trash.clear()
+
     override fun restore(items: Collection<Media>) = trash.restore(items)
 
     override fun delete(items: Collection<Media>) = trash.delete(items)

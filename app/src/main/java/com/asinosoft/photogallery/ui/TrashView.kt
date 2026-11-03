@@ -19,6 +19,7 @@ fun TrashView(
         restoreLabel = stringResource(R.string.restore_from_trash),
         onClose = onClose,
         model = model,
+        onClearAll = model::clear,
         modifier = modifier
     )
 }

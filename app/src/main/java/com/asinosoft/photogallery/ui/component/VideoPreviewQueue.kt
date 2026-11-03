@@ -48,14 +48,21 @@ fun rememberVideoPreviewQueue(items: List<Media>, state: LazyGridState): VideoPr
                 .map { it.id }
             visibleVideos to state.isScrollInProgress
         }.collectLatest { (visibleVideos, isScrolling) ->
+            // Во время скролла превью глушим полностью: ExoPlayer на видимой клетке
+            // даёт рывки даже если миниатюры уже в кэше.
+            if (isScrolling || visibleVideos.isEmpty()) {
+                if (null != queue.previewId) {
+                    queue.previewId = null
+                    do while (queue.ended.tryReceive().isSuccess)
+                }
+                if (isScrolling) appearedAt.clear()
+                else appearedAt.keys.retainAll(visibleVideos.toSet())
+                return@collectLatest
+            }
+
             val now = SystemClock.uptimeMillis()
             appearedAt.keys.retainAll(visibleVideos.toSet())
             visibleVideos.forEach { appearedAt.getOrPut(it) { now } }
-
-            if (isScrolling || visibleVideos.isEmpty()) {
-                if (queue.previewId !in visibleVideos) queue.previewId = null
-                return@collectLatest
-            }
 
             var index = visibleVideos.indexOf(queue.previewId)
             if (index < 0) {

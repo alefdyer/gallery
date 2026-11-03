@@ -103,6 +103,11 @@ fun MediaThumbnail(
         val context = LocalContext.current
         val scope = rememberCoroutineScope()
         val size = rememberConstraintsSizeResolver()
+        // Альбом: тяжёлый decode только после ALBUM_HEAVY_CONTENT_DELAY (см. AlbumView).
+        // isOpeningTransition недостаточно — список часто приходит уже после конца slide.
+        val opening = isOpeningTransition()
+        val albumHeavyReady = LocalAlbumHeavyContentReady.current
+        val deferVideoDecode = media.video != null && (opening || !albumHeavyReady)
 
         val cacheKey = remember(media.id) { "media-${media.id}" }
         val cacheFile = remember(media.id) { ThumbnailCache.getFile(context, media.id) }
@@ -118,8 +123,8 @@ fun MediaThumbnail(
         val useStoredThumb =
             hasNativeThumb && media.storageType != StorageType.GOOGLE_DRIVE
         // Видимая remote-клетка без duration/thumb — в фоновую очередь (не блокирует UI).
-        LaunchedEffect(media.id, isRemoteVideo, media.video?.duration, cached) {
-            if (!isRemoteVideo) return@LaunchedEffect
+        LaunchedEffect(media.id, isRemoteVideo, media.video?.duration, cached, opening) {
+            if (opening || !isRemoteVideo) return@LaunchedEffect
             model.enqueueRemoteVideoMeta(media, context.applicationContext)
         }
         // После «Обновить» thumb с локального двойника может появиться, пока клетка на экране.
@@ -134,9 +139,11 @@ fun MediaThumbnail(
                 delay(750)
             }
         }
-        val immediateData: Any? = remember(media, cached, useStoredThumb) {
+        val immediateData: Any? = remember(media, cached, useStoredThumb, deferVideoDecode) {
             when {
                 cached -> cacheFile
+                // Пока идёт enter-transition — только кэш/готовая превьюшка, без decode кадра.
+                deferVideoDecode && !useStoredThumb -> null
                 // Удалённое видео без native preview: не кормим Coil полный http-URL —
                 // VideoFrameDecoder скачивает ролик целиком и ловит OOM.
                 isRemoteVideo && !hasNativeThumb && media.storageType != StorageType.GOOGLE_DRIVE -> null
@@ -150,9 +157,10 @@ fun MediaThumbnail(
             media,
             immediateData,
             isRemoteVideo,
-            hasNativeThumb
+            hasNativeThumb,
+            deferVideoDecode,
         ) {
-            if (null != immediateData) {
+            if (deferVideoDecode || null != immediateData) {
                 value = null
                 return@produceState
             }
@@ -221,7 +229,7 @@ fun MediaThumbnail(
             )
         }
 
-        if (playPreview) {
+        if (playPreview && !opening) {
             VideoPreview(media, Modifier.matchParentSize(), onEnded = { onPreviewEnded(media) })
         }
 

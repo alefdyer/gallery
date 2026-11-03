@@ -59,6 +59,12 @@ val LocalSharedElementVisible = compositionLocalOf<Boolean?> { null }
 /** Общие элементы включены только при переходе между сеткой и просмотром */
 val LocalSharedElementsEnabled = compositionLocalOf { false }
 
+/**
+ * На экране альбома false, пока идёт slide-in (~300 ms): не декодируем видеокадры.
+ * Вне альбома всегда true.
+ */
+val LocalAlbumHeavyContentReady = compositionLocalOf { true }
+
 val LocalDismissDrag = compositionLocalOf<DismissDragState?> { null }
 
 private val MediaBoundsTransform =

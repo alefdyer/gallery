@@ -177,6 +177,18 @@ interface AlbumDao {
     fun getMediaInAlbum(albumId: Long): Flow<List<Media>>
 
     @Query(
+        """
+        SELECT m.*
+        FROM media m
+        INNER JOIN media_album ma ON ma.mediaId = m.id
+        WHERE ma.albumId = :albumId
+        ORDER BY m.date DESC, m.time DESC
+        LIMIT :limit
+        """
+    )
+    suspend fun getMediaInAlbumLimited(albumId: Long, limit: Int): List<Media>
+
+    @Query(
         "SELECT DISTINCT albumId FROM media_album WHERE mediaId IN (:mediaIds)"
     )
     suspend fun getMediaAlbumIds(mediaIds: Collection<Long>): List<Long>

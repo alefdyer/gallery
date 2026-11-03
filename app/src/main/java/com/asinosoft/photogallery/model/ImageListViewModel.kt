@@ -26,11 +26,14 @@ import com.asinosoft.photogallery.ui.component.drawableRes
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.emitAll
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
@@ -71,6 +74,13 @@ private const val NO_APPS = ""
 private const val RECENT_DATES_PREFS = "date_filters"
 private const val RECENT_DATES_KEY = "recent"
 private const val MAX_RECENT_DATES = 10
+
+/** Альбомы больше порога открываются с первой порцией, полный список — после анимации. */
+private const val ALBUM_PREVIEW_THRESHOLD = 50
+private const val ALBUM_PREVIEW_LIMIT = 30
+
+/** Дольше slide-in (300 ms): полный список не должен прилетать во время анимации. */
+private const val ALBUM_FULL_LOAD_DELAY_MS = 450L
 
 @HiltViewModel
 class ImageListViewModel @Inject constructor(
@@ -136,7 +146,7 @@ class ImageListViewModel @Inject constructor(
             if (favoritesOnly) {
                 mediaDao.getFavorites()
             } else {
-                albumId?.let { albumDao.getMediaInAlbum(albumId) } ?: mediaDao.getImages(storageId)
+                albumId?.let { albumMediaFlow(it) } ?: mediaDao.getImages(storageId)
             }
             ).stateIn(
             scope = viewModelScope,
@@ -181,12 +191,46 @@ class ImageListViewModel @Inject constructor(
             initialValue = emptyList()
         )
 
-    val photoCount: StateFlow<Int> = filteredImages.map { list -> list.count { null == it.video } }
-        .flowOn(Dispatchers.Default)
+    private val albumHeaderCounts = combine(
+        album,
+        filteredImages,
+        activeFilters,
+        activeDateFilter,
+    ) { albumValue, images, filters, dateFilter ->
+        AlbumHeaderCountInputs(
+            album = albumValue,
+            images = images,
+            noListFilters = filters.isEmpty() && dateFilter == null,
+        )
+    }
+
+    // Без фильтров — из статистики альбома, чтобы при progressive load не мигали 30 → 6000.
+    val photoCount: StateFlow<Int> = combine(
+        albumHeaderCounts,
+        showPhotos,
+        showVideos,
+    ) { inputs, photos, videos ->
+        val albumValue = inputs.album
+        if (albumValue != null && inputs.noListFilters && photos && videos) {
+            albumValue.photoCount
+        } else {
+            inputs.images.count { null == it.video }
+        }
+    }.flowOn(Dispatchers.Default)
         .stateIn(viewModelScope, SharingStarted.Eagerly, 0)
 
-    val videoCount: StateFlow<Int> = filteredImages.map { list -> list.count { null != it.video } }
-        .flowOn(Dispatchers.Default)
+    val videoCount: StateFlow<Int> = combine(
+        albumHeaderCounts,
+        showPhotos,
+        showVideos,
+    ) { inputs, photos, videos ->
+        val albumValue = inputs.album
+        if (albumValue != null && inputs.noListFilters && photos && videos) {
+            albumValue.videoCount
+        } else {
+            inputs.images.count { null != it.video }
+        }
+    }.flowOn(Dispatchers.Default)
         .stateIn(viewModelScope, SharingStarted.Eagerly, 0)
     val filters = combine(allFilters, activeDateFilter, allImages) { filters, dateFilter, images ->
         val apps = images.filter { image ->
@@ -523,4 +567,27 @@ class ImageListViewModel @Inject constructor(
             ?: return null
         return storage.type.drawableRes()
     }
+
+    /** Большие альбомы: сначала порция для анимации, затем полный Flow. */
+    private fun albumMediaFlow(albumId: Long): Flow<List<Media>> = flow {
+        val meta = withContext(Dispatchers.IO) { albumDao.getAlbumById(albumId) }
+        val size = maxOf(meta.count, meta.photoCount + meta.videoCount)
+        if (size > ALBUM_PREVIEW_THRESHOLD) {
+            emit(
+                withContext(Dispatchers.IO) {
+                    albumDao.getMediaInAlbumLimited(albumId, ALBUM_PREVIEW_LIMIT)
+                }
+            )
+            delay(ALBUM_FULL_LOAD_DELAY_MS)
+            emitAll(albumDao.getMediaInAlbum(albumId).flowOn(Dispatchers.IO))
+        } else {
+            emitAll(albumDao.getMediaInAlbum(albumId).flowOn(Dispatchers.IO))
+        }
+    }
 }
+
+private data class AlbumHeaderCountInputs(
+    val album: Album?,
+    val images: List<Media>,
+    val noListFilters: Boolean,
+)

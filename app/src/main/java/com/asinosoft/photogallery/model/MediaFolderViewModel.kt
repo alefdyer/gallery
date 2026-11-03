@@ -88,6 +88,10 @@ abstract class MediaFolderViewModel(source: Flow<List<Media>>) : ViewModel() {
         _selection.value = emptySet()
     }
 
+    fun selectAll() {
+        _selection.value = visibleMedia.value.map { it.id }.toSet()
+    }
+
     fun restoreSelection() = restore(takeSelection())
 
     fun deleteSelection() = delete(takeSelection())
