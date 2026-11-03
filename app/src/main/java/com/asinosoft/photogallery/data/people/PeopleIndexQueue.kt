@@ -13,6 +13,7 @@ import com.asinosoft.photogallery.data.storage.StorageType
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.face.FaceDetection
 import com.google.mlkit.vision.face.FaceDetectorOptions
+import androidx.core.content.edit
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.io.File
 import java.io.FileOutputStream
@@ -44,6 +45,7 @@ class PeopleIndexQueue @Inject constructor(
     private val personDao: PersonDao,
     private val peopleAlbums: PeopleAlbums,
     private val clusterer: PersonClusterer,
+    private val faceEmbedder: FaceEmbedder,
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val channel = Channel<Long>(Channel.UNLIMITED)
@@ -51,16 +53,21 @@ class PeopleIndexQueue @Inject constructor(
     private val enqueued = ConcurrentHashMap.newKeySet<Long>()
     private val pending = AtomicInteger(0)
     private val processedSinceCluster = AtomicInteger(0)
+    private val progressDone = AtomicInteger(0)
+    private val progressTotal = AtomicInteger(0)
 
     private val _indexing = MutableStateFlow(false)
     val indexing: StateFlow<Boolean> = _indexing.asStateFlow()
+
+    private val _progress = MutableStateFlow(PeopleIndexProgress())
+    val progress: StateFlow<PeopleIndexProgress> = _progress.asStateFlow()
 
     private val detector by lazy {
         val options = FaceDetectorOptions.Builder()
             .setPerformanceMode(FaceDetectorOptions.PERFORMANCE_MODE_ACCURATE)
             .setLandmarkMode(FaceDetectorOptions.LANDMARK_MODE_NONE)
             .setClassificationMode(FaceDetectorOptions.CLASSIFICATION_MODE_NONE)
-            .setMinFaceSize(0.10f)
+            .setMinFaceSize(0.12f)
             .build()
         FaceDetection.getClient(options)
     }
@@ -68,11 +75,12 @@ class PeopleIndexQueue @Inject constructor(
     fun enqueue(mediaId: Long) {
         if (!enqueued.add(mediaId)) return
         pending.incrementAndGet()
+        bumpTotal(1)
         _indexing.value = true
         ensureStarted()
         if (!channel.trySend(mediaId).isSuccess) {
             enqueued.remove(mediaId)
-            if (pending.decrementAndGet() <= 0) _indexing.value = false
+            if (pending.decrementAndGet() <= 0) finishIndexing()
         }
     }
 
@@ -80,33 +88,82 @@ class PeopleIndexQueue @Inject constructor(
         mediaIds.forEach(::enqueue)
     }
 
-    /** Доиндексация + обновление эмбеддингов/портретных кропов для уже найденных лиц. */
+    /** Доиндексация + re-embed при смене версии эмбеддера / чужой размерности. */
     fun startBackfill() {
         scope.launch {
             peopleAlbums.ensureCategory()
             _indexing.value = true
-            runCatching { refreshEmbeddingsAndThumbs() }
-                .onFailure { Log.w(TAG, "refresh embeddings failed", it) }
+            val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            val embedVer = prefs.getInt(KEY_EMBED_VERSION, 0)
+            val needReclusterReset =
+                prefs.getInt(KEY_CLUSTER_VERSION, 0) != CLUSTER_VERSION
+            val allFaces = personDao.getRealFaces()
+            // Re-encode только векторы чужой размерности. Смена CLUSTER_VERSION —
+            // только сброс Person + recluster, без часового refresh.
+            val facesToRefresh = allFaces.filter {
+                FaceEmbedding.fromBytes(it.embedding).size != FaceEmbedding.DIM
+            }
             val ids = personDao.localPhotoIdsWithoutFaces()
-            Log.i(TAG, "backfill ${ids.size} local photos")
-            if (ids.isEmpty()) {
+            resetProgress(facesToRefresh.size + ids.size)
+            Log.i(
+                TAG,
+                "backfill refresh=${facesToRefresh.size}/${allFaces.size} " +
+                        "photos=${ids.size} reclusterReset=$needReclusterReset",
+            )
+            runCatching { refreshEmbeddingsAndThumbs(facesToRefresh) }
+                .onFailure { Log.w(TAG, "refresh embeddings failed", it) }
+            if (embedVer != FaceEmbedder.EMBEDDING_VERSION) {
+                prefs.edit { putInt(KEY_EMBED_VERSION, FaceEmbedder.EMBEDDING_VERSION) }
+            }
+            if (needReclusterReset) {
+                runCatching {
+                    val oldPeople = personDao.getAllPeople()
+                    personDao.clearAllFacePersonIds()
+                    oldPeople.forEach { peopleAlbums.deletePersonAlbum(it) }
+                    personDao.deleteAllPeople()
+                }.onFailure { Log.w(TAG, "reset people failed", it) }
+                prefs.edit { putInt(KEY_CLUSTER_VERSION, CLUSTER_VERSION) }
+                // Сразу пересобрать из уже готовых эмбеддингов
                 runCatching { clusterer.recluster() }
                     .onFailure { Log.w(TAG, "recluster failed", it) }
-                _indexing.value = false
+            }
+            if (ids.isEmpty()) {
+                if (!needReclusterReset) {
+                    runCatching { clusterer.recluster() }
+                        .onFailure { Log.w(TAG, "recluster failed", it) }
+                }
+                finishIndexing()
             } else {
-                enqueueAll(ids)
+                enqueueAllWithoutBumpingTotal(ids)
             }
         }
     }
 
-    private suspend fun refreshEmbeddingsAndThumbs() {
-        val faces = personDao.getRealFaces()
+    private fun enqueueAllWithoutBumpingTotal(mediaIds: Collection<Long>) {
+        for (mediaId in mediaIds) {
+            if (!enqueued.add(mediaId)) continue
+            pending.incrementAndGet()
+            _indexing.value = true
+            ensureStarted()
+            if (!channel.trySend(mediaId).isSuccess) {
+                enqueued.remove(mediaId)
+                if (pending.decrementAndGet() <= 0) finishIndexing()
+            }
+        }
+        publishProgress()
+    }
+
+    private suspend fun refreshEmbeddingsAndThumbs(faces: List<Face>) {
         if (faces.isEmpty()) return
         Log.i(TAG, "refresh ${faces.size} face embeddings/thumbs")
         val dir = faceThumbDir()
         for ((mediaId, mediaFaces) in faces.groupBy { it.mediaId }) {
-            val media = mediaDao.getById(mediaId) ?: continue
-            val bitmap = decodeBitmap(media) ?: continue
+            val media = mediaDao.getById(mediaId)
+            val bitmap = media?.let { decodeBitmap(it) }
+            if (bitmap == null) {
+                repeat(mediaFaces.size) { tickProgress() }
+                continue
+            }
             try {
                 for (face in mediaFaces) {
                     val box = Rect(
@@ -115,19 +172,21 @@ class PeopleIndexQueue @Inject constructor(
                         (face.right * bitmap.width).roundToInt(),
                         (face.bottom * bitmap.height).roundToInt(),
                     )
-                    if (box.width() < 8 || box.height() < 8) continue
-                    val emb = FaceEmbedding.encode(bitmap, box)
-                    val oldThumb = face.thumbPath
-                    val thumb = saveFaceThumb(bitmap, box, dir)
-                    personDao.updateFace(
-                        face.copy(
-                            embedding = FaceEmbedding.toBytes(emb),
-                            thumbPath = thumb?.absolutePath ?: face.thumbPath,
+                    if (box.width() >= 8 && box.height() >= 8) {
+                        val emb = faceEmbedder.encode(bitmap, box)
+                        val oldThumb = face.thumbPath
+                        val thumb = saveFaceThumb(bitmap, box, dir)
+                        personDao.updateFace(
+                            face.copy(
+                                embedding = FaceEmbedding.toBytes(emb),
+                                thumbPath = thumb?.absolutePath ?: face.thumbPath,
+                            )
                         )
-                    )
-                    if (oldThumb != null && oldThumb != thumb?.absolutePath) {
-                        runCatching { File(oldThumb).delete() }
+                        if (oldThumb != null && oldThumb != thumb?.absolutePath) {
+                            runCatching { File(oldThumb).delete() }
+                        }
                     }
+                    tickProgress()
                 }
             } finally {
                 if (!bitmap.isRecycled) bitmap.recycle()
@@ -145,13 +204,16 @@ class PeopleIndexQueue @Inject constructor(
                     Log.w(TAG, "index failed $mediaId", e)
                 } finally {
                     enqueued.remove(mediaId)
+                    tickProgress()
                     if (pending.decrementAndGet() <= 0) {
-                        _indexing.value = false
                         runCatching { clusterer.recluster() }
                             .onFailure { Log.w(TAG, "recluster failed", it) }
                         processedSinceCluster.set(0)
+                        finishIndexing()
                     } else if (processedSinceCluster.incrementAndGet() >= CLUSTER_EVERY) {
                         processedSinceCluster.set(0)
+                        // Промежуточный recluster (centroid, не O(n²) union-find) — чтобы UI
+                        // не держал одного «мусорного» Person до конца индексации.
                         runCatching { clusterer.recluster() }
                             .onFailure { Log.w(TAG, "recluster failed", it) }
                     }
@@ -187,18 +249,32 @@ class PeopleIndexQueue @Inject constructor(
                     (box.right * scaleX).roundToInt(),
                     (box.bottom * scaleY).roundToInt(),
                 )
-                if (fullBox.width() < 8 || fullBox.height() < 8) return@mapNotNull null
-
-                val emb = FaceEmbedding.encode(bitmap, fullBox)
-                val thumb = saveFaceThumb(bitmap, fullBox, dir)
-                Face(
+                val left = fullBox.left / bitmap.width.toFloat()
+                val top = fullBox.top / bitmap.height.toFloat()
+                val right = fullBox.right / bitmap.width.toFloat()
+                val bottom = fullBox.bottom / bitmap.height.toFloat()
+                val candidate = Face(
                     mediaId = mediaId,
-                    left = fullBox.left / bitmap.width.toFloat(),
-                    top = fullBox.top / bitmap.height.toFloat(),
-                    right = fullBox.right / bitmap.width.toFloat(),
-                    bottom = fullBox.bottom / bitmap.height.toFloat(),
+                    left = left,
+                    top = top,
+                    right = right,
+                    bottom = bottom,
+                    embedding = FaceEmbedding.toBytes(FloatArray(FaceEmbedding.DIM)),
+                    thumbPath = null,
+                )
+                // Мелкие ложные детекты не кладём в кластеризацию/альбомы.
+                if (!PersonClusterer.isClusterableFace(candidate)) return@mapNotNull null
+                if (fullBox.width() < 32 || fullBox.height() < 32) return@mapNotNull null
+
+                val emb = faceEmbedder.encode(bitmap, fullBox)
+                // Нулевой/битый вектор → все «пустые» лица схлопывались в одного Person.
+                var mag = 0f
+                for (v in emb) mag += v * v
+                if (mag < 1e-4f) return@mapNotNull null
+
+                candidate.copy(
                     embedding = FaceEmbedding.toBytes(emb),
-                    thumbPath = thumb?.absolutePath,
+                    thumbPath = saveFaceThumb(bitmap, fullBox, dir)?.absolutePath,
                 )
             }
             if (rows.isNotEmpty()) {
@@ -276,10 +352,59 @@ class PeopleIndexQueue @Inject constructor(
         }.getOrNull()
     }
 
+    private fun resetProgress(total: Int) {
+        progressDone.set(0)
+        progressTotal.set(total.coerceAtLeast(0))
+        publishProgress()
+    }
+
+    private fun bumpTotal(by: Int) {
+        if (by <= 0) return
+        // Новая сессия, если предыдущая завершена
+        if (progressTotal.get() > 0 && progressDone.get() >= progressTotal.get() && pending.get() <= 1) {
+            progressDone.set(0)
+            progressTotal.set(by)
+        } else {
+            progressTotal.addAndGet(by)
+        }
+        publishProgress()
+    }
+
+    private fun tickProgress() {
+        progressDone.incrementAndGet()
+        publishProgress()
+    }
+
+    private fun publishProgress() {
+        _progress.value = PeopleIndexProgress(
+            done = progressDone.get().coerceAtLeast(0),
+            total = progressTotal.get().coerceAtLeast(0),
+        )
+    }
+
+    private fun finishIndexing() {
+        _indexing.value = false
+        val total = progressTotal.get()
+        if (total > 0) {
+            progressDone.set(total)
+            publishProgress()
+        }
+        // Сброс после короткой паузы не нужен — UI скрывает при !active (done >= total)
+        // Но для следующей сессии bumpTotal сам сбросит.
+    }
+
     companion object {
         private const val TAG = "PeopleIndex"
+        private const val PREFS = "people_index"
+        private const val KEY_EMBED_VERSION = "embedder_version"
+        private const val KEY_CLUSTER_VERSION = "cluster_version"
+
+        /** Бамп сбрасывает Person и пересобирает кластеры без re-embed. */
+        private const val CLUSTER_VERSION = 8
         private const val JOB_GAP_MS = 40L
-        private const val CLUSTER_EVERY = 40
+
+        /** Промежуточный centroid-recluster для UI. */
+        private const val CLUSTER_EVERY = 200
         private const val MAX_DETECT_SIDE = 1280
     }
 }

@@ -115,6 +115,12 @@ interface PersonDao {
     @Query("UPDATE face SET personId = :targetPersonId WHERE personId = :sourcePersonId")
     suspend fun moveFaces(sourcePersonId: Long, targetPersonId: Long)
 
+    @Query("UPDATE face SET personId = NULL")
+    suspend fun clearAllFacePersonIds()
+
+    @Query("DELETE FROM person")
+    suspend fun deleteAllPeople()
+
     @Query("DELETE FROM face WHERE mediaId = :mediaId")
     suspend fun deleteFacesForMedia(mediaId: Long)
 

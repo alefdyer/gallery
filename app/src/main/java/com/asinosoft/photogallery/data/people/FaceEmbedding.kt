@@ -1,29 +1,13 @@
 package com.asinosoft.photogallery.data.people
 
-import android.graphics.Bitmap
-import android.graphics.Color
 import android.graphics.Rect
-import com.google.mlkit.vision.face.Face
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import kotlin.math.sqrt
 
-/**
- * Эмбеддинг по внешности кропа лица (не по геометрии landmarks).
- * Landmarks у всех людей похожи → давали дубликаты «одного и того же» в разных Person.
- */
+/** Утилиты для 192-d MobileFaceNet-векторов (см. [FaceEmbedder]). */
 object FaceEmbedding {
-    private const val PATCH_SIZE = 16
-    private const val PATCH_DIM = PATCH_SIZE * PATCH_SIZE
-    const val DIM = PATCH_DIM
-
-    fun encode(face: Face, fullBitmap: Bitmap): FloatArray =
-        encode(fullBitmap, face.boundingBox)
-
-    fun encode(fullBitmap: Bitmap, box: Rect): FloatArray {
-        val square = expandSquare(box, fullBitmap.width, fullBitmap.height, 0.35f)
-        return patchFingerprint(fullBitmap, square).also { normalizeInPlace(it) }
-    }
+    const val DIM = FaceEmbedder.DIM
 
     fun toBytes(embedding: FloatArray): ByteArray {
         val buf = ByteBuffer.allocate(embedding.size * 4).order(ByteOrder.LITTLE_ENDIAN)
@@ -42,6 +26,18 @@ object FaceEmbedding {
         var dot = 0f
         for (i in 0 until n) dot += a[i] * b[i]
         return dot
+    }
+
+    /** Евклидово расстояние (как в исходном MobileFaceNet demo). Меньше = похожее. */
+    fun euclideanDistance(a: FloatArray, b: FloatArray): Float {
+        val n = minOf(a.size, b.size)
+        if (n == 0) return Float.MAX_VALUE
+        var sum = 0f
+        for (i in 0 until n) {
+            val d = a[i] - b[i]
+            sum += d * d
+        }
+        return sqrt(sum)
     }
 
     /** Квадратный кроп вокруг bbox с запасом (плечи/причёска как на макете). */
@@ -79,38 +75,7 @@ object FaceEmbedding {
         )
     }
 
-    private fun patchFingerprint(bitmap: Bitmap, box: Rect): FloatArray {
-        val left = box.left.coerceIn(0, bitmap.width - 1)
-        val top = box.top.coerceIn(0, bitmap.height - 1)
-        val right = box.right.coerceIn(left + 1, bitmap.width)
-        val bottom = box.bottom.coerceIn(top + 1, bitmap.height)
-        val w = right - left
-        val h = bottom - top
-        val out = FloatArray(PATCH_DIM)
-        var i = 0
-        for (py in 0 until PATCH_SIZE) {
-            for (px in 0 until PATCH_SIZE) {
-                val x = left + (px * w) / PATCH_SIZE
-                val y = top + (py * h) / PATCH_SIZE
-                val c = bitmap.getPixel(
-                    x.coerceIn(0, bitmap.width - 1),
-                    y.coerceIn(0, bitmap.height - 1),
-                )
-                // Яркость с лёгким акцентом на коже (R/G)
-                val gray =
-                    (0.45f * Color.red(c) + 0.35f * Color.green(c) + 0.20f * Color.blue(c)) / 255f
-                out[i++] = gray * 2f - 1f
-            }
-        }
-        // Центрирование патча — меньше влияния освещения кадра
-        var mean = 0f
-        for (v in out) mean += v
-        mean /= out.size
-        for (j in out.indices) out[j] -= mean
-        return out
-    }
-
-    private fun normalizeInPlace(v: FloatArray) {
+    fun normalizeInPlace(v: FloatArray) {
         var sum = 0f
         for (x in v) sum += x * x
         val norm = sqrt(sum)

@@ -143,6 +143,9 @@ android {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
         }
     }
+    androidResources {
+        noCompress += "tflite"
+    }
 }
 
 // AGP emits the dependency list only for non-debuggable variants, so debug builds
@@ -226,8 +229,9 @@ dependencies {
     implementation("androidx.room:room-ktx:$roomVersion")
     ksp("androidx.room:room-compiler:$roomVersion")
 
-    // Faces (People albums)
+    // Faces (People albums): ML Kit detect + MobileFaceNet embed
     implementation("com.google.mlkit:face-detection:16.1.7")
+    implementation("org.tensorflow:tensorflow-lite:2.17.0")
 
     // KtLint
     ktlintRuleset("io.nlopez.compose.rules:ktlint:0.6.8")

@@ -17,6 +17,7 @@ import com.asinosoft.photogallery.data.Media
 import com.asinosoft.photogallery.data.MediaDao
 import com.asinosoft.photogallery.data.StorageAlbums
 import com.asinosoft.photogallery.data.isStorageCategory
+import com.asinosoft.photogallery.data.people.PeopleIndexProgress
 import com.asinosoft.photogallery.data.people.PeopleIndexQueue
 import com.asinosoft.photogallery.data.people.PeopleRepository
 import com.asinosoft.photogallery.data.people.Person
@@ -74,6 +75,9 @@ class AlbumsViewModel @Inject constructor(
 
     val peopleIndexing: StateFlow<Boolean> = peopleIndexQueue.indexing
         .stateIn(viewModelScope, SharingStarted.Eagerly, false)
+
+    val peopleIndexProgress: StateFlow<PeopleIndexProgress> = peopleIndexQueue.progress
+        .stateIn(viewModelScope, SharingStarted.Eagerly, PeopleIndexProgress())
 
     /** albumId → Person для секции «Люди». */
     val peopleByAlbumId: StateFlow<Map<Long, Person>> = peopleRepository.observePeople()

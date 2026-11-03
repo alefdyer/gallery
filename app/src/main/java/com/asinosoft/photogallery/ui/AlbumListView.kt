@@ -80,6 +80,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.asinosoft.photogallery.R
@@ -111,6 +112,7 @@ import com.asinosoft.photogallery.ui.component.rememberFeatureTip
 import com.google.gson.Gson
 import kotlinx.coroutines.launch
 import kotlin.math.abs
+import kotlin.math.roundToInt
 import kotlin.math.sign
 
 @Composable
@@ -128,6 +130,7 @@ fun AlbumListView(
     val peopleByAlbumId by model.peopleByAlbumId.collectAsState()
     val peopleCoverThumbs by model.peopleCoverThumbs.collectAsState()
     val peopleIndexing by model.peopleIndexing.collectAsState()
+    val peopleIndexProgress by model.peopleIndexProgress.collectAsState()
     val remoteStorages by model.remoteStorages.collectAsState()
     val fetchingStorageIds by model.fetchingStorageIds.collectAsState()
     val lazyListState = rememberLazyListState()
@@ -414,6 +417,13 @@ fun AlbumListView(
                     peopleCoverThumbs = peopleCoverThumbs,
                     showLoading = storageInfo?.storage?.id in fetchingStorageIds ||
                             (category.category.name == AlbumCategory.PEOPLE_NAME && peopleIndexing),
+                    loadingProgress = peopleIndexProgress
+                        .takeIf {
+                            category.category.name == AlbumCategory.PEOPLE_NAME &&
+                                    it.total > 0 &&
+                                    (peopleIndexing || it.active)
+                        }
+                        ?.fraction,
                     showCategoryTip = isFirstCategory && categoryTip.visible,
                     onCategoryTipDismiss = categoryTip.dismiss,
                     showAlbumDragTip = isFirstCategory && albumDragTip.visible,
@@ -521,6 +531,7 @@ private fun AlbumCategoriesRow(
     peopleByAlbumId: Map<Long, com.asinosoft.photogallery.data.people.Person> = emptyMap(),
     peopleCoverThumbs: Map<Long, String> = emptyMap(),
     showLoading: Boolean = false,
+    loadingProgress: Float? = null,
     showCategoryTip: Boolean = false,
     onCategoryTipDismiss: () -> Unit = {},
     showAlbumDragTip: Boolean = false,
@@ -544,6 +555,7 @@ private fun AlbumCategoriesRow(
                 count = category.albums.size,
                 titleMaxWidth = cardSize * 2 + CARD_SPACING,
                 showLoading = showLoading,
+                loadingProgress = loadingProgress,
                 expanded = expanded.takeIf { expandable },
                 onToggleExpand = onToggleExpand,
                 modifier = Modifier.pointerInput(category.category.id) {
@@ -821,6 +833,7 @@ private fun SectionTitle(
     titleIcon: Int? = null,
     titleMaxWidth: Dp? = null,
     showLoading: Boolean = false,
+    loadingProgress: Float? = null,
     expanded: Boolean? = null,
     onToggleExpand: () -> Unit = {},
 ) {
@@ -882,13 +895,33 @@ private fun SectionTitle(
                     .graphicsLayer { rotationZ = arrowRotation }
             )
         }
-        if (showLoading) {
-            CircularProgressIndicator(
+        if (showLoading || loadingProgress != null) {
+            val progress = loadingProgress?.coerceIn(0f, 1f)
+            Box(
+                contentAlignment = Alignment.Center,
                 modifier = Modifier
                     .padding(start = 4.dp)
-                    .size(18.dp),
-                strokeWidth = 2.dp
-            )
+                    .size(28.dp)
+            ) {
+                if (progress != null) {
+                    CircularProgressIndicator(
+                        progress = { progress },
+                        modifier = Modifier.size(28.dp),
+                        strokeWidth = 2.dp,
+                    )
+                    Text(
+                        text = "${(progress * 100f).roundToInt()}%",
+                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 8.sp),
+                        color = MaterialTheme.colorScheme.primary,
+                        maxLines = 1,
+                    )
+                } else {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(18.dp),
+                        strokeWidth = 2.dp,
+                    )
+                }
+            }
         }
     }
 }

@@ -1,11 +1,12 @@
 package com.asinosoft.photogallery.data.people
 
+import android.util.Log
 import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * Полная перекластеризация лиц (union-find по cosine) + слияние похожих Person.
- * Инкрементальный «только unassigned → новый Person» плодил дубликаты одного человека.
+ * Кластеризация лиц: nearest-centroid (без single-linkage цепочек A≈B≈C→все в одном Person).
+ * Метрика — euclidean по MobileFaceNet 192-d (часто уже L2-нормирован моделью).
  */
 @Singleton
 class PersonClusterer @Inject constructor(
@@ -13,172 +14,110 @@ class PersonClusterer @Inject constructor(
     private val peopleAlbums: PeopleAlbums,
 ) {
     suspend fun recluster(threshold: Float = SIMILARITY_THRESHOLD) {
-        val faces = personDao.getAllFaces().filter { it.right - it.left > 0.01f }
+        val faces = personDao.getAllFaces().filter { isClusterableFace(it) }
         if (faces.isEmpty()) {
             peopleAlbums.syncAll()
             return
         }
 
-        // Старые эмбеддинги другой размерности (landmarks) — не сравниваем, оставим как есть
-        // до переиндексации; для них сработает merge по уже назначенным personId.
         val usable =
             faces.filter { FaceEmbedding.fromBytes(it.embedding).size == FaceEmbedding.DIM }
-        if (usable.size >= 2) {
-            clusterBySimilarity(usable, threshold)
+        if (usable.isNotEmpty()) {
+            clusterByCentroids(usable, threshold)
         }
 
-        mergeSimilarPeople(threshold)
+        // Merge отключён: даже pairwise на усреднённых центроидах снова склеивал всех.
+        pruneEmptyPeople()
         ensureCoverFaces()
         peopleAlbums.syncAll()
     }
 
-    private suspend fun clusterBySimilarity(faces: List<Face>, threshold: Float) {
-        val n = faces.size
-        val emb = faces.map { FaceEmbedding.fromBytes(it.embedding) }
-        val parent = IntArray(n) { it }
-        val rank = IntArray(n)
+    /**
+     * Каждое лицо → ближайший центроид, если dist ≤ threshold, иначе новый Person.
+     * Не даёт «протянуть» цепочку незнакомцев через промежуточные лица.
+     */
+    private suspend fun clusterByCentroids(faces: List<Face>, threshold: Float) {
+        data class Bucket(
+            var personId: Long,
+            var centroid: FloatArray,
+            var count: Int,
+            val faceIds: MutableList<Long>,
+            val named: Boolean,
+        )
 
-        fun find(i: Int): Int {
-            var x = i
-            while (parent[x] != x) {
-                parent[x] = parent[parent[x]]
-                x = parent[x]
-            }
-            return x
-        }
-
-        fun union(a: Int, b: Int) {
-            var ra = find(a)
-            var rb = find(b)
-            if (ra == rb) return
-            if (rank[ra] < rank[rb]) {
-                val t = ra
-                ra = rb
-                rb = t
-            }
-            parent[rb] = ra
-            if (rank[ra] == rank[rb]) rank[ra]++
-        }
-
-        for (i in 0 until n) {
-            for (j in i + 1 until n) {
-                if (FaceEmbedding.cosineSimilarity(emb[i], emb[j]) >= threshold) {
-                    union(i, j)
-                }
-            }
-        }
-
-        val clusters = (0 until n).groupBy { find(it) }.values
         val people = personDao.getAllPeople().associateBy { it.id }
+        val buckets = mutableListOf<Bucket>()
 
-        for (indices in clusters) {
-            val clusterFaces = indices.map { faces[it] }
-            val votes = clusterFaces.mapNotNull { it.personId }
-                .groupingBy { it }
-                .eachCount()
+        // Сначала именованные — якоря, чтобы имена не потерялись
+        val namedFaces = faces.filter { face ->
+            val pid = face.personId ?: return@filter false
+            !people[pid]?.displayName.isNullOrBlank()
+        }.groupBy { it.personId!! }
 
-            val namedCandidates = votes.keys.mapNotNull { people[it] }
-                .filter { !it.displayName.isNullOrBlank() }
-            val targetId = namedCandidates.maxByOrNull { votes[it.id] ?: 0 }?.id
-                ?: votes.maxByOrNull { it.value }?.key
-                ?: personDao.insertPerson(Person())
-
-            personDao.assignFacesToPerson(clusterFaces.map { it.id }, targetId)
-
-            // Метаданные с «проигравших» людей
-            val target = personDao.getPerson(targetId) ?: continue
-            var merged = target
-            for (otherId in votes.keys) {
-                if (otherId == targetId) continue
-                val other = people[otherId] ?: continue
-                merged = merged.copy(
-                    displayName = merged.displayName ?: other.displayName,
-                    relationship = merged.relationship ?: other.relationship,
-                    contactUri = merged.contactUri ?: other.contactUri,
-                    contactId = merged.contactId ?: other.contactId,
-                    coverFaceId = merged.coverFaceId ?: other.coverFaceId,
-                )
-            }
-            if (merged != target) {
-                personDao.updatePerson(merged.copy(updatedAt = System.currentTimeMillis()))
-            }
-        }
-    }
-
-    /** Склеивает Person, чьи центроиды всё ещё близки (после инкрементальных проходов). */
-    private suspend fun mergeSimilarPeople(threshold: Float) {
-        val people = personDao.getAllPeople()
-        if (people.size < 2) return
-
-        data class Centroid(val personId: Long, val vector: FloatArray, val named: Boolean)
-
-        val centroids = people.mapNotNull { person ->
-            val vectors = personDao.getFacesForPerson(person.id)
-                .filter { it.right - it.left > 0.01f }
-                .map { FaceEmbedding.fromBytes(it.embedding) }
-                .filter { it.size == FaceEmbedding.DIM }
-            if (vectors.isEmpty()) return@mapNotNull null
-            Centroid(
-                personId = person.id,
-                vector = average(vectors),
-                named = !person.displayName.isNullOrBlank(),
+        for ((personId, group) in namedFaces) {
+            val vectors = group.map { FaceEmbedding.fromBytes(it.embedding) }
+            buckets += Bucket(
+                personId = personId,
+                centroid = average(vectors),
+                count = vectors.size,
+                faceIds = group.map { it.id }.toMutableList(),
+                named = true,
             )
         }
-        if (centroids.size < 2) return
 
-        val parent =
-            centroids.indices.associate { centroids[it].personId to centroids[it].personId }
-                .toMutableMap()
+        val namedFaceIds = namedFaces.values.flatten().map { it.id }.toSet()
+        // Стабильный порядок: крупные кропы раньше (чуть надёжнее как сиды)
+        val rest = faces
+            .filter { it.id !in namedFaceIds }
+            .sortedByDescending { (it.right - it.left) * (it.bottom - it.top) }
 
-        fun find(id: Long): Long {
-            var x = id
-            while (parent[x] != x) {
-                parent[x] = parent[parent[x]]!!
-                x = parent[x]!!
-            }
-            return x
-        }
-
-        for (i in centroids.indices) {
-            for (j in i + 1 until centroids.size) {
-                val sim = FaceEmbedding.cosineSimilarity(centroids[i].vector, centroids[j].vector)
-                if (sim < threshold) continue
-                val a = centroids[i]
-                val b = centroids[j]
-                val ra = find(a.personId)
-                val rb = find(b.personId)
-                if (ra == rb) continue
-                // Именованный побеждает
-                val aNamed = people.firstOrNull { it.id == ra }?.displayName.isNullOrBlank().not()
-                val bNamed = people.firstOrNull { it.id == rb }?.displayName.isNullOrBlank().not()
-                when {
-                    aNamed && !bNamed -> parent[rb] = ra
-                    bNamed && !aNamed -> parent[ra] = rb
-                    else -> parent[maxOf(ra, rb)] = minOf(ra, rb)
+        var created = 0
+        for (face in rest) {
+            val emb = FaceEmbedding.fromBytes(face.embedding)
+            var bestIdx = -1
+            var bestDist = Float.MAX_VALUE
+            for (i in buckets.indices) {
+                val d = FaceEmbedding.euclideanDistance(emb, buckets[i].centroid)
+                if (d < bestDist) {
+                    bestDist = d
+                    bestIdx = i
                 }
             }
+            if (bestIdx >= 0 && bestDist <= threshold) {
+                val b = buckets[bestIdx]
+                b.faceIds += face.id
+                b.count += 1
+                // Центроид заморожен на сиде — любой online-update тянет цепочку A→B→C.
+            } else {
+                val id = personDao.insertPerson(Person())
+                buckets += Bucket(
+                    personId = id,
+                    centroid = emb.copyOf(),
+                    count = 1,
+                    faceIds = mutableListOf(face.id),
+                    named = false,
+                )
+                created++
+            }
         }
 
-        val groups = centroids.map { it.personId }.groupBy { find(it) }
-        for ((root, members) in groups) {
-            if (members.size < 2) continue
-            val target = members.minOrNull() ?: continue
-            for (source in members) {
-                if (source == target) continue
-                val src = personDao.getPerson(source) ?: continue
-                val dst = personDao.getPerson(target) ?: continue
-                personDao.moveFaces(source, target)
-                personDao.updatePerson(
-                    dst.copy(
-                        displayName = dst.displayName ?: src.displayName,
-                        relationship = dst.relationship ?: src.relationship,
-                        contactUri = dst.contactUri ?: src.contactUri,
-                        contactId = dst.contactId ?: src.contactId,
-                        coverFaceId = dst.coverFaceId ?: src.coverFaceId,
-                        updatedAt = System.currentTimeMillis(),
-                    )
-                )
-                peopleAlbums.deletePersonAlbum(src)
+        for (b in buckets) {
+            if (b.faceIds.isNotEmpty()) {
+                personDao.assignFacesToPerson(b.faceIds, b.personId)
+            }
+        }
+        Log.i(
+            TAG,
+            "cluster centroids: buckets=${buckets.size} created=$created " +
+                    "faces=${faces.size} threshold=$threshold",
+        )
+    }
+
+    private suspend fun pruneEmptyPeople() {
+        for (person in personDao.getAllPeople()) {
+            val faces = personDao.getFacesForPerson(person.id).filter { isClusterableFace(it) }
+            if (faces.isEmpty() && person.displayName.isNullOrBlank()) {
+                peopleAlbums.deletePersonAlbum(person)
             }
         }
     }
@@ -186,7 +125,7 @@ class PersonClusterer @Inject constructor(
     private suspend fun ensureCoverFaces() {
         for (person in personDao.getAllPeople()) {
             val faces = personDao.getFacesForPerson(person.id)
-                .filter { it.right - it.left > 0.01f && !it.thumbPath.isNullOrBlank() }
+                .filter { isClusterableFace(it) && !it.thumbPath.isNullOrBlank() }
             if (faces.isEmpty()) continue
             val coverOk = person.coverFaceId?.let { id -> faces.any { it.id == id } } == true
             if (coverOk) continue
@@ -207,15 +146,28 @@ class PersonClusterer @Inject constructor(
         }
         val n = vectors.size.toFloat()
         for (i in 0 until dim) out[i] /= n
-        var sum = 0f
-        for (x in out) sum += x * x
-        val norm = kotlin.math.sqrt(sum)
-        if (norm > 1e-6f) for (i in out.indices) out[i] /= norm
         return out
     }
 
     companion object {
-        /** Ниже прежнего 0.72: патч-эмбеддинг иначе оставлял одного человека в куче Person. */
-        const val SIMILARITY_THRESHOLD = 0.55f
+        private const val TAG = "PersonClusterer"
+
+        /**
+         * Euclidean на MobileFaceNet. Сид заморожен, без merge.
+         * ~1.0 — склейка ракурсов одного человека; выше — снова мешок.
+         */
+        const val SIMILARITY_THRESHOLD = 1.00f
+
+        /** Доля кадра: мельче — часто ложные детекты (текстуры/фон), портят кластеры. */
+        private const val MIN_FACE_WIDTH = 0.08f
+        private const val MIN_FACE_AREA = 0.008f
+
+        fun isClusterableFace(face: Face): Boolean {
+            val w = face.right - face.left
+            val h = face.bottom - face.top
+            if (w < MIN_FACE_WIDTH || h < MIN_FACE_WIDTH) return false
+            if (w * h < MIN_FACE_AREA) return false
+            return true
+        }
     }
 }

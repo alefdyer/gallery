@@ -75,7 +75,7 @@ class PeopleAlbums @Inject constructor(
 
         var coverFaceId = person.coverFaceId
         val realFaces = personDao.getFacesForPerson(personId)
-            .filter { it.right - it.left > 0.01f }
+            .filter { PersonClusterer.isClusterableFace(it) }
         if (coverFaceId == null || realFaces.none { it.id == coverFaceId }) {
             coverFaceId = realFaces.firstOrNull { !it.thumbPath.isNullOrBlank() }?.id
                 ?: realFaces.firstOrNull()?.id
@@ -105,7 +105,7 @@ class PeopleAlbums @Inject constructor(
     suspend fun syncAll() {
         personDao.getAllPeople().forEach { person ->
             val faces = personDao.getFacesForPerson(person.id)
-                .filter { it.right - it.left > 0.01f }
+                .filter { PersonClusterer.isClusterableFace(it) }
             if (faces.isEmpty()) {
                 deletePersonAlbum(person)
             } else {
