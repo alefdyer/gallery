@@ -67,7 +67,9 @@ fun ImageListHeaderBackground(
         if (null == data) return@remember null
         ImageRequest.Builder(context)
             .data(data)
-            .placeholderMemoryCacheKey("media-${cover.id}")
+            .placeholderMemoryCacheKey(thumbnailCacheKey(cover))
+            .memoryCacheKey(thumbnailCacheKey(cover))
+            .diskCacheKey(thumbnailCacheKey(cover))
             .crossfade(true)
             .build()
     }

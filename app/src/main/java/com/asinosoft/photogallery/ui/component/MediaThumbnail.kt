@@ -109,9 +109,9 @@ fun MediaThumbnail(
         val albumHeavyReady = LocalAlbumHeavyContentReady.current
         val deferVideoDecode = media.video != null && (opening || !albumHeavyReady)
 
-        val cacheKey = remember(media.id) { "media-${media.id}" }
-        val cacheFile = remember(media.id) { ThumbnailCache.getFile(context, media.id) }
-        var cached by remember(media.id) {
+        val cacheKey = thumbnailCacheKey(media)
+        val cacheFile = remember(cacheKey) { ThumbnailCache.getFile(context, media.id) }
+        var cached by remember(cacheKey) {
             mutableStateOf(persistentCache && cacheFile.exists() && cacheFile.length() > 0)
         }
         val isRemoteVideo = media.video != null &&

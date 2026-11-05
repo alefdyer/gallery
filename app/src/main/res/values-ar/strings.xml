@@ -231,6 +231,9 @@
     <string name="editor_sound">الصوت</string>
     <string name="editor_revert">استعادة الأصل</string>
     <string name="editor_save">حفظ</string>
+    <string name="editor_save_prompt">حفظ التغييرات؟</string>
+    <string name="editor_discard">عدم الحفظ</string>
+    <string name="editor_no_changes">لا توجد تغييرات للحفظ</string>
     <string name="editor_undo">تراجع</string>
     <string name="editor_redo">إعادة</string>
     <string name="editor_ai_apply">تحسين تلقائي</string>
@@ -262,7 +265,7 @@
     <string name="editor_video_sound">صوت الفيديو</string>
     <string name="editor_add_soundtrack">إضافة مقطع صوتي</string>
     <string name="editor_soundtrack_volume">مستوى صوت المقطع</string>
-    <string name="editor_saved">تم الحفظ في المعرض</string>
+    <string name="editor_saved">تم الحفظ</string>
     <string name="editor_save_failed">تعذّر الحفظ</string>
     <string name="editor_video_export_soon">تصدير الفيديو قريبًا — أدوات الصور جاهزة</string>
 </resources>

@@ -818,6 +818,7 @@ class MediaService @Inject constructor(
                 val toInsert = fetched.filterNot { current.contains(it.storageItemId) }
                 val existingByItemId = media.associateBy { it.storageItemId }
                 val rootAlbum = context.getString(R.string.album_root)
+        val rebuildThumbs = mutableListOf<ThumbnailCache.Request>()
 
                 // Уже известные: обновить метаданные (даты/size); remote-альбом — при смене папки.
                 for (item in fetched) {
@@ -867,6 +868,29 @@ class MediaService @Inject constructor(
                             storageId = provider.storage.id,
                         )
                     }
+                    if (isLocal &&
+                        (existing.size != item.size || existing.modifiedAt != item.modifiedAt)
+                    ) {
+                        ThumbnailCache.invalidate(
+                            context,
+                            existing.id,
+                            existing.modifiedAt,
+                            existing.size,
+                        )
+                        val uri = item.uri ?: existing.uri
+                        if (uri != null) {
+                            rebuildThumbs += ThumbnailCache.Request(
+                                mediaId = existing.id,
+                                uri = uri,
+                                isVideo = item.video != null || existing.video != null,
+                                decodeSource = true,
+                            )
+                        }
+                    }
+                }
+
+        if (rebuildThumbs.isNotEmpty()) {
+            ThumbnailCache.preloadBatch(context, rebuildThumbs)
                 }
 
                 if (toInsert.isNotEmpty()) {

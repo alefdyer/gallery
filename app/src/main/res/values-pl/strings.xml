@@ -231,6 +231,9 @@
     <string name="editor_sound">Dźwięk</string>
     <string name="editor_revert">Przywróć</string>
     <string name="editor_save">Zapisz</string>
+    <string name="editor_save_prompt">Zapisać zmiany?</string>
+    <string name="editor_discard">Nie zapisuj</string>
+    <string name="editor_no_changes">Brak zmian do zapisania</string>
     <string name="editor_undo">Cofnij</string>
     <string name="editor_redo">Ponów</string>
     <string name="editor_ai_apply">Autopoprawa</string>
@@ -262,7 +265,7 @@
     <string name="editor_video_sound">Dźwięk wideo</string>
     <string name="editor_add_soundtrack">Dodaj ścieżkę dźwiękową</string>
     <string name="editor_soundtrack_volume">Głośność ścieżki dźwiękowej</string>
-    <string name="editor_saved">Zapisano w galerii</string>
+    <string name="editor_saved">Zapisano</string>
     <string name="editor_save_failed">Nie udało się zapisać</string>
     <string name="editor_video_export_soon">Eksport wideo wkrótce — narzędzia do zdjęć są już gotowe</string>
 </resources>

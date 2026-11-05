@@ -10,6 +10,7 @@ import android.net.Uri
 import android.os.Build
 import coil3.Image
 import coil3.SingletonImageLoader
+import coil3.memory.MemoryCache
 import coil3.request.CachePolicy
 import coil3.request.ImageRequest
 import coil3.request.allowHardware
@@ -59,6 +60,24 @@ object ThumbnailCache {
 
     fun getFile(context: Context, mediaId: Long): File {
         return File(getDir(context), "thumb_$mediaId.jpg")
+    }
+
+    /** Старый кадр после правки файла: файл миниатюры и ключи Coil без полного сброса кэша. */
+    fun invalidate(context: Context, mediaId: Long, modifiedAt: Long?, size: Long) {
+        getFile(context, mediaId).delete()
+        val loader = SingletonImageLoader.get(context)
+        val memory = loader.memoryCache
+        val disk = loader.diskCache
+        val keys = listOf(
+            "media-$mediaId",
+            "media#$mediaId",
+            "media-$mediaId-$modifiedAt-$size",
+            "media#$mediaId-$modifiedAt-$size",
+        )
+        for (key in keys) {
+            memory?.remove(MemoryCache.Key(key))
+            disk?.remove(key)
+        }
     }
 
     fun deleteAll(context: Context, mediaIds: Collection<Long>) {
@@ -119,7 +138,8 @@ object ThumbnailCache {
         mediaId: Long,
         uri: Uri?,
         existingFiles: Set<String>? = null,
-        isVideo: Boolean? = null
+        isVideo: Boolean? = null,
+        decodeSource: Boolean = false,
     ) = withContext(Dispatchers.IO) {
         if (uri == null) return@withContext
         val fileName = "thumb_$mediaId.jpg"
@@ -142,7 +162,11 @@ object ThumbnailCache {
             if (frame != null) {
                 saveBitmap(file, frame)
                 frame.recycle()
-            } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && isContent && !video) {
+            } else if (!decodeSource &&
+                Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q &&
+                isContent &&
+                !video
+            ) {
                 val size = android.util.Size(300, 300)
                 val bitmap = context.contentResolver.loadThumbnail(uri, size, null)
                 saveBitmap(file, bitmap)
@@ -198,7 +222,12 @@ object ThumbnailCache {
         }
     }
 
-    data class Request(val mediaId: Long, val uri: Uri?, val isVideo: Boolean)
+    data class Request(
+        val mediaId: Long,
+        val uri: Uri?,
+        val isVideo: Boolean,
+        val decodeSource: Boolean = false,
+    )
 
     fun startPreload(total: Int) {
         _progress.value = PreloadProgress(total = total)
@@ -233,11 +262,18 @@ object ThumbnailCache {
         val imageSemaphore = Semaphore(IMAGE_PARALLELISM)
         val videoSemaphore = Semaphore(VIDEO_PARALLELISM)
         coroutineScope {
-            missing.forEach { (mediaId, uri, isVideo) ->
+            missing.forEach { item ->
                 launch {
-                    (if (isVideo) videoSemaphore else imageSemaphore).withPermit {
+                    (if (item.isVideo) videoSemaphore else imageSemaphore).withPermit {
                         try {
-                            preload(context, mediaId, uri, existingFiles, isVideo)
+                            preload(
+                                context,
+                                item.mediaId,
+                                item.uri,
+                                existingFiles,
+                                item.isVideo,
+                                item.decodeSource,
+                            )
                         } finally {
                             withContext(NonCancellable) {
                                 _progress.update { it.copy(current = it.current + 1) }

@@ -231,6 +231,9 @@
     <string name="editor_sound">Sound</string>
     <string name="editor_revert">Revert</string>
     <string name="editor_save">Save</string>
+    <string name="editor_save_prompt">Save changes?</string>
+    <string name="editor_discard">Don\'t save</string>
+    <string name="editor_no_changes">No changes to save</string>
     <string name="editor_undo">Undo</string>
     <string name="editor_redo">Redo</string>
     <string name="editor_ai_apply">Auto enhance</string>
@@ -262,7 +265,7 @@
     <string name="editor_video_sound">Video sound</string>
     <string name="editor_add_soundtrack">Add soundtrack</string>
     <string name="editor_soundtrack_volume">Soundtrack volume</string>
-    <string name="editor_saved">Saved to Gallery</string>
+    <string name="editor_saved">Saved</string>
     <string name="editor_save_failed">Could not save</string>
     <string name="editor_video_export_soon">Video export coming soon — photo tools are ready</string>
 </resources>

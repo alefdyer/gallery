@@ -108,8 +108,13 @@ fun ImageView(
     var request by remember(media.id) { mutableStateOf<ImageRequest?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
 
-    LaunchedEffect(media.id, media.uri) {
-        val key = if (EXTERNAL_STORAGE_ID == media.storageId) "external#${media.uri}" else "media#${media.id}"
+    LaunchedEffect(media.id, media.uri, media.modifiedAt, media.size) {
+        val stamp = "${media.modifiedAt}-${media.size}"
+        val key = if (EXTERNAL_STORAGE_ID == media.storageId) {
+            "external#${media.uri}#$stamp"
+        } else {
+            "media#${media.id}-$stamp"
+        }
         try {
             isLoading = true
             val uri = model.getMediaUri(media)

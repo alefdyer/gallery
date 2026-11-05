@@ -1,6 +1,7 @@
 package com.asinosoft.photogallery.ui.editor
 
 import android.net.Uri
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.Animatable
@@ -37,6 +38,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.systemGestureExclusion
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -113,6 +115,8 @@ fun EditorScreen(
     val media by model.media.collectAsState()
     val tab by model.tab.collectAsState()
     val edit by model.edit.collectAsState()
+    val openedEdit by model.openedEdit.collectAsState()
+    val hasEdits = edit != openedEdit
     val canUndo by model.canUndo.collectAsState()
     val canRedo by model.canRedo.collectAsState()
     val saving by model.saving.collectAsState()
@@ -174,6 +178,15 @@ fun EditorScreen(
         }
     }
 
+    var confirmLeave by remember { mutableStateOf(false) }
+    fun requestClose() {
+        if (saving) return
+        if (hasEdits) confirmLeave = true else onClose()
+    }
+    BackHandler {
+        if (confirmLeave) confirmLeave = false else requestClose()
+    }
+
     Box(
         Modifier
             .fillMaxSize()
@@ -183,7 +196,7 @@ fun EditorScreen(
             EditorTopBar(
                 canUndo = canUndo,
                 canRedo = canRedo,
-                onBack = onClose,
+                onBack = ::requestClose,
                 onUndo = model::undo,
                 onRedo = model::redo,
                 onRevert = model::revert,
@@ -273,6 +286,29 @@ fun EditorScreen(
             ) {
                 CircularProgressIndicator(color = Color.White)
             }
+        }
+
+        if (confirmLeave) {
+            AlertDialog(
+                onDismissRequest = { confirmLeave = false },
+                title = { Text(stringResource(R.string.editor_save_prompt)) },
+                confirmButton = {
+                    TextButton(onClick = {
+                        confirmLeave = false
+                        model.save { ok -> if (ok) onClose() }
+                    }) {
+                        Text(stringResource(R.string.editor_save))
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = {
+                        confirmLeave = false
+                        onClose()
+                    }) {
+                        Text(stringResource(R.string.editor_discard))
+                    }
+                },
+            )
         }
     }
 }

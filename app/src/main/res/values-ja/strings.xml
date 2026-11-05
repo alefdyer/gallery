@@ -231,6 +231,9 @@
     <string name="editor_sound">サウンド</string>
     <string name="editor_revert">最初に戻す</string>
     <string name="editor_save">保存</string>
+    <string name="editor_save_prompt">変更を保存しますか？</string>
+    <string name="editor_discard">保存しない</string>
+    <string name="editor_no_changes">保存する変更はありません</string>
     <string name="editor_undo">元に戻す</string>
     <string name="editor_redo">やり直し</string>
     <string name="editor_ai_apply">自動補正</string>
@@ -262,7 +265,7 @@
     <string name="editor_video_sound">動画の音声</string>
     <string name="editor_add_soundtrack">サウンドトラックを追加</string>
     <string name="editor_soundtrack_volume">サウンドトラックの音量</string>
-    <string name="editor_saved">ギャラリーに保存しました</string>
+    <string name="editor_saved">保存しました</string>
     <string name="editor_save_failed">保存できませんでした</string>
     <string name="editor_video_export_soon">動画の書き出しは近日対応 — 写真ツールは利用できます</string>
 </resources>

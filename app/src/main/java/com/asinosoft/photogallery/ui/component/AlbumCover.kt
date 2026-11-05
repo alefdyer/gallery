@@ -162,9 +162,9 @@ private fun AlbumThumbnail(
 
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    val cacheKey = remember(cover.id) { "media-${cover.id}" }
-    val cacheFile = remember(cover.id) { ThumbnailCache.getFile(context, cover.id) }
-    var cached by remember(cover.id) {
+    val cacheKey = thumbnailCacheKey(cover)
+    val cacheFile = remember(cacheKey) { ThumbnailCache.getFile(context, cover.id) }
+    var cached by remember(cacheKey) {
         mutableStateOf(cacheFile.exists() && cacheFile.length() > 0)
     }
     val isRemoteVideo = cover.video != null &&

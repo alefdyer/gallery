@@ -231,6 +231,9 @@
     <string name="editor_sound">Sonido</string>
     <string name="editor_revert">Volver al original</string>
     <string name="editor_save">Guardar</string>
+    <string name="editor_save_prompt">¿Guardar los cambios?</string>
+    <string name="editor_discard">No guardar</string>
+    <string name="editor_no_changes">No hay cambios para guardar</string>
     <string name="editor_undo">Deshacer</string>
     <string name="editor_redo">Rehacer</string>
     <string name="editor_ai_apply">Mejorar automáticamente</string>
@@ -262,7 +265,7 @@
     <string name="editor_video_sound">Sonido del video</string>
     <string name="editor_add_soundtrack">Agregar banda sonora</string>
     <string name="editor_soundtrack_volume">Volumen de la banda sonora</string>
-    <string name="editor_saved">Guardado en la galería</string>
+    <string name="editor_saved">Guardado</string>
     <string name="editor_save_failed">No se pudo guardar</string>
     <string name="editor_video_export_soon">La exportación de video llegará pronto — las herramientas de foto ya están listas</string>
 </resources>

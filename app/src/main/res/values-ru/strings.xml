@@ -231,6 +231,9 @@
     <string name="editor_sound">Звук</string>
     <string name="editor_revert">Вернуть</string>
     <string name="editor_save">Сохранить</string>
+    <string name="editor_save_prompt">Сохранить изменения?</string>
+    <string name="editor_discard">Не сохранять</string>
+    <string name="editor_no_changes">Нет изменений для сохранения</string>
     <string name="editor_undo">Отменить</string>
     <string name="editor_redo">Повторить</string>
     <string name="editor_ai_apply">Автоулучшение</string>
@@ -262,7 +265,7 @@
     <string name="editor_video_sound">Звук видео</string>
     <string name="editor_add_soundtrack">Доб. саундтрек</string>
     <string name="editor_soundtrack_volume">Громкость саундтрека</string>
-    <string name="editor_saved">Сохранено в галерею</string>
+    <string name="editor_saved">Сохранено</string>
     <string name="editor_save_failed">Не удалось сохранить</string>
     <string name="editor_video_export_soon">Экспорт видео скоро — инструменты для фото уже доступны</string>
 </resources>

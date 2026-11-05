@@ -231,6 +231,9 @@
     <string name="editor_sound">声音</string>
     <string name="editor_revert">还原</string>
     <string name="editor_save">保存</string>
+    <string name="editor_save_prompt">保存更改？</string>
+    <string name="editor_discard">不保存</string>
+    <string name="editor_no_changes">没有可保存的更改</string>
     <string name="editor_undo">撤销</string>
     <string name="editor_redo">重做</string>
     <string name="editor_ai_apply">自动增强</string>
@@ -262,7 +265,7 @@
     <string name="editor_video_sound">视频声音</string>
     <string name="editor_add_soundtrack">添加配乐</string>
     <string name="editor_soundtrack_volume">配乐音量</string>
-    <string name="editor_saved">已保存到图库</string>
+    <string name="editor_saved">已保存</string>
     <string name="editor_save_failed">无法保存</string>
     <string name="editor_video_export_soon">视频导出即将推出 — 照片工具已可用</string>
 </resources>

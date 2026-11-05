@@ -71,7 +71,7 @@ private val MediaBoundsTransform =
     BoundsTransform { _, _ -> tween(SHARED_ELEMENT_MS, easing = FastOutSlowInEasing) }
 
 /** Ключ миниатюры в кэше памяти Coil */
-fun thumbnailCacheKey(media: Media) = "media-${media.id}"
+fun thumbnailCacheKey(media: Media) = "media-${media.id}-${media.modifiedAt}-${media.size}"
 
 /**
  * Миниатюра, доступная уже в первом кадре: показывается, пока грузится полное фото.
@@ -81,7 +81,7 @@ fun thumbnailCacheKey(media: Media) = "media-${media.id}"
 @Composable
 fun rememberCachedThumbnail(media: Media): Painter? {
     val context = LocalContext.current
-    return remember(media.id) {
+    return remember(thumbnailCacheKey(media)) {
         SingletonImageLoader.get(context).memoryCache
             ?.get(MemoryCache.Key(thumbnailCacheKey(media)))
             ?.image

@@ -231,6 +231,9 @@
     <string name="editor_sound">Ton</string>
     <string name="editor_revert">Zurücksetzen</string>
     <string name="editor_save">Speichern</string>
+    <string name="editor_save_prompt">Änderungen speichern?</string>
+    <string name="editor_discard">Nicht speichern</string>
+    <string name="editor_no_changes">Keine Änderungen zum Speichern</string>
     <string name="editor_undo">Rückgängig</string>
     <string name="editor_redo">Wiederholen</string>
     <string name="editor_ai_apply">Automatisch verbessern</string>
@@ -262,7 +265,7 @@
     <string name="editor_video_sound">Videoton</string>
     <string name="editor_add_soundtrack">Soundtrack hinzufügen</string>
     <string name="editor_soundtrack_volume">Soundtrack-Lautstärke</string>
-    <string name="editor_saved">In der Galerie gespeichert</string>
+    <string name="editor_saved">Gespeichert</string>
     <string name="editor_save_failed">Speichern fehlgeschlagen</string>
     <string name="editor_video_export_soon">Videoexport folgt in Kürze — Fotowerkzeuge sind bereit</string>
 </resources>

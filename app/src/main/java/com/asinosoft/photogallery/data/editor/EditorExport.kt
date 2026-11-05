@@ -27,6 +27,7 @@ import androidx.media3.transformer.Effects
 import androidx.media3.transformer.ExportException
 import androidx.media3.transformer.ExportResult
 import androidx.media3.transformer.Transformer
+import com.asinosoft.photogallery.data.Media
 import com.asinosoft.photogallery.ui.editor.AdjustParams
 import com.asinosoft.photogallery.ui.editor.EditState
 import com.asinosoft.photogallery.ui.editor.FilterPreset
@@ -119,18 +120,17 @@ class EditorExport @Inject constructor(
         return bmp
     }
 
-    fun saveJpeg(bitmap: Bitmap, displayName: String): Uri? {
-        val name = displayName.substringBeforeLast('.') + "_edit_${System.currentTimeMillis()}.jpg"
+    fun saveJpeg(bitmap: Bitmap, source: Media): Uri? {
+        val placed = copyPlacement(source, video = false)
         return try {
             val values = ContentValues().apply {
-                put(MediaStore.MediaColumns.DISPLAY_NAME, name)
+                put(MediaStore.MediaColumns.DISPLAY_NAME, placed.name)
                 put(MediaStore.MediaColumns.MIME_TYPE, "image/jpeg")
                 if (Build.VERSION.SDK_INT >= 29) {
-                    put(
-                        MediaStore.MediaColumns.RELATIVE_PATH,
-                        Environment.DIRECTORY_PICTURES + "/Gallery"
-                    )
+                    put(MediaStore.MediaColumns.RELATIVE_PATH, placed.relativePath)
                     put(MediaStore.MediaColumns.IS_PENDING, 1)
+                } else {
+                    put(MediaStore.MediaColumns.DATA, placed.absolutePath)
                 }
             }
             val resolver = context.contentResolver
@@ -159,7 +159,7 @@ class EditorExport @Inject constructor(
      * Возвращает Uri в MediaStore или null.
      */
     @OptIn(UnstableApi::class)
-    suspend fun exportVideo(input: Uri, state: EditState, displayName: String): Uri? =
+    suspend fun exportVideo(input: Uri, state: EditState, source: Media): Uri? =
         withContext(Dispatchers.Main) {
             val tmp = File(
                 context.cacheDir,
@@ -172,7 +172,7 @@ class EditorExport @Inject constructor(
                     return@withContext null
                 }
                 withContext(Dispatchers.IO) {
-                    saveMp4(tmp, displayName)
+                    saveMp4(tmp, source)
                 }
             } finally {
                 tmp.delete()
@@ -287,18 +287,17 @@ class EditorExport @Inject constructor(
         transformer.start(composition, output.absolutePath)
     }
 
-    private fun saveMp4(file: File, displayName: String): Uri? {
-        val name = displayName.substringBeforeLast('.') + "_edit_${System.currentTimeMillis()}.mp4"
+    private fun saveMp4(file: File, source: Media): Uri? {
+        val placed = copyPlacement(source, video = true)
         return try {
             val values = ContentValues().apply {
-                put(MediaStore.MediaColumns.DISPLAY_NAME, name)
+                put(MediaStore.MediaColumns.DISPLAY_NAME, placed.name)
                 put(MediaStore.MediaColumns.MIME_TYPE, "video/mp4")
                 if (Build.VERSION.SDK_INT >= 29) {
-                    put(
-                        MediaStore.MediaColumns.RELATIVE_PATH,
-                        Environment.DIRECTORY_MOVIES + "/Gallery",
-                    )
+                    put(MediaStore.MediaColumns.RELATIVE_PATH, placed.relativePath)
                     put(MediaStore.MediaColumns.IS_PENDING, 1)
+                } else {
+                    put(MediaStore.MediaColumns.DATA, placed.absolutePath)
                 }
             }
             val resolver = context.contentResolver
@@ -413,5 +412,77 @@ class EditorExport @Inject constructor(
             }
             return if (used) result else null
         }
+    }
+
+    private data class CopyPlacement(
+        val name: String,
+        val relativePath: String,
+        val absolutePath: String,
+    )
+
+    /** Копия рядом с оригиналом: имя-2, имя-3, … первый свободный номер. */
+    private fun copyPlacement(source: Media, video: Boolean): CopyPlacement {
+        val original = File(source.filename).name.ifBlank {
+            source.filename.ifBlank { if (video) "video.mp4" else "photo.jpg" }
+        }
+        val dot = original.lastIndexOf('.')
+        val stem = if (dot > 0) original.substring(0, dot) else original
+        val ext = if (video) ".mp4" else ".jpg"
+        val relative = relativeFolder(source, video)
+        val taken = namesInFolder(relative, video)
+        var n = 2
+        var name = "$stem-$n$ext"
+        while (taken.any { it.equals(name, ignoreCase = true) }) {
+            n++
+            name = "$stem-$n$ext"
+            if (n > 10_000) {
+                name = "$stem-${System.currentTimeMillis()}$ext"
+                break
+            }
+        }
+        val absolute = File(Environment.getExternalStorageDirectory(), relative + name).absolutePath
+        return CopyPlacement(name, relative, absolute)
+    }
+
+    private fun relativeFolder(source: Media, video: Boolean): String {
+        val stored = source.path.trim().replace('\\', '/').trim('/')
+        if (stored.isNotEmpty()) return "$stored/"
+        val parent = File(source.filename).parentFile
+        val root = Environment.getExternalStorageDirectory()
+        val rel = parent?.let { runCatching { it.relativeTo(root).path }.getOrNull() }
+            ?.replace('\\', '/')
+            ?.trim('/')
+        if (!rel.isNullOrEmpty() && rel != ".") return "$rel/"
+        val bucket = if (video) Environment.DIRECTORY_MOVIES else Environment.DIRECTORY_PICTURES
+        return "$bucket/"
+    }
+
+    private fun namesInFolder(relativePath: String, video: Boolean): MutableSet<String> {
+        val names = mutableSetOf<String>()
+        val collection = if (video) {
+            MediaStore.Video.Media.EXTERNAL_CONTENT_URI
+        } else {
+            MediaStore.Images.Media.EXTERNAL_CONTENT_URI
+        }
+        val withSlash = if (relativePath.endsWith("/")) relativePath else "$relativePath/"
+        val bare = withSlash.trimEnd('/')
+        for (path in listOf(withSlash, bare)) {
+            runCatching {
+                context.contentResolver.query(
+                    collection,
+                    arrayOf(MediaStore.MediaColumns.DISPLAY_NAME),
+                    "${MediaStore.MediaColumns.RELATIVE_PATH}=?",
+                    arrayOf(path),
+                    null,
+                )?.use { cursor ->
+                    val index = cursor.getColumnIndexOrThrow(MediaStore.MediaColumns.DISPLAY_NAME)
+                    while (cursor.moveToNext()) {
+                        cursor.getString(index)?.let(names::add)
+                    }
+                }
+            }
+        }
+        File(Environment.getExternalStorageDirectory(), withSlash).list()?.let(names::addAll)
+        return names
     }
 }

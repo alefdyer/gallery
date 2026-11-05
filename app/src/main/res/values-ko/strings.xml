@@ -231,6 +231,9 @@
     <string name="editor_sound">소리</string>
     <string name="editor_revert">되돌리기</string>
     <string name="editor_save">저장</string>
+    <string name="editor_save_prompt">변경 내용을 저장할까요?</string>
+    <string name="editor_discard">저장 안 함</string>
+    <string name="editor_no_changes">저장할 변경 내용이 없습니다</string>
     <string name="editor_undo">실행 취소</string>
     <string name="editor_redo">다시 실행</string>
     <string name="editor_ai_apply">자동 보정</string>
@@ -262,7 +265,7 @@
     <string name="editor_video_sound">동영상 소리</string>
     <string name="editor_add_soundtrack">사운드트랙 추가</string>
     <string name="editor_soundtrack_volume">사운드트랙 볼륨</string>
-    <string name="editor_saved">갤러리에 저장됨</string>
+    <string name="editor_saved">저장됨</string>
     <string name="editor_save_failed">저장하지 못했습니다</string>
     <string name="editor_video_export_soon">동영상 내보내기는 곧 제공됩니다 — 사진 도구는 준비되어 있습니다</string>
 </resources>

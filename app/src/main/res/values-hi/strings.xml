@@ -231,6 +231,9 @@
     <string name="editor_sound">ध्वनि</string>
     <string name="editor_revert">मूल पर लौटें</string>
     <string name="editor_save">सेव करें</string>
+    <string name="editor_save_prompt">बदलाव सेव करें?</string>
+    <string name="editor_discard">सेव न करें</string>
+    <string name="editor_no_changes">सेव करने के लिए कोई बदलाव नहीं</string>
     <string name="editor_undo">पूर्ववत करें</string>
     <string name="editor_redo">फिर से करें</string>
     <string name="editor_ai_apply">स्वतः सुधार</string>
@@ -262,7 +265,7 @@
     <string name="editor_video_sound">वीडियो ध्वनि</string>
     <string name="editor_add_soundtrack">साउंडट्रैक जोड़ें</string>
     <string name="editor_soundtrack_volume">साउंडट्रैक की आवाज़</string>
-    <string name="editor_saved">गैलरी में सहेजा गया</string>
+    <string name="editor_saved">सहेजा गया</string>
     <string name="editor_save_failed">सहेजा नहीं जा सका</string>
     <string name="editor_video_export_soon">वीडियो निर्यात जल्द आएगा — फ़ोटो उपकरण तैयार हैं</string>
 </resources>

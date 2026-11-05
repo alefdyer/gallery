@@ -45,6 +45,9 @@ class EditorViewModel @Inject constructor(
     private val _edit = MutableStateFlow(EditState())
     val edit: StateFlow<EditState> = _edit.asStateFlow()
 
+    private val _openedEdit = MutableStateFlow(EditState())
+    val openedEdit: StateFlow<EditState> = _openedEdit.asStateFlow()
+
     private val undoStack = ArrayDeque<EditState>()
     private val redoStack = ArrayDeque<EditState>()
 
@@ -77,9 +80,9 @@ class EditorViewModel @Inject constructor(
             val isVideo = m?.video != null
             _tab.value = EditorTab.forMedia(isVideo).first()
             if (isVideo && m != null) {
-                _edit.update {
-                    it.copy(trimEndMs = m.video?.duration?.takeIf { d -> d > 0 })
-                }
+                val initial = EditState(trimEndMs = m.video?.duration?.takeIf { d -> d > 0 })
+                _edit.value = initial
+                _openedEdit.value = initial
             }
         }
     }
@@ -295,6 +298,11 @@ class EditorViewModel @Inject constructor(
     }
 
     fun save(onDone: (Boolean) -> Unit) = viewModelScope.launchAndCatch {
+        if (_edit.value == _openedEdit.value) {
+            MessageBus.emit(context.getString(R.string.editor_no_changes))
+            onDone(false)
+            return@launchAndCatch
+        }
         val m = _media.value ?: run {
             onDone(false)
             return@launchAndCatch
@@ -306,7 +314,7 @@ class EditorViewModel @Inject constructor(
         _saving.value = true
         try {
             val saved = if (m.video != null) {
-                export.exportVideo(uri, _edit.value, m.filename.ifBlank { "video.mp4" })
+                export.exportVideo(uri, _edit.value, m)
             } else {
                 val bmp = withContext(Dispatchers.IO) {
                     context.contentResolver.openInputStream(uri)?.use {
@@ -319,7 +327,7 @@ class EditorViewModel @Inject constructor(
                 }
                 val out = withContext(Dispatchers.Default) { export.renderPhoto(bmp, _edit.value) }
                 withContext(Dispatchers.IO) {
-                    export.saveJpeg(out, m.filename.ifBlank { "photo.jpg" })
+                    export.saveJpeg(out, m)
                 }
             }
             if (saved != null) {
