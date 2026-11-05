@@ -125,9 +125,7 @@ open class MediaViewModel @Inject constructor(
 
     private suspend fun prepareRemoteAuth(storageId: Long) {
         // null = ждём экран Google (GoogleDriveReauthHandler); не грузим со старым Bearer.
-        checkNotNull(storageService.ensureFreshAuth(storageId)) {
-            "Waiting for Google sign-in"
-        }
+        storageService.ensureFreshAuth(storageId) ?: throw WaitingForGoogleSignIn()
         storageProviderRegistry.invalidate(storageId)
     }
 

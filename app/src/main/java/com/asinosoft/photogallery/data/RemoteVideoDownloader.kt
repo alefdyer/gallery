@@ -54,9 +54,7 @@ object RemoteVideoDownloader {
             error("File too large (${media.size} bytes)")
         }
 
-        checkNotNull(storageService.ensureFreshAuth(media.storageId)) {
-            "Waiting for Google sign-in"
-        }
+        storageService.ensureFreshAuth(media.storageId) ?: throw WaitingForGoogleSignIn()
         storageProviderRegistry.invalidate(media.storageId)
         val provider = storageProviderRegistry.getStorageProvider(media.storageId)
         val remoteUri = provider.getMediaUri(media)

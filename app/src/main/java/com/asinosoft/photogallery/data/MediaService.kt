@@ -333,9 +333,7 @@ class MediaService @Inject constructor(
         }
         ShareCache.trim(context)
         val service = storageService.get()
-        checkNotNull(service.ensureFreshAuth(media.storageId)) {
-            "Waiting for Google sign-in"
-        }
+        service.ensureFreshAuth(media.storageId) ?: throw WaitingForGoogleSignIn()
         storageProviderRegistry.invalidate(media.storageId)
         val provider = storageProviderRegistry.getStorageProvider(media.storageId)
         val remoteUri = provider.getMediaUri(media)
