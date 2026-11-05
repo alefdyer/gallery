@@ -265,7 +265,7 @@
     <string name="editor_video_sound">Son de la vidéo</string>
     <string name="editor_add_soundtrack">Ajouter une bande son</string>
     <string name="editor_soundtrack_volume">Volume de la bande son</string>
-    <string name="editor_saved">Enregistré</string>
+    <string name="editor_saved">Copie enregistrée</string>
     <string name="editor_save_failed">Impossible d\'enregistrer</string>
     <string name="editor_video_export_soon">Export vidéo bientôt disponible — les outils photo sont prêts</string>
 </resources>

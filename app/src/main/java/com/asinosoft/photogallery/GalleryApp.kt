@@ -12,6 +12,7 @@ import coil3.request.CachePolicy
 import coil3.svg.SvgDecoder
 import coil3.video.VideoFrameDecoder
 import com.asinosoft.photogallery.data.ShareCache
+import com.asinosoft.photogallery.data.VlcNative
 import com.asinosoft.photogallery.data.storage.StorageAuthProvider
 import com.asinosoft.photogallery.data.storage.StorageDao
 import com.asinosoft.photogallery.data.storage.StorageService
@@ -43,6 +44,9 @@ class GalleryApp : Application() {
 
     override fun onCreate() {
         super.onCreate()
+
+        // До любого LibVLC(): иначе JNI_OnLoad зовёт System.exit и роняет процесс.
+        VlcNative.ensureLoaded()
 
         YandexAds.initialize(this) { }
 

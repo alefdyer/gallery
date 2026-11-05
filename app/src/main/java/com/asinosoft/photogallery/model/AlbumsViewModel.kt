@@ -207,11 +207,11 @@ class AlbumsViewModel @Inject constructor(
         val current = expandedCategoriesFlow.value
         val expanding = id !in current
         expandedCategoriesFlow.value = if (expanding) current + id else current - id
-        if (expanding) syncOnEnterCategory(id)
+        if (expanding) syncCategory(id)
     }
 
-    /** Раскрыли категорию remote — полный/delta sync (Yandex/WebDAV тоже). */
-    private fun syncOnEnterCategory(categoryId: Long) {
+    /** Категория remote: тот же sync, что при раскрытии. */
+    fun syncCategory(categoryId: Long) {
         viewModelScope.launch {
             val category = albumDao.getCategoryById(categoryId) ?: return@launch
             val storageId = category.storageIdOrNull() ?: return@launch

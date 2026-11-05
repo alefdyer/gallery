@@ -269,7 +269,7 @@
     <string name="editor_video_sound">Звук видео</string>
     <string name="editor_add_soundtrack">Доб. саундтрек</string>
     <string name="editor_soundtrack_volume">Громкость саундтрека</string>
-    <string name="editor_saved">Сохранено</string>
+    <string name="editor_saved">Копия сохранена</string>
     <string name="editor_save_failed">Не удалось сохранить</string>
     <string name="editor_video_export_soon">Экспорт видео скоро — инструменты для фото уже доступны</string>
 </resources>

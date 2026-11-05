@@ -15,6 +15,9 @@
 # Coil
 -keep class coil.** { *; }
 
+# LibVLC JNI ищет org.videolan.libvlc.interfaces.IMedia$Track по имени.
+-keep class org.videolan.libvlc.** { *; }
+
 # Sardine-Android
 -keep class com.github.thegrizzlylabs.sardine.** { *; }
 

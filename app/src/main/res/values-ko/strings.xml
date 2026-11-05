@@ -265,7 +265,7 @@
     <string name="editor_video_sound">동영상 소리</string>
     <string name="editor_add_soundtrack">사운드트랙 추가</string>
     <string name="editor_soundtrack_volume">사운드트랙 볼륨</string>
-    <string name="editor_saved">저장됨</string>
+    <string name="editor_saved">사본이 저장됨</string>
     <string name="editor_save_failed">저장하지 못했습니다</string>
     <string name="editor_video_export_soon">동영상 내보내기는 곧 제공됩니다 — 사진 도구는 준비되어 있습니다</string>
 </resources>

@@ -265,7 +265,7 @@
     <string name="editor_video_sound">视频声音</string>
     <string name="editor_add_soundtrack">添加配乐</string>
     <string name="editor_soundtrack_volume">配乐音量</string>
-    <string name="editor_saved">已保存</string>
+    <string name="editor_saved">副本已保存</string>
     <string name="editor_save_failed">无法保存</string>
     <string name="editor_video_export_soon">视频导出即将推出 — 照片工具已可用</string>
 </resources>

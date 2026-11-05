@@ -265,7 +265,7 @@
     <string name="editor_video_sound">Video sound</string>
     <string name="editor_add_soundtrack">Add soundtrack</string>
     <string name="editor_soundtrack_volume">Soundtrack volume</string>
-    <string name="editor_saved">Saved</string>
+    <string name="editor_saved">Copy saved</string>
     <string name="editor_save_failed">Could not save</string>
     <string name="editor_video_export_soon">Video export coming soon — photo tools are ready</string>
 </resources>

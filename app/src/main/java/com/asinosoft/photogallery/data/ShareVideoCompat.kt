@@ -79,6 +79,10 @@ object ShareVideoCompat {
         input: File,
         output: File,
     ): Boolean = withContext(Dispatchers.Main) {
+        if (!VlcNative.ensureLoaded()) {
+            Log.w(TAG, "LibVLC native load failed, skip transcode for ${input.name}")
+            return@withContext false
+        }
         val inputBytes = input.length().coerceAtLeast(1L)
         val progressJob = launch(Dispatchers.IO) {
             var last = -1

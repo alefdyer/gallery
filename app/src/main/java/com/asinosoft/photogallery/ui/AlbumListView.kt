@@ -387,6 +387,7 @@ fun AlbumListView(
                     expanded = id in expandedCategoryIds,
                     alwaysExpanded = id in alwaysExpandedCategoryIds,
                     onToggleExpand = { model.toggleCategoryExpanded(id) },
+                    onSyncClick = storageInfo?.let { { model.syncCategory(id) } },
                     onAlwaysExpandedChange = { always ->
                         menuCategoryId = null
                         model.setCategoryAlwaysExpanded(id, always)
@@ -501,6 +502,7 @@ private fun AlbumCategoriesRow(
     expanded: Boolean,
     alwaysExpanded: Boolean,
     onToggleExpand: () -> Unit,
+    onSyncClick: (() -> Unit)? = null,
     onAlwaysExpandedChange: (Boolean) -> Unit,
     showRefresh: Boolean = false,
     onRefreshClick: () -> Unit = {},
@@ -536,17 +538,27 @@ private fun AlbumCategoriesRow(
                 showLoading = showLoading,
                 expanded = expanded.takeIf { expandable },
                 onToggleExpand = onToggleExpand,
-                modifier = Modifier.pointerInput(category.category.id) {
-                    detectDragGesturesAfterLongPress(
-                        onDragStart = { onDragStart() },
-                        onDrag = { change, amount ->
-                            change.consume()
-                            onDrag(amount.y)
-                        },
-                        onDragEnd = onDragEnd,
-                        onDragCancel = onDragEnd
+                modifier = Modifier
+                    .pointerInput(category.category.id) {
+                        detectDragGesturesAfterLongPress(
+                            onDragStart = { onDragStart() },
+                            onDrag = { change, amount ->
+                                change.consume()
+                                onDrag(amount.y)
+                            },
+                            onDragEnd = onDragEnd,
+                            onDragCancel = onDragEnd
+                        )
+                    }
+                    .then(
+                        if (onSyncClick != null) {
+                            Modifier.pointerInput(category.category.id) {
+                                detectTapGestures(onTap = { onSyncClick() })
+                            }
+                        } else {
+                            Modifier
+                        }
                     )
-                }
             )
 
             FloatingDropdownMenu(

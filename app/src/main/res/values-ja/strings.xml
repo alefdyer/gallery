@@ -265,7 +265,7 @@
     <string name="editor_video_sound">動画の音声</string>
     <string name="editor_add_soundtrack">サウンドトラックを追加</string>
     <string name="editor_soundtrack_volume">サウンドトラックの音量</string>
-    <string name="editor_saved">保存しました</string>
+    <string name="editor_saved">コピーを保存しました</string>
     <string name="editor_save_failed">保存できませんでした</string>
     <string name="editor_video_export_soon">動画の書き出しは近日対応 — 写真ツールは利用できます</string>
 </resources>

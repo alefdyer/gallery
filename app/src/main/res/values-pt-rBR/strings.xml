@@ -265,7 +265,7 @@
     <string name="editor_video_sound">Som do vídeo</string>
     <string name="editor_add_soundtrack">Adicionar trilha sonora</string>
     <string name="editor_soundtrack_volume">Volume da trilha sonora</string>
-    <string name="editor_saved">Salvo</string>
+    <string name="editor_saved">Cópia salva</string>
     <string name="editor_save_failed">Não foi possível salvar</string>
     <string name="editor_video_export_soon">A exportação de vídeo chegará em breve — as ferramentas de foto já estão prontas</string>
 </resources>

@@ -45,6 +45,7 @@ import com.asinosoft.photogallery.data.LibVlcCoordinator
 import com.asinosoft.photogallery.data.Media
 import com.asinosoft.photogallery.data.ShareUi
 import com.asinosoft.photogallery.data.VlcMediaCache
+import com.asinosoft.photogallery.data.VlcNative
 import com.asinosoft.photogallery.data.bestVideoDurationMs
 import com.asinosoft.photogallery.data.plausibleVideoDurationMs
 import com.asinosoft.photogallery.data.storage.StorageType
@@ -191,6 +192,11 @@ fun LibVlcVideoView(
                     "Skip LibVLC media=${media.id}: open FDs=$fdCount ≥ $LIBVLC_SAFE_FD_LIMIT"
                 )
                 playbackError = "Too many open files"
+                buffering = false
+                onDispose { }
+            } else if (!VlcNative.ensureLoaded()) {
+                Log.e(TAG, "Skip LibVLC media=${media.id}: native library failed")
+                playbackError = "VLC playback error"
                 buffering = false
                 onDispose { }
             } else {

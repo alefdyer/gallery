@@ -265,7 +265,7 @@
     <string name="editor_video_sound">Audio del video</string>
     <string name="editor_add_soundtrack">Aggiungi colonna sonora</string>
     <string name="editor_soundtrack_volume">Volume della colonna sonora</string>
-    <string name="editor_saved">Salvato</string>
+    <string name="editor_saved">Copia salvata</string>
     <string name="editor_save_failed">Impossibile salvare</string>
     <string name="editor_video_export_soon">Esportazione video in arrivo — gli strumenti foto sono pronti</string>
 </resources>

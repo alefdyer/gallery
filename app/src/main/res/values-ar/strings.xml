@@ -265,7 +265,7 @@
     <string name="editor_video_sound">صوت الفيديو</string>
     <string name="editor_add_soundtrack">إضافة مقطع صوتي</string>
     <string name="editor_soundtrack_volume">مستوى صوت المقطع</string>
-    <string name="editor_saved">تم الحفظ</string>
+    <string name="editor_saved">تم حفظ النسخة</string>
     <string name="editor_save_failed">تعذّر الحفظ</string>
     <string name="editor_video_export_soon">تصدير الفيديو قريبًا — أدوات الصور جاهزة</string>
 </resources>

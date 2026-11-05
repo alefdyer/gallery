@@ -265,7 +265,7 @@
     <string name="editor_video_sound">Dźwięk wideo</string>
     <string name="editor_add_soundtrack">Dodaj ścieżkę dźwiękową</string>
     <string name="editor_soundtrack_volume">Głośność ścieżki dźwiękowej</string>
-    <string name="editor_saved">Zapisano</string>
+    <string name="editor_saved">Kopia zapisana</string>
     <string name="editor_save_failed">Nie udało się zapisać</string>
     <string name="editor_video_export_soon">Eksport wideo wkrótce — narzędzia do zdjęć są już gotowe</string>
 </resources>

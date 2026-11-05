@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -81,6 +82,7 @@ fun AlbumCover(
         Column(
             Modifier
                 .align(Alignment.BottomStart)
+                .fillMaxWidth()
                 .padding(horizontal = 8.dp, vertical = 6.dp),
             verticalArrangement = Arrangement.spacedBy(2.dp)
         ) {
@@ -93,15 +95,21 @@ fun AlbumCover(
                 overflow = TextOverflow.Ellipsis
             )
             if (hasSplit) {
+                val videoOnly = photoCount == 0 && videoCount > 0
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(2.dp)
+                    horizontalArrangement = if (videoOnly) {
+                        Arrangement.End
+                    } else {
+                        Arrangement.spacedBy(2.dp)
+                    },
+                    modifier = if (videoOnly) Modifier.fillMaxWidth() else Modifier
                 ) {
                     if (photoCount > 0) {
                         CoverCounter(R.drawable.photo, photoCount)
                     }
                     if (videoCount > 0) {
-                        CoverCounter(R.drawable.videocam, videoCount)
+                        CoverCounter(R.drawable.videocam, videoCount, endPadding = !videoOnly)
                     }
                 }
             } else if (album.album.count > 0) {
@@ -121,11 +129,12 @@ fun AlbumCover(
 private fun CoverCounter(
     @DrawableRes icon: Int,
     count: Int,
+    endPadding: Boolean = true,
 ) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(3.dp),
-        modifier = Modifier.padding(end = 4.dp)
+        modifier = if (endPadding) Modifier.padding(end = 4.dp) else Modifier
     ) {
         Icon(
             painter = painterResource(icon),

@@ -265,7 +265,7 @@
     <string name="editor_video_sound">Videoton</string>
     <string name="editor_add_soundtrack">Soundtrack hinzufügen</string>
     <string name="editor_soundtrack_volume">Soundtrack-Lautstärke</string>
-    <string name="editor_saved">Gespeichert</string>
+    <string name="editor_saved">Kopie gespeichert</string>
     <string name="editor_save_failed">Speichern fehlgeschlagen</string>
     <string name="editor_video_export_soon">Videoexport folgt in Kürze — Fotowerkzeuge sind bereit</string>
 </resources>
