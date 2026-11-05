@@ -37,6 +37,7 @@ import okhttp3.Request
 class WebDavStorageProvider(override val storage: Storage) : StorageProvider, FolderListingScan {
     private val http = OkHttpClient.Builder()
         .dispatcher(Dispatcher().apply { maxRequestsPerHost = 32 })
+        .addInterceptor { chain -> chain.proceed(authorize(chain.request())) }
         .build()
     private val webdav = OkHttpSardine(http).apply {
         setCredentials(storage.login, storage.password)
@@ -92,7 +93,12 @@ class WebDavStorageProvider(override val storage: Storage) : StorageProvider, Fo
     }
 
     override suspend fun fetchAll(): Flow<Media> = flow {
-        val sync = runCatching {
+        if (storage.syncCursor == Storage.NO_SYNC_COLLECTION) {
+            pendingCursor = Storage.NO_SYNC_COLLECTION
+            emitAll(propfindAll())
+            return@flow
+        }
+        val sync = try {
             DavSyncCollection.fetchAllChanges(
                 client = http,
                 authorize = ::authorize,
@@ -101,7 +107,12 @@ class WebDavStorageProvider(override val storage: Storage) : StorageProvider, Fo
                 rootPathPrefix = rootPath,
                 syncToken = null,
             )
-        }.getOrNull()
+        } catch (ex: Throwable) {
+            Log.w("webdav", "sync-collection failed", ex)
+            pendingCursor = null
+            emitAll(propfindAll())
+            return@flow
+        }
         if (sync != null) {
             pendingCursor = sync.second
             for (change in sync.first) {
@@ -109,7 +120,8 @@ class WebDavStorageProvider(override val storage: Storage) : StorageProvider, Fo
             }
             return@flow
         }
-        pendingCursor = null
+        Log.i("webdav", "sync-collection unsupported id=${storage.id}")
+        pendingCursor = Storage.NO_SYNC_COLLECTION
         emitAll(propfindAll())
     }
 
@@ -142,13 +154,14 @@ class WebDavStorageProvider(override val storage: Storage) : StorageProvider, Fo
             val folderKey = FolderScanState.folderKey(folderPath, rootPath)
             val savedStamp = folderScan.savedStamp(folderKey)
             if (fastStampCheck && !savedStamp.isNullOrBlank()) {
-                val stamp = stampByUrl[path] ?: try {
-                    FolderScanState.dirStamp(webdav.list(path, 0).firstOrNull())
-                } catch (ex: Throwable) {
-                    Log.e("webdav", "List failed: $path", ex)
-                    throw ex
-                }
-                if (folderScan.skipIfSameStamp(folderKey, stamp)) {
+                val stamp = stampByUrl[path]
+                if (stamp == null) {
+                    Log.w("webdav", "Folder stamp missing, keep saved: $folderKey")
+                    if (folderScan.keepSaved(folderKey)) {
+                        folderScan.savedChildUrls(folderKey).forEach { queue.addLast(it) }
+                        continue
+                    }
+                } else if (folderScan.skipIfSameStamp(folderKey, stamp)) {
                     Log.d("webdav", "Folder time unchanged: $folderKey")
                     folderScan.savedChildUrls(folderKey).forEach { queue.addLast(it) }
                     continue

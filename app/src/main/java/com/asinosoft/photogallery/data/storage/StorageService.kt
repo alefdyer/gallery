@@ -170,7 +170,7 @@ class StorageService @Inject constructor(
                     Log.i(
                         TAG,
                         "Update storage: ${fresh.type} id=${fresh.id} reason=$reason " +
-                                "force=$force cursor=${!fresh.syncCursor.isNullOrBlank()} " +
+                                "force=$force cursor=${fresh.hasSyncToken()} " +
                                 "fast=${reason != SyncReason.Manual}",
                     )
                     newCursor = mediaService.update(provider)

@@ -596,8 +596,8 @@ class MediaService @Inject constructor(
     @OptIn(ExperimentalCoroutinesApi::class)
     suspend fun update(provider: StorageProvider): String? = withContext(Dispatchers.IO) {
         Log.i("MediaService", "update: ${provider.storage.type} id=${provider.storage.id}")
-        val existingCursor = provider.storage.syncCursor
-        if (provider.supportsIncrementalSync && !existingCursor.isNullOrBlank()) {
+        val existingCursor = provider.storage.syncCursor?.takeIf { provider.storage.hasSyncToken() }
+        if (provider.supportsIncrementalSync && existingCursor != null) {
             try {
                 Log.i(
                     "MediaService",

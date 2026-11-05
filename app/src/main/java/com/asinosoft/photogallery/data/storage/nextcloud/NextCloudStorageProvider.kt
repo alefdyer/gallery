@@ -38,6 +38,7 @@ import okhttp3.Request
 class NextCloudStorageProvider(override val storage: Storage) : StorageProvider, FolderListingScan {
     private val http = OkHttpClient.Builder()
         .dispatcher(Dispatcher().apply { maxRequestsPerHost = 32 })
+        .addInterceptor { chain -> chain.proceed(authorize(chain.request())) }
         .build()
     private val connection = OkHttpSardine(http).apply {
         setCredentials(storage.login, storage.password)
@@ -94,7 +95,12 @@ class NextCloudStorageProvider(override val storage: Storage) : StorageProvider,
 
     override suspend fun fetchAll(): Flow<Media> = flow {
         val root = buildUrl("/remote.php/dav/files/${storage.login}/")
-        val sync = runCatching {
+        if (storage.syncCursor == Storage.NO_SYNC_COLLECTION) {
+            pendingCursor = Storage.NO_SYNC_COLLECTION
+            emitAll(propfindAll())
+            return@flow
+        }
+        val sync = try {
             DavSyncCollection.fetchAllChanges(
                 client = http,
                 authorize = ::authorize,
@@ -104,7 +110,12 @@ class NextCloudStorageProvider(override val storage: Storage) : StorageProvider,
                 syncToken = null,
                 thumbnailUri = ::previewUri,
             )
-        }.getOrNull()
+        } catch (ex: Throwable) {
+            Log.w("nextcloud", "sync-collection failed", ex)
+            pendingCursor = null
+            emitAll(propfindAll())
+            return@flow
+        }
         if (sync != null) {
             pendingCursor = sync.second
             for (change in sync.first) {
@@ -112,7 +123,8 @@ class NextCloudStorageProvider(override val storage: Storage) : StorageProvider,
             }
             return@flow
         }
-        pendingCursor = null
+        Log.i("nextcloud", "sync-collection unsupported id=${storage.id}")
+        pendingCursor = Storage.NO_SYNC_COLLECTION
         emitAll(propfindAll())
     }
 
@@ -147,13 +159,14 @@ class NextCloudStorageProvider(override val storage: Storage) : StorageProvider,
             val folderKey = FolderScanState.folderKey(folderUrlPath, rootPath)
             val savedStamp = folderScan.savedStamp(folderKey)
             if (fastStampCheck && !savedStamp.isNullOrBlank()) {
-                val stamp = stampByUrl[path] ?: try {
-                    FolderScanState.dirStamp(connection.list(path, 0).firstOrNull())
-                } catch (ex: Throwable) {
-                    Log.e("nextcloud", "List failed: $path", ex)
-                    throw ex
-                }
-                if (folderScan.skipIfSameStamp(folderKey, stamp)) {
+                val stamp = stampByUrl[path]
+                if (stamp == null) {
+                    Log.w("nextcloud", "Folder stamp missing, keep saved: $folderKey")
+                    if (folderScan.keepSaved(folderKey)) {
+                        folderScan.savedChildUrls(folderKey).forEach { queue.addLast(it) }
+                        continue
+                    }
+                } else if (folderScan.skipIfSameStamp(folderKey, stamp)) {
                     Log.d("nextcloud", "Folder time unchanged: $folderKey")
                     folderScan.savedChildUrls(folderKey).forEach { queue.addLast(it) }
                     continue

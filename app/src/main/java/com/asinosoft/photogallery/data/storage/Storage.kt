@@ -93,16 +93,23 @@ data class Storage(
             -> true
     }
 
+    /** Настоящий sync-token. Метка «сервер не умеет sync-collection» курсором не считается. */
+    fun hasSyncToken(): Boolean =
+        !syncCursor.isNullOrBlank() && syncCursor != NO_SYNC_COLLECTION
+
     /** Без sync-collection: при входе и раскрытии сверяется дата папки, не список файлов. */
     fun usesFastFolderCheck(): Boolean = when (type) {
         StorageType.WEBDAV,
         StorageType.NEXTCLOUD,
-            -> syncCursor.isNullOrBlank()
+            -> !hasSyncToken()
 
         else -> false
     }
 
     companion object {
         const val AUTO_SYNC_MIN_INTERVAL_MS = 15L * 60_000L
+
+        /** Сервер один раз ответил, что sync-collection нет. Повторять REPORT не нужно. */
+        const val NO_SYNC_COLLECTION = "nosync"
     }
 }

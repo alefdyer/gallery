@@ -44,6 +44,15 @@ class FolderScanState {
     fun savedChildUrls(folderKey: String): List<String> =
         known[folderKey]?.childUrls.orEmpty().split('\n').filter { it.isNotBlank() }
 
+    /** Ответа на дату не было — оставляем прошлый снимок, файлы не удаляем. */
+    fun keepSaved(folderKey: String): Boolean {
+        val saved = known[folderKey] ?: return false
+        active = true
+        unchanged += folderKey
+        folders[folderKey] = saved
+        return true
+    }
+
     /** Время и ETag папки те же — полный список файлов не нужен. */
     fun skipIfSameStamp(folderKey: String, dirStamp: String): Boolean {
         if (dirStamp.isBlank()) return false
