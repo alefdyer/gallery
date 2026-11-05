@@ -533,6 +533,9 @@ fun ImageListView(
                 subtitleIconTinted = albumCategorySubtitleIconTinted,
                 showPhotos = true,
                 showVideos = true,
+                photoCount = target.photoCount,
+                videoCount = target.videoCount,
+                sizeBytes = target.size,
                 columns = gridColumns,
                 headerHeight = headerHeight,
                 contentPadding = gridPadding,
@@ -940,6 +943,9 @@ private fun DatePreviewPage(
     title: String,
     showPhotos: Boolean,
     showVideos: Boolean,
+    photoCount: Int? = null,
+    videoCount: Int? = null,
+    sizeBytes: Long? = null,
     columns: Int,
     headerHeight: Dp,
     contentPadding: PaddingValues,
@@ -948,10 +954,14 @@ private fun DatePreviewPage(
     subtitleIcon: Int = R.drawable.folder,
     subtitleIconTinted: Boolean = true,
 ) {
-    val videoCount = remember(images) { images.count { null != it.video } }
-    val photoCount = images.size - videoCount
-    val totalSize = remember(images) { images.sumOf { it.size.coerceAtLeast(0) } }
-    val typeFilterActive = photoCount > 0 && videoCount > 0 && !(showPhotos && showVideos)
+    val countedVideo = remember(images) { images.count { null != it.video } }
+    val countedPhoto = images.size - countedVideo
+    val headerVideoCount = videoCount ?: countedVideo
+    val headerPhotoCount = photoCount ?: countedPhoto
+    val summedSize = remember(images) { images.sumOf { it.size.coerceAtLeast(0) } }
+    val totalSize = sizeBytes ?: summedSize
+    val typeFilterActive =
+        headerPhotoCount > 0 && headerVideoCount > 0 && !(showPhotos && showVideos)
     val visibleImages = remember(images, typeFilterActive, showPhotos, showVideos) {
         if (typeFilterActive) images.filter { if (null == it.video) showPhotos else showVideos } else images
     }
@@ -977,8 +987,8 @@ private fun DatePreviewPage(
 
         ImageListHeaderInfo(
             title = title,
-            photoCount = photoCount,
-            videoCount = videoCount,
+            photoCount = headerPhotoCount,
+            videoCount = headerVideoCount,
             photosEnabled = !typeFilterActive || showPhotos,
             videosEnabled = !typeFilterActive || showVideos,
             sizeBytes = totalSize,

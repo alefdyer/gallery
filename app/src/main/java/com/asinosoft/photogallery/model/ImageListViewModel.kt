@@ -460,7 +460,23 @@ class ImageListViewModel @Inject constructor(
         }
     }
 
-    fun albumImages(albumId: Long): Flow<List<Media>> = albumDao.getMediaInAlbum(albumId)
+    /**
+     * Превью соседа для свайпа. Большой альбом — только первая порция,
+     * полный список дочитывает уже экран после перехода.
+     */
+    fun albumImages(albumId: Long): Flow<List<Media>> = flow {
+        val meta = withContext(Dispatchers.IO) { albumDao.getAlbumById(albumId) }
+        val size = maxOf(meta.count, meta.photoCount + meta.videoCount)
+        if (size > ALBUM_PREVIEW_THRESHOLD) {
+            emit(
+                withContext(Dispatchers.IO) {
+                    albumDao.getMediaInAlbumLimited(albumId, ALBUM_PREVIEW_LIMIT)
+                }
+            )
+        } else {
+            emitAll(albumDao.getMediaInAlbum(albumId).flowOn(Dispatchers.IO))
+        }
+    }
 
     fun adjacentDateFilter(older: Boolean): DateFilter? {
         val filter = activeDateFilter.value ?: return null
