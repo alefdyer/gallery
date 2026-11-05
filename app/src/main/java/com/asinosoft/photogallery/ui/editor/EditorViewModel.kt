@@ -145,9 +145,52 @@ class EditorViewModel @Inject constructor(
         commit { EditState(trimEndMs = _media.value?.video?.duration?.takeIf { it > 0 }) }
     }
 
-    fun rotate90() = commit { it.copy(rotationDegrees = (it.rotationDegrees + 90) % 360) }
-    fun flipHorizontal() = commit { it.copy(flipHorizontal = !it.flipHorizontal) }
-    fun setCrop(crop: CropRect?) = commit { it.copy(crop = crop) }
+    fun rotate90() = commit { state ->
+        state.copy(
+            rotationDegrees = (state.rotationDegrees + 270) % 360,
+            crop = state.crop?.rotatedCounterClockwise(),
+        )
+    }
+
+    fun flipHorizontal() = commit { state ->
+        state.copy(
+            flipHorizontal = !state.flipHorizontal,
+            crop = state.crop?.mirroredHorizontally(),
+        )
+    }
+
+    fun flipVertical() = commit { state ->
+        state.copy(
+            flipVertical = !state.flipVertical,
+            crop = state.crop?.mirroredVertically(),
+        )
+    }
+
+    fun setCrop(crop: CropRect?) =
+        commit { it.copy(crop = crop?.takeUnless { rect -> rect.isFull() }) }
+
+    private var cropBeforeDrag: EditState? = null
+
+    fun beginCropDrag() {
+        if (cropBeforeDrag == null) cropBeforeDrag = _edit.value
+    }
+
+    fun updateCrop(crop: CropRect) {
+        _edit.update { it.copy(crop = crop) }
+    }
+
+    fun endCropDrag() {
+        val start = cropBeforeDrag ?: return
+        cropBeforeDrag = null
+        val cropped = _edit.value.crop?.takeUnless { it.isFull() }
+        val now = _edit.value.copy(crop = cropped)
+        _edit.value = now
+        if (start == now) return
+        undoStack.addLast(start)
+        while (undoStack.size > 40) undoStack.removeFirst()
+        redoStack.clear()
+        updateHistoryFlags()
+    }
     fun setPerspective(quad: PerspectiveQuad?, recordHistory: Boolean = true) {
         val next =
             { s: EditState -> s.copy(perspective = quad?.takeUnless { q -> q.isIdentity() }) }

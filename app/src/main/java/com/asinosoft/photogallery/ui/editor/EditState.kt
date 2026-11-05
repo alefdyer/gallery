@@ -49,8 +49,8 @@ data class StickerOverlay(
 )
 
 /**
- * Нормализованный crop в координатах исходного изображения 0..1.
- * null — без обрезки.
+ * Нормализованный crop в координатах показанного изображения 0..1
+ * (уже после отражения и поворота). null — без обрезки.
  */
 data class CropRect(
     val left: Float = 0f,
@@ -59,6 +59,32 @@ data class CropRect(
     val bottom: Float = 1f,
 ) {
     fun toRect() = Rect(left, top, right, bottom)
+
+    fun isFull(): Boolean =
+        left <= 0.001f && top <= 0.001f && right >= 0.999f && bottom >= 0.999f
+
+    fun mirroredHorizontally(): CropRect = CropRect(1f - right, top, 1f - left, bottom)
+
+    fun mirroredVertically(): CropRect = CropRect(left, 1f - bottom, right, 1f - top)
+
+    /** Поворот содержимого на 90° против часовой стрелки. */
+    fun rotatedCounterClockwise(): CropRect = CropRect(top, 1f - right, bottom, 1f - left)
+
+    companion object {
+        /** Прямоугольник по центру с заданным отношением ширины к высоте в пикселях. */
+        fun centered(imageWidth: Int, imageHeight: Int, aspect: Float): CropRect {
+            if (imageWidth <= 0 || imageHeight <= 0 || aspect <= 0f) return CropRect()
+            val imageAspect = imageWidth.toFloat() / imageHeight
+            val (width, height) = if (aspect >= imageAspect) {
+                1f to (imageAspect / aspect).coerceIn(0.08f, 1f)
+            } else {
+                (aspect / imageAspect).coerceIn(0.08f, 1f) to 1f
+            }
+            val left = (1f - width) / 2f
+            val top = (1f - height) / 2f
+            return CropRect(left, top, left + width, top + height)
+        }
+    }
 }
 
 /**
@@ -85,6 +111,7 @@ data class PerspectiveQuad(
 data class EditState(
     val rotationDegrees: Int = 0,
     val flipHorizontal: Boolean = false,
+    val flipVertical: Boolean = false,
     val crop: CropRect? = null,
     val perspective: PerspectiveQuad? = null,
     val filter: FilterPreset = FilterPreset.ORIGINAL,

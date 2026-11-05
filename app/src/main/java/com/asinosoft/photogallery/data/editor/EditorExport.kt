@@ -48,6 +48,14 @@ class EditorExport @Inject constructor(
 ) {
     fun renderPhoto(source: Bitmap, state: EditState): Bitmap {
         var bmp = source.copy(Bitmap.Config.ARGB_8888, true)
+        if (state.rotationDegrees % 360 != 0 || state.flipHorizontal || state.flipVertical) {
+            val m = Matrix().apply {
+                if (state.flipHorizontal) postScale(-1f, 1f, bmp.width / 2f, bmp.height / 2f)
+                if (state.flipVertical) postScale(1f, -1f, bmp.width / 2f, bmp.height / 2f)
+                postRotate(state.rotationDegrees % 360f, bmp.width / 2f, bmp.height / 2f)
+            }
+            bmp = Bitmap.createBitmap(bmp, 0, 0, bmp.width, bmp.height, m, true)
+        }
         state.crop?.let { crop ->
             val l = (crop.left * bmp.width).roundToInt().coerceIn(0, bmp.width - 1)
             val t = (crop.top * bmp.height).roundToInt().coerceIn(0, bmp.height - 1)
@@ -57,13 +65,6 @@ class EditorExport @Inject constructor(
         }
         state.perspective?.let { quad ->
             bmp = applyPerspective(bmp, quad)
-        }
-        if (state.rotationDegrees % 360 != 0 || state.flipHorizontal) {
-            val m = Matrix().apply {
-                if (state.flipHorizontal) postScale(-1f, 1f, bmp.width / 2f, bmp.height / 2f)
-                postRotate(state.rotationDegrees % 360f, bmp.width / 2f, bmp.height / 2f)
-            }
-            bmp = Bitmap.createBitmap(bmp, 0, 0, bmp.width, bmp.height, m, true)
         }
         val matrix = colorMatrix(state.filter, state.adjust)
         if (matrix != null) {

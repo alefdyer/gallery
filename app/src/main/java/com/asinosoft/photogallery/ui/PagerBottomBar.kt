@@ -46,13 +46,10 @@ fun PagerBottomBar(
                     contentDescription = stringResource(R.string.add_to_album)
                 )
             }
-            IconButton(onClick = onFavorite) {
+            IconButton(onClick = onEdit) {
                 Icon(
-                    painter = painterResource(if (favorite) R.drawable.favorite else R.drawable.favorite_border),
-                    contentDescription = stringResource(
-                        if (favorite) R.string.remove_from_favorites else R.string.add_to_favorites
-                    ),
-                    tint = if (favorite) FavoriteRed else LocalContentColor.current
+                    painter = painterResource(R.drawable.brush),
+                    contentDescription = stringResource(R.string.edit)
                 )
             }
             IconButton(onClick = onShare) {
@@ -61,10 +58,13 @@ fun PagerBottomBar(
                     contentDescription = stringResource(R.string.share)
                 )
             }
-            IconButton(onClick = onEdit) {
+            IconButton(onClick = onFavorite) {
                 Icon(
-                    painter = painterResource(R.drawable.brush),
-                    contentDescription = stringResource(R.string.edit)
+                    painter = painterResource(if (favorite) R.drawable.favorite else R.drawable.favorite_border),
+                    contentDescription = stringResource(
+                        if (favorite) R.string.remove_from_favorites else R.string.add_to_favorites
+                    ),
+                    tint = if (favorite) FavoriteRed else LocalContentColor.current
                 )
             }
             IconButton(onClick = onDelete) {

@@ -5,6 +5,8 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -52,6 +54,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -61,23 +64,28 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.ColorMatrix
-import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.clipRect
+import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChanged
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
@@ -98,10 +106,15 @@ import com.asinosoft.photogallery.data.editor.EditorExport
 import com.asinosoft.photogallery.data.editor.StickerCategory
 import com.asinosoft.photogallery.data.editor.StickerItem
 import com.asinosoft.photogallery.ui.component.ZoomableMediaBox
+import kotlin.math.abs
 import kotlin.math.atan2
+import kotlin.math.cos
 import kotlin.math.hypot
 import kotlin.math.max
+import kotlin.math.min
 import kotlin.math.roundToInt
+import kotlin.math.sin
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -179,12 +192,58 @@ fun EditorScreen(
     }
 
     var confirmLeave by remember { mutableStateOf(false) }
+    var confirmRevert by remember { mutableStateOf(false) }
     fun requestClose() {
         if (saving) return
         if (hasEdits) confirmLeave = true else onClose()
     }
     BackHandler {
-        if (confirmLeave) confirmLeave = false else requestClose()
+        when {
+            confirmRevert -> confirmRevert = false
+            confirmLeave -> confirmLeave = false
+            else -> requestClose()
+        }
+    }
+
+    val sourceWidth = media?.image?.width ?: 0
+    val sourceHeight = media?.image?.height ?: 0
+    val quarterTurn = edit.rotationDegrees % 180 != 0
+    val displayWidth = if (quarterTurn) sourceHeight else sourceWidth
+    val displayHeight = if (quarterTurn) sourceWidth else sourceHeight
+    val toolPanel: @Composable (Modifier) -> Unit = { panelModifier ->
+        EditorToolPanel(
+            tab = tab,
+            edit = edit,
+            imageWidth = displayWidth,
+            imageHeight = displayHeight,
+            previewUri = media?.uri,
+            isVideo = isVideo,
+            stickerCategories = stickerCats,
+            addMode = addMode,
+            model = model,
+            onOpenStickerOrder = onOpenStickerOrder,
+            trimPositionMs = videoPositionMs,
+            trimPlaying = videoPlaying,
+            onTrimPlayingChange = { playing ->
+                videoPlaying = playing
+                if (playing && videoPlayer.currentPosition !in trimStart..trimEnd.coerceAtLeast(
+                        trimStart
+                    )
+                ) {
+                    videoPlayer.seekTo(trimStart)
+                }
+            },
+            onTrimRangeChange = { start, end ->
+                model.setTrim(start, end, recordHistory = false)
+                if (videoPlayer.currentPosition < start || videoPlayer.currentPosition > end) {
+                    videoPlayer.seekTo(start)
+                }
+            },
+            onTrimRangeFinished = {
+                model.setTrim(edit.trimStartMs, edit.trimEndMs ?: trimEnd, recordHistory = true)
+            },
+            modifier = panelModifier,
+        )
     }
 
     Box(
@@ -199,7 +258,7 @@ fun EditorScreen(
                 onBack = ::requestClose,
                 onUndo = model::undo,
                 onRedo = model::redo,
-                onRevert = model::revert,
+                onRevert = { if (hasEdits) confirmRevert = true },
                 onSave = { model.save { ok -> if (ok) onClose() } },
                 saving = saving,
             )
@@ -208,10 +267,9 @@ fun EditorScreen(
                 Modifier
                     .weight(1f)
                     .fillMaxWidth()
-                    .padding(horizontal = if (tab == EditorTab.TRANSFORM) 20.dp else 8.dp)
                     .then(
                         if (tab == EditorTab.TRANSFORM) Modifier.systemGestureExclusion()
-                        else Modifier
+                        else Modifier.padding(horizontal = 8.dp)
                     ),
                 contentAlignment = Alignment.Center,
             ) {
@@ -225,50 +283,36 @@ fun EditorScreen(
                             )
                         }
                     } else {
-                        EditorPhotoPreview(
-                            uri = uri,
-                            edit = edit,
-                            model = model,
-                            tab = tab,
-                            addMode = addMode,
-                            selectedStickerId = selectedStickerId,
-                        )
+                        Box(
+                            Modifier
+                                .fillMaxSize()
+                                .padding(
+                                    horizontal = if (tab == EditorTab.TRANSFORM) 9.dp else 0.dp,
+                                ),
+                        ) {
+                            EditorPhotoPreview(
+                                uri = uri,
+                                edit = edit,
+                                model = model,
+                                tab = tab,
+                                addMode = addMode,
+                                selectedStickerId = selectedStickerId,
+                                imageWidth = sourceWidth,
+                                imageHeight = sourceHeight,
+                            )
+                        }
                     }
                 } else {
                     CircularProgressIndicator(color = Color.White)
                 }
+                if (tab == EditorTab.TRANSFORM) {
+                    toolPanel(Modifier.align(Alignment.BottomCenter))
+                }
             }
 
-            EditorToolPanel(
-                tab = tab,
-                edit = edit,
-                previewUri = media?.uri,
-                isVideo = isVideo,
-                stickerCategories = stickerCats,
-                addMode = addMode,
-                model = model,
-                onOpenStickerOrder = onOpenStickerOrder,
-                trimPositionMs = videoPositionMs,
-                trimPlaying = videoPlaying,
-                onTrimPlayingChange = { playing ->
-                    videoPlaying = playing
-                    if (playing && videoPlayer.currentPosition !in trimStart..trimEnd.coerceAtLeast(
-                            trimStart
-                        )
-                    ) {
-                        videoPlayer.seekTo(trimStart)
-                    }
-                },
-                onTrimRangeChange = { start, end ->
-                    model.setTrim(start, end, recordHistory = false)
-                    if (videoPlayer.currentPosition < start || videoPlayer.currentPosition > end) {
-                        videoPlayer.seekTo(start)
-                    }
-                },
-                onTrimRangeFinished = {
-                    model.setTrim(edit.trimStartMs, edit.trimEndMs ?: trimEnd, recordHistory = true)
-                },
-            )
+            if (tab != EditorTab.TRANSFORM) {
+                toolPanel(Modifier)
+            }
 
             EditorBottomBar(
                 tabs = tabs,
@@ -286,6 +330,26 @@ fun EditorScreen(
             ) {
                 CircularProgressIndicator(color = Color.White)
             }
+        }
+
+        if (confirmRevert) {
+            AlertDialog(
+                onDismissRequest = { confirmRevert = false },
+                text = { Text(stringResource(R.string.editor_revert_message)) },
+                confirmButton = {
+                    TextButton(onClick = {
+                        confirmRevert = false
+                        model.revert()
+                    }) {
+                        Text(stringResource(R.string.editor_revert_original))
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { confirmRevert = false }) {
+                        Text(stringResource(R.string.cancel))
+                    }
+                },
+            )
         }
 
         if (confirmLeave) {
@@ -374,34 +438,132 @@ private fun EditorPhotoPreview(
     tab: EditorTab,
     addMode: Int,
     selectedStickerId: Long?,
+    imageWidth: Int,
+    imageHeight: Int,
 ) {
     val matrix = remember(edit.filter, edit.adjust) {
         EditorExport.colorMatrix(edit.filter, edit.adjust)?.let { androidMatrix ->
             ColorFilter.colorMatrix(ColorMatrix(androidMatrix.array.copyOf()))
         }
     }
+    var settled by remember { mutableStateOf(edit) }
+    var frozen by remember { mutableStateOf<EditState?>(null) }
+    val spinChanged = settled.rotationDegrees != edit.rotationDegrees
+            || settled.flipHorizontal != edit.flipHorizontal
+            || settled.flipVertical != edit.flipVertical
+    var turn by remember { mutableFloatStateOf(0f) }
+    var mirrorX by remember { mutableFloatStateOf(1f) }
+    var mirrorY by remember { mutableFloatStateOf(1f) }
+    if (spinChanged && frozen == null) {
+        frozen = settled
+        turn = 0f
+        mirrorX = 1f
+        mirrorY = 1f
+    } else if (!spinChanged && frozen == null && settled != edit) {
+        settled = edit
+    }
+    val pose = frozen ?: edit
+    val targetEdit = rememberUpdatedState(edit)
+    LaunchedEffect(frozen) {
+        val from = frozen ?: return@LaunchedEffect
+        val target = targetEdit.value
+        val rotDelta = signedDegrees(from.rotationDegrees, target.rotationDegrees)
+        val toX = if (target.flipHorizontal != from.flipHorizontal) -1f else 1f
+        val toY = if (target.flipVertical != from.flipVertical) -1f else 1f
+        val progress = Animatable(0f)
+        try {
+            progress.animateTo(1f, tween(320, easing = FastOutSlowInEasing)) {
+                turn = rotDelta * value
+                mirrorX = 1f + (toX - 1f) * value
+                mirrorY = 1f + (toY - 1f) * value
+            }
+        } finally {
+            turn = 0f
+            mirrorX = 1f
+            mirrorY = 1f
+            settled = target
+            frozen = null
+        }
+    }
+    val poseQuarter = pose.rotationDegrees % 180 != 0
+    val pixelW = if (poseQuarter) imageHeight else imageWidth
+    val pixelH = if (poseQuarter) imageWidth else imageHeight
     var draftStroke by remember { mutableStateOf<List<StrokePoint>>(emptyList()) }
     var boxSize by remember { mutableStateOf(IntSize.Zero) }
-    var dragCorner by remember { mutableStateOf<Int?>(null) }
-    // Чуть от края — иначе системный жест «назад» перехватывает углы.
-    val quad = edit.perspective ?: PerspectiveQuad(
-        topLeftX = 0.08f,
-        topLeftY = 0.08f,
-        topRightX = 0.92f,
-        topRightY = 0.08f,
-        bottomRightX = 0.92f,
-        bottomRightY = 0.92f,
-        bottomLeftX = 0.08f,
-        bottomLeftY = 0.92f,
-    )
+    val crop = pose.crop ?: CropRect()
+    val cropState = rememberUpdatedState(crop)
     val density = LocalDensity.current
-    val handleHitPx = with(density) { 44.dp.toPx() }
+    val handleHitPx = with(density) { 36.dp.toPx() }
+    var gestureLock by remember { mutableStateOf<CropLayout?>(null) }
+    var gestureSerial by remember { mutableIntStateOf(0) }
+    val settleScope = rememberCoroutineScope()
+    var settleJob by remember { mutableStateOf<Job?>(null) }
+    val settle = remember { Animatable(1f) }
+    var settleFrom by remember { mutableStateOf<CropLayout?>(null) }
+    var settleTo by remember { mutableStateOf<CropLayout?>(null) }
+    var settleCrop by remember { mutableStateOf(CropRect()) }
+    val fittedLayout = if (boxSize.width > 0 && boxSize.height > 0) {
+        cropLayout(boxSize.width.toFloat(), boxSize.height.toFloat(), pixelW, pixelH, crop)
+    } else {
+        null
+    }
+    val liveLayout = if (tab == EditorTab.TRANSFORM) fittedLayout else null
+    val settling = settleFrom != null && settleTo != null && settle.value < 1f
+    val imageLayout = when {
+        gestureLock != null -> gestureLock
+        settling -> lerpLayout(settleFrom!!, settleTo!!, settle.value)
+        else -> liveLayout
+    }
+    val frame = when {
+        gestureLock != null -> frameFromCrop(crop, gestureLock!!)
+        settling -> frameFromCrop(settleCrop, imageLayout!!)
+        liveLayout != null -> liveLayout.frame
+        else -> null
+    }
     val zoomEnabled = tab != EditorTab.TRANSFORM
 
+    val shownTurn = if (frozen != null) turn else 0f
+    val shownMirrorX = if (frozen != null) mirrorX else 1f
+    val shownMirrorY = if (frozen != null) mirrorY else 1f
+    val visibleFrame = if (tab != EditorTab.TRANSFORM) fittedLayout?.frame else null
+    val orientScale = orientationFitScale(
+        contentWidth = when {
+            visibleFrame != null -> visibleFrame.width
+            imageLayout != null -> imageLayout.imageWidth
+            pixelW > 0 && pixelH > 0 && boxSize.width > 0 -> maxFrame(
+                boxSize.width.toFloat(),
+                boxSize.height.toFloat(),
+                pixelW.toFloat() / pixelH,
+            ).width
+
+            else -> 0f
+        },
+        contentHeight = when {
+            visibleFrame != null -> visibleFrame.height
+            imageLayout != null -> imageLayout.imageHeight
+            pixelW > 0 && pixelH > 0 && boxSize.width > 0 -> maxFrame(
+                boxSize.width.toFloat(),
+                boxSize.height.toFloat(),
+                pixelW.toFloat() / pixelH,
+            ).height
+
+            else -> 0f
+        },
+        boxWidth = boxSize.width.toFloat(),
+        boxHeight = boxSize.height.toFloat(),
+        degrees = shownTurn,
+    )
     EditorZoomBox(zoomEnabled = zoomEnabled) {
         Box(
             Modifier
                 .fillMaxSize()
+                .clipToBounds()
+                .graphicsLayer {
+                    transformOrigin = TransformOrigin.Center
+                    rotationZ = shownTurn
+                    scaleX = orientScale * shownMirrorX
+                    scaleY = orientScale * shownMirrorY
+                }
                 .onSizeChanged { boxSize = it }
                 .then(if (tab == EditorTab.TRANSFORM) Modifier.systemGestureExclusion() else Modifier)
                 .then(
@@ -436,42 +598,135 @@ private fun EditorPhotoPreview(
                             )
                         }
 
-                        tab == EditorTab.TRANSFORM -> Modifier.pointerInput(quad, boxSize) {
+                        tab == EditorTab.TRANSFORM -> Modifier.pointerInput(
+                            boxSize,
+                            pixelW,
+                            pixelH
+                        ) {
                             if (boxSize.width == 0) return@pointerInput
-                            fun corners(): List<Offset> = listOf(
-                                Offset(quad.topLeftX * size.width, quad.topLeftY * size.height),
-                                Offset(quad.topRightX * size.width, quad.topRightY * size.height),
-                                Offset(
-                                    quad.bottomRightX * size.width,
-                                    quad.bottomRightY * size.height
-                                ),
-                                Offset(
-                                    quad.bottomLeftX * size.width,
-                                    quad.bottomLeftY * size.height
-                                ),
+                            fun layoutOf(rect: CropRect) = cropLayout(
+                                size.width.toFloat(),
+                                size.height.toFloat(),
+                                pixelW,
+                                pixelH,
+                                rect,
                             )
-                            detectDragGestures(
-                                onDragStart = { offset ->
-                                    dragCorner = corners().indexOfFirst { c ->
-                                        hypot(c.x - offset.x, c.y - offset.y) <= handleHitPx
-                                    }.takeIf { it >= 0 }
-                                },
-                                onDrag = { change, _ ->
-                                    val idx = dragCorner ?: return@detectDragGestures
-                                    change.consume()
-                                    val nx = (change.position.x / size.width).coerceIn(0f, 1f)
-                                    val ny = (change.position.y / size.height).coerceIn(0f, 1f)
-                                    val next = when (idx) {
-                                        0 -> quad.copy(topLeftX = nx, topLeftY = ny)
-                                        1 -> quad.copy(topRightX = nx, topRightY = ny)
-                                        2 -> quad.copy(bottomRightX = nx, bottomRightY = ny)
-                                        else -> quad.copy(bottomLeftX = nx, bottomLeftY = ny)
+                            awaitEachGesture {
+                                val down = awaitFirstDown(requireUnconsumed = false)
+                                val mine = gestureSerial + 1
+                                gestureSerial = mine
+                                val pointers =
+                                    LinkedHashMap<androidx.compose.ui.input.pointer.PointerId, Offset>()
+                                pointers[down.id] = down.position
+                                var working = cropState.value
+                                val startLayout = layoutOf(working)
+                                val handle = cropHandleAt(
+                                    down.position,
+                                    frameFromCrop(working, startLayout),
+                                    handleHitPx,
+                                )
+                                if (handle >= 0) gestureLock = startLayout else gestureLock = null
+                                settleJob?.cancel()
+                                settleJob = null
+                                if (handle < 0) {
+                                    settleFrom = null
+                                    settleTo = null
+                                }
+                                model.beginCropDrag()
+                                try {
+                                    var event = awaitPointerEvent()
+                                    while (event.changes.fastAny { it.pressed }) {
+                                        val before = HashMap(pointers)
+                                        event.changes.fastForEach { change ->
+                                            if (change.pressed) pointers[change.id] =
+                                                change.position
+                                            else pointers.remove(change.id)
+                                        }
+                                        if (handle >= 0) {
+                                            val change =
+                                                event.changes.firstOrNull { it.id == down.id && it.pressed }
+                                            if (change != null && change.positionChanged()) {
+                                                val delta =
+                                                    change.position - change.previousPosition
+                                                change.consume()
+                                                working = moveCrop(
+                                                    working,
+                                                    handle,
+                                                    delta.x / startLayout.imageWidth,
+                                                    delta.y / startLayout.imageHeight,
+                                                )
+                                                model.updateCrop(working)
+                                            }
+                                        } else if (pointers.size >= 2) {
+                                            val ids = pointers.keys.take(2).toList()
+                                            val startA = before[ids[0]] ?: pointers.getValue(ids[0])
+                                            val startB = before[ids[1]] ?: pointers.getValue(ids[1])
+                                            val endA = pointers.getValue(ids[0])
+                                            val endB = pointers.getValue(ids[1])
+                                            val spanBefore = hypot(
+                                                startB.x - startA.x,
+                                                startB.y - startA.y,
+                                            ).coerceAtLeast(1f)
+                                            val spanAfter = hypot(
+                                                endB.x - endA.x,
+                                                endB.y - endA.y,
+                                            ).coerceAtLeast(1f)
+                                            working = zoomCrop(working, spanAfter / spanBefore)
+                                            model.updateCrop(working)
+                                            event.changes.fastForEach {
+                                                if (it.positionChanged()) it.consume()
+                                            }
+                                        } else {
+                                            val pan = event.calculatePan()
+                                            val lay = layoutOf(working)
+                                            working = panCrop(
+                                                working,
+                                                pan.x,
+                                                pan.y,
+                                                lay.imageWidth,
+                                                lay.imageHeight,
+                                            )
+                                            model.updateCrop(working)
+                                            event.changes.fastForEach {
+                                                if (it.positionChanged()) it.consume()
+                                            }
+                                        }
+                                        event = awaitPointerEvent()
                                     }
-                                    model.setPerspective(next, recordHistory = false)
-                                },
-                                onDragEnd = { dragCorner = null },
-                                onDragCancel = { dragCorner = null },
-                            )
+                                } finally {
+                                    if (gestureSerial != mine) return@awaitEachGesture
+                                    if (handle >= 0) {
+                                        val serial = mine
+                                        val from = startLayout
+                                        val to = layoutOf(working)
+                                        val cropNow = working
+                                        settleJob = settleScope.launch {
+                                            if (gestureSerial != serial) return@launch
+                                            settleCrop = cropNow
+                                            settleFrom = from
+                                            settleTo = to
+                                            settle.snapTo(0f)
+                                            if (gestureSerial != serial) return@launch
+                                            gestureLock = null
+                                            try {
+                                                settle.animateTo(
+                                                    1f,
+                                                    tween(320, easing = FastOutSlowInEasing),
+                                                )
+                                            } finally {
+                                                if (gestureSerial == serial) {
+                                                    gestureLock = null
+                                                    settleFrom = null
+                                                    settleTo = null
+                                                }
+                                            }
+                                        }
+                                    } else {
+                                        gestureLock = null
+                                    }
+                                    model.endCropDrag()
+                                }
+                            }
                         }
 
                         else -> Modifier
@@ -479,39 +734,175 @@ private fun EditorPhotoPreview(
                 ),
             contentAlignment = Alignment.Center,
         ) {
-            AsyncImage(
-                model = uri,
-                contentDescription = null,
-                contentScale = ContentScale.Fit,
-                colorFilter = matrix,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .clip(RoundedCornerShape(2.dp)),
+            val rotation = pose.rotationDegrees % 360
+            val quarterTurn = rotation == 90 || rotation == 270
+            val otherLayout = if (tab != EditorTab.TRANSFORM) fittedLayout else null
+            val slot = when {
+                imageLayout != null -> ImageFit(
+                    imageLayout.imageLeft,
+                    imageLayout.imageTop,
+                    imageLayout.imageWidth,
+                    imageLayout.imageHeight,
+                )
+
+                quarterTurn && boxSize.width > 0 && pixelW > 0 && pixelH > 0 -> maxFrame(
+                    boxSize.width.toFloat(),
+                    boxSize.height.toFloat(),
+                    pixelW.toFloat() / pixelH,
+                )
+
+                else -> null
+            }
+            val photoModifier = Modifier.rotatedImage(
+                left = (otherLayout?.imageLeft ?: slot?.left ?: 0f),
+                top = (otherLayout?.imageTop ?: slot?.top ?: 0f),
+                width = (otherLayout?.imageWidth ?: slot?.width ?: 0f),
+                height = (otherLayout?.imageHeight ?: slot?.height ?: 0f),
+                rotationDegrees = rotation,
+                flipHorizontal = pose.flipHorizontal,
+                flipVertical = pose.flipVertical,
             )
-            if (tab == EditorTab.TRANSFORM && boxSize.width > 0) {
+            if (otherLayout != null) {
+                val cropFrame = otherLayout.frame
+                Box(
+                    Modifier
+                        .fillMaxSize()
+                        .drawWithContent {
+                            val content = this
+                            clipRect(
+                                cropFrame.left,
+                                cropFrame.top,
+                                cropFrame.left + cropFrame.width,
+                                cropFrame.top + cropFrame.height,
+                            ) {
+                                content.drawContent()
+                            }
+                        },
+                ) {
+                    AsyncImage(
+                        model = uri,
+                        contentDescription = null,
+                        contentScale = ContentScale.FillBounds,
+                        colorFilter = matrix,
+                        modifier = photoModifier,
+                    )
+                }
+            } else {
+                AsyncImage(
+                    model = uri,
+                    contentDescription = null,
+                    contentScale = if (slot != null) ContentScale.FillBounds else ContentScale.Fit,
+                    colorFilter = matrix,
+                    modifier = if (slot != null) {
+                        photoModifier
+                    } else {
+                        Modifier
+                            .fillMaxSize()
+                            .clip(RoundedCornerShape(2.dp))
+                            .spinFlip(rotation, pose.flipHorizontal, pose.flipVertical)
+                    },
+                )
+            }
+            if (frame != null) {
                 Canvas(Modifier.fillMaxSize()) {
-                    val pts = listOf(
-                        Offset(quad.topLeftX * size.width, quad.topLeftY * size.height),
-                        Offset(quad.topRightX * size.width, quad.topRightY * size.height),
-                        Offset(quad.bottomRightX * size.width, quad.bottomRightY * size.height),
-                        Offset(quad.bottomLeftX * size.width, quad.bottomLeftY * size.height),
+                    val left = frame.left
+                    val top = frame.top
+                    val right = frame.left + frame.width
+                    val bottom = frame.top + frame.height
+                    val shade = Color.Black.copy(alpha = 0.45f)
+                    drawRect(shade, Offset.Zero, Size(size.width, top.coerceAtLeast(0f)))
+                    drawRect(
+                        shade,
+                        Offset(0f, bottom),
+                        Size(size.width, (size.height - bottom).coerceAtLeast(0f)),
                     )
-                    val path = Path().apply {
-                        moveTo(pts[0].x, pts[0].y)
-                        lineTo(pts[1].x, pts[1].y)
-                        lineTo(pts[2].x, pts[2].y)
-                        lineTo(pts[3].x, pts[3].y)
-                        close()
-                    }
-                    drawPath(
-                        path,
-                        Color.White.copy(alpha = 0.85f),
-                        style = Stroke(width = 2.dp.toPx())
+                    drawRect(
+                        shade,
+                        Offset(0f, top),
+                        Size(left.coerceAtLeast(0f), (bottom - top).coerceAtLeast(0f))
                     )
-                    pts.forEach { p ->
-                        drawCircle(Color.White, radius = 11.dp.toPx(), center = p)
-                        drawCircle(Color(0xFFFFD54F), radius = 7.dp.toPx(), center = p)
+                    drawRect(
+                        shade,
+                        Offset(right, top),
+                        Size(
+                            (size.width - right).coerceAtLeast(0f),
+                            (bottom - top).coerceAtLeast(0f)
+                        ),
+                    )
+                    val frame = Color.White
+                    drawRect(
+                        frame,
+                        Offset(left, top),
+                        Size(right - left, bottom - top),
+                        style = Stroke(width = 1.5.dp.toPx()),
+                    )
+                    val thirdW = (right - left) / 3f
+                    val thirdH = (bottom - top) / 3f
+                    val grid = frame.copy(alpha = 0.55f)
+                    val gridStroke = Stroke(width = 1.dp.toPx())
+                    repeat(2) { i ->
+                        val x = left + thirdW * (i + 1)
+                        val y = top + thirdH * (i + 1)
+                        drawLine(
+                            grid,
+                            Offset(x, top),
+                            Offset(x, bottom),
+                            strokeWidth = gridStroke.width
+                        )
+                        drawLine(
+                            grid,
+                            Offset(left, y),
+                            Offset(right, y),
+                            strokeWidth = gridStroke.width
+                        )
                     }
+                    val arm = 16.dp.toPx()
+                    val thick = Stroke(width = 3.dp.toPx())
+                    fun corner(x: Float, y: Float, dx: Float, dy: Float) {
+                        drawLine(
+                            frame,
+                            Offset(x, y),
+                            Offset(x + dx * arm, y),
+                            strokeWidth = thick.width
+                        )
+                        drawLine(
+                            frame,
+                            Offset(x, y),
+                            Offset(x, y + dy * arm),
+                            strokeWidth = thick.width
+                        )
+                    }
+                    corner(left, top, 1f, 1f)
+                    corner(right, top, -1f, 1f)
+                    corner(right, bottom, -1f, -1f)
+                    corner(left, bottom, 1f, -1f)
+                    val bar = 18.dp.toPx()
+                    val midX = (left + right) / 2f
+                    val midY = (top + bottom) / 2f
+                    drawLine(
+                        frame,
+                        Offset(midX - bar, top),
+                        Offset(midX + bar, top),
+                        strokeWidth = thick.width
+                    )
+                    drawLine(
+                        frame,
+                        Offset(midX - bar, bottom),
+                        Offset(midX + bar, bottom),
+                        strokeWidth = thick.width
+                    )
+                    drawLine(
+                        frame,
+                        Offset(left, midY - bar),
+                        Offset(left, midY + bar),
+                        strokeWidth = thick.width
+                    )
+                    drawLine(
+                        frame,
+                        Offset(right, midY - bar),
+                        Offset(right, midY + bar),
+                        strokeWidth = thick.width
+                    )
                 }
             }
             EditorStickersLayer(
@@ -949,6 +1340,8 @@ private fun EditorVideoPreview(
 private fun EditorToolPanel(
     tab: EditorTab,
     edit: EditState,
+    imageWidth: Int,
+    imageHeight: Int,
     previewUri: Uri?,
     isVideo: Boolean,
     stickerCategories: List<StickerCategory>,
@@ -960,20 +1353,42 @@ private fun EditorToolPanel(
     onTrimPlayingChange: (Boolean) -> Unit = {},
     onTrimRangeChange: (Long, Long) -> Unit = { _, _ -> },
     onTrimRangeFinished: () -> Unit = {},
+    modifier: Modifier = Modifier,
 ) {
+    val cropPill = tab == EditorTab.TRANSFORM
     Column(
-        Modifier
-            .fillMaxWidth()
-            .background(Color(0xFF121212))
+        modifier
+            .then(
+                if (cropPill) Modifier
+                else Modifier
+                    .fillMaxWidth()
+                    .background(Color(0xFF121212))
+            )
             .padding(vertical = 8.dp)
+            .then(
+                if (!cropPill) Modifier
+                else Modifier.pointerInput(Unit) {
+                    awaitEachGesture {
+                        val down = awaitFirstDown(requireUnconsumed = true)
+                        down.consume()
+                        var event = awaitPointerEvent()
+                        while (event.changes.fastAny { it.pressed }) {
+                            event.changes.fastForEach { if (it.pressed) it.consume() }
+                            event = awaitPointerEvent()
+                        }
+                    }
+                }
+            )
     ) {
         when (tab) {
             EditorTab.AI -> AiPanel(onApply = model::applyAiEnhance)
             EditorTab.TRANSFORM -> TransformPanel(
+                imageWidth = imageWidth,
+                imageHeight = imageHeight,
+                onAspect = model::setCrop,
                 onRotate = model::rotate90,
-                onFlip = model::flipHorizontal,
-                onResetCrop = { model.setCrop(null) },
-                onResetPerspective = model::resetPerspective,
+                onFlipHorizontal = model::flipHorizontal,
+                onFlipVertical = model::flipVertical,
             )
 
             EditorTab.FILTER -> FilterPanel(
@@ -1038,30 +1453,321 @@ private fun AiPanel(onApply: () -> Unit) {
 
 @Composable
 private fun TransformPanel(
+    imageWidth: Int,
+    imageHeight: Int,
+    onAspect: (CropRect?) -> Unit,
     onRotate: () -> Unit,
-    onFlip: () -> Unit,
-    onResetCrop: () -> Unit,
-    onResetPerspective: () -> Unit,
+    onFlipHorizontal: () -> Unit,
+    onFlipVertical: () -> Unit,
 ) {
-    Column(Modifier.padding(horizontal = 12.dp)) {
-        Text(
-            text = stringResource(R.string.editor_perspective_hint),
-            color = Color.Gray,
-            fontSize = 12.sp,
-            modifier = Modifier.padding(bottom = 8.dp),
-        )
+    val aspects = remember { listOf<Float?>(null, 1f, 4f / 3f, 3f / 4f, 16f / 9f, 9f / 16f) }
+    var aspectIndex by remember { mutableIntStateOf(0) }
+    Row(
+        Modifier.padding(bottom = 4.dp),
+        horizontalArrangement = Arrangement.Center,
+    ) {
         Row(
             Modifier
-                .fillMaxWidth()
-                .horizontalScroll(rememberScrollState()),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                .clip(RoundedCornerShape(28.dp))
+                .background(Color(0xFF2A2A2A).copy(alpha = 0.72f))
+                .padding(horizontal = 8.dp, vertical = 2.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            ToolChip(stringResource(R.string.editor_rotate), onRotate)
-            ToolChip(stringResource(R.string.editor_flip), onFlip)
-            ToolChip(stringResource(R.string.editor_reset_crop), onResetCrop)
-            ToolChip(stringResource(R.string.editor_reset_perspective), onResetPerspective)
+            CropMenuButton(
+                icon = R.drawable.editor_flip_h,
+                description = stringResource(R.string.editor_flip),
+                onClick = onFlipHorizontal,
+            )
+            CropMenuButton(
+                icon = R.drawable.editor_rotate,
+                description = stringResource(R.string.editor_rotate),
+                onClick = onRotate,
+            )
+            CropMenuButton(
+                icon = R.drawable.editor_aspect,
+                description = stringResource(R.string.editor_aspect),
+                onClick = {
+                    aspectIndex = (aspectIndex + 1) % aspects.size
+                    val aspect = aspects[aspectIndex]
+                    onAspect(
+                        if (aspect == null) null
+                        else CropRect.centered(imageWidth, imageHeight, aspect),
+                    )
+                },
+            )
+            CropMenuButton(
+                icon = R.drawable.editor_flip_v,
+                description = stringResource(R.string.editor_flip_vertical),
+                onClick = onFlipVertical,
+            )
         }
     }
+}
+
+@Composable
+private fun CropMenuButton(
+    icon: Int,
+    description: String,
+    onClick: () -> Unit,
+) {
+    IconButton(onClick = onClick) {
+        Icon(
+            painterResource(icon),
+            contentDescription = description,
+            tint = Color.White,
+            modifier = Modifier.size(22.dp),
+        )
+    }
+}
+
+/** Рисует фото крупнее области просмотра: обычный size обрезается родителем и картинка тянется. */
+private fun Modifier.placedImage(left: Float, top: Float, width: Float, height: Float): Modifier =
+    layout { measurable, constraints ->
+        val w = width.roundToInt().coerceAtLeast(1)
+        val h = height.roundToInt().coerceAtLeast(1)
+        val placeable = measurable.measure(Constraints.fixed(w, h))
+        val layoutWidth = if (constraints.hasBoundedWidth) constraints.maxWidth else w
+        val layoutHeight = if (constraints.hasBoundedHeight) constraints.maxHeight else h
+        layout(layoutWidth, layoutHeight) {
+            placeable.place(left.roundToInt(), top.roundToInt())
+        }
+    }
+
+private fun signedDegrees(from: Int, to: Int): Float {
+    var delta = (to - from) % 360
+    if (delta > 180) delta -= 360
+    if (delta < -180) delta += 360
+    return delta.toFloat()
+}
+
+private fun orientationFitScale(
+    contentWidth: Float,
+    contentHeight: Float,
+    boxWidth: Float,
+    boxHeight: Float,
+    degrees: Float,
+): Float {
+    if (contentWidth <= 1f || contentHeight <= 1f || boxWidth <= 1f || boxHeight <= 1f) return 1f
+    if (abs(degrees) < 0.01f) return 1f
+    val radians = Math.toRadians(degrees.toDouble())
+    val cosine = abs(cos(radians)).toFloat()
+    val sine = abs(sin(radians)).toFloat()
+    val boundsW = contentWidth * cosine + contentHeight * sine
+    val boundsH = contentWidth * sine + contentHeight * cosine
+    val fitted = min(boxWidth / boundsW, boxHeight / boundsH)
+    val base = min(boxWidth / contentWidth, boxHeight / contentHeight)
+    if (base <= 0f) return 1f
+    return fitted / base
+}
+
+/** Слот в пропорциях после поворота. На 90° фото рисуется в обратных пропорциях и поворачивается вокруг центра. */
+private fun Modifier.rotatedImage(
+    left: Float,
+    top: Float,
+    width: Float,
+    height: Float,
+    rotationDegrees: Int,
+    flipHorizontal: Boolean,
+    flipVertical: Boolean,
+): Modifier {
+    val positioned = placedImage(left, top, width, height)
+    val quarterTurn = rotationDegrees == 90 || rotationDegrees == 270
+    if (!quarterTurn && rotationDegrees == 0 && !flipHorizontal && !flipVertical) return positioned
+    val slotW = width.roundToInt().coerceAtLeast(1)
+    val slotH = height.roundToInt().coerceAtLeast(1)
+    val imageW = if (quarterTurn) slotH else slotW
+    val imageH = if (quarterTurn) slotW else slotH
+    return positioned.layout { measurable, _ ->
+        val placeable = measurable.measure(Constraints.fixed(imageW, imageH))
+        layout(slotW, slotH) {
+            val x = (slotW - imageW) / 2
+            val y = (slotH - imageH) / 2
+            placeable.placeWithLayer(x, y) {
+                transformOrigin = TransformOrigin.Center
+                rotationZ = rotationDegrees.toFloat()
+                scaleX = if (flipHorizontal) -1f else 1f
+                scaleY = if (flipVertical) -1f else 1f
+            }
+        }
+    }
+}
+
+private fun Modifier.spinFlip(
+    rotationDegrees: Int,
+    flipHorizontal: Boolean,
+    flipVertical: Boolean
+): Modifier {
+    if (rotationDegrees == 0 && !flipHorizontal && !flipVertical) return this
+    return graphicsLayer {
+        transformOrigin = TransformOrigin.Center
+        rotationZ = rotationDegrees.toFloat()
+        scaleX = if (flipHorizontal) -1f else 1f
+        scaleY = if (flipVertical) -1f else 1f
+    }
+}
+
+private data class ImageFit(val left: Float, val top: Float, val width: Float, val height: Float)
+
+private data class CropLayout(
+    val frame: ImageFit,
+    val imageLeft: Float,
+    val imageTop: Float,
+    val imageWidth: Float,
+    val imageHeight: Float,
+)
+
+private fun lerpLayout(from: CropLayout, to: CropLayout, fraction: Float): CropLayout {
+    val t = fraction.coerceIn(0f, 1f)
+    return CropLayout(
+        frame = to.frame,
+        imageLeft = from.imageLeft + (to.imageLeft - from.imageLeft) * t,
+        imageTop = from.imageTop + (to.imageTop - from.imageTop) * t,
+        imageWidth = from.imageWidth + (to.imageWidth - from.imageWidth) * t,
+        imageHeight = from.imageHeight + (to.imageHeight - from.imageHeight) * t,
+    )
+}
+
+private fun cropLayout(
+    boxWidth: Float,
+    boxHeight: Float,
+    imageWidth: Int,
+    imageHeight: Int,
+    crop: CropRect,
+): CropLayout {
+    val cropWidth = (crop.right - crop.left).coerceAtLeast(0.08f)
+    val cropHeight = (crop.bottom - crop.top).coerceAtLeast(0.08f)
+    val pixelWidth = if (imageWidth > 0) imageWidth.toFloat() else boxWidth
+    val pixelHeight = if (imageHeight > 0) imageHeight.toFloat() else boxHeight
+    val aspect = (cropWidth * pixelWidth) / (cropHeight * pixelHeight)
+    val frame = maxFrame(boxWidth, boxHeight, aspect)
+    val drawWidth = frame.width / cropWidth
+    val drawHeight = frame.height / cropHeight
+    return CropLayout(
+        frame = frame,
+        imageLeft = frame.left - crop.left * drawWidth,
+        imageTop = frame.top - crop.top * drawHeight,
+        imageWidth = drawWidth,
+        imageHeight = drawHeight,
+    )
+}
+
+private fun maxFrame(boxWidth: Float, boxHeight: Float, pixelAspect: Float): ImageFit {
+    if (boxWidth <= 0f || boxHeight <= 0f) return ImageFit(0f, 0f, boxWidth, boxHeight)
+    val aspect = pixelAspect.coerceAtLeast(0.01f)
+    val width: Float
+    val height: Float
+    if (aspect >= boxWidth / boxHeight) {
+        width = boxWidth
+        height = boxWidth / aspect
+    } else {
+        height = boxHeight
+        width = boxHeight * aspect
+    }
+    return ImageFit((boxWidth - width) / 2f, (boxHeight - height) / 2f, width, height)
+}
+
+private fun frameFromCrop(crop: CropRect, layout: CropLayout): ImageFit {
+    val width = (crop.right - crop.left) * layout.imageWidth
+    val height = (crop.bottom - crop.top) * layout.imageHeight
+    return ImageFit(
+        layout.imageLeft + crop.left * layout.imageWidth,
+        layout.imageTop + crop.top * layout.imageHeight,
+        width,
+        height,
+    )
+}
+
+private fun cropHandleAt(point: Offset, frame: ImageFit, hit: Float): Int {
+    val left = frame.left
+    val top = frame.top
+    val right = frame.left + frame.width
+    val bottom = frame.top + frame.height
+    val corners = listOf(
+        Offset(left, top),
+        Offset(right, top),
+        Offset(right, bottom),
+        Offset(left, bottom),
+    )
+    val corner = corners.indexOfFirst { hypot(it.x - point.x, it.y - point.y) <= hit }
+    if (corner >= 0) return corner
+    val edges = listOf(
+        4 to (Offset(left, top) to Offset(right, top)),
+        5 to (Offset(right, top) to Offset(right, bottom)),
+        6 to (Offset(left, bottom) to Offset(right, bottom)),
+        7 to (Offset(left, top) to Offset(left, bottom)),
+    )
+    return edges.firstOrNull { (_, segment) ->
+        distanceToSegment(point, segment.first, segment.second) <= hit
+    }?.first ?: -1
+}
+
+private fun moveCrop(crop: CropRect, handle: Int, dx: Float, dy: Float): CropRect {
+    val min = 0.08f
+    var left = crop.left
+    var top = crop.top
+    var right = crop.right
+    var bottom = crop.bottom
+    if (handle == 0 || handle == 3 || handle == 7) {
+        left = (left + dx).coerceIn(0f, right - min)
+    }
+    if (handle == 1 || handle == 2 || handle == 5) {
+        right = (right + dx).coerceIn(left + min, 1f)
+    }
+    if (handle == 0 || handle == 1 || handle == 4) {
+        top = (top + dy).coerceIn(0f, bottom - min)
+    }
+    if (handle == 2 || handle == 3 || handle == 6) {
+        bottom = (bottom + dy).coerceIn(top + min, 1f)
+    }
+    return CropRect(left, top, right, bottom)
+}
+
+private fun panCrop(
+    crop: CropRect,
+    dxPx: Float,
+    dyPx: Float,
+    drawWidth: Float,
+    drawHeight: Float,
+): CropRect {
+    if (drawWidth <= 1f || drawHeight <= 1f) return crop
+    val width = crop.right - crop.left
+    val height = crop.bottom - crop.top
+    val left = (crop.left - dxPx / drawWidth).coerceIn(0f, 1f - width)
+    val top = (crop.top - dyPx / drawHeight).coerceIn(0f, 1f - height)
+    return CropRect(left, top, left + width, top + height)
+}
+
+private fun zoomCrop(crop: CropRect, zoom: Float): CropRect {
+    if (zoom <= 0f || zoom == 1f) return crop
+    val currentWidth = (crop.right - crop.left).coerceAtLeast(0.08f)
+    val currentHeight = (crop.bottom - crop.top).coerceAtLeast(0.08f)
+    var scale = 1f / zoom
+    if (currentWidth * scale > 1f || currentHeight * scale > 1f) {
+        scale = min(1f / currentWidth, 1f / currentHeight)
+    }
+    if (currentWidth * scale < 0.08f || currentHeight * scale < 0.08f) {
+        scale = max(0.08f / currentWidth, 0.08f / currentHeight)
+    }
+    val width = currentWidth * scale
+    val height = currentHeight * scale
+    val centerX = (crop.left + crop.right) / 2f
+    val centerY = (crop.top + crop.bottom) / 2f
+    var left = centerX - width / 2f
+    var top = centerY - height / 2f
+    if (left < 0f) left = 0f
+    if (top < 0f) top = 0f
+    if (left + width > 1f) left = 1f - width
+    if (top + height > 1f) top = 1f - height
+    return CropRect(left, top, left + width, top + height)
+}
+
+private fun distanceToSegment(point: Offset, start: Offset, end: Offset): Float {
+    val abx = end.x - start.x
+    val aby = end.y - start.y
+    val length = abx * abx + aby * aby
+    if (length <= 1f) return hypot(point.x - start.x, point.y - start.y)
+    val t = (((point.x - start.x) * abx + (point.y - start.y) * aby) / length).coerceIn(0f, 1f)
+    return hypot(point.x - (start.x + abx * t), point.y - (start.y + aby * t))
 }
 
 @Composable

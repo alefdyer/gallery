@@ -231,6 +231,10 @@
     <string name="editor_trim">Trim</string>
     <string name="editor_sound">Sound</string>
     <string name="editor_revert">Revert</string>
+    <string name="editor_revert_message">Discard all changes and restore the original image?</string>
+    <string name="editor_revert_original">Restore original</string>
+    <string name="editor_aspect">Aspect ratio</string>
+    <string name="editor_flip_vertical">Flip vertically</string>
     <string name="editor_save">Save</string>
     <string name="editor_save_prompt">Save changes?</string>
     <string name="editor_discard">Don\'t save</string>

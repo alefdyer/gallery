@@ -230,6 +230,10 @@
     <string name="editor_trim">Обрезать</string>
     <string name="editor_sound">Звук</string>
     <string name="editor_revert">Вернуть</string>
+    <string name="editor_revert_message">Отменить все изменения и восстановить исходную версию изображения?</string>
+    <string name="editor_revert_original">Вернуть исходный вариант</string>
+    <string name="editor_aspect">Пропорции</string>
+    <string name="editor_flip_vertical">Отразить по вертикали</string>
     <string name="editor_save">Сохранить</string>
     <string name="editor_save_prompt">Сохранить изменения?</string>
     <string name="editor_discard">Не сохранять</string>
