@@ -197,6 +197,8 @@
     <string name="filter_hide_all">Hide all</string>
     <string name="clear">Clear</string>
     <string name="filter_show_all">Show all</string>
+    <string name="filter_set_default">Set as default</string>
+    <string name="filter_reset_default">Reset default</string>
     <string name="scroll_to_top">Go to top</string>
     <string name="rename">Rename</string>
     <string name="rename_category">Rename category</string>

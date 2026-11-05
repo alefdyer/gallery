@@ -10,13 +10,13 @@ todos:
     status: pending
   - id: triggers
     content: MainViewModel remote on start; AlbumList/VM ensureStorageFresh on enter category
-    status: pending
+    status: completed
   - id: media-sync
     content: StorageChange + MediaService full vs incremental (no deleteMissing on incr)
     status: pending
   - id: providers
     content: OneDrive/Dropbox/Drive delta; Nextcloud+WebDAV sync-collection (WebDAV fallback full); Yandex full
-    status: pending
+    status: completed
   - id: manual-force
     content: Обновить/addStorage/reauth → force=true (throttle only); sync mode still by cursor
     status: pending

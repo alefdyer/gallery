@@ -9,9 +9,17 @@ import com.asinosoft.photogallery.data.Video
 import com.asinosoft.photogallery.data.mediaParentPath
 import com.asinosoft.photogallery.data.mediaSortDateTime
 import com.asinosoft.photogallery.data.parseTakenAtFromFilename
+import com.asinosoft.photogallery.data.storage.FolderSnapshot
+import com.asinosoft.photogallery.data.storage.FolderListingResult
+import com.asinosoft.photogallery.data.storage.FolderListingScan
+import com.asinosoft.photogallery.data.storage.FolderScanState
 import com.asinosoft.photogallery.data.storage.Storage
+import com.asinosoft.photogallery.data.storage.StorageChange
 import com.asinosoft.photogallery.data.storage.StorageCheckResult
 import com.asinosoft.photogallery.data.storage.StorageProvider
+import com.asinosoft.photogallery.data.storage.SyncCursorExpiredException
+import com.asinosoft.photogallery.data.storage.webdav.DavDepthStamp
+import com.asinosoft.photogallery.data.storage.webdav.DavSyncCollection
 import com.thegrizzlylabs.sardineandroid.impl.OkHttpSardine
 import java.net.ConnectException
 import java.net.SocketTimeoutException
@@ -19,17 +27,40 @@ import java.net.URLEncoder
 import java.net.UnknownHostException
 import java.util.ArrayDeque
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.yield
 import okhttp3.Credentials
+import okhttp3.Dispatcher
+import okhttp3.OkHttpClient
 import okhttp3.Request
 
-class NextCloudStorageProvider(override val storage: Storage) : StorageProvider {
-    private val connection = OkHttpSardine().apply {
+class NextCloudStorageProvider(override val storage: Storage) : StorageProvider, FolderListingScan {
+    private val http = OkHttpClient.Builder()
+        .dispatcher(Dispatcher().apply { maxRequestsPerHost = 32 })
+        .build()
+    private val connection = OkHttpSardine(http).apply {
         setCredentials(storage.login, storage.password)
     }
     private val rootPath: String
         get() = "/remote.php/dav/files/${storage.login}/"
+    private var pendingCursor: String? = null
+    private val folderScan = FolderScanState()
+    private var fastStampCheck = true
+
+    override fun setKnownFolders(folders: List<FolderSnapshot>) {
+        folderScan.begin(folders)
+    }
+
+    override fun setFastStampCheck(enabled: Boolean) {
+        fastStampCheck = enabled
+    }
+
+    override fun takeFolderListing(): FolderListingResult? = folderScan.take()
+
+    override val supportsIncrementalSync: Boolean = true
+
+    override fun takeSyncCursor(): String? = pendingCursor.also { pendingCursor = null }
 
     override fun authorize(request: Request): Request {
         if (null == storage.login || null == storage.password) return request
@@ -62,25 +93,95 @@ class NextCloudStorageProvider(override val storage: Storage) : StorageProvider 
     }
 
     override suspend fun fetchAll(): Flow<Media> = flow {
+        val root = buildUrl("/remote.php/dav/files/${storage.login}/")
+        val sync = runCatching {
+            DavSyncCollection.fetchAllChanges(
+                client = http,
+                authorize = ::authorize,
+                rootUrl = root,
+                storage = storage,
+                rootPathPrefix = rootPath,
+                syncToken = null,
+                thumbnailUri = ::previewUri,
+            )
+        }.getOrNull()
+        if (sync != null) {
+            pendingCursor = sync.second
+            for (change in sync.first) {
+                if (change is StorageChange.Upsert) emit(change.media)
+            }
+            return@flow
+        }
+        pendingCursor = null
+        emitAll(propfindAll())
+    }
+
+    override suspend fun fetchChanges(cursor: String): Flow<StorageChange> = flow {
+        val root = buildUrl("/remote.php/dav/files/${storage.login}/")
+        val sync = DavSyncCollection.fetchAllChanges(
+            client = http,
+            authorize = ::authorize,
+            rootUrl = root,
+            storage = storage,
+            rootPathPrefix = rootPath,
+            syncToken = cursor,
+            thumbnailUri = ::previewUri,
+        ) ?: throw SyncCursorExpiredException("Nextcloud sync-collection unavailable")
+        pendingCursor = sync.second
+        for (change in sync.first) emit(change)
+    }
+
+    private fun propfindAll(): Flow<Media> = flow {
         Log.i("nextcloud", "fetchAll")
         val queue = ArrayDeque<String>()
-        queue.addLast(buildUrl("/remote.php/dav/files/${storage.login}/"))
+        val root = buildUrl("/remote.php/dav/files/${storage.login}/")
+        queue.addLast(root)
+        val stampByUrl = if (fastStampCheck) {
+            DavDepthStamp.load(http, storage.login, storage.password, stampUrls(root))
+        } else {
+            emptyMap()
+        }
         while (queue.isNotEmpty()) {
             val path = queue.removeFirst()
+            val folderUrlPath = runCatching { java.net.URI(path).path }.getOrNull()
+            val folderKey = FolderScanState.folderKey(folderUrlPath, rootPath)
+            val savedStamp = folderScan.savedStamp(folderKey)
+            if (fastStampCheck && !savedStamp.isNullOrBlank()) {
+                val stamp = stampByUrl[path] ?: try {
+                    FolderScanState.dirStamp(connection.list(path, 0).firstOrNull())
+                } catch (ex: Throwable) {
+                    Log.e("nextcloud", "List failed: $path", ex)
+                    throw ex
+                }
+                if (folderScan.skipIfSameStamp(folderKey, stamp)) {
+                    Log.d("nextcloud", "Folder time unchanged: $folderKey")
+                    folderScan.savedChildUrls(folderKey).forEach { queue.addLast(it) }
+                    continue
+                }
+            }
             Log.d("nextcloud", "Fetch: $path")
             val items = try {
                 connection.list(path)
             } catch (ex: Throwable) {
                 Log.e("nextcloud", "List failed: $path", ex)
-                continue
+                throw ex
             }
+            val children = items.filter { !path.endsWith(it.path) }
+            val self = items.firstOrNull { path.endsWith(it.path) }
             val subdirs = ArrayList<String>()
-            for (item in items) {
-                if (path.endsWith(item.path)) continue
-                if (item.isDirectory) {
-                    subdirs += buildUrl(item.path)
-                    continue
-                }
+            for (item in children) {
+                if (item.isDirectory) subdirs += buildUrl(item.path)
+            }
+            val unchanged = folderScan.onFolder(
+                folderKey,
+                children.map { FolderScanState.davPart(it) },
+                FolderScanState.dirStamp(self),
+                subdirs,
+            )
+            if (unchanged) Log.d("nextcloud", "Folder unchanged: $folderKey")
+            for (item in children) {
+                if (item.isDirectory) continue
+                if (unchanged) continue
                 if (!item.contentType.startsWith("image/") &&
                     !item.contentType.startsWith("video/")
                 ) {
@@ -130,6 +231,23 @@ class NextCloudStorageProvider(override val storage: Storage) : StorageProvider 
 
     override suspend fun getThumbnailUri(media: Media): Uri =
         media.thumbnail ?: media.uri!!
+
+    private fun stampUrls(root: String): List<String> {
+        val urls = ArrayList<String>()
+        val pending = ArrayDeque<String>()
+        val seen = HashSet<String>()
+        pending.add(root)
+        while (pending.isNotEmpty()) {
+            val url = pending.removeFirst()
+            if (!seen.add(url)) continue
+            val folderUrlPath = runCatching { java.net.URI(url).path }.getOrNull()
+            val key = FolderScanState.folderKey(folderUrlPath, rootPath)
+            if (folderScan.savedStamp(key).isNullOrBlank()) continue
+            urls += url
+            folderScan.savedChildUrls(key).forEach { pending.addLast(it) }
+        }
+        return urls
+    }
 
     private fun previewUri(davPath: String): Uri? {
         val login = storage.login ?: return null

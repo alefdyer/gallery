@@ -1,6 +1,5 @@
 package com.asinosoft.photogallery.ui.component
 
-import androidx.annotation.DrawableRes
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
@@ -10,11 +9,13 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.visible
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -47,10 +48,13 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.graphics.drawable.toBitmap
@@ -243,34 +247,79 @@ fun AppsFilterPanel(
     onToggle: (Filter, Boolean) -> Unit,
     onShowAll: () -> Unit,
     onHideAll: () -> Unit,
+    isDefault: Boolean = false,
+    hasSavedDefault: Boolean = false,
+    onSetDefault: (() -> Unit)? = null,
+    onClearDefault: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
+    val hideLabel = stringResource(R.string.filter_hide_all)
+    val showLabel = stringResource(R.string.filter_show_all)
+    val allHidden = filters.none { it.enabled }
+    val allEnabled = filters.isNotEmpty() && filters.all { it.enabled }
+    val toggleLabel = if (allHidden) showLabel else hideLabel
+    val resetDefault = isDefault || (hasSavedDefault && allEnabled)
+    val showDefault = onSetDefault != null && onClearDefault != null &&
+            !allHidden &&
+            !(!hasSavedDefault && allEnabled)
+    val defaultLabel = if (showDefault) {
+        stringResource(if (resetDefault) R.string.filter_reset_default else R.string.filter_set_default)
+    } else {
+        null
+    }
+    val labels = listOfNotNull(toggleLabel, defaultLabel)
+    val textStyle = MaterialTheme.typography.labelLarge
+    val measurer = rememberTextMeasurer()
+    val density = LocalDensity.current
+    val buttonPadding = 16.dp
+    val outerPadding = 8.dp
+    val fixed = buttonPadding * labels.size + outerPadding
+    val available = LocalConfiguration.current.screenWidthDp.dp - 32.dp
+    val fullTextWidth = with(density) {
+        labels.sumOf {
+            measurer.measure(it, style = textStyle, maxLines = 1, softWrap = false).size.width
+        }.toDp()
+    }
+    val scale = if (fullTextWidth.value == 0f) {
+        1f
+    } else {
+        ((available - fixed) / fullTextWidth).coerceAtMost(1f)
+    }
+    val fittedStyle = textStyle.copy(fontSize = textStyle.fontSize * scale)
+    val fittedTextWidth = with(density) {
+        labels.sumOf {
+            measurer.measure(it, style = fittedStyle, maxLines = 1, softWrap = false).size.width
+        }.toDp()
+    }
+    val panelWidth = (fittedTextWidth + fixed).coerceIn(260.dp, available)
     Surface(
         shape = RoundedCornerShape(20.dp),
         color = MaterialTheme.colorScheme.surfaceContainer,
         tonalElevation = 4.dp,
         shadowElevation = 8.dp,
-        modifier = modifier.widthIn(min = 260.dp, max = 320.dp)
+        modifier = modifier.width(panelWidth)
     ) {
         Column(Modifier.padding(vertical = 8.dp)) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween,
+                horizontalArrangement = Arrangement.Center,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 8.dp, vertical = 4.dp)
+                    .padding(horizontal = 4.dp, vertical = 4.dp)
             ) {
-                TextButton(
-                    onClick = onHideAll,
-                    enabled = filters.any { it.enabled }
-                ) {
-                    Text(stringResource(R.string.filter_hide_all))
-                }
-                TextButton(
-                    onClick = onShowAll,
-                    enabled = filters.any { !it.enabled }
-                ) {
-                    Text(stringResource(R.string.filter_show_all))
+                FilterPanelButton(
+                    label = toggleLabel,
+                    style = fittedStyle,
+                    onClick = { if (allHidden) onShowAll() else onHideAll() }
+                )
+                if (defaultLabel != null && onSetDefault != null && onClearDefault != null) {
+                    FilterPanelButton(
+                        label = defaultLabel,
+                        style = fittedStyle,
+                        onClick = {
+                            if (resetDefault) onClearDefault() else onSetDefault()
+                        }
+                    )
                 }
             }
 
@@ -289,6 +338,27 @@ fun AppsFilterPanel(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun FilterPanelButton(
+    label: String,
+    style: TextStyle,
+    enabled: Boolean = true,
+    onClick: () -> Unit
+) {
+    TextButton(
+        onClick = onClick,
+        enabled = enabled,
+        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp)
+    ) {
+        Text(
+            text = label,
+            maxLines = 1,
+            softWrap = false,
+            style = style
+        )
     }
 }
 
@@ -321,34 +391,9 @@ private fun AppsFilterItem(
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f)
         )
-        Counter(R.drawable.photo, filter.statistics.photoCount)
-        Counter(R.drawable.videocam, filter.statistics.videoCount)
         Switch(
             checked = filter.enabled,
             onCheckedChange = { onToggle(filter, it) }
-        )
-    }
-}
-
-@Composable
-fun Counter(
-    @DrawableRes icon: Int,
-    count: Int,
-) {
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(2.dp),
-        modifier = Modifier.alpha(if (count > 0) 0.5f else 0.05f)
-    ) {
-        Icon(
-            painter = painterResource(icon),
-            contentDescription = null,
-            modifier = Modifier.size(16.dp)
-        )
-        Text(
-            text = "$count",
-            style = MaterialTheme.typography.labelSmall,
-            fontWeight = FontWeight.SemiBold,
         )
     }
 }

@@ -196,6 +196,8 @@
     <string name="filter_hide_all">Скрыть все</string>
     <string name="clear">Очистить</string>
     <string name="filter_show_all">Показать все</string>
+    <string name="filter_set_default">По умолчанию</string>
+    <string name="filter_reset_default">Сбросить по умолчанию</string>
     <string name="scroll_to_top">В начало</string>
     <string name="rename">Переименовать</string>
     <string name="rename_category">Переименовать категорию</string>

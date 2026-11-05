@@ -149,6 +149,9 @@ fun ImageListView(
 ) {
     val images by model.images.collectAsState()
     val filters by model.filters.collectAsState(listOf())
+    val isDefaultAppFilter by model.isDefaultAppFilter.collectAsState()
+    val hasSavedAppFilter by model.hasSavedAppFilter.collectAsState()
+    val canSaveDefaultFilter = model.albumId == null && !model.favoritesOnly
     val dateFilter by model.activeDateFilter.collectAsState()
     val selection by model.selection.collectAsState()
     val context = LocalContext.current
@@ -175,10 +178,20 @@ fun ImageListView(
 
     BackHandler(dateFilter != null, model::clearDateFilter)
 
-    BackHandler(filters.any { !it.enabled }, model::clearFilters)
+    BackHandler(
+        enabled = filters.any { !it.enabled } && !isDefaultAppFilter,
+        onBack = model::clearFilters
+    )
 
     var showAppsPanel by remember { mutableStateOf(false) }
-    BackHandler(showAppsPanel) { showAppsPanel = false }
+    var appsFilterSnapshot by remember { mutableStateOf<Set<String>>(emptySet()) }
+    val closeAppsPanel = rememberUpdatedState {
+        if (filters.isNotEmpty() && filters.none { it.enabled }) {
+            model.replaceAppFilters(appsFilterSnapshot)
+        }
+        showAppsPanel = false
+    }
+    BackHandler(showAppsPanel) { closeAppsPanel.value() }
 
     var filtersHeight by remember { mutableFloatStateOf(0f) }
     var filtersOffset by remember { mutableFloatStateOf(0f) }
@@ -750,7 +763,11 @@ fun ImageListView(
         FilterBar(
             visible = selection.isEmpty(),
             onBack = onBack,
-            onAppsLongPress = { showAppsPanel = true },
+            model = model,
+            onAppsLongPress = {
+                appsFilterSnapshot = model.activeFilterPackages.value
+                showAppsPanel = true
+            },
             modifier = Modifier
                 .align(Alignment.TopEnd)
                 .statusBarsPadding()
@@ -779,7 +796,7 @@ fun ImageListView(
             Box(
                 Modifier
                     .fillMaxSize()
-                    .pointerInput(Unit) { detectTapGestures { showAppsPanel = false } }
+                    .pointerInput(Unit) { detectTapGestures { closeAppsPanel.value() } }
             )
         }
 
@@ -800,7 +817,11 @@ fun ImageListView(
                 filters = filters,
                 onToggle = model::setFilterEnabled,
                 onShowAll = model::clearFilters,
-                onHideAll = model::hideAllFilters
+                onHideAll = model::hideAllFilters,
+                isDefault = isDefaultAppFilter,
+                hasSavedDefault = hasSavedAppFilter,
+                onSetDefault = if (canSaveDefaultFilter) model::saveDefaultAppFilters else null,
+                onClearDefault = if (canSaveDefaultFilter) model::clearDefaultAppFilters else null
             )
         }
 

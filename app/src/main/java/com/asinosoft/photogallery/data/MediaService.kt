@@ -13,12 +13,17 @@ import androidx.core.content.edit
 import coil3.SingletonImageLoader
 import com.asinosoft.photogallery.GalleryApp
 import com.asinosoft.photogallery.R
+import com.asinosoft.photogallery.data.storage.FolderListingScan
+import com.asinosoft.photogallery.data.storage.FolderSnapshotDao
 import com.asinosoft.photogallery.data.storage.StorageAuthProvider
+import com.asinosoft.photogallery.data.storage.StorageChange
 import com.asinosoft.photogallery.data.storage.StorageDao
 import com.asinosoft.photogallery.data.storage.StorageProvider
 import com.asinosoft.photogallery.data.storage.StorageProviderRegistry
 import com.asinosoft.photogallery.data.storage.StorageService
 import com.asinosoft.photogallery.data.storage.StorageType
+import com.asinosoft.photogallery.data.storage.SyncCursorExpiredException
+import com.asinosoft.photogallery.data.storage.WaitingForGoogleSignIn
 import com.asinosoft.photogallery.di.IntentHelper
 import dagger.Lazy
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -42,6 +47,7 @@ import okhttp3.Request
 class MediaService @Inject constructor(
     private val albumDao: AlbumDao,
     private val mediaDao: MediaDao,
+    private val folderSnapshotDao: FolderSnapshotDao,
     private val storageDao: StorageDao,
     private val messengerAlbums: MessengerAlbums,
     private val storageAlbums: StorageAlbums,
@@ -586,9 +592,113 @@ class MediaService @Inject constructor(
             }
         }
 
+    /**
+     * Полный или инкрементальный sync. Возвращает новый [com.asinosoft.photogallery.data.storage.Storage.syncCursor].
+     */
     @OptIn(ExperimentalCoroutinesApi::class)
-    suspend fun update(provider: StorageProvider) = withContext(Dispatchers.IO) {
+    suspend fun update(provider: StorageProvider): String? = withContext(Dispatchers.IO) {
         Log.i("MediaService", "update: ${provider.storage.type} id=${provider.storage.id}")
+        val existingCursor = provider.storage.syncCursor
+        if (provider.supportsIncrementalSync && !existingCursor.isNullOrBlank()) {
+            try {
+                Log.i(
+                    "MediaService",
+                    "incremental sync id=${provider.storage.id} type=${provider.storage.type}",
+                )
+                updateIncremental(provider, existingCursor)
+                return@withContext provider.takeSyncCursor() ?: existingCursor
+            } catch (ex: SyncCursorExpiredException) {
+                Log.w(
+                    "MediaService",
+                    "Cursor expired id=${provider.storage.id}, full resync",
+                    ex,
+                )
+            }
+        }
+        updateFull(provider)
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    private suspend fun updateIncremental(provider: StorageProvider, cursor: String) {
+        ThumbnailCache.startPreload(0)
+        try {
+            messengerAlbums.migrateOnce()
+            storageAlbums.migrateOnce()
+            storageAlbums.ensureCategory(provider.storage)
+            SingletonImageLoader.get(context).memoryCache?.clear()
+
+            val upsertBuffer = ArrayList<Media>(REMOTE_FETCH_CHUNK)
+            val deleteIds = ArrayList<String>(64)
+            val updated = mutableSetOf<Long>()
+            var remoteChunks = 0
+
+            suspend fun flushUpserts() {
+                if (upsertBuffer.isEmpty()) return
+                val fetched = upsertBuffer.toList()
+                upsertBuffer.clear()
+                applyFetchedBatch(
+                    provider = provider,
+                    fetched = fetched,
+                    updated = updated,
+                    isLocal = false,
+                    isRemote = true,
+                    remoteChunks = remoteChunks,
+                )
+                remoteChunks++
+            }
+
+            suspend fun flushDeletes() {
+                if (deleteIds.isEmpty()) return
+                deleteRemoteMedia(provider.storage.id, deleteIds.toList())
+                deleteIds.clear()
+            }
+
+            provider.fetchChanges(cursor).collect { change ->
+                when (change) {
+                    is StorageChange.Upsert -> {
+                        upsertBuffer += change.media
+                        if (upsertBuffer.size >= REMOTE_FETCH_CHUNK) flushUpserts()
+                    }
+
+                    is StorageChange.Delete -> {
+                        deleteIds += change.storageItemId
+                        if (deleteIds.size >= 200) flushDeletes()
+                    }
+
+                    is StorageChange.DeleteByPath -> {
+                        flushUpserts()
+                        flushDeletes()
+                        val ids = mediaDao.getIdsByPathAndName(
+                            provider.storage.id,
+                            change.path,
+                            change.filename,
+                        )
+                        val albums = if (ids.isEmpty()) emptyList()
+                        else albumDao.getMediaAlbumIds(ids)
+                        mediaDao.deleteByPathAndName(
+                            provider.storage.id,
+                            change.path,
+                            change.filename,
+                        )
+                        albums.distinct().forEach { albumDao.updateAlbumStats(it) }
+                    }
+                }
+            }
+            flushUpserts()
+            flushDeletes()
+            refreshStorageAlbumStats(provider.storage.id)
+
+            repairFolderAlbumsOnce(provider.storage.id)
+            mergeDuplicateAlbumsOnce()
+            albumDao.deleteEmptyAlbums()
+            preloadAlbumCovers(provider)
+        } finally {
+            ThumbnailCache.finishPreload()
+        }
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    private suspend fun updateFull(provider: StorageProvider): String? {
         val updated = mutableSetOf<Long>()
         ThumbnailCache.startPreload(provider.getMediaCount() ?: 0)
         try {
@@ -605,8 +715,89 @@ class MediaService @Inject constructor(
             }
             var remoteChunks = 0
             var fetchCompleted = false
+            val folderScan = provider as? FolderListingScan
+            if (folderScan != null) {
+                folderScan.setKnownFolders(
+                    folderSnapshotDao.getForStorage(provider.storage.id)
+                )
+            }
             try {
             provider.fetchAll().chunked(chunkSize).collect { fetched ->
+                remoteChunks = applyFetchedBatch(
+                    provider = provider,
+                    fetched = fetched,
+                    updated = updated,
+                    isLocal = isLocal,
+                    isRemote = isRemote,
+                    remoteChunks = remoteChunks,
+                )
+            }
+                fetchCompleted = true
+            } catch (ex: Throwable) {
+                Log.e(
+                    "MediaService",
+                    "Fetch aborted: ${provider.storage.type} id=${provider.storage.id}",
+                    ex,
+                )
+                throw ex
+            }
+
+            if (fetchCompleted) {
+                val listing = folderScan?.takeFolderListing()
+                if (listing != null) {
+                    val kept = idsInFolders(provider.storage.id, listing.unchangedPaths)
+                    val existingIds = mediaDao.getIdsForStorage(provider.storage.id)
+                    if (listing.unchangedPaths.isNotEmpty() &&
+                        kept.isEmpty() &&
+                        existingIds.isNotEmpty()
+                    ) {
+                        Log.e(
+                            "MediaService",
+                            "Folder keys matched no media id=${provider.storage.id}, keep existing",
+                        )
+                        updated += existingIds
+                    } else {
+                        updated += kept
+                    }
+                    folderSnapshotDao.replaceForStorage(
+                        provider.storage.id,
+                        listing.folders,
+                    )
+                    Log.i(
+                        "MediaService",
+                        "Folder listing id=${provider.storage.id} " +
+                                "unchanged=${listing.unchangedPaths.size} " +
+                                "folders=${listing.folders.size} " +
+                                "timeSkip=${listing.skippedByTime}",
+                    )
+                }
+                val removed = mediaDao.getIdsForStorage(provider.storage.id)
+                    .filter { it !in updated }
+                val albums = albumIdsOf(removed)
+                mediaDao.deleteMissing(provider.storage.id, updated)
+                albums.forEach { albumDao.updateAlbumStats(it) }
+            }
+            repairFolderAlbumsOnce(provider.storage.id)
+            mergeDuplicateAlbumsOnce()
+            albumDao.deleteEmptyAlbums()
+            if (isRemote && fetchCompleted) {
+                preloadAlbumCovers(provider)
+            }
+        } finally {
+            ThumbnailCache.finishPreload()
+        }
+        return provider.takeSyncCursor()
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    private suspend fun applyFetchedBatch(
+        provider: StorageProvider,
+        fetched: List<Media>,
+        updated: MutableSet<Long>,
+        isLocal: Boolean,
+        isRemote: Boolean,
+        remoteChunks: Int,
+    ): Int {
                 val media = mediaDao.getMediaByStorageItemIds(
                     provider.storage.id,
                     fetched.map {
@@ -793,32 +984,13 @@ class MediaService @Inject constructor(
                         }
                     }
 
-                    remoteChunks++
-                    if (remoteChunks % REMOTE_CACHE_CLEAR_EVERY_CHUNKS == 0) {
+                    val nextRemoteChunks = remoteChunks + 1
+                    if (nextRemoteChunks % REMOTE_CACHE_CLEAR_EVERY_CHUNKS == 0) {
                         SingletonImageLoader.get(context).memoryCache?.clear()
                     }
+                    return nextRemoteChunks
                 }
-            }
-                fetchCompleted = true
-            } catch (ex: Throwable) {
-                Log.e("MediaService", "Fetch aborted: ${provider.storage}", ex)
-                throw ex
-            }
-
-            // Не чистим базу, если обход оборвался ошибкой — иначе remote обнуляется.
-            if (fetchCompleted) {
-                mediaDao.deleteMissing(provider.storage.id, updated)
-            }
-            repairFolderAlbumsOnce(provider.storage.id)
-            mergeDuplicateAlbumsOnce()
-            albumDao.deleteEmptyAlbums()
-            if (isRemote && fetchCompleted) {
-                preloadAlbumCovers(provider)
-            }
-
-        } finally {
-            ThumbnailCache.finishPreload()
-        }
+        return remoteChunks
     }
 
     /**
@@ -935,6 +1107,42 @@ class MediaService @Inject constructor(
         if (target.id !in linked) {
             addToAlbum(listOf(mediaId), target.id)
         }
+    }
+
+    private suspend fun refreshStorageAlbumStats(storageId: Long) {
+        val category = albumDao.findCategoryByName(
+            AlbumCategory.storageCategoryName(storageId)
+        ) ?: return
+        albumDao.getAllAlbums()
+            .filter { it.categoryId == category.id }
+            .forEach { albumDao.updateAlbumStats(it.id) }
+    }
+
+    private suspend fun idsInFolders(storageId: Long, paths: Collection<String>): List<Long> {
+        if (paths.isEmpty()) return emptyList()
+        val variants = paths.flatMap { path ->
+            if (path.isEmpty()) listOf("")
+            else {
+                val trimmed = path.trimEnd('/')
+                listOf(path, trimmed, "$trimmed/")
+            }
+        }.distinct()
+        return variants.chunked(400).flatMap { mediaDao.getIdsByPaths(storageId, it) }.distinct()
+    }
+
+    private suspend fun albumIdsOf(mediaIds: Collection<Long>): List<Long> {
+        if (mediaIds.isEmpty()) return emptyList()
+        return mediaIds.chunked(400).flatMap { albumDao.getMediaAlbumIds(it) }.distinct()
+    }
+
+    /** Удаление из дельты не трогает photoCount, пока не пересчитать альбомы. */
+    private suspend fun deleteRemoteMedia(storageId: Long, storageItemIds: Collection<String>) {
+        if (storageItemIds.isEmpty()) return
+        val mediaIds = mediaDao.getIdsByStorageItemIds(storageId, storageItemIds)
+        val albums = if (mediaIds.isEmpty()) emptyList()
+        else albumDao.getMediaAlbumIds(mediaIds)
+        mediaDao.deleteByStorageItemIds(storageId, storageItemIds)
+        albums.distinct().forEach { albumDao.updateAlbumStats(it) }
     }
 
     private fun folderAlbumName(

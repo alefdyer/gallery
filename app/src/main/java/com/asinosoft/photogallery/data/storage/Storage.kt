@@ -15,15 +15,13 @@ data class Storage(
     val type: StorageType = StorageType.LOCAL,
     val url: Uri? = null,
     val login: String? = null,
-    val password: String? = null
+    val password: String? = null,
+    /** Epoch ms последнего успешного скана. */
+    val lastFetchedAt: Long = 0L,
+    /** Opaque cursor: OneDrive deltaLink / Dropbox cursor / Drive pageToken / DAV sync-token. */
+    val syncCursor: String? = null,
 ) {
-    fun withId(id: Long) = Storage(
-        id = id,
-        type = type,
-        url = url,
-        login = login,
-        password = password
-    )
+    fun withId(id: Long) = copy(id = id)
 
     val title: String
         @Composable
@@ -75,5 +73,36 @@ data class Storage(
 
         StorageType.ONEDRIVE -> login?.takeIf { it.isNotBlank() }
             ?: context.getString(R.string.onedrive)
+    }
+
+    /**
+     * Автосинк при входе в приложение.
+     * С курсором — дельта, не чаще 15 минут.
+     * WebDAV и Nextcloud без курсора — сверка даты папки при каждом входе.
+     */
+    fun allowsAutoSync(): Boolean = when (type) {
+        StorageType.LOCAL,
+        StorageType.YANDEX,
+            -> false
+
+        StorageType.WEBDAV,
+        StorageType.NEXTCLOUD,
+        StorageType.DROPBOX,
+        StorageType.GOOGLE_DRIVE,
+        StorageType.ONEDRIVE,
+            -> true
+    }
+
+    /** Без sync-collection: при входе и раскрытии сверяется дата папки, не список файлов. */
+    fun usesFastFolderCheck(): Boolean = when (type) {
+        StorageType.WEBDAV,
+        StorageType.NEXTCLOUD,
+            -> syncCursor.isNullOrBlank()
+
+        else -> false
+    }
+
+    companion object {
+        const val AUTO_SYNC_MIN_INTERVAL_MS = 15L * 60_000L
     }
 }

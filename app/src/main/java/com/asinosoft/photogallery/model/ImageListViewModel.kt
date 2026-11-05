@@ -71,9 +71,32 @@ fun MediaType?.matches(media: Media) = when (this) {
 }
 
 private const val NO_APPS = ""
+private const val APP_FILTERS_PREFS = "app_filters"
+private const val KEY_DEFAULT_APPS = "default_all"
+private const val DEFAULT_ALL_APPS = "*"
 private const val RECENT_DATES_PREFS = "date_filters"
 private const val RECENT_DATES_KEY = "recent"
 private const val MAX_RECENT_DATES = 10
+
+/** Пустой набор — все приложения, [NO_APPS] — все скрыты. null в prefs — значения нет. */
+private fun encodeDefaultApps(packages: Set<String>): String = when {
+    packages.isEmpty() -> DEFAULT_ALL_APPS
+    packages == setOf(NO_APPS) -> NO_APPS
+    else -> packages.joinToString("\n")
+}
+
+private fun decodeDefaultApps(raw: String): Set<String> = when (raw) {
+    DEFAULT_ALL_APPS -> emptySet()
+    NO_APPS -> setOf(NO_APPS)
+    else -> raw.split('\n').filter { it.isNotEmpty() }.toSet()
+}
+
+/** Пустой набор — все приложения видны. [NO_APPS] — все скрыты. Иначе в наборе только видимые пакеты. */
+private fun appShown(filters: Set<String>, pkg: String?): Boolean {
+    if (filters.isEmpty()) return true
+    if (NO_APPS in filters) return false
+    return pkg != null && pkg in filters
+}
 
 /** Альбомы больше порога открываются с первой порцией, полный список — после анимации. */
 private const val ALBUM_PREVIEW_THRESHOLD = 50
@@ -158,7 +181,26 @@ class ImageListViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.Eagerly, false)
 
     private val applications = MutableStateFlow<Map<Application?, MediaStatistics>>(mapOf())
-    private val activeFilters = MutableStateFlow<Set<String>>(setOf())
+
+    /** null — набор по умолчанию не задан. Пустой набор — все приложения. */
+    private val savedDefaultFilters = MutableStateFlow(
+        if (albumId == null && !favoritesOnly) readDefaultAppFilters() else null
+    )
+    private val activeFilters = MutableStateFlow(savedDefaultFilters.value ?: setOf())
+
+    /** Текущий набор совпадает с сохранённым по умолчанию. */
+    val isDefaultAppFilter: StateFlow<Boolean> =
+        combine(activeFilters, savedDefaultFilters) { current, saved ->
+            saved != null && saved == current
+        }.stateIn(
+            viewModelScope,
+            SharingStarted.Eagerly,
+            savedDefaultFilters.value != null && savedDefaultFilters.value == activeFilters.value
+        )
+
+    val hasSavedAppFilter: StateFlow<Boolean> = savedDefaultFilters
+        .map { it != null }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, savedDefaultFilters.value != null)
 
     val activeFilterPackages: StateFlow<Set<String>> = activeFilters
 
@@ -171,7 +213,7 @@ class ImageListViewModel @Inject constructor(
     private val filteredImages: StateFlow<List<Media>> =
         combine(allImages, activeFilters, activeDateFilter) { images, filters, dateFilter ->
             images.filter { image ->
-                (filters.isEmpty() || filters.contains(image.owner)) &&
+                appShown(filters, image.owner) &&
                         (dateFilter?.year == null || image.date.year == dateFilter.year) &&
                         (dateFilter?.month == null || image.date.monthValue == dateFilter.month) &&
                         (dateFilter?.day == null || image.date.dayOfMonth == dateFilter.day)
@@ -244,7 +286,7 @@ class ImageListViewModel @Inject constructor(
     // Группировка: Year -> Month -> Day -> List<Int>
     val dateGroups = combine(activeFilters, allImages) { filters, images ->
         images
-            .filter { filters.isEmpty() || filters.contains(it.owner) }
+            .filter { appShown(filters, it.owner) }
             .groupBy { it.date.year }
             .mapValues { (_, yearImages) ->
                 yearImages.groupBy { it.date.monthValue }
@@ -306,9 +348,7 @@ class ImageListViewModel @Inject constructor(
                                     Filter(
                                         application = app,
                                         statistics = count,
-                                        enabled = activeFilters.value.isEmpty() or activeFilters.value.contains(
-                                            app.pkg
-                                        )
+                                        enabled = appShown(activeFilters.value, app.pkg)
                                     )
                                 }
                             }
@@ -318,6 +358,35 @@ class ImageListViewModel @Inject constructor(
             }
         }
     }
+
+    fun saveDefaultAppFilters() {
+        if (albumId != null || favoritesOnly) return
+        val value = activeFilters.value
+        if (value == setOf(NO_APPS)) return
+        savedDefaultFilters.value = value
+        appFilterPrefs.edit(commit = true) { putString(KEY_DEFAULT_APPS, encodeDefaultApps(value)) }
+    }
+
+    fun clearDefaultAppFilters() {
+        if (albumId != null || favoritesOnly) return
+        savedDefaultFilters.value = null
+        appFilterPrefs.edit(commit = true) { remove(KEY_DEFAULT_APPS) }
+        viewModelScope.launch { applyActiveFilters(setOf()) }
+    }
+
+    private fun readDefaultAppFilters(): Set<String>? {
+        val raw = appFilterPrefs.getString(KEY_DEFAULT_APPS, null) ?: return null
+        val decoded = decodeDefaultApps(raw)
+        if (decoded == setOf(NO_APPS)) return null
+        return decoded
+    }
+
+    fun replaceAppFilters(packages: Set<String>) = viewModelScope.launch {
+        applyActiveFilters(packages)
+    }
+
+    private val appFilterPrefs
+        get() = context.getSharedPreferences(APP_FILTERS_PREFS, Context.MODE_PRIVATE)
 
     fun clearFilters() = viewModelScope.launch {
         applyActiveFilters(setOf())
@@ -350,7 +419,7 @@ class ImageListViewModel @Inject constructor(
         allFilters.emit(
             applications.value.mapNotNull { (app, count) ->
                 app?.let {
-                    Filter(app, count, newFilters.isEmpty() || newFilters.contains(it.pkg))
+                    Filter(app, count, appShown(newFilters, it.pkg))
                 }
             }
         )
@@ -384,7 +453,7 @@ class ImageListViewModel @Inject constructor(
     fun imagesForDate(filter: DateFilter): List<Media> {
         val owners = activeFilters.value
         return allImages.value.filter { image ->
-            (owners.isEmpty() || owners.contains(image.owner)) &&
+            appShown(owners, image.owner) &&
                     (filter.year == null || image.date.year == filter.year) &&
                     (filter.month == null || image.date.monthValue == filter.month) &&
                     (filter.day == null || image.date.dayOfMonth == filter.day)
@@ -400,7 +469,7 @@ class ImageListViewModel @Inject constructor(
         val comparator = compareBy<DateFilter>({ it.year }, { it.month }, { it.day })
 
         val dates = allImages.value.asSequence()
-            .filter { owners.isEmpty() || owners.contains(it.owner) }
+            .filter { appShown(owners, it.owner) }
             .map {
                 when {
                     null != filter.day -> DateFilter(
@@ -463,7 +532,7 @@ class ImageListViewModel @Inject constructor(
         allFilters.emit(
             applications.value.mapNotNull { (app, count) ->
                 app?.let {
-                    Filter(app, count, activeFilters.value.isEmpty() or newFilters.contains(it.pkg))
+                    Filter(app, count, appShown(newFilters, it.pkg))
                 }
             }
         )

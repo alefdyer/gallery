@@ -23,6 +23,7 @@ import com.asinosoft.photogallery.data.storage.StorageDao
 import com.asinosoft.photogallery.data.storage.MediaStatistics
 import com.asinosoft.photogallery.data.storage.StorageService
 import com.asinosoft.photogallery.data.storage.StorageType
+import com.asinosoft.photogallery.data.storage.SyncReason
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -204,7 +205,25 @@ class AlbumsViewModel @Inject constructor(
 
     fun toggleCategoryExpanded(id: Long) {
         val current = expandedCategoriesFlow.value
-        expandedCategoriesFlow.value = if (id in current) current - id else current + id
+        val expanding = id !in current
+        expandedCategoriesFlow.value = if (expanding) current + id else current - id
+        if (expanding) syncOnEnterCategory(id)
+    }
+
+    /** Раскрыли категорию remote — полный/delta sync (Yandex/WebDAV тоже). */
+    private fun syncOnEnterCategory(categoryId: Long) {
+        viewModelScope.launch {
+            val category = albumDao.getCategoryById(categoryId) ?: return@launch
+            val storageId = category.storageIdOrNull() ?: return@launch
+            val storage = runCatching { storageDao.getStorageById(storageId) }.getOrNull()
+                ?: return@launch
+            if (storage.type == StorageType.LOCAL) return@launch
+            storageService.enqueueFetch(
+                storage,
+                force = false,
+                reason = SyncReason.EnterCategory,
+            )
+        }
     }
 
     fun setCategoryAlwaysExpanded(id: Long, expanded: Boolean) {
@@ -217,7 +236,7 @@ class AlbumsViewModel @Inject constructor(
     }
 
     fun refreshStorage(storage: Storage) {
-        storageService.enqueueFetch(storage)
+        storageService.enqueueFetch(storage, force = true, reason = SyncReason.Manual)
     }
 
     fun refreshCategoryStorage(category: AlbumCategory) {
@@ -231,7 +250,10 @@ class AlbumsViewModel @Inject constructor(
                 Log.w(GalleryApp.TAG, "Refresh: storage $storageId not found")
                 return@launch
             }
-            Log.i(GalleryApp.TAG, "Refresh storage category ${category.name} → $storage")
+            Log.i(
+                GalleryApp.TAG,
+                "Refresh storage category ${category.name} → ${storage.type} id=${storage.id}",
+            )
             storageService.enqueueFetch(storage)
         }
     }

@@ -12,8 +12,10 @@ import com.asinosoft.photogallery.data.bestVideoDurationMs
 import com.asinosoft.photogallery.data.mediaSortDateTime
 import com.asinosoft.photogallery.data.parseRfc3339Millis
 import com.asinosoft.photogallery.data.storage.Storage
+import com.asinosoft.photogallery.data.storage.StorageChange
 import com.asinosoft.photogallery.data.storage.StorageCheckResult
 import com.asinosoft.photogallery.data.storage.StorageProvider
+import com.asinosoft.photogallery.data.storage.SyncCursorExpiredException
 import com.google.gson.Gson
 import java.io.File
 import java.net.ConnectException
@@ -32,6 +34,11 @@ class GoogleDriveStorageProvider(
 ) : StorageProvider {
     private val client = OkHttpClient()
     private val gson = Gson()
+    private var pendingCursor: String? = null
+
+    override val supportsIncrementalSync: Boolean = true
+
+    override fun takeSyncCursor(): String? = pendingCursor.also { pendingCursor = null }
 
     override fun authorize(request: Request): Request {
         val token = storage.password
@@ -77,6 +84,8 @@ class GoogleDriveStorageProvider(
         }
 
         return flow {
+            val startToken = withContext(Dispatchers.IO) { fetchStartPageToken(token) }
+            if (!startToken.isNullOrBlank()) pendingCursor = startToken
             val rootId = withContext(Dispatchers.IO) { fetchRootId(token) }
             // Один проход по папкам вместо GET на каждую — иначе refresh минутами.
             val folderNames = withContext(Dispatchers.IO) { prefetchFolderNames(token) }
@@ -133,6 +142,79 @@ class GoogleDriveStorageProvider(
                 pageToken = page.nextPageToken
             } while (!pageToken.isNullOrBlank())
             Log.i(TAG, "Drive list done: $listed media")
+        }
+    }
+
+    override suspend fun fetchChanges(cursor: String): Flow<StorageChange> {
+        val token = storage.password
+        if (token.isNullOrBlank()) return flow { }
+
+        return flow {
+            val rootId = withContext(Dispatchers.IO) { fetchRootId(token) }
+            val folderNames = withContext(Dispatchers.IO) { prefetchFolderNames(token) }
+            var pageToken: String? = cursor
+            while (!pageToken.isNullOrBlank()) {
+                val url = buildString {
+                    append("https://www.googleapis.com/drive/v3/changes")
+                    append("?pageSize=$LIST_PAGE_SIZE")
+                    append("&includeRemoved=true")
+                    append("&pageToken=").append(Uri.encode(pageToken))
+                    append(
+                        "&fields=nextPageToken,newStartPageToken,changes(fileId,removed," +
+                                "file(id,name,mimeType,size,trashed,createdTime,modifiedTime," +
+                                "thumbnailLink,parents,imageMediaMetadata(time)," +
+                                "videoMediaMetadata(durationMillis)))"
+                    )
+                }
+                val page = withContext(Dispatchers.IO) {
+                    val request = Request.Builder()
+                        .url(url)
+                        .header("Authorization", "Bearer $token")
+                        .get()
+                        .build()
+                    client.newCall(request).execute().use { response ->
+                        when (response.code) {
+                            in 200..299 ->
+                                response.body?.use {
+                                    gson.fromJson(it.string(), DriveChangeList::class.java)
+                                }
+
+                            410 -> throw SyncCursorExpiredException("Drive changes 410")
+                            else -> throw SyncCursorExpiredException(
+                                "Drive changes HTTP ${response.code}"
+                            )
+                        }
+                    }
+                } ?: break
+                val changes = page.changes.orEmpty()
+                Log.i(TAG, "Drive changes page: ${changes.size}")
+                for (change in changes) {
+                    val fileId = change.fileId ?: change.file?.id ?: continue
+                    val trashed = change.file?.trashed == true
+                    if (change.removed == true || trashed) {
+                        emit(StorageChange.Delete(fileId))
+                        continue
+                    }
+                    change.file?.toMedia(storage, rootId, folderNames)
+                        ?.let { emit(StorageChange.Upsert(it)) }
+                }
+                if (!page.newStartPageToken.isNullOrBlank()) {
+                    pendingCursor = page.newStartPageToken
+                }
+                pageToken = page.nextPageToken
+            }
+        }
+    }
+
+    private fun fetchStartPageToken(token: String): String? {
+        val request = Request.Builder()
+            .url("https://www.googleapis.com/drive/v3/changes/startPageToken")
+            .header("Authorization", "Bearer $token")
+            .get()
+            .build()
+        return client.newCall(request).execute().use { response ->
+            if (!response.isSuccessful) return@use null
+            gson.fromJson(response.body?.string(), DriveStartToken::class.java)?.startPageToken
         }
     }
 
@@ -352,6 +434,20 @@ class GoogleDriveStorageProvider(
     }
 }
 
+private data class DriveStartToken(val startPageToken: String? = null)
+
+private data class DriveChangeList(
+    val changes: List<DriveChange>? = null,
+    val nextPageToken: String? = null,
+    val newStartPageToken: String? = null,
+)
+
+private data class DriveChange(
+    val fileId: String? = null,
+    val removed: Boolean? = null,
+    val file: DriveFile? = null,
+)
+
 private data class DriveFileList(
     val files: List<DriveFile>? = null,
     val nextPageToken: String? = null
@@ -362,6 +458,7 @@ private data class DriveFile(
     val name: String? = null,
     val mimeType: String? = null,
     val size: String? = null,
+    val trashed: Boolean? = null,
     val createdTime: String? = null,
     val modifiedTime: String? = null,
     val thumbnailLink: String? = null,

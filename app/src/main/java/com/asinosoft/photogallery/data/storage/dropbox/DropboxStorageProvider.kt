@@ -10,8 +10,10 @@ import com.asinosoft.photogallery.data.Video
 import com.asinosoft.photogallery.data.mediaSortDateTime
 import com.asinosoft.photogallery.data.parseRfc3339Millis
 import com.asinosoft.photogallery.data.storage.Storage
+import com.asinosoft.photogallery.data.storage.StorageChange
 import com.asinosoft.photogallery.data.storage.StorageCheckResult
 import com.asinosoft.photogallery.data.storage.StorageProvider
+import com.asinosoft.photogallery.data.storage.SyncCursorExpiredException
 import com.google.gson.Gson
 import com.google.gson.annotations.SerializedName
 import java.net.ConnectException
@@ -33,6 +35,15 @@ class DropboxStorageProvider(
 ) : StorageProvider {
     private val client = OkHttpClient()
     private val gson = Gson()
+    private var pendingCursor: String? = null
+
+    override val supportsIncrementalSync: Boolean = true
+
+    override fun takeSyncCursor(): String? {
+        val cursor = pendingCursor
+        pendingCursor = null
+        return cursor
+    }
 
     override fun authorize(request: Request): Request {
         val token = storage.password
@@ -80,7 +91,7 @@ class DropboxStorageProvider(
                         DropboxListFolderRequest(
                             path = "",
                             recursive = true,
-                            includeDeleted = false,
+                            includeDeleted = true,
                             includeMediaInfo = true,
                             limit = 2000
                         )
@@ -106,6 +117,48 @@ class DropboxStorageProvider(
                     .forEach { emit(it) }
 
                 cursor = page.cursor
+                hasMore = page.hasMore
+            }
+            if (!cursor.isNullOrBlank()) pendingCursor = cursor
+        }
+    }
+
+    override suspend fun fetchChanges(cursor: String): Flow<StorageChange> {
+        if (storage.password.isNullOrBlank()) return flow { }
+
+        return flow {
+            var hasMore = true
+            var next = cursor
+            while (hasMore) {
+                val payload = withContext(Dispatchers.IO) {
+                    apiPostOrThrow(
+                        "files/list_folder/continue",
+                        gson.toJson(DropboxListFolderContinueRequest(cursor = next)),
+                    )
+                }
+                val page = gson.fromJson(payload, DropboxListFolderResponse::class.java)
+                    ?: break
+                for (entry in page.entries) {
+                    when (entry.tag) {
+                        "deleted" -> {
+                            val id = entry.id
+                            if (!id.isNullOrBlank()) {
+                                emit(StorageChange.Delete(id))
+                            } else {
+                                val pathDisplay = entry.pathDisplay ?: continue
+                                val filename = entry.name
+                                    ?: pathDisplay.substringAfterLast('/')
+                                val parent = pathDisplay.substringBeforeLast('/', "")
+                                    .trim('/')
+                                emit(StorageChange.DeleteByPath(parent, filename))
+                            }
+                        }
+
+                        "file" -> entry.toMedia(storage)?.let { emit(StorageChange.Upsert(it)) }
+                    }
+                }
+                next = page.cursor ?: break
+                pendingCursor = page.cursor
                 hasMore = page.hasMore
             }
         }
@@ -186,6 +239,24 @@ class DropboxStorageProvider(
                 return null
             }
             return response.body?.string()
+        }
+    }
+
+    private fun apiPostOrThrow(path: String, payload: String): String {
+        val request = Request.Builder()
+            .url(DropboxApi.BASE_URL + path)
+            .post(payload.toRequestBody("application/json".toMediaType()))
+            .header("Authorization", "Bearer ${storage.password}")
+            .build()
+        client.newCall(request).execute().use { response ->
+            val body = response.body?.string().orEmpty()
+            if (response.code == 409 || body.contains("\"reset\"")) {
+                throw SyncCursorExpiredException("Dropbox cursor reset")
+            }
+            if (!response.isSuccessful) {
+                throw SyncCursorExpiredException("Dropbox HTTP ${response.code}")
+            }
+            return body
         }
     }
 }

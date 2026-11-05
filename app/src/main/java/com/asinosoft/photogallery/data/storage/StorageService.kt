@@ -38,6 +38,7 @@ import kotlin.system.measureTimeMillis
 class StorageService @Inject constructor(
     private val albumDao: AlbumDao,
     private val mediaDao: MediaDao,
+    private val folderSnapshotDao: FolderSnapshotDao,
     private val mediaService: MediaService,
     private val storageDao: StorageDao,
     private val storageProviderRegistry: StorageProviderRegistry,
@@ -83,7 +84,7 @@ class StorageService @Inject constructor(
         val saved = if (insertedId > 0) toSave.withId(insertedId) else toSave
         storageProviderRegistry.invalidate(saved.id)
         storageAuthProvider.refresh()
-        enqueueFetch(saved)
+        enqueueFetch(saved, force = true, reason = SyncReason.Manual)
         return saved
     }
 
@@ -91,6 +92,7 @@ class StorageService @Inject constructor(
         val mediaIds = mediaDao.getIdsForStorage(storage.id)
         ThumbnailCache.deleteAll(context, mediaIds)
         mediaDao.deleteStorage(storage.id)
+        folderSnapshotDao.deleteForStorage(storage.id)
         albumDao.deleteEmptyAlbums()
         // categoryId у album NOT NULL + FK SET_NULL → DELETE категории падает.
         // Сначала явно сносим альбомы категории хранилища.
@@ -111,11 +113,15 @@ class StorageService @Inject constructor(
         storageAuthProvider.refresh()
     }
 
-    fun enqueueFetch(storage: Storage) {
+    fun enqueueFetch(
+        storage: Storage,
+        force: Boolean = false,
+        reason: SyncReason = SyncReason.Manual,
+    ) {
         scope.launch {
-            runCatching { fetch(storage) }
+            runCatching { fetch(storage, force = force, reason = reason) }
                 .onFailure { ex ->
-                    Log.e(TAG, "Fetch failed: $storage", ex)
+                    Log.e(TAG, "Fetch failed: ${storage.type} id=${storage.id} reason=$reason", ex)
                     val label = storage.categoryTitle(context)
                     MessageBus.emit(
                         context.getString(R.string.storage_refresh_failed, label)
@@ -124,7 +130,23 @@ class StorageService @Inject constructor(
         }
     }
 
-    suspend fun fetch(storage: Storage) {
+    suspend fun fetch(
+        storage: Storage,
+        force: Boolean = false,
+        reason: SyncReason = SyncReason.Manual,
+    ) {
+        if (reason == SyncReason.AppOpen && !storage.allowsAutoSync()) {
+            Log.d(TAG, "Skip AppOpen sync id=${storage.id} type=${storage.type}")
+            return
+        }
+        if (skipForInterval(storage, force, reason)) {
+            Log.d(
+                TAG,
+                "Skip fresh sync id=${storage.id} reason=$reason age=${System.currentTimeMillis() - storage.lastFetchedAt}ms",
+            )
+            return
+        }
+
         beginFetching(storage)
         try {
             val mutex = synchronized(fetchMutexes) {
@@ -132,19 +154,51 @@ class StorageService @Inject constructor(
             }
             mutex.withLock {
                 var fresh = storageDao.getStorageById(storage.id)
+                if (skipForInterval(fresh, force, reason)) {
+                    Log.d(TAG, "Skip fresh sync (locked) id=${fresh.id} reason=$reason")
+                    return@withLock
+                }
+                if (reason == SyncReason.AppOpen && !fresh.allowsAutoSync()) {
+                    return@withLock
+                }
                 fresh = refreshGoogleDriveAccessToken(fresh) ?: return@withLock
                 storageProviderRegistry.invalidate(fresh.id)
                 val provider = storageProviderRegistry.getStorageProvider(fresh.id)
+                (provider as? FolderListingScan)?.setFastStampCheck(reason != SyncReason.Manual)
+                var newCursor: String? = null
                 measureTimeMillis {
-                    Log.i(TAG, "Update storage: ${fresh.type} id=${fresh.id}")
-                    mediaService.update(provider)
+                    Log.i(
+                        TAG,
+                        "Update storage: ${fresh.type} id=${fresh.id} reason=$reason " +
+                                "force=$force cursor=${!fresh.syncCursor.isNullOrBlank()} " +
+                                "fast=${reason != SyncReason.Manual}",
+                    )
+                    newCursor = mediaService.update(provider)
                 }.also {
                     Log.i(TAG, "Updated ${fresh.type} id=${fresh.id} in $it ms")
                 }
+                storageDao.upsert(
+                    fresh.copy(
+                        lastFetchedAt = System.currentTimeMillis(),
+                        syncCursor = newCursor,
+                    )
+                )
             }
         } finally {
             endFetching(storage)
         }
+    }
+
+    /**
+     * 15 минут — автосинк при входе для хранилищ с дельтой или sync-collection.
+     * Без курсора вход и раскрытие сверяют дату папки сразу.
+     * «Обновить» всегда запрашивает список файлов.
+     */
+    private fun skipForInterval(storage: Storage, force: Boolean, reason: SyncReason): Boolean {
+        if (force || reason == SyncReason.Manual || reason == SyncReason.EnterCategory) return false
+        if (reason == SyncReason.AppOpen && storage.usesFastFolderCheck()) return false
+        if (storage.lastFetchedAt <= 0L) return false
+        return System.currentTimeMillis() - storage.lastFetchedAt < Storage.AUTO_SYNC_MIN_INTERVAL_MS
     }
 
     /** Обновить OAuth перед сканом/открытием файла. null = ждём UI consent. */
@@ -198,7 +252,7 @@ class StorageService @Inject constructor(
         storageProviderRegistry.invalidate(storageId)
         storageAuthProvider.refresh()
         Log.i(TAG, "Applied Google Drive token for storage $storageId")
-        if (retryFetch) enqueueFetch(updated)
+        if (retryFetch) enqueueFetch(updated, force = true, reason = SyncReason.Manual)
     }
 
     /** Старые Dropbox без login — email через users/get_current_account. */

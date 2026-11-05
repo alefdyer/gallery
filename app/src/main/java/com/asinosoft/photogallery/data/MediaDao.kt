@@ -128,6 +128,32 @@ interface MediaDao {
     @Query("DELETE FROM media WHERE storageId=:storageId AND id NOT IN (:mediaIds)")
     suspend fun deleteAllExcept(storageId: Long, mediaIds: Collection<Long>)
 
+    @Query(
+        "SELECT id FROM media WHERE storageId=:storageId AND storageItemId IN (:storageItemIds)"
+    )
+    suspend fun getIdsByStorageItemIds(
+        storageId: Long,
+        storageItemIds: Collection<String>
+    ): List<Long>
+
+    @Query(
+        "DELETE FROM media WHERE storageId=:storageId AND storageItemId IN (:storageItemIds)"
+    )
+    suspend fun deleteByStorageItemIds(storageId: Long, storageItemIds: Collection<String>)
+
+    @Query("SELECT id FROM media WHERE storageId=:storageId AND path IN (:paths)")
+    suspend fun getIdsByPaths(storageId: Long, paths: Collection<String>): List<Long>
+
+    @Query(
+        "SELECT id FROM media WHERE storageId=:storageId AND path=:path AND filename=:filename"
+    )
+    suspend fun getIdsByPathAndName(storageId: Long, path: String, filename: String): List<Long>
+
+    @Query(
+        "DELETE FROM media WHERE storageId=:storageId AND path=:path AND filename=:filename"
+    )
+    suspend fun deleteByPathAndName(storageId: Long, path: String, filename: String)
+
     /**
      * Удаляет медиа хранилища, которых нет в [keepIds].
      * Пустой [keepIds] нельзя отдавать в SQL `NOT IN ()` — Room/SQLite сносит всё.

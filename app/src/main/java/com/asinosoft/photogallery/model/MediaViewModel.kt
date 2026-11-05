@@ -14,6 +14,7 @@ import com.asinosoft.photogallery.data.Video
 import com.asinosoft.photogallery.data.plausibleVideoDurationMs
 import com.asinosoft.photogallery.data.storage.StorageService
 import com.asinosoft.photogallery.data.storage.StorageProviderRegistry
+import com.asinosoft.photogallery.data.storage.WaitingForGoogleSignIn
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.io.File
 import javax.inject.Inject

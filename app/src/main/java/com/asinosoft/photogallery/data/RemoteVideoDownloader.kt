@@ -5,6 +5,7 @@ import com.asinosoft.photogallery.GalleryApp
 import com.asinosoft.photogallery.data.storage.StorageAuthProvider
 import com.asinosoft.photogallery.data.storage.StorageProviderRegistry
 import com.asinosoft.photogallery.data.storage.StorageService
+import com.asinosoft.photogallery.data.storage.WaitingForGoogleSignIn
 import java.io.File
 import java.io.FileOutputStream
 import kotlinx.coroutines.Dispatchers

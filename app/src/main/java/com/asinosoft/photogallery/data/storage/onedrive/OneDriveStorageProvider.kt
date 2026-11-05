@@ -8,8 +8,10 @@ import com.asinosoft.photogallery.data.Video
 import com.asinosoft.photogallery.data.mediaSortDateTime
 import com.asinosoft.photogallery.data.parseRfc3339Millis
 import com.asinosoft.photogallery.data.storage.Storage
+import com.asinosoft.photogallery.data.storage.StorageChange
 import com.asinosoft.photogallery.data.storage.StorageCheckResult
 import com.asinosoft.photogallery.data.storage.StorageProvider
+import com.asinosoft.photogallery.data.storage.SyncCursorExpiredException
 import com.google.gson.Gson
 import com.google.gson.annotations.SerializedName
 import java.net.ConnectException
@@ -25,6 +27,9 @@ import okhttp3.Request
 class OneDriveStorageProvider(override val storage: Storage) : StorageProvider {
     private val client = OkHttpClient()
     private val gson = Gson()
+    private var pendingCursor: String? = null
+
+    override val supportsIncrementalSync: Boolean = true
 
     override fun authorize(request: Request): Request {
         val token = storage.password
@@ -32,6 +37,12 @@ class OneDriveStorageProvider(override val storage: Storage) : StorageProvider {
         return request.newBuilder()
             .header("Authorization", "Bearer $token")
             .build()
+    }
+
+    override fun takeSyncCursor(): String? {
+        val cursor = pendingCursor
+        pendingCursor = null
+        return cursor
     }
 
     override suspend fun checkConnection(): StorageCheckResult {
@@ -67,29 +78,67 @@ class OneDriveStorageProvider(override val storage: Storage) : StorageProvider {
         val token = storage.password
         if (token.isNullOrBlank()) return flow { }
 
-        return flow {
-            var url: String? =
-                "${OneDriveApi.GRAPH_BASE}/me/drive/root/delta" +
-                        "?\$select=id,name,size,createdDateTime,lastModifiedDateTime," +
-                        "file,folder,parentReference,photo" +
-                        "&\$expand=thumbnails"
-            while (url != null) {
-                val page = withContext(Dispatchers.IO) {
-                    val request = Request.Builder()
-                        .url(url!!)
-                        .header("Authorization", "Bearer $token")
-                        .get()
-                        .build()
-                    client.newCall(request).execute().use { response ->
-                        if (!response.isSuccessful) return@withContext null
-                        response.body?.use { gson.fromJson(it.string(), DeltaPage::class.java) }
-                    }
-                } ?: break
+        val startUrl =
+            "${OneDriveApi.GRAPH_BASE}/me/drive/root/delta" +
+                    "?\$select=id,name,size,createdDateTime,lastModifiedDateTime," +
+                    "file,folder,parentReference,photo,deleted" +
+                    "&\$expand=thumbnails"
 
-                page.value.orEmpty().forEach { item ->
-                    item.toMedia(storage)?.let { emit(it) }
+        return flow {
+            walkDelta(token, startUrl) { item ->
+                if (item.isRemoved) return@walkDelta
+                item.toMedia(storage)?.let { emit(it) }
+            }
+        }
+    }
+
+    override suspend fun fetchChanges(cursor: String): Flow<StorageChange> {
+        val token = storage.password
+        if (token.isNullOrBlank()) return flow { }
+
+        return flow {
+            walkDelta(token, cursor) { item ->
+                if (item.isRemoved) {
+                    item.id?.let { emit(StorageChange.Delete(it)) }
+                } else {
+                    item.toMedia(storage)?.let { emit(StorageChange.Upsert(it)) }
                 }
-                url = page.nextLink
+            }
+        }
+    }
+
+    private suspend fun walkDelta(
+        token: String,
+        startUrl: String,
+        onItem: suspend (DriveItem) -> Unit,
+    ) {
+        var url: String? = startUrl
+        while (url != null) {
+            val page = withContext(Dispatchers.IO) {
+                val request = Request.Builder()
+                    .url(url!!)
+                    .header("Authorization", "Bearer $token")
+                    .get()
+                    .build()
+                client.newCall(request).execute().use { response ->
+                    when (response.code) {
+                        410, 404 -> throw SyncCursorExpiredException(
+                            "OneDrive delta HTTP ${response.code}"
+                        )
+
+                        !in 200..299 -> error("OneDrive delta HTTP ${response.code}")
+                    }
+                    response.body?.use { gson.fromJson(it.string(), DeltaPage::class.java) }
+                        ?: error("OneDrive delta empty body")
+                }
+            }
+
+            for (item in page.value.orEmpty()) {
+                onItem(item)
+            }
+            url = page.nextLink
+            if (page.nextLink == null && !page.deltaLink.isNullOrBlank()) {
+                pendingCursor = page.deltaLink
             }
         }
     }
@@ -122,7 +171,9 @@ class OneDriveStorageProvider(override val storage: Storage) : StorageProvider {
 private data class DeltaPage(
     val value: List<DriveItem>? = null,
     @SerializedName("@odata.nextLink")
-    val nextLink: String? = null
+    val nextLink: String? = null,
+    @SerializedName("@odata.deltaLink")
+    val deltaLink: String? = null,
 )
 
 private data class DriveItem(
@@ -136,9 +187,15 @@ private data class DriveItem(
     val photo: PhotoFacet? = null,
     val parentReference: ParentRef? = null,
     val thumbnails: List<ThumbnailSet>? = null,
+    val deleted: DeletedFacet? = null,
+    @SerializedName("@removed")
+    val removed: RemovedFacet? = null,
     @SerializedName("@microsoft.graph.downloadUrl")
-    val downloadUrl: String? = null
+    val downloadUrl: String? = null,
 ) {
+    val isRemoved: Boolean
+        get() = removed != null || deleted != null
+
     fun toMedia(storage: Storage): Media? {
         if (folder != null || file == null) return null
         val id = id ?: return null
@@ -174,6 +231,8 @@ private data class DriveItem(
     }
 }
 
+private data class DeletedFacet(val state: String? = null)
+private data class RemovedFacet(val reason: String? = null)
 private data class DriveFileFacet(val mimeType: String? = null)
 private data class PhotoFacet(val takenDateTime: String? = null)
 private data class ParentRef(val path: String? = null, val id: String? = null)

@@ -15,6 +15,7 @@ import com.asinosoft.photogallery.data.storage.Storage
 import com.asinosoft.photogallery.data.storage.StorageDao
 import com.asinosoft.photogallery.data.storage.StorageService
 import com.asinosoft.photogallery.data.storage.StorageType
+import com.asinosoft.photogallery.data.storage.SyncReason
 import com.asinosoft.photogallery.data.storage.local.LocalStorageObserver
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -38,8 +39,14 @@ class MainViewModel @Inject constructor(
 
                 registerContentObserver(storage)
 
-                storageService.fetch(storage)
+                storageService.fetch(storage, force = true, reason = SyncReason.Manual)
                 analytics.scanCompleted()
+            } else if (storage.allowsAutoSync()) {
+                storageService.enqueueFetch(
+                    storage,
+                    force = false,
+                    reason = SyncReason.AppOpen,
+                )
             }
         }
     }

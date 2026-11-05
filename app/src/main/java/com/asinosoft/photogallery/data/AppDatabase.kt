@@ -7,6 +7,8 @@ import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
+import com.asinosoft.photogallery.data.storage.FolderSnapshot
+import com.asinosoft.photogallery.data.storage.FolderSnapshotDao
 import com.asinosoft.photogallery.data.storage.Storage
 import com.asinosoft.photogallery.data.storage.StorageRoomDao
 
@@ -16,8 +18,10 @@ import com.asinosoft.photogallery.data.storage.StorageRoomDao
         AlbumCategory::class,
         Media::class,
         MediaAlbum::class,
-        Storage::class],
-    version = 8,
+        Storage::class,
+        FolderSnapshot::class,
+    ],
+    version = 11,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -27,6 +31,8 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun imageDao(): MediaDao
 
     abstract fun storageDao(): StorageRoomDao
+
+    abstract fun folderSnapshotDao(): FolderSnapshotDao
 
     companion object {
         @Volatile
@@ -38,7 +44,15 @@ abstract class AppDatabase : RoomDatabase() {
 
         private fun buildDatabase(context: Context): AppDatabase = Room
             .databaseBuilder(context, AppDatabase::class.java, "media.db")
-            .addMigrations(MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8)
+            .addMigrations(
+                MIGRATION_4_5,
+                MIGRATION_5_6,
+                MIGRATION_6_7,
+                MIGRATION_7_8,
+                MIGRATION_8_9,
+                MIGRATION_9_10,
+                MIGRATION_10_11,
+            )
             .fallbackToDestructiveMigration(true)
             .addCallback(AppDatabaseInitializer())
             .build()
@@ -96,6 +110,41 @@ abstract class AppDatabase : RoomDatabase() {
                             WHERE ma.albumId = album.id AND m.video IS NOT NULL
                         )
                     """.trimIndent()
+                )
+            }
+        }
+
+        private val MIGRATION_8_9 = object : Migration(8, 9) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "ALTER TABLE storage ADD COLUMN lastFetchedAt INTEGER NOT NULL DEFAULT 0"
+                )
+                db.execSQL("ALTER TABLE storage ADD COLUMN syncCursor TEXT")
+            }
+        }
+
+        private val MIGRATION_9_10 = object : Migration(9, 10) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS folder_snapshot (
+                        storageId INTEGER NOT NULL,
+                        path TEXT NOT NULL,
+                        fingerprint TEXT NOT NULL,
+                        PRIMARY KEY(storageId, path)
+                    )
+                    """.trimIndent()
+                )
+            }
+        }
+
+        private val MIGRATION_10_11 = object : Migration(10, 11) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "ALTER TABLE folder_snapshot ADD COLUMN dirStamp TEXT NOT NULL DEFAULT ''"
+                )
+                db.execSQL(
+                    "ALTER TABLE folder_snapshot ADD COLUMN childUrls TEXT NOT NULL DEFAULT ''"
                 )
             }
         }
