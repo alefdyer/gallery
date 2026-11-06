@@ -236,7 +236,9 @@
     <string name="editor_no_changes">सेव करने के लिए कोई बदलाव नहीं</string>
     <string name="editor_undo">पूर्ववत करें</string>
     <string name="editor_redo">फिर से करें</string>
-    <string name="editor_ai_apply">स्वतः सुधार</string>
+    <string name="editor_ai_apply">ऑटो</string>
+    <string name="editor_aspect_free">मुक्त</string>
+    <string name="editor_aspect_screen">स्क्रीन</string>
     <string name="editor_rotate">घुमाएँ</string>
     <string name="editor_flip">पलटें</string>
     <string name="editor_reset_crop">क्रॉप रीसेट करें</string>

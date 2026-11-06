@@ -236,7 +236,9 @@
     <string name="editor_no_changes">没有可保存的更改</string>
     <string name="editor_undo">撤销</string>
     <string name="editor_redo">重做</string>
-    <string name="editor_ai_apply">自动增强</string>
+    <string name="editor_ai_apply">自动</string>
+    <string name="editor_aspect_free">自由</string>
+    <string name="editor_aspect_screen">屏幕</string>
     <string name="editor_rotate">旋转</string>
     <string name="editor_flip">翻转</string>
     <string name="editor_reset_crop">重置裁剪</string>

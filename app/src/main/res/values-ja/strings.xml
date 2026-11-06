@@ -236,7 +236,9 @@
     <string name="editor_no_changes">保存する変更はありません</string>
     <string name="editor_undo">元に戻す</string>
     <string name="editor_redo">やり直し</string>
-    <string name="editor_ai_apply">自動補正</string>
+    <string name="editor_ai_apply">自動</string>
+    <string name="editor_aspect_free">自由</string>
+    <string name="editor_aspect_screen">画面</string>
     <string name="editor_rotate">回転</string>
     <string name="editor_flip">反転</string>
     <string name="editor_reset_crop">トリミングをリセット</string>

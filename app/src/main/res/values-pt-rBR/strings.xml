@@ -236,7 +236,9 @@
     <string name="editor_no_changes">Não há alterações para salvar</string>
     <string name="editor_undo">Desfazer</string>
     <string name="editor_redo">Refazer</string>
-    <string name="editor_ai_apply">Aprimorar automaticamente</string>
+    <string name="editor_ai_apply">Auto</string>
+    <string name="editor_aspect_free">Livre</string>
+    <string name="editor_aspect_screen">Tela</string>
     <string name="editor_rotate">Girar</string>
     <string name="editor_flip">Espelhar</string>
     <string name="editor_reset_crop">Redefinir recorte</string>

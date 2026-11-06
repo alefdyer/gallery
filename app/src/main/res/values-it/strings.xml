@@ -236,7 +236,9 @@
     <string name="editor_no_changes">Nessuna modifica da salvare</string>
     <string name="editor_undo">Annulla</string>
     <string name="editor_redo">Ripeti</string>
-    <string name="editor_ai_apply">Miglioramento automatico</string>
+    <string name="editor_ai_apply">Auto</string>
+    <string name="editor_aspect_free">Libero</string>
+    <string name="editor_aspect_screen">Schermo</string>
     <string name="editor_rotate">Ruota</string>
     <string name="editor_flip">Rifletti</string>
     <string name="editor_reset_crop">Reimposta ritaglio</string>

@@ -236,7 +236,9 @@
     <string name="editor_no_changes">No changes to save</string>
     <string name="editor_undo">Undo</string>
     <string name="editor_redo">Redo</string>
-    <string name="editor_ai_apply">Auto enhance</string>
+    <string name="editor_ai_apply">Auto</string>
+    <string name="editor_aspect_free">Free</string>
+    <string name="editor_aspect_screen">Screen</string>
     <string name="editor_rotate">Rotate</string>
     <string name="editor_flip">Flip</string>
     <string name="editor_reset_crop">Reset crop</string>

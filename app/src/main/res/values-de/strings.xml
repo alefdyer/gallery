@@ -236,7 +236,9 @@
     <string name="editor_no_changes">Keine Änderungen zum Speichern</string>
     <string name="editor_undo">Rückgängig</string>
     <string name="editor_redo">Wiederholen</string>
-    <string name="editor_ai_apply">Automatisch verbessern</string>
+    <string name="editor_ai_apply">Auto</string>
+    <string name="editor_aspect_free">Frei</string>
+    <string name="editor_aspect_screen">Bildschirm</string>
     <string name="editor_rotate">Drehen</string>
     <string name="editor_flip">Spiegeln</string>
     <string name="editor_reset_crop">Ausschnitt zurücksetzen</string>

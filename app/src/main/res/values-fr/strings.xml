@@ -236,7 +236,9 @@
     <string name="editor_no_changes">Aucune modification à enregistrer</string>
     <string name="editor_undo">Annuler</string>
     <string name="editor_redo">Rétablir</string>
-    <string name="editor_ai_apply">Amélioration auto</string>
+    <string name="editor_ai_apply">Auto</string>
+    <string name="editor_aspect_free">Libre</string>
+    <string name="editor_aspect_screen">Écran</string>
     <string name="editor_rotate">Pivoter</string>
     <string name="editor_flip">Retourner</string>
     <string name="editor_reset_crop">Réinitialiser le cadrage</string>

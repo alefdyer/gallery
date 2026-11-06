@@ -9,6 +9,7 @@ import android.graphics.ColorMatrixColorFilter
 import android.graphics.Matrix
 import android.graphics.Paint
 import android.graphics.Typeface
+import android.media.ExifInterface
 import android.net.Uri
 import android.os.Build
 import android.os.Environment
@@ -28,12 +29,17 @@ import androidx.media3.transformer.ExportException
 import androidx.media3.transformer.ExportResult
 import androidx.media3.transformer.Transformer
 import com.asinosoft.photogallery.data.Media
+import com.asinosoft.photogallery.data.positiveEpoch
+import com.asinosoft.photogallery.data.sortDateTimeEpochMillis
 import com.asinosoft.photogallery.ui.editor.AdjustParams
 import com.asinosoft.photogallery.ui.editor.EditState
 import com.asinosoft.photogallery.ui.editor.FilterPreset
 import com.asinosoft.photogallery.ui.editor.PerspectiveQuad
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.io.File
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.coroutines.resume
@@ -123,10 +129,20 @@ class EditorExport @Inject constructor(
 
     fun saveJpeg(bitmap: Bitmap, source: Media): Uri? {
         val placed = copyPlacement(source, video = false)
+        val temp = File(context.cacheDir, "editor_${System.currentTimeMillis()}.jpg")
+        var uri: Uri? = null
         return try {
+            val compressed = temp.outputStream().use {
+                bitmap.compress(Bitmap.CompressFormat.JPEG, 92, it)
+            }
+            if (!compressed) return null
+            // EXIF до первой публикации: этот телефон не заполняет дату съёмки, если дописать её позже.
+            writeJpegSortExif(temp, copySortMillis(source))
+            val dates = copyDateValues(source)
             val values = ContentValues().apply {
                 put(MediaStore.MediaColumns.DISPLAY_NAME, placed.name)
                 put(MediaStore.MediaColumns.MIME_TYPE, "image/jpeg")
+                putAll(dates)
                 if (Build.VERSION.SDK_INT >= 29) {
                     put(MediaStore.MediaColumns.RELATIVE_PATH, placed.relativePath)
                     put(MediaStore.MediaColumns.IS_PENDING, 1)
@@ -135,23 +151,28 @@ class EditorExport @Inject constructor(
                 }
             }
             val resolver = context.contentResolver
-            val uri = resolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
+            val inserted = resolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
                 ?: return null
-            resolver.openOutputStream(uri)?.use { out ->
-                bitmap.compress(Bitmap.CompressFormat.JPEG, 92, out)
-            } ?: run {
-                resolver.delete(uri, null, null)
+            uri = inserted
+            val copied = resolver.openOutputStream(inserted)?.use { out ->
+                temp.inputStream().use { input -> input.copyTo(out) }
+                true
+            } == true
+            if (!copied) {
+                resolver.delete(inserted, null, null)
+                uri = null
                 return null
             }
             if (Build.VERSION.SDK_INT >= 29) {
-                values.clear()
-                values.put(MediaStore.MediaColumns.IS_PENDING, 0)
-                resolver.update(uri, values, null, null)
+                resolver.update(inserted, publishValues(dates), null, null)
             }
-            uri
+            inserted
         } catch (e: Exception) {
             Log.w(TAG, "saveJpeg failed", e)
+            uri?.let { runCatching { context.contentResolver.delete(it, null, null) } }
             null
+        } finally {
+            temp.delete()
         }
     }
 
@@ -290,10 +311,13 @@ class EditorExport @Inject constructor(
 
     private fun saveMp4(file: File, source: Media): Uri? {
         val placed = copyPlacement(source, video = true)
+        var uri: Uri? = null
         return try {
+            val dates = copyDateValues(source)
             val values = ContentValues().apply {
                 put(MediaStore.MediaColumns.DISPLAY_NAME, placed.name)
                 put(MediaStore.MediaColumns.MIME_TYPE, "video/mp4")
+                putAll(dates)
                 if (Build.VERSION.SDK_INT >= 29) {
                     put(MediaStore.MediaColumns.RELATIVE_PATH, placed.relativePath)
                     put(MediaStore.MediaColumns.IS_PENDING, 1)
@@ -302,24 +326,78 @@ class EditorExport @Inject constructor(
                 }
             }
             val resolver = context.contentResolver
-            val uri = resolver.insert(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, values)
+            val inserted = resolver.insert(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, values)
                 ?: return null
-            resolver.openOutputStream(uri)?.use { out ->
+            uri = inserted
+            val copied = resolver.openOutputStream(inserted)?.use { out ->
                 file.inputStream().use { input -> input.copyTo(out) }
-            } ?: run {
-                resolver.delete(uri, null, null)
+                true
+            } == true
+            if (!copied) {
+                resolver.delete(inserted, null, null)
+                uri = null
                 return null
             }
             if (Build.VERSION.SDK_INT >= 29) {
-                values.clear()
-                values.put(MediaStore.MediaColumns.IS_PENDING, 0)
-                resolver.update(uri, values, null, null)
+                resolver.update(inserted, publishValues(dates), null, null)
             }
-            uri
+            inserted
         } catch (e: Exception) {
             Log.w(TAG, "saveMp4 failed", e)
+            uri?.let { runCatching { context.contentResolver.delete(it, null, null) } }
             null
         }
+    }
+
+    /**
+     * Равное время оставляет копию под оригиналом в списке от новых к старым.
+     * Миллисекунда вперёд ставит её сразу перед ним.
+     */
+    private fun copySortMillis(source: Media): Long =
+        source.sortDateTimeEpochMillis() + 1L
+
+    /** Создание — как у исходного файла, изменение — сейчас, съёмка — сразу перед оригиналом. */
+    private fun copyDateValues(source: Media): ContentValues {
+        val sortMs = copySortMillis(source)
+        val createdMs = positiveEpoch(source.createdAt)
+            ?: positiveEpoch(source.takenAt)
+            ?: sortMs
+        val nowMs = System.currentTimeMillis()
+        return ContentValues().apply {
+            put(MediaStore.MediaColumns.DATE_ADDED, createdMs / 1000L)
+            put(MediaStore.MediaColumns.DATE_MODIFIED, nowMs / 1000L)
+            put(MediaStore.Images.Media.DATE_TAKEN, sortMs)
+        }
+    }
+
+    /** Публикация вместе с датами: отдельный проход по файлу на этом телефоне обнуляет дату съёмки. */
+    private fun publishValues(dates: ContentValues) = ContentValues(dates).apply {
+        put(MediaStore.MediaColumns.IS_PENDING, 0)
+    }
+
+    /**
+     * Дата съёмки должна уже лежать в JPEG к моменту, когда MediaStore видит файл первый раз.
+     * Без OffsetTimeOriginal этот телефон читает местное время как UTC и сдвигает дату съёмки.
+     */
+    private fun writeJpegSortExif(file: File, sortMs: Long) {
+        if (!file.exists()) return
+        val zoned = Instant.ofEpochMilli(sortMs).atZone(ZoneId.systemDefault())
+        val text = DateTimeFormatter.ofPattern("yyyy:MM:dd HH:mm:ss").format(zoned)
+        val offset = zoned.offset.id.let { if (it == "Z") "+00:00" else it }
+        val sub = (sortMs % 1000).toString().padStart(3, '0')
+        runCatching {
+            val exif = ExifInterface(file.absolutePath)
+            exif.setAttribute(ExifInterface.TAG_DATETIME, text)
+            exif.setAttribute(ExifInterface.TAG_DATETIME_ORIGINAL, text)
+            exif.setAttribute(ExifInterface.TAG_DATETIME_DIGITIZED, text)
+            exif.setAttribute(ExifInterface.TAG_OFFSET_TIME, offset)
+            exif.setAttribute(ExifInterface.TAG_OFFSET_TIME_ORIGINAL, offset)
+            exif.setAttribute(ExifInterface.TAG_OFFSET_TIME_DIGITIZED, offset)
+            exif.setAttribute(ExifInterface.TAG_SUBSEC_TIME, sub)
+            exif.setAttribute(ExifInterface.TAG_SUBSEC_TIME_ORIGINAL, sub)
+            exif.setAttribute(ExifInterface.TAG_SUBSEC_TIME_DIGITIZED, sub)
+            exif.saveAttributes()
+        }.onFailure { Log.w(TAG, "stamp jpeg exif failed", it) }
     }
 
     private fun applyPerspective(source: Bitmap, quad: PerspectiveQuad): Bitmap {

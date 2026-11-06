@@ -155,6 +155,14 @@ class PagerViewModel @Inject constructor(
         ShareUi.cancel()
     }
 
+    /** После сохранения копии в редакторе карусель должна встать на неё, а не на соседний кадр. */
+    fun focus(mediaId: Long) {
+        if (mediaId <= 0L) return
+        val current = paramsFlow.value
+        if (current.imageId == mediaId) return
+        paramsFlow.value = current.copy(imageId = mediaId)
+    }
+
     fun removeFromAlbum(mediaId: Long, albumId: Long) = viewModelScope.launchAndCatch {
         mediaService.removeFromAlbum(listOf(mediaId), albumId)
 

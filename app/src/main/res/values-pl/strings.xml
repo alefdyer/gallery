@@ -236,7 +236,9 @@
     <string name="editor_no_changes">Brak zmian do zapisania</string>
     <string name="editor_undo">Cofnij</string>
     <string name="editor_redo">Ponów</string>
-    <string name="editor_ai_apply">Autopoprawa</string>
+    <string name="editor_ai_apply">Auto</string>
+    <string name="editor_aspect_free">Dowolny</string>
+    <string name="editor_aspect_screen">Ekran</string>
     <string name="editor_rotate">Obróć</string>
     <string name="editor_flip">Odbij</string>
     <string name="editor_reset_crop">Resetuj kadr</string>

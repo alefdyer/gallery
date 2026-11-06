@@ -10,7 +10,6 @@ enum class EditorTab(
     val photoOnly: Boolean = false,
     val videoOnly: Boolean = false,
 ) {
-    AI(R.string.editor_ai, R.drawable.editor_ai, photoOnly = true),
     TRANSFORM(R.string.editor_transform, R.drawable.editor_crop),
     FILTER(R.string.editor_filter, R.drawable.editor_filter),
     ADJUST(R.string.editor_adjust, R.drawable.editor_adjust),

@@ -233,6 +233,8 @@
     <string name="editor_revert_message">Отменить все изменения и восстановить исходную версию изображения?</string>
     <string name="editor_revert_original">Вернуть исходный вариант</string>
     <string name="editor_aspect">Пропорции</string>
+    <string name="editor_aspect_free">Свободный</string>
+    <string name="editor_aspect_screen">Экран</string>
     <string name="editor_flip_vertical">Отразить по вертикали</string>
     <string name="editor_save">Сохранить</string>
     <string name="editor_save_prompt">Сохранить изменения?</string>
@@ -240,7 +242,7 @@
     <string name="editor_no_changes">Нет изменений для сохранения</string>
     <string name="editor_undo">Отменить</string>
     <string name="editor_redo">Повторить</string>
-    <string name="editor_ai_apply">Автоулучшение</string>
+    <string name="editor_ai_apply">Авто</string>
     <string name="editor_rotate">Повернуть</string>
     <string name="editor_flip">Отразить</string>
     <string name="editor_reset_crop">Сбросить кадр</string>

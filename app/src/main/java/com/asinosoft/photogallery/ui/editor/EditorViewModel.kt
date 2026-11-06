@@ -10,6 +10,7 @@ import androidx.lifecycle.viewModelScope
 import com.asinosoft.photogallery.R
 import com.asinosoft.photogallery.data.Media
 import com.asinosoft.photogallery.data.MediaDao
+import com.asinosoft.photogallery.data.MediaService
 import com.asinosoft.photogallery.data.MessageBus
 import com.asinosoft.photogallery.data.editor.EditorExport
 import com.asinosoft.photogallery.data.editor.StickerCatalog
@@ -30,6 +31,7 @@ import kotlinx.coroutines.withContext
 class EditorViewModel @Inject constructor(
     state: SavedStateHandle,
     private val mediaDao: MediaDao,
+    private val mediaService: MediaService,
     private val export: EditorExport,
     private val stickers: StickerCatalog,
     @param:ApplicationContext private val context: Context,
@@ -340,18 +342,25 @@ class EditorViewModel @Inject constructor(
         it.copy(soundtrackVolume = volume.coerceIn(0f, 1f))
     }
 
-    fun save(onDone: (Boolean) -> Unit) = viewModelScope.launchAndCatch {
+    /**
+     * @param onDone id новой копии, 0 если файл записан, но строка в базе не найдена, null если сохранить не удалось.
+     */
+    fun save(
+        albumId: Long?,
+        favorite: Boolean,
+        onDone: (Long?) -> Unit,
+    ) = viewModelScope.launchAndCatch {
         if (_edit.value == _openedEdit.value) {
             MessageBus.emit(context.getString(R.string.editor_no_changes))
-            onDone(false)
+            onDone(null)
             return@launchAndCatch
         }
         val m = _media.value ?: run {
-            onDone(false)
+            onDone(null)
             return@launchAndCatch
         }
         val uri = m.uri ?: run {
-            onDone(false)
+            onDone(null)
             return@launchAndCatch
         }
         _saving.value = true
@@ -365,7 +374,7 @@ class EditorViewModel @Inject constructor(
                     }
                 } ?: run {
                     MessageBus.emit(context.getString(R.string.editor_save_failed))
-                    onDone(false)
+                    onDone(null)
                     return@launchAndCatch
                 }
                 val out = withContext(Dispatchers.Default) { export.renderPhoto(bmp, _edit.value) }
@@ -373,13 +382,21 @@ class EditorViewModel @Inject constructor(
                     export.saveJpeg(out, m)
                 }
             }
-            if (saved != null) {
-                MessageBus.emit(context.getString(R.string.editor_saved))
-                onDone(true)
-            } else {
+            if (saved == null) {
                 MessageBus.emit(context.getString(R.string.editor_save_failed))
-                onDone(false)
+                onDone(null)
+                return@launchAndCatch
             }
+            val copyId = runCatching {
+                mediaService.indexSavedCopy(
+                    uri = saved,
+                    storageId = m.storageId,
+                    albumId = albumId,
+                    favorite = favorite,
+                )
+            }.getOrDefault(0L)
+            MessageBus.emit(context.getString(R.string.editor_saved))
+            onDone(copyId)
         } finally {
             _saving.value = false
         }

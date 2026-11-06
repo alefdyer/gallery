@@ -6,6 +6,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -34,6 +35,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
@@ -78,8 +80,10 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChanged
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
@@ -123,6 +127,9 @@ import kotlinx.coroutines.launch
 fun EditorScreen(
     onClose: () -> Unit,
     onOpenStickerOrder: () -> Unit,
+    onSaved: (Long) -> Unit = { onClose() },
+    saveAlbumId: Long? = null,
+    saveAsFavorite: Boolean = false,
     model: EditorViewModel = hiltViewModel(),
 ) {
     val media by model.media.collectAsState()
@@ -259,7 +266,15 @@ fun EditorScreen(
                 onUndo = model::undo,
                 onRedo = model::redo,
                 onRevert = { if (hasEdits) confirmRevert = true },
-                onSave = { model.save { ok -> if (ok) onClose() } },
+                onSave = {
+                    model.save(saveAlbumId, saveAsFavorite) { id ->
+                        when {
+                            id == null -> Unit
+                            id > 0L -> onSaved(id)
+                            else -> onClose()
+                        }
+                    }
+                },
                 saving = saving,
             )
 
@@ -359,7 +374,13 @@ fun EditorScreen(
                 confirmButton = {
                     TextButton(onClick = {
                         confirmLeave = false
-                        model.save { ok -> if (ok) onClose() }
+                        model.save(saveAlbumId, saveAsFavorite) { id ->
+                            when {
+                                id == null -> Unit
+                                id > 0L -> onSaved(id)
+                                else -> onClose()
+                            }
+                        }
                     }) {
                         Text(stringResource(R.string.editor_save))
                     }
@@ -491,9 +512,53 @@ private fun EditorPhotoPreview(
     var draftStroke by remember { mutableStateOf<List<StrokePoint>>(emptyList()) }
     var boxSize by remember { mutableStateOf(IntSize.Zero) }
     val crop = pose.crop ?: CropRect()
+    var transforming by remember { mutableStateOf(false) }
+    var aspectFrom by remember { mutableStateOf<CropRect?>(null) }
+    var aspectTo by remember { mutableStateOf<CropRect?>(null) }
+    val aspectProgress = remember { Animatable(1f) }
+    var displayedCrop by remember { mutableStateOf(crop) }
+    LaunchedEffect(crop) {
+        if (transforming) {
+            displayedCrop = crop
+            aspectFrom = null
+            aspectTo = null
+            return@LaunchedEffect
+        }
+        val from = if (aspectFrom != null && aspectTo != null) {
+            lerpCrop(aspectFrom!!, aspectTo!!, aspectProgress.value)
+        } else {
+            displayedCrop
+        }
+        if (from == crop) {
+            displayedCrop = crop
+            return@LaunchedEffect
+        }
+        val target = crop
+        aspectFrom = from
+        aspectTo = target
+        try {
+            aspectProgress.snapTo(0f)
+            aspectProgress.animateTo(1f, tween(280, easing = FastOutSlowInEasing))
+        } finally {
+            if (aspectTo == target) {
+                displayedCrop = target
+                aspectFrom = null
+                aspectTo = null
+            }
+        }
+    }
+    val renderCrop = when {
+        transforming -> crop
+        aspectFrom != null && aspectTo == crop ->
+            lerpCrop(aspectFrom!!, crop, aspectProgress.value)
+
+        displayedCrop != crop -> displayedCrop
+        else -> crop
+    }
     val cropState = rememberUpdatedState(crop)
     val density = LocalDensity.current
     val handleHitPx = with(density) { 36.dp.toPx() }
+    val frameInsetY = with(density) { 20.dp.toPx() }
     var gestureLock by remember { mutableStateOf<CropLayout?>(null) }
     var gestureSerial by remember { mutableIntStateOf(0) }
     val settleScope = rememberCoroutineScope()
@@ -503,7 +568,14 @@ private fun EditorPhotoPreview(
     var settleTo by remember { mutableStateOf<CropLayout?>(null) }
     var settleCrop by remember { mutableStateOf(CropRect()) }
     val fittedLayout = if (boxSize.width > 0 && boxSize.height > 0) {
-        cropLayout(boxSize.width.toFloat(), boxSize.height.toFloat(), pixelW, pixelH, crop)
+        cropLayout(
+            boxSize.width.toFloat(),
+            boxSize.height.toFloat(),
+            pixelW,
+            pixelH,
+            renderCrop,
+            frameInsetY,
+        )
     } else {
         null
     }
@@ -534,6 +606,7 @@ private fun EditorPhotoPreview(
                 boxSize.width.toFloat(),
                 boxSize.height.toFloat(),
                 pixelW.toFloat() / pixelH,
+                frameInsetY,
             ).width
 
             else -> 0f
@@ -545,6 +618,7 @@ private fun EditorPhotoPreview(
                 boxSize.width.toFloat(),
                 boxSize.height.toFloat(),
                 pixelW.toFloat() / pixelH,
+                frameInsetY,
             ).height
 
             else -> 0f
@@ -601,7 +675,8 @@ private fun EditorPhotoPreview(
                         tab == EditorTab.TRANSFORM -> Modifier.pointerInput(
                             boxSize,
                             pixelW,
-                            pixelH
+                            pixelH,
+                            frameInsetY,
                         ) {
                             if (boxSize.width == 0) return@pointerInput
                             fun layoutOf(rect: CropRect) = cropLayout(
@@ -610,6 +685,7 @@ private fun EditorPhotoPreview(
                                 pixelW,
                                 pixelH,
                                 rect,
+                                frameInsetY,
                             )
                             awaitEachGesture {
                                 val down = awaitFirstDown(requireUnconsumed = false)
@@ -632,6 +708,9 @@ private fun EditorPhotoPreview(
                                     settleFrom = null
                                     settleTo = null
                                 }
+                                transforming = true
+                                aspectFrom = null
+                                aspectTo = null
                                 model.beginCropDrag()
                                 try {
                                     var event = awaitPointerEvent()
@@ -724,6 +803,7 @@ private fun EditorPhotoPreview(
                                     } else {
                                         gestureLock = null
                                     }
+                                    transforming = false
                                     model.endCropDrag()
                                 }
                             }
@@ -749,6 +829,7 @@ private fun EditorPhotoPreview(
                     boxSize.width.toFloat(),
                     boxSize.height.toFloat(),
                     pixelW.toFloat() / pixelH,
+                    frameInsetY,
                 )
 
                 else -> null
@@ -1381,7 +1462,6 @@ private fun EditorToolPanel(
             )
     ) {
         when (tab) {
-            EditorTab.AI -> AiPanel(onApply = model::applyAiEnhance)
             EditorTab.TRANSFORM -> TransformPanel(
                 imageWidth = imageWidth,
                 imageHeight = imageHeight,
@@ -1400,6 +1480,7 @@ private fun EditorToolPanel(
             EditorTab.ADJUST -> AdjustPanel(
                 params = edit.adjust,
                 onChange = model::setAdjust,
+                onAuto = model::applyAiEnhance,
             )
 
             EditorTab.ADD -> AddPanel(
@@ -1438,20 +1519,6 @@ private fun EditorToolPanel(
 }
 
 @Composable
-private fun AiPanel(onApply: () -> Unit) {
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp),
-        horizontalArrangement = Arrangement.Center,
-    ) {
-        TextButton(onClick = onApply) {
-            Text(stringResource(R.string.editor_ai_apply), color = Color(0xFFFFD54F))
-        }
-    }
-}
-
-@Composable
 private fun TransformPanel(
     imageWidth: Int,
     imageHeight: Int,
@@ -1460,12 +1527,24 @@ private fun TransformPanel(
     onFlipHorizontal: () -> Unit,
     onFlipVertical: () -> Unit,
 ) {
-    val aspects = remember { listOf<Float?>(null, 1f, 4f / 3f, 3f / 4f, 16f / 9f, 9f / 16f) }
-    var aspectIndex by remember { mutableIntStateOf(0) }
-    Row(
-        Modifier.padding(bottom = 4.dp),
-        horizontalArrangement = Arrangement.Center,
-    ) {
+    var ratiosOpen by remember { mutableStateOf(false) }
+    var selectedId by remember { mutableStateOf<String?>(null) }
+    val configuration = LocalConfiguration.current
+    val screenAspect = configuration.screenWidthDp.toFloat() /
+            configuration.screenHeightDp.toFloat().coerceAtLeast(1f)
+    val presets = remember { aspectPresets() }
+    val amber = Color(0xFFFFD54F)
+    val ratiosProgress by animateFloatAsState(
+        targetValue = if (ratiosOpen) 1f else 0f,
+        animationSpec = tween(durationMillis = 240, easing = FastOutSlowInEasing),
+        label = "ratios",
+    )
+    Layout(
+        modifier = Modifier
+            .then(if (ratiosProgress > 0f) Modifier.fillMaxWidth() else Modifier)
+            .padding(bottom = 4.dp)
+            .clipToBounds(),
+        content = {
         Row(
             Modifier
                 .clip(RoundedCornerShape(28.dp))
@@ -1479,27 +1558,81 @@ private fun TransformPanel(
                 onClick = onFlipHorizontal,
             )
             CropMenuButton(
-                icon = R.drawable.editor_rotate,
-                description = stringResource(R.string.editor_rotate),
-                onClick = onRotate,
-            )
-            CropMenuButton(
-                icon = R.drawable.editor_aspect,
-                description = stringResource(R.string.editor_aspect),
-                onClick = {
-                    aspectIndex = (aspectIndex + 1) % aspects.size
-                    val aspect = aspects[aspectIndex]
-                    onAspect(
-                        if (aspect == null) null
-                        else CropRect.centered(imageWidth, imageHeight, aspect),
-                    )
-                },
-            )
-            CropMenuButton(
                 icon = R.drawable.editor_flip_v,
                 description = stringResource(R.string.editor_flip_vertical),
                 onClick = onFlipVertical,
             )
+            CropMenuButton(
+                icon = R.drawable.editor_rotate,
+                description = stringResource(R.string.editor_rotate),
+                onClick = onRotate,
+            )
+            IconButton(onClick = { ratiosOpen = !ratiosOpen }) {
+                Icon(
+                    painterResource(
+                        if (ratiosOpen) R.drawable.editor_aspect_active
+                        else R.drawable.editor_aspect
+                    ),
+                    contentDescription = stringResource(R.string.editor_aspect),
+                    tint = Color.Unspecified,
+                    modifier = Modifier.size(22.dp),
+                )
+            }
+        }
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(top = 8.dp)
+                    .clip(RoundedCornerShape(28.dp))
+                    .background(Color(0xFF2A2A2A).copy(alpha = 0.72f))
+                    .horizontalScroll(rememberScrollState())
+                    .padding(horizontal = 8.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(2.dp),
+            ) {
+                presets.forEach { preset ->
+                    val selected = preset.id == selectedId
+                    Column(
+                        Modifier
+                            .widthIn(min = 64.dp)
+                            .clickable {
+                                selectedId = preset.id
+                                val aspect = if (preset.useScreen) screenAspect else preset.aspect
+                                onAspect(
+                                    if (aspect == null || aspect <= 0f) null
+                                    else CropRect.centered(imageWidth, imageHeight, aspect),
+                                )
+                            }
+                            .padding(horizontal = 4.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                    ) {
+                        AspectPresetIcon(
+                            preset = preset,
+                            selected = selected,
+                            screenAspect = screenAspect,
+                        )
+                        Text(
+                            text = preset.label ?: stringResource(preset.labelRes),
+                            color = if (selected) amber else Color(0xFFB0B0B0),
+                            fontSize = 11.sp,
+                            maxLines = 1,
+                        )
+                    }
+                }
+            }
+        },
+    ) { measurables, constraints ->
+        val tools = measurables[0].measure(constraints.copy(minWidth = 0, minHeight = 0))
+        val ratios = measurables[1].measure(constraints.copy(minWidth = 0, minHeight = 0))
+        val revealed = (ratios.height * ratiosProgress).roundToInt()
+        val height = tools.height + revealed
+        val width = if (constraints.hasBoundedWidth && ratiosProgress > 0f) {
+            constraints.maxWidth
+        } else {
+            tools.width
+        }
+        layout(width, height) {
+            tools.place((width - tools.width) / 2, 0)
+            ratios.place(0, tools.height)
         }
     }
 }
@@ -1616,6 +1749,16 @@ private data class CropLayout(
     val imageHeight: Float,
 )
 
+private fun lerpCrop(from: CropRect, to: CropRect, fraction: Float): CropRect {
+    val t = fraction.coerceIn(0f, 1f)
+    return CropRect(
+        left = from.left + (to.left - from.left) * t,
+        top = from.top + (to.top - from.top) * t,
+        right = from.right + (to.right - from.right) * t,
+        bottom = from.bottom + (to.bottom - from.bottom) * t,
+    )
+}
+
 private fun lerpLayout(from: CropLayout, to: CropLayout, fraction: Float): CropLayout {
     val t = fraction.coerceIn(0f, 1f)
     return CropLayout(
@@ -1633,13 +1776,14 @@ private fun cropLayout(
     imageWidth: Int,
     imageHeight: Int,
     crop: CropRect,
+    insetY: Float = 0f,
 ): CropLayout {
     val cropWidth = (crop.right - crop.left).coerceAtLeast(0.08f)
     val cropHeight = (crop.bottom - crop.top).coerceAtLeast(0.08f)
     val pixelWidth = if (imageWidth > 0) imageWidth.toFloat() else boxWidth
     val pixelHeight = if (imageHeight > 0) imageHeight.toFloat() else boxHeight
     val aspect = (cropWidth * pixelWidth) / (cropHeight * pixelHeight)
-    val frame = maxFrame(boxWidth, boxHeight, aspect)
+    val frame = maxFrame(boxWidth, boxHeight, aspect, insetY)
     val drawWidth = frame.width / cropWidth
     val drawHeight = frame.height / cropHeight
     return CropLayout(
@@ -1651,19 +1795,31 @@ private fun cropLayout(
     )
 }
 
-private fun maxFrame(boxWidth: Float, boxHeight: Float, pixelAspect: Float): ImageFit {
+private fun maxFrame(
+    boxWidth: Float,
+    boxHeight: Float,
+    pixelAspect: Float,
+    insetY: Float = 0f,
+): ImageFit {
     if (boxWidth <= 0f || boxHeight <= 0f) return ImageFit(0f, 0f, boxWidth, boxHeight)
     val aspect = pixelAspect.coerceAtLeast(0.01f)
+    val padY = insetY.coerceAtLeast(0f)
+    val innerHeight = (boxHeight - padY * 2f).coerceAtLeast(1f)
     val width: Float
     val height: Float
-    if (aspect >= boxWidth / boxHeight) {
+    if (aspect >= boxWidth / innerHeight) {
         width = boxWidth
         height = boxWidth / aspect
     } else {
-        height = boxHeight
-        width = boxHeight * aspect
+        height = innerHeight
+        width = innerHeight * aspect
     }
-    return ImageFit((boxWidth - width) / 2f, (boxHeight - height) / 2f, width, height)
+    return ImageFit(
+        (boxWidth - width) / 2f,
+        padY + (innerHeight - height) / 2f,
+        width,
+        height,
+    )
 }
 
 private fun frameFromCrop(crop: CropRect, layout: CropLayout): ImageFit {
@@ -1844,7 +2000,11 @@ private fun FilterPanel(
 private enum class AdjustTarget { Brightness, Contrast, Saturation, Sharpness }
 
 @Composable
-private fun AdjustPanel(params: AdjustParams, onChange: (AdjustParams) -> Unit) {
+private fun AdjustPanel(
+    params: AdjustParams,
+    onChange: (AdjustParams) -> Unit,
+    onAuto: () -> Unit,
+) {
     var target by remember { mutableStateOf(AdjustTarget.Brightness) }
     val value = when (target) {
         AdjustTarget.Brightness -> params.brightness
@@ -1870,6 +2030,21 @@ private fun AdjustPanel(params: AdjustParams, onChange: (AdjustParams) -> Unit) 
                 .padding(vertical = 8.dp),
             horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
+            Box(
+                Modifier
+                    .height(40.dp)
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(Color(0xFF2A2A2A))
+                    .clickable(onClick = onAuto)
+                    .padding(horizontal = 12.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = stringResource(R.string.editor_ai_apply),
+                    color = Color(0xFFFFD54F),
+                    fontSize = 13.sp,
+                )
+            }
             AdjustTarget.entries.forEach { t ->
                 val active = t == target
                 Box(

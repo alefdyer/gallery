@@ -100,9 +100,9 @@ fun PagerView(
     onEdit: (Media) -> Unit = {},
     model: PagerViewModel = hiltViewModel()
 ) {
-    val loadedItems by model.images.collectAsState(listOf())
-    val offset by model.offset.collectAsState(0)
     val params by model.params.collectAsState()
+    val loadedItems by model.images.collectAsState()
+    val offset = loadedItems.indexOfFirst { it.id == params.imageId }.coerceAtLeast(0)
 
     val opening = remember(params) { OpenedMedia.media?.takeIf { it.id == params.imageId } }
     var listReady by remember { mutableStateOf(null == opening) }

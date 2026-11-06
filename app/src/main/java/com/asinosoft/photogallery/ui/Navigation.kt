@@ -40,6 +40,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.asinosoft.photogallery.R
 import com.google.android.gms.oss.licenses.v2.OssLicensesMenuActivity
+import com.asinosoft.photogallery.model.PagerViewModel
 import com.asinosoft.photogallery.model.PrivateMovesViewModel
 import com.asinosoft.photogallery.ui.component.ActiveSharedMedia
 import com.asinosoft.photogallery.ui.component.LocalNavAnimatedScope
@@ -52,6 +53,7 @@ import com.asinosoft.photogallery.ui.component.openManageMediaSettings
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.merge
+import kotlinx.coroutines.withTimeoutOrNull
 import androidx.navigation.NavBackStackEntry
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
@@ -156,7 +158,13 @@ private fun MoveNotifications(
             model.trashed.map { trashMessage to currentOnOpenTrash }
         ).collectLatest { (message, onOpen) ->
             if (canAskManageMedia(context)) showManageMedia = true
-            val result = snackbarHostState.showSnackbar(message, action, duration = SnackbarDuration.Long)
+            val result = withTimeoutOrNull(3_000) {
+                snackbarHostState.showSnackbar(
+                    message,
+                    action,
+                    duration = SnackbarDuration.Indefinite,
+                )
+            }
             if (SnackbarResult.ActionPerformed == result) onOpen()
         }
     }
@@ -475,9 +483,24 @@ private fun AppNavHost(
             arguments = listOf(navArgument("mediaId") { type = NavType.LongType }),
         ) { entry ->
             val mediaId = entry.arguments?.getLong("mediaId")!!
+            val pagerEntry = remember(entry) {
+                nav.previousBackStackEntry?.takeIf { it.isPager() }
+            }
+            val pagerModel = if (pagerEntry != null) {
+                hiltViewModel<PagerViewModel>(pagerEntry)
+            } else {
+                null
+            }
             EditorScreen(
                 onClose = nav::navigateUp,
                 onOpenStickerOrder = { nav.navigate("editor/$mediaId/stickers/order") },
+                onSaved = { copyId ->
+                    pagerModel?.focus(copyId)
+                    ActiveSharedMedia.id = copyId
+                    nav.navigateUp()
+                },
+                saveAlbumId = pagerModel?.params?.value?.albumId,
+                saveAsFavorite = pagerModel?.params?.value?.favoritesOnly == true,
             )
         }
 

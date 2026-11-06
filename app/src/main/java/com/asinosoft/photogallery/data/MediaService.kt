@@ -15,6 +15,7 @@ import com.asinosoft.photogallery.GalleryApp
 import com.asinosoft.photogallery.R
 import com.asinosoft.photogallery.data.storage.FolderListingScan
 import com.asinosoft.photogallery.data.storage.FolderSnapshotDao
+import com.asinosoft.photogallery.data.storage.Storage
 import com.asinosoft.photogallery.data.storage.StorageAuthProvider
 import com.asinosoft.photogallery.data.storage.StorageChange
 import com.asinosoft.photogallery.data.storage.StorageDao
@@ -22,6 +23,7 @@ import com.asinosoft.photogallery.data.storage.StorageProvider
 import com.asinosoft.photogallery.data.storage.StorageProviderRegistry
 import com.asinosoft.photogallery.data.storage.StorageService
 import com.asinosoft.photogallery.data.storage.StorageType
+import com.asinosoft.photogallery.data.storage.local.LocalStorageProvider
 import com.asinosoft.photogallery.data.storage.SyncCursorExpiredException
 import com.asinosoft.photogallery.data.storage.WaitingForGoogleSignIn
 import com.asinosoft.photogallery.di.IntentHelper
@@ -38,6 +40,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.chunked
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -62,10 +66,10 @@ class MediaService @Inject constructor(
     private val intentHelper = IntentHelper
     private val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
-    suspend fun add(media: Media, syncFavorite: Boolean = false) {
+    suspend fun add(media: Media, syncFavorite: Boolean = false): Long {
         var mediaId = mediaDao.upsert(media)
         if (mediaId <= 0) {
-            mediaId = mediaDao.getMediaId(media.storageId, media.storageItemId) ?: return
+            mediaId = mediaDao.getMediaId(media.storageId, media.storageItemId) ?: return 0L
             if (syncFavorite) mediaDao.setFavorite(listOf(mediaId), media.favorite)
         }
         addToAlbum(
@@ -76,6 +80,43 @@ class MediaService @Inject constructor(
         CoroutineScope(Dispatchers.IO).launch {
             ThumbnailCache.preload(context, mediaId, media.uri, isVideo = media.video != null)
         }
+        return mediaId
+    }
+
+    /**
+     * Копия из редактора уже лежит в MediaStore. Кладём её в базу и ждём,
+     * пока она появится в том списке, который показывает карусель.
+     */
+    suspend fun indexSavedCopy(
+        uri: Uri,
+        storageId: Long,
+        albumId: Long?,
+        favorite: Boolean,
+    ): Long {
+        val localId = localStorageId(storageId)
+        val media = LocalStorageProvider(Storage(id = localId), context).fetchOne(uri) ?: return 0L
+        val mediaId = add(media)
+        if (mediaId <= 0L) return 0L
+        if (albumId != null) addToAlbum(listOf(mediaId), albumId)
+        if (favorite) setFavorite(listOf(mediaId), true)
+        withTimeoutOrNull(2_000) {
+            val visible = when {
+                favorite -> mediaDao.getFavorites()
+                albumId != null -> albumDao.getMediaInAlbum(albumId)
+                else -> mediaDao.getImages(localId)
+            }
+            visible.first { list -> list.any { it.id == mediaId } }
+        }
+        return mediaId
+    }
+
+    private suspend fun localStorageId(preferred: Long): Long {
+        val preferredStorage = runCatching { storageDao.getStorageById(preferred) }.getOrNull()
+        if (preferredStorage?.type == StorageType.LOCAL) return preferredStorage.id
+        return storageDao.getAccounts().first()
+            .firstOrNull { it.type == StorageType.LOCAL }
+            ?.id
+            ?: preferred
     }
 
     /** На Android 11+ файлы попадают в системную корзину, откуда их можно восстановить в течение 30 дней */

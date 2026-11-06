@@ -236,7 +236,9 @@
     <string name="editor_no_changes">لا توجد تغييرات للحفظ</string>
     <string name="editor_undo">تراجع</string>
     <string name="editor_redo">إعادة</string>
-    <string name="editor_ai_apply">تحسين تلقائي</string>
+    <string name="editor_ai_apply">تلقائي</string>
+    <string name="editor_aspect_free">حر</string>
+    <string name="editor_aspect_screen">الشاشة</string>
     <string name="editor_rotate">تدوير</string>
     <string name="editor_flip">عكس</string>
     <string name="editor_reset_crop">إعادة تعيين القص</string>

@@ -236,7 +236,9 @@
     <string name="editor_no_changes">저장할 변경 내용이 없습니다</string>
     <string name="editor_undo">실행 취소</string>
     <string name="editor_redo">다시 실행</string>
-    <string name="editor_ai_apply">자동 보정</string>
+    <string name="editor_ai_apply">자동</string>
+    <string name="editor_aspect_free">자유</string>
+    <string name="editor_aspect_screen">화면</string>
     <string name="editor_rotate">회전</string>
     <string name="editor_flip">뒤집기</string>
     <string name="editor_reset_crop">자르기 초기화</string>
