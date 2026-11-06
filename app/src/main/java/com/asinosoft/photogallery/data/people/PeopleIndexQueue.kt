@@ -36,6 +36,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 import kotlin.math.max
 import kotlin.math.roundToInt
+import androidx.core.graphics.scale
+import kotlin.time.Duration.Companion.milliseconds
 
 /**
  * Фоновая очередь детекта лиц на локальных фото после скана / backfill.
@@ -204,10 +206,10 @@ class PeopleIndexQueue @Inject constructor(
                         used[best] = true
                         detections[best].second
                     } else {
-                        null
+                        continue
                     }
                     if (box.width() >= 8 && box.height() >= 8) {
-                        val emb = faceEmbedder.encode(bitmap, box, landmarks)
+                        val emb = faceEmbedder.encode(bitmap, landmarks) ?: continue
                         val oldThumb = face.thumbPath
                         val thumb = saveFaceThumb(bitmap, box, dir)
                         personDao.updateFace(
@@ -253,7 +255,7 @@ class PeopleIndexQueue @Inject constructor(
                             .onFailure { Log.w(TAG, "recluster failed", it) }
                     }
                 }
-                delay(JOB_GAP_MS)
+                delay(JOB_GAP_MS.milliseconds)
             }
         }
     }
@@ -297,9 +299,8 @@ class PeopleIndexQueue @Inject constructor(
 
                 val emb = faceEmbedder.encode(
                     bitmap,
-                    fullBox,
                     landmarksOf(mlFace, scaleX, scaleY),
-                )
+                ) ?: return
                 // Нулевой/битый вектор → все «пустые» лица схлопывались в одного Person.
                 var mag = 0f
                 for (v in emb) mag += v * v
@@ -392,7 +393,7 @@ class PeopleIndexQueue @Inject constructor(
         val scale = MAX_DETECT_SIDE.toFloat() / maxSide
         val w = (bitmap.width * scale).roundToInt().coerceAtLeast(1)
         val h = (bitmap.height * scale).roundToInt().coerceAtLeast(1)
-        return Bitmap.createScaledBitmap(bitmap, w, h, true)
+        return bitmap.scale(w, h)
     }
 
     private fun faceThumbDir(): File =
@@ -407,7 +408,7 @@ class PeopleIndexQueue @Inject constructor(
         return runCatching {
             val crop = Bitmap.createBitmap(bitmap, left, top, width, height)
             val size = 320
-            val thumb = Bitmap.createScaledBitmap(crop, size, size, true)
+            val thumb = crop.scale(size, size)
             if (crop !== thumb && !crop.isRecycled) crop.recycle()
             val file = File(dir, "f_${System.currentTimeMillis()}_${left}_$top.jpg")
             FileOutputStream(file).use { out ->

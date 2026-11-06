@@ -5,7 +5,6 @@ import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Matrix
 import android.graphics.Paint
-import android.graphics.Rect
 import android.util.Log
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.nio.ByteBuffer
@@ -14,7 +13,6 @@ import javax.inject.Inject
 import javax.inject.Singleton
 import org.tensorflow.lite.Interpreter
 import androidx.core.graphics.createBitmap
-import androidx.core.graphics.scale
 
 /**
  * MobileFaceNet (112×112 → 192-d) из assets. Детект лиц остаётся на ML Kit.
@@ -43,13 +41,8 @@ class FaceEmbedder @Inject constructor(
         }
     }
 
-    fun encode(
-        fullBitmap: Bitmap,
-        box: Rect,
-        landmarks: FaceAlign.Landmarks? = null,
-    ): FloatArray {
-        val aligned = landmarks?.let { warpAligned(fullBitmap, it) }
-        val face = aligned ?: squareCrop(fullBitmap, box) ?: return FloatArray(DIM)
+    fun encode(fullBitmap: Bitmap, landmarks: FaceAlign.Landmarks): FloatArray? {
+        val face = warpAligned(fullBitmap, landmarks) ?: return null
         return try {
             embed(face)
         } finally {
@@ -78,14 +71,6 @@ class FaceEmbedder @Inject constructor(
         }
     }
 
-    private fun squareCrop(bitmap: Bitmap, box: Rect): Bitmap? {
-        val square = FaceEmbedding.expandSquare(box, bitmap.width, bitmap.height, 0.35f)
-        val crop = cropSquare(bitmap, square) ?: return null
-        val input = crop.scale(INPUT_SIZE, INPUT_SIZE)
-        if (crop !== input && !crop.isRecycled) crop.recycle()
-        return input
-    }
-
     private fun embed(face112: Bitmap): FloatArray {
         val input = ByteBuffer.allocateDirect(1 * INPUT_SIZE * INPUT_SIZE * 3 * 4)
             .order(ByteOrder.nativeOrder())
@@ -110,14 +95,6 @@ class FaceEmbedder @Inject constructor(
             buffer.putFloat((pixel and 0xFF) / 128f - 1f)
         }
         buffer.rewind()
-    }
-
-    private fun cropSquare(bitmap: Bitmap, box: Rect): Bitmap? {
-        val left = box.left.coerceIn(0, bitmap.width - 1)
-        val top = box.top.coerceIn(0, bitmap.height - 1)
-        val width = (box.right - left).coerceAtMost(bitmap.width - left).coerceAtLeast(1)
-        val height = (box.bottom - top).coerceAtMost(bitmap.height - top).coerceAtLeast(1)
-        return runCatching { Bitmap.createBitmap(bitmap, left, top, width, height) }.getOrNull()
     }
 
     companion object {
