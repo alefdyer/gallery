@@ -1,7 +1,10 @@
 package com.asinosoft.photogallery.ui.component
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -22,6 +25,7 @@ import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
 import coil3.request.crossfade
+import com.asinosoft.photogallery.R
 import com.asinosoft.photogallery.data.AlbumWithCover
 import java.io.File
 
@@ -32,6 +36,8 @@ fun PersonAlbumCover(
     faceThumbPath: String?,
     modifier: Modifier = Modifier,
 ) {
+    val photoCount = album.album.photoCount
+    val videoCount = album.album.videoCount
     val title = displayName?.takeIf { it.isNotBlank() }
     val context = LocalContext.current
     val faceFile = remember(faceThumbPath) {
@@ -58,29 +64,46 @@ fun PersonAlbumCover(
             AlbumThumbnail(album.cover, Modifier.fillMaxSize())
         }
 
-        if (title != null) {
-            Box(
-                Modifier
-                    .matchParentSize()
-                    .background(
-                        Brush.verticalGradient(
-                            0.55f to Color.Transparent,
-                            1f to Color.Black.copy(alpha = 0.72f)
-                        )
+        Box(
+            Modifier
+                .matchParentSize()
+                .background(
+                    Brush.verticalGradient(
+                        0.55f to Color.Transparent,
+                        1f to Color.Black.copy(alpha = 0.72f)
                     )
-            )
+                )
+        )
 
-            Text(
-                text = title,
-                style = MaterialTheme.typography.labelLarge,
-                fontWeight = FontWeight.SemiBold,
-                color = Color.White,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier
-                    .align(Alignment.BottomStart)
-                    .padding(horizontal = 10.dp, vertical = 8.dp)
-            )
+        Column(
+            modifier = Modifier
+                .align(Alignment.BottomStart)
+                .padding(horizontal = 8.dp, vertical = 6.dp),
+            verticalArrangement = Arrangement.spacedBy(2.dp)
+        ) {
+
+            if (title != null) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.SemiBold,
+                    color = Color.White,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(2.dp)
+            ) {
+                if (photoCount > 0) {
+                    CoverCounter(R.drawable.photo, photoCount)
+                }
+                if (videoCount > 0) {
+                    CoverCounter(R.drawable.videocam, videoCount)
+                }
+            }
         }
     }
 }

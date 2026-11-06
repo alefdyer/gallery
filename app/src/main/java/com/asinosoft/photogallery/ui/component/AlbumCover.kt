@@ -118,7 +118,7 @@ fun AlbumCover(
 }
 
 @Composable
-private fun CoverCounter(
+internal fun CoverCounter(
     @DrawableRes icon: Int,
     count: Int,
 ) {
