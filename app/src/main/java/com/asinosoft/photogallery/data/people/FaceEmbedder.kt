@@ -2,6 +2,9 @@ package com.asinosoft.photogallery.data.people
 
 import android.content.Context
 import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.Matrix
+import android.graphics.Paint
 import android.graphics.Rect
 import android.util.Log
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -10,12 +13,14 @@ import java.nio.ByteOrder
 import javax.inject.Inject
 import javax.inject.Singleton
 import org.tensorflow.lite.Interpreter
+import androidx.core.graphics.createBitmap
+import androidx.core.graphics.scale
 
 /**
  * MobileFaceNet (112×112 → 192-d) из assets. Детект лиц остаётся на ML Kit.
  *
  * Препроцесс как у исходной mobilefacenet.tflite: `(pixel - 128) / 128`.
- * Сравнение — euclidean по сырому вектору (см. [PersonClusterer]).
+ * Кроп выравнивается по глазам, если они есть. Вектор на выходе L2-нормирован.
  */
 @Singleton
 class FaceEmbedder @Inject constructor(
@@ -38,16 +43,47 @@ class FaceEmbedder @Inject constructor(
         }
     }
 
-    fun encode(fullBitmap: Bitmap, box: Rect): FloatArray {
-        val square = FaceEmbedding.expandSquare(box, fullBitmap.width, fullBitmap.height, 0.35f)
-        val crop = cropSquare(fullBitmap, square) ?: return FloatArray(DIM)
-        val input = Bitmap.createScaledBitmap(crop, INPUT_SIZE, INPUT_SIZE, true)
-        if (crop !== input && !crop.isRecycled) crop.recycle()
+    fun encode(
+        fullBitmap: Bitmap,
+        box: Rect,
+        landmarks: FaceAlign.Landmarks? = null,
+    ): FloatArray {
+        val aligned = landmarks?.let { warpAligned(fullBitmap, it) }
+        val face = aligned ?: squareCrop(fullBitmap, box) ?: return FloatArray(DIM)
         return try {
-            embed(input)
+            embed(face)
         } finally {
-            if (!input.isRecycled) input.recycle()
+            if (!face.isRecycled) face.recycle()
         }
+    }
+
+    private fun warpAligned(bitmap: Bitmap, landmarks: FaceAlign.Landmarks): Bitmap? {
+        val sim = FaceAlign.similarityForFace(landmarks) ?: return null
+        val out = createBitmap(INPUT_SIZE, INPUT_SIZE)
+        return runCatching {
+            val canvas = Canvas(out)
+            val matrix = Matrix()
+            matrix.setValues(
+                floatArrayOf(
+                    sim.a, -sim.b, sim.tx,
+                    sim.b, sim.a, sim.ty,
+                    0f, 0f, 1f,
+                ),
+            )
+            canvas.drawBitmap(bitmap, matrix, Paint(Paint.FILTER_BITMAP_FLAG))
+            out
+        }.getOrElse {
+            if (!out.isRecycled) out.recycle()
+            null
+        }
+    }
+
+    private fun squareCrop(bitmap: Bitmap, box: Rect): Bitmap? {
+        val square = FaceEmbedding.expandSquare(box, bitmap.width, bitmap.height, 0.35f)
+        val crop = cropSquare(bitmap, square) ?: return null
+        val input = crop.scale(INPUT_SIZE, INPUT_SIZE)
+        if (crop !== input && !crop.isRecycled) crop.recycle()
+        return input
     }
 
     private fun embed(face112: Bitmap): FloatArray {
@@ -58,7 +94,9 @@ class FaceEmbedder @Inject constructor(
         synchronized(lock) {
             interpreter.run(input, output)
         }
-        return output[0]
+        val vector = output[0]
+        FaceEmbedding.normalizeInPlace(vector)
+        return vector
     }
 
     private fun fillNormalizedRgb(bitmap: Bitmap, buffer: ByteBuffer) {
@@ -88,7 +126,7 @@ class FaceEmbedder @Inject constructor(
         const val INPUT_SIZE = 112
         const val DIM = 192
 
-        /** Бамп при смене preprocess/метрики — форсирует re-embed. */
-        const val EMBEDDING_VERSION = 2
+        /** Бамп при смене preprocess/метрики — startBackfill пересчитывает эмбеддинги. */
+        const val EMBEDDING_VERSION = 3
     }
 }

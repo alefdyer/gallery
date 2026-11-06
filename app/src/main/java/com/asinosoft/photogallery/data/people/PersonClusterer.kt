@@ -6,7 +6,8 @@ import javax.inject.Singleton
 
 /**
  * Кластеризация лиц: nearest-centroid (без single-linkage цепочек A≈B≈C→все в одном Person).
- * Метрика — euclidean по MobileFaceNet 192-d (часто уже L2-нормирован моделью).
+ * Метрика — euclidean по L2-нормированному MobileFaceNet 192-d.
+ * Сид бакета один раз заменяется средним ядра, затем лица перекладываются.
  */
 @Singleton
 class PersonClusterer @Inject constructor(
@@ -33,33 +34,54 @@ class PersonClusterer @Inject constructor(
     }
 
     /**
-     * Каждое лицо → ближайший центроид, если dist ≤ threshold, иначе новый Person.
-     * Не даёт «протянуть» цепочку незнакомцев через промежуточные лица.
+     * Проход 1: лицо садится на ближайший замороженный центроид, иначе новый Person.
+     * Затем сид заменяется L2-средним ближайших 70% лиц. Проход 2 только перекладывает
+     * безымянные лица на обновлённые центроиды и новых людей не создаёт.
      */
     private suspend fun clusterByCentroids(faces: List<Face>, threshold: Float) {
         data class Bucket(
-            var personId: Long,
+            val personId: Long,
             var centroid: FloatArray,
-            var count: Int,
             val faceIds: MutableList<Long>,
             val named: Boolean,
         )
 
+        val vectors = HashMap<Long, FloatArray>(faces.size)
+        for (face in faces) {
+            val vector = FaceEmbedding.fromBytes(face.embedding)
+            FaceEmbedding.normalizeInPlace(vector)
+            vectors[face.id] = vector
+        }
+
         val people = personDao.getAllPeople().associateBy { it.id }
         val buckets = mutableListOf<Bucket>()
 
-        // Сначала именованные — якоря, чтобы имена не потерялись
+        fun nearest(emb: FloatArray): Pair<Int, Float> {
+            var bestIdx = -1
+            var bestDist = Float.MAX_VALUE
+            for (i in buckets.indices) {
+                val distance = FaceEmbedding.euclideanDistance(emb, buckets[i].centroid)
+                if (distance < bestDist) {
+                    bestDist = distance
+                    bestIdx = i
+                }
+            }
+            return bestIdx to bestDist
+        }
+
+        // Сначала именованные — якоря, чтобы имена не потерялись. Сид сразу ядро, не всё среднее.
         val namedFaces = faces.filter { face ->
             val pid = face.personId ?: return@filter false
             !people[pid]?.displayName.isNullOrBlank()
         }.groupBy { it.personId!! }
 
         for ((personId, group) in namedFaces) {
-            val vectors = group.map { FaceEmbedding.fromBytes(it.embedding) }
+            val memberVectors = group.map { vectors.getValue(it.id) }
+            val mean = average(memberVectors)
+            FaceEmbedding.normalizeInPlace(mean)
             buckets += Bucket(
                 personId = personId,
-                centroid = average(vectors),
-                count = vectors.size,
+                centroid = FaceEmbedding.coreAverage(memberVectors, mean),
                 faceIds = group.map { it.id }.toMutableList(),
                 named = true,
             )
@@ -71,34 +93,44 @@ class PersonClusterer @Inject constructor(
             .filter { it.id !in namedFaceIds }
             .sortedByDescending { (it.right - it.left) * (it.bottom - it.top) }
 
+        val assignment = HashMap<Long, Int>(rest.size)
         var created = 0
         for (face in rest) {
-            val emb = FaceEmbedding.fromBytes(face.embedding)
-            var bestIdx = -1
-            var bestDist = Float.MAX_VALUE
-            for (i in buckets.indices) {
-                val d = FaceEmbedding.euclideanDistance(emb, buckets[i].centroid)
-                if (d < bestDist) {
-                    bestDist = d
-                    bestIdx = i
-                }
-            }
+            val emb = vectors.getValue(face.id)
+            val (bestIdx, bestDist) = nearest(emb)
             if (bestIdx >= 0 && bestDist <= threshold) {
-                val b = buckets[bestIdx]
-                b.faceIds += face.id
-                b.count += 1
+                buckets[bestIdx].faceIds += face.id
+                assignment[face.id] = bestIdx
                 // Центроид заморожен на сиде — любой online-update тянет цепочку A→B→C.
             } else {
                 val id = personDao.insertPerson(Person())
                 buckets += Bucket(
                     personId = id,
                     centroid = emb.copyOf(),
-                    count = 1,
                     faceIds = mutableListOf(face.id),
                     named = false,
                 )
+                assignment[face.id] = buckets.lastIndex
                 created++
             }
+        }
+
+        for (bucket in buckets) {
+            val memberVectors = bucket.faceIds.map { vectors.getValue(it) }
+            if (memberVectors.isEmpty()) continue
+            bucket.centroid = FaceEmbedding.coreAverage(memberVectors, bucket.centroid)
+        }
+
+        var moved = 0
+        for (face in rest) {
+            val current = assignment[face.id] ?: continue
+            val emb = vectors.getValue(face.id)
+            val (bestIdx, bestDist) = nearest(emb)
+            if (bestIdx < 0 || bestIdx == current || bestDist > threshold) continue
+            buckets[current].faceIds.remove(face.id)
+            buckets[bestIdx].faceIds += face.id
+            assignment[face.id] = bestIdx
+            moved++
         }
 
         for (b in buckets) {
@@ -108,7 +140,7 @@ class PersonClusterer @Inject constructor(
         }
         Log.i(
             TAG,
-            "cluster centroids: buckets=${buckets.size} created=$created " +
+            "cluster centroids: buckets=${buckets.size} created=$created moved=$moved " +
                     "faces=${faces.size} threshold=$threshold",
         )
     }
@@ -153,7 +185,7 @@ class PersonClusterer @Inject constructor(
         private const val TAG = "PersonClusterer"
 
         /**
-         * Euclidean на MobileFaceNet. Сид заморожен, без merge.
+         * Euclidean на L2-нормированном MobileFaceNet.
          * ~1.0 — склейка ракурсов одного человека; выше — снова мешок.
          */
         const val SIMILARITY_THRESHOLD = 1.00f

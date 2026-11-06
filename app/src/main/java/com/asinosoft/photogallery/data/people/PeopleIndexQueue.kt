@@ -11,8 +11,10 @@ import com.asinosoft.photogallery.data.Media
 import com.asinosoft.photogallery.data.MediaDao
 import com.asinosoft.photogallery.data.storage.StorageType
 import com.google.mlkit.vision.common.InputImage
+import com.google.mlkit.vision.face.Face as MlFace
 import com.google.mlkit.vision.face.FaceDetection
 import com.google.mlkit.vision.face.FaceDetectorOptions
+import com.google.mlkit.vision.face.FaceLandmark
 import androidx.core.content.edit
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.io.File
@@ -65,7 +67,7 @@ class PeopleIndexQueue @Inject constructor(
     private val detector by lazy {
         val options = FaceDetectorOptions.Builder()
             .setPerformanceMode(FaceDetectorOptions.PERFORMANCE_MODE_ACCURATE)
-            .setLandmarkMode(FaceDetectorOptions.LANDMARK_MODE_NONE)
+            .setLandmarkMode(FaceDetectorOptions.LANDMARK_MODE_ALL)
             .setClassificationMode(FaceDetectorOptions.CLASSIFICATION_MODE_NONE)
             .setMinFaceSize(0.12f)
             .build()
@@ -98,21 +100,27 @@ class PeopleIndexQueue @Inject constructor(
             val needReclusterReset =
                 prefs.getInt(KEY_CLUSTER_VERSION, 0) != CLUSTER_VERSION
             val allFaces = personDao.getRealFaces()
-            // Re-encode только векторы чужой размерности. Смена CLUSTER_VERSION —
-            // только сброс Person + recluster, без часового refresh.
-            val facesToRefresh = allFaces.filter {
-                FaceEmbedding.fromBytes(it.embedding).size != FaceEmbedding.DIM
+            // Смена версии эмбеддера пересчитывает все лица. CLUSTER_VERSION по-прежнему
+            // только сбрасывает Person, без refresh.
+            val needReembed = embedVer != FaceEmbedder.EMBEDDING_VERSION
+            val facesToRefresh = if (needReembed) {
+                allFaces
+            } else {
+                allFaces.filter {
+                    FaceEmbedding.fromBytes(it.embedding).size != FaceEmbedding.DIM
+                }
             }
             val ids = personDao.localPhotoIdsWithoutFaces()
             resetProgress(facesToRefresh.size + ids.size)
             Log.i(
                 TAG,
                 "backfill refresh=${facesToRefresh.size}/${allFaces.size} " +
-                        "photos=${ids.size} reclusterReset=$needReclusterReset",
+                        "photos=${ids.size} reclusterReset=$needReclusterReset reembed=$needReembed",
             )
-            runCatching { refreshEmbeddingsAndThumbs(facesToRefresh) }
+            val refreshOk = runCatching { refreshEmbeddingsAndThumbs(facesToRefresh) }
                 .onFailure { Log.w(TAG, "refresh embeddings failed", it) }
-            if (embedVer != FaceEmbedder.EMBEDDING_VERSION) {
+                .isSuccess
+            if (needReembed && refreshOk) {
                 prefs.edit { putInt(KEY_EMBED_VERSION, FaceEmbedder.EMBEDDING_VERSION) }
             }
             if (needReclusterReset) {
@@ -164,7 +172,17 @@ class PeopleIndexQueue @Inject constructor(
                 repeat(mediaFaces.size) { tickProgress() }
                 continue
             }
+            val scaled = scaleForDetect(bitmap)
             try {
+                val detected = runCatching {
+                    detector.process(InputImage.fromBitmap(scaled, 0)).await()
+                }.getOrElse { emptyList() }
+                val scaleX = bitmap.width.toFloat() / scaled.width
+                val scaleY = bitmap.height.toFloat() / scaled.height
+                val detections = detected.map { mlFace ->
+                    fullBox(mlFace.boundingBox, scaleX, scaleY) to landmarksOf(mlFace, scaleX, scaleY)
+                }
+                val used = BooleanArray(detections.size)
                 for (face in mediaFaces) {
                     val box = Rect(
                         (face.left * bitmap.width).roundToInt(),
@@ -172,8 +190,24 @@ class PeopleIndexQueue @Inject constructor(
                         (face.right * bitmap.width).roundToInt(),
                         (face.bottom * bitmap.height).roundToInt(),
                     )
+                    var best = -1
+                    var bestIou = MIN_FACE_IOU
+                    for (i in detections.indices) {
+                        if (used[i]) continue
+                        val score = iou(box, detections[i].first)
+                        if (score > bestIou) {
+                            bestIou = score
+                            best = i
+                        }
+                    }
+                    val landmarks = if (best >= 0) {
+                        used[best] = true
+                        detections[best].second
+                    } else {
+                        null
+                    }
                     if (box.width() >= 8 && box.height() >= 8) {
-                        val emb = faceEmbedder.encode(bitmap, box)
+                        val emb = faceEmbedder.encode(bitmap, box, landmarks)
                         val oldThumb = face.thumbPath
                         val thumb = saveFaceThumb(bitmap, box, dir)
                         personDao.updateFace(
@@ -189,6 +223,7 @@ class PeopleIndexQueue @Inject constructor(
                     tickProgress()
                 }
             } finally {
+                if (scaled !== bitmap && !scaled.isRecycled) scaled.recycle()
                 if (!bitmap.isRecycled) bitmap.recycle()
             }
         }
@@ -229,8 +264,8 @@ class PeopleIndexQueue @Inject constructor(
         if (media.storageType != StorageType.LOCAL || media.video != null) return
 
         val bitmap = decodeBitmap(media) ?: return
+        val scaled = scaleForDetect(bitmap)
         try {
-            val scaled = scaleForDetect(bitmap)
             val image = InputImage.fromBitmap(scaled, 0)
             val faces = detector.process(image).await()
             if (faces.isEmpty()) {
@@ -242,13 +277,7 @@ class PeopleIndexQueue @Inject constructor(
             val scaleY = bitmap.height.toFloat() / scaled.height
             val dir = faceThumbDir()
             val rows = faces.mapNotNull { mlFace ->
-                val box = mlFace.boundingBox
-                val fullBox = Rect(
-                    (box.left * scaleX).roundToInt(),
-                    (box.top * scaleY).roundToInt(),
-                    (box.right * scaleX).roundToInt(),
-                    (box.bottom * scaleY).roundToInt(),
-                )
+                val fullBox = fullBox(mlFace.boundingBox, scaleX, scaleY)
                 val left = fullBox.left / bitmap.width.toFloat()
                 val top = fullBox.top / bitmap.height.toFloat()
                 val right = fullBox.right / bitmap.width.toFloat()
@@ -266,7 +295,11 @@ class PeopleIndexQueue @Inject constructor(
                 if (!PersonClusterer.isClusterableFace(candidate)) return@mapNotNull null
                 if (fullBox.width() < 32 || fullBox.height() < 32) return@mapNotNull null
 
-                val emb = faceEmbedder.encode(bitmap, fullBox)
+                val emb = faceEmbedder.encode(
+                    bitmap,
+                    fullBox,
+                    landmarksOf(mlFace, scaleX, scaleY),
+                )
                 // Нулевой/битый вектор → все «пустые» лица схлопывались в одного Person.
                 var mag = 0f
                 for (v in emb) mag += v * v
@@ -283,8 +316,41 @@ class PeopleIndexQueue @Inject constructor(
                 insertEmptyMarker(mediaId)
             }
         } finally {
+            if (scaled !== bitmap && !scaled.isRecycled) scaled.recycle()
             if (!bitmap.isRecycled) bitmap.recycle()
         }
+    }
+
+    private fun fullBox(box: Rect, scaleX: Float, scaleY: Float): Rect = Rect(
+        (box.left * scaleX).roundToInt(),
+        (box.top * scaleY).roundToInt(),
+        (box.right * scaleX).roundToInt(),
+        (box.bottom * scaleY).roundToInt(),
+    )
+
+    private fun landmarksOf(face: MlFace, scaleX: Float, scaleY: Float): FaceAlign.Landmarks {
+        fun point(type: Int): FaceAlign.Point? {
+            val position = face.getLandmark(type)?.position ?: return null
+            return FaceAlign.Point(position.x * scaleX, position.y * scaleY)
+        }
+        return FaceAlign.Landmarks(
+            rightEye = point(FaceLandmark.RIGHT_EYE),
+            leftEye = point(FaceLandmark.LEFT_EYE),
+            nose = point(FaceLandmark.NOSE_BASE),
+            mouthRight = point(FaceLandmark.MOUTH_RIGHT),
+            mouthLeft = point(FaceLandmark.MOUTH_LEFT),
+        )
+    }
+
+    private fun iou(a: Rect, b: Rect): Float {
+        val left = maxOf(a.left, b.left)
+        val top = maxOf(a.top, b.top)
+        val right = minOf(a.right, b.right)
+        val bottom = minOf(a.bottom, b.bottom)
+        val inter = (right - left).coerceAtLeast(0) * (bottom - top).coerceAtLeast(0)
+        val union = a.width() * a.height() + b.width() * b.height() - inter
+        if (union <= 0) return 0f
+        return inter.toFloat() / union
     }
 
     private suspend fun insertEmptyMarker(mediaId: Long) {
@@ -406,5 +472,8 @@ class PeopleIndexQueue @Inject constructor(
         /** Промежуточный centroid-recluster для UI. */
         private const val CLUSTER_EVERY = 200
         private const val MAX_DETECT_SIDE = 1280
+
+        /** Ниже этого IoU сохранённый bbox не считаем тем же лицом и кропаем без выравнивания. */
+        private const val MIN_FACE_IOU = 0.3f
     }
 }

@@ -3,6 +3,7 @@ package com.asinosoft.photogallery.data.people
 import android.graphics.Rect
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+import kotlin.math.round
 import kotlin.math.sqrt
 
 /** Утилиты для 192-d MobileFaceNet-векторов (см. [FaceEmbedder]). */
@@ -81,5 +82,31 @@ object FaceEmbedding {
         val norm = sqrt(sum)
         if (norm < 1e-6f) return
         for (i in v.indices) v[i] /= norm
+    }
+
+    /**
+     * L2-нормированное среднее ближайших [fraction] векторов к [reference].
+     * Пограничные в среднее не входят. Хотя бы один вектор остаётся.
+     */
+    fun coreAverage(
+        vectors: List<FloatArray>,
+        reference: FloatArray,
+        fraction: Float = 0.7f,
+    ): FloatArray {
+        require(vectors.isNotEmpty())
+        val ref = reference.copyOf()
+        normalizeInPlace(ref)
+        val keep = round(vectors.size * fraction.toDouble()).toInt().coerceIn(1, vectors.size)
+        val closest = vectors.sortedBy { euclideanDistance(it, ref) }.take(keep)
+        val dim = closest.first().size
+        val avg = FloatArray(dim)
+        for (v in closest) {
+            val n = minOf(dim, v.size)
+            for (i in 0 until n) avg[i] += v[i]
+        }
+        val count = closest.size.toFloat()
+        for (i in avg.indices) avg[i] /= count
+        normalizeInPlace(avg)
+        return avg
     }
 }
