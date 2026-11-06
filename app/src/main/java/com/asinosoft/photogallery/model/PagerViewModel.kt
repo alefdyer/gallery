@@ -57,20 +57,23 @@ class PagerViewModel @Inject constructor(
         ?.let { type -> MediaType.entries.firstOrNull { it.name == type } }
 
     @OptIn(ExperimentalCoroutinesApi::class)
-    val images: StateFlow<List<Media>> = params.flatMapLatest { params ->
-        if (params.favoritesOnly) {
+    val images: StateFlow<List<Media>> = params.flatMapLatest { current ->
+        val source = if (current.favoritesOnly) {
             mediaDao.getFavorites()
         } else {
-            params.albumId?.let { albumDao.getMediaInAlbum(params.albumId) }
-                ?: mediaDao.getImages(params.storageId)
+            current.albumId?.let { albumDao.getMediaInAlbum(it) }
+                ?: mediaDao.getImages(current.storageId)
         }
-    }.map { images ->
-        images.filter {
-            (activeFilterPackages.isEmpty() || activeFilterPackages.contains(it.owner)) &&
-                    (activeDateFilter?.year == null || it.date.year == activeDateFilter.year) &&
-                    (activeDateFilter?.month == null || it.date.monthValue == activeDateFilter.month) &&
-                    (activeDateFilter?.day == null || it.date.dayOfMonth == activeDateFilter.day) &&
-                    activeMediaType.matches(it)
+        source.map { images ->
+            images.filter { media ->
+                media.id == current.imageId || (
+                        (activeFilterPackages.isEmpty() || activeFilterPackages.contains(media.owner)) &&
+                                (activeDateFilter?.year == null || media.date.year == activeDateFilter.year) &&
+                                (activeDateFilter?.month == null || media.date.monthValue == activeDateFilter.month) &&
+                                (activeDateFilter?.day == null || media.date.dayOfMonth == activeDateFilter.day) &&
+                                activeMediaType.matches(media)
+                        )
+            }
         }
     }.flowOn(Dispatchers.Default)
         .stateIn(

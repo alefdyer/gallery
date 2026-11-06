@@ -233,7 +233,7 @@
     <string name="editor_revert_message">Отменить все изменения и восстановить исходную версию изображения?</string>
     <string name="editor_revert_original">Вернуть исходный вариант</string>
     <string name="editor_aspect">Пропорции</string>
-    <string name="editor_aspect_free">Свободный</string>
+    <string name="editor_aspect_free">Оригинал</string>
     <string name="editor_aspect_screen">Экран</string>
     <string name="editor_flip_vertical">Отразить по вертикали</string>
     <string name="editor_save">Сохранить</string>
@@ -244,6 +244,7 @@
     <string name="editor_redo">Повторить</string>
     <string name="editor_ai_apply">Авто</string>
     <string name="editor_rotate">Повернуть</string>
+    <string name="editor_rotate_right">Повернуть вправо</string>
     <string name="editor_flip">Отразить</string>
     <string name="editor_reset_crop">Сбросить кадр</string>
     <string name="editor_reset_perspective">Сбросить перспективу</string>
@@ -259,9 +260,15 @@
     <string name="editor_saturation">Насыщенность</string>
     <string name="editor_sharpness">Резкость</string>
     <string name="editor_draw">Рисование</string>
+    <string name="editor_brush_size">Размер</string>
+    <string name="editor_brush_opacity">Прозрачность</string>
     <string name="editor_stickers">Стикеры</string>
     <string name="editor_text">Текст</string>
+    <string name="editor_text_hint">Введите текст</string>
     <string name="editor_draw_hint">Рисуйте пальцем по фото</string>
+    <string name="editor_eraser_title">Параметры ластика</string>
+    <string name="editor_eraser_stroke">Штриховой корректор</string>
+    <string name="editor_eraser_area">Корректор областей</string>
     <string name="editor_sticker_order">Порядок</string>
     <string name="editor_sticker_order_title">Изменение порядка</string>
     <string name="editor_sticker_copy">Копировать</string>

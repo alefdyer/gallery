@@ -6,7 +6,6 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -33,7 +32,18 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyRow
@@ -53,6 +63,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -81,6 +92,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChanged
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.Layout
+import androidx.compose.ui.layout.SubcomposeLayout
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalConfiguration
@@ -90,6 +102,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
@@ -118,10 +131,13 @@ import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
 import kotlin.math.sin
+import android.graphics.Matrix
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 @Composable
 fun EditorScreen(
@@ -143,6 +159,30 @@ fun EditorScreen(
     val stickerCats by model.stickerCategories.collectAsState()
     val selectedStickerId by model.selectedStickerId.collectAsState()
     val addMode by model.addMode.collectAsState()
+    val drawSettings by model.drawSettings.collectAsState()
+    val textTyping by model.textTyping.collectAsState()
+    val selectedTextId by model.selectedTextId.collectAsState()
+    val typingOnPhoto = textTyping && tab == EditorTab.ADD && addMode == 2
+    val keyboard = LocalSoftwareKeyboardController.current
+    val density = LocalDensity.current
+    val imeInsets = WindowInsets.ime
+    val imeBottom = imeInsets.getBottom(density)
+    var imeSeen by remember { mutableStateOf(false) }
+    LaunchedEffect(typingOnPhoto) {
+        if (!typingOnPhoto) {
+            imeSeen = false
+            keyboard?.hide()
+        }
+    }
+    LaunchedEffect(typingOnPhoto, imeBottom) {
+        if (!typingOnPhoto) return@LaunchedEffect
+        if (imeBottom > 0) {
+            imeSeen = true
+        } else if (imeSeen) {
+            delay(150)
+            if (imeInsets.getBottom(density) == 0) model.stopTextInput()
+        }
+    }
     val isVideo = media?.video != null
     val tabs = remember(isVideo) { EditorTab.forMedia(isVideo) }
     val context = LocalContext.current
@@ -311,6 +351,7 @@ fun EditorScreen(
                                 model = model,
                                 tab = tab,
                                 addMode = addMode,
+                                drawSettings = drawSettings,
                                 selectedStickerId = selectedStickerId,
                                 imageWidth = sourceWidth,
                                 imageHeight = sourceHeight,
@@ -320,22 +361,31 @@ fun EditorScreen(
                 } else {
                     CircularProgressIndicator(color = Color.White)
                 }
-                if (tab == EditorTab.TRANSFORM) {
-                    toolPanel(Modifier.align(Alignment.BottomCenter))
+            }
+
+            val keyboardOverlap = if (typingOnPhoto) imeBottom else 0
+            Layout(
+                modifier = Modifier.fillMaxWidth(),
+                content = {
+                    Column(Modifier.fillMaxWidth()) {
+                        toolPanel(Modifier)
+                        EditorBottomBar(
+                            tabs = tabs,
+                            selected = tab,
+                            onSelect = model::selectTab,
+                        )
+                    }
+                },
+            ) { measurables, constraints ->
+                val panel = measurables[0].measure(constraints)
+                val reserve = panel.height
+                    .coerceAtLeast(keyboardOverlap)
+                    .coerceIn(constraints.minHeight, constraints.maxHeight)
+                layout(constraints.maxWidth, reserve) {
+                    panel.place(0, reserve - panel.height)
                 }
             }
-
-            if (tab != EditorTab.TRANSFORM) {
-                toolPanel(Modifier)
-            }
-
-            EditorBottomBar(
-                tabs = tabs,
-                selected = tab,
-                onSelect = model::selectTab,
-            )
         }
-
         if (saving) {
             Box(
                 Modifier
@@ -458,6 +508,7 @@ private fun EditorPhotoPreview(
     model: EditorViewModel,
     tab: EditorTab,
     addMode: Int,
+    drawSettings: DrawSettings,
     selectedStickerId: Long?,
     imageWidth: Int,
     imageHeight: Int,
@@ -475,6 +526,7 @@ private fun EditorPhotoPreview(
     var turn by remember { mutableFloatStateOf(0f) }
     var mirrorX by remember { mutableFloatStateOf(1f) }
     var mirrorY by remember { mutableFloatStateOf(1f) }
+    var snapCropFrame by remember { mutableStateOf(false) }
     if (spinChanged && frozen == null) {
         frozen = settled
         turn = 0f
@@ -502,6 +554,7 @@ private fun EditorPhotoPreview(
             turn = 0f
             mirrorX = 1f
             mirrorY = 1f
+            snapCropFrame = true
             settled = target
             frozen = null
         }
@@ -517,6 +570,12 @@ private fun EditorPhotoPreview(
     var aspectTo by remember { mutableStateOf<CropRect?>(null) }
     val aspectProgress = remember { Animatable(1f) }
     var displayedCrop by remember { mutableStateOf(crop) }
+    if (snapCropFrame && frozen == null) {
+        displayedCrop = crop
+        aspectFrom = null
+        aspectTo = null
+        snapCropFrame = false
+    }
     LaunchedEffect(crop) {
         if (transforming) {
             displayedCrop = crop
@@ -558,7 +617,7 @@ private fun EditorPhotoPreview(
     val cropState = rememberUpdatedState(crop)
     val density = LocalDensity.current
     val handleHitPx = with(density) { 36.dp.toPx() }
-    val frameInsetY = with(density) { 20.dp.toPx() }
+    val frameInsetY = with(density) { 9.dp.toPx() }
     var gestureLock by remember { mutableStateOf<CropLayout?>(null) }
     var gestureSerial by remember { mutableIntStateOf(0) }
     val settleScope = rememberCoroutineScope()
@@ -593,6 +652,28 @@ private fun EditorPhotoPreview(
         else -> null
     }
     val zoomEnabled = tab != EditorTab.TRANSFORM
+    val shapeId by model.selectedShapeId.collectAsState()
+    val strokesState = rememberUpdatedState(edit.strokes)
+    val shapeState = rememberUpdatedState(shapeId)
+    var aim by remember { mutableStateOf<Offset?>(null) }
+    var sampleBitmap by remember { mutableStateOf<android.graphics.Bitmap?>(null) }
+    val pickSettings = rememberUpdatedState(drawSettings)
+    val pickBitmap = rememberUpdatedState(sampleBitmap)
+    val pickLayout = rememberUpdatedState(fittedLayout)
+    val pickPose = rememberUpdatedState(pose)
+    val pickContext = LocalContext.current
+    LaunchedEffect(uri, drawSettings.picking) {
+        if (!drawSettings.picking) {
+            sampleBitmap = null
+            return@LaunchedEffect
+        }
+        sampleBitmap = withContext(Dispatchers.IO) {
+            pickContext.contentResolver.openInputStream(uri)?.use { input ->
+                val options = android.graphics.BitmapFactory.Options().apply { inSampleSize = 4 }
+                android.graphics.BitmapFactory.decodeStream(input, null, options)
+            }
+        }
+    }
 
     val shownTurn = if (frozen != null) turn else 0f
     val shownMirrorX = if (frozen != null) mirrorX else 1f
@@ -642,34 +723,182 @@ private fun EditorPhotoPreview(
                 .then(if (tab == EditorTab.TRANSFORM) Modifier.systemGestureExclusion() else Modifier)
                 .then(
                     when {
-                        tab == EditorTab.ADD && addMode == 0 -> Modifier.pointerInput(Unit) {
-                            detectDragGestures(
-                                onDragStart = { offset ->
-                                    draftStroke = listOf(
-                                        StrokePoint(offset.x / size.width, offset.y / size.height)
+                        tab == EditorTab.ADD && drawSettings.picking && (addMode == 0 || addMode == 2) ->
+                            Modifier.pointerInput(Unit) {
+                                fun colorAt(point: Offset): Long? = sampleDisplayedColor(
+                                    bitmap = pickBitmap.value,
+                                    x = point.x,
+                                    y = point.y,
+                                    layout = pickLayout.value,
+                                    rotation = pickPose.value.rotationDegrees,
+                                    flipHorizontal = pickPose.value.flipHorizontal,
+                                    flipVertical = pickPose.value.flipVertical,
+                                )
+
+                                fun show(color: Long) {
+                                    val current = pickSettings.value
+                                    if (color != current.color) {
+                                        model.setDraw(current.copy(color = color, picking = true))
+                                        if (addMode == 2) model.tintSelectedText(color)
+                                    }
+                                }
+                                awaitEachGesture {
+                                    val down = awaitFirstDown()
+                                    aim = down.position
+                                    colorAt(down.position)?.let(::show)
+                                    try {
+                                        while (true) {
+                                            val event = awaitPointerEvent()
+                                            val change =
+                                                event.changes.firstOrNull { it.id == down.id }
+                                                    ?: break
+                                            if (!change.pressed) break
+                                            change.consume()
+                                            aim = change.position
+                                            colorAt(change.position)?.let(::show)
+                                        }
+                                    } finally {
+                                        val point = aim
+                                        aim = null
+                                        val current = pickSettings.value
+                                        val picked = point?.let(::colorAt)
+                                        model.setDraw(
+                                            current.copy(
+                                                color = picked ?: current.color,
+                                                picking = false,
+                                            )
+                                        )
+                                        if (addMode == 2) {
+                                            picked?.let(model::tintSelectedText)
+                                            model.finishTextEdit()
+                                        }
+                                    }
+                                }
+                            }
+
+                        tab == EditorTab.ADD && addMode == 0 && drawSettings.style == DrawStyle.ERASER ->
+                            Modifier.pointerInput(drawSettings) {
+                                val radius = brushWidth(drawSettings)
+                                awaitEachGesture {
+                                    val down = awaitFirstDown()
+                                    var last = StrokePoint(
+                                        down.position.x / size.width,
+                                        down.position.y / size.height,
                                     )
-                                },
-                                onDrag = { change, _ ->
-                                    change.consume()
-                                    val p = change.position
-                                    draftStroke = draftStroke + StrokePoint(
-                                        p.x / size.width,
-                                        p.y / size.height,
-                                    )
-                                },
-                                onDragEnd = {
-                                    if (draftStroke.size >= 2) {
-                                        model.addStroke(
-                                            DrawStroke(
-                                                points = draftStroke,
-                                                color = 0xFFFF5252,
-                                                width = 0.012f,
+                                    model.beginErase()
+                                    model.eraseAlong(null, last, radius, wholeStroke = false)
+                                    try {
+                                        while (true) {
+                                            val event = awaitPointerEvent()
+                                            val change =
+                                                event.changes.firstOrNull { it.id == down.id }
+                                                    ?: break
+                                            if (!change.pressed) break
+                                            change.consume()
+                                            val point = StrokePoint(
+                                                change.position.x / size.width,
+                                                change.position.y / size.height,
+                                            )
+                                            model.eraseAlong(
+                                                last,
+                                                point,
+                                                radius,
+                                                wholeStroke = false
+                                            )
+                                            last = point
+                                        }
+                                    } finally {
+                                        model.endErase()
+                                    }
+                                }
+                            }
+
+                        tab == EditorTab.ADD && addMode == 0 -> Modifier.pointerInput(drawSettings) {
+                            val strokesNow = strokesState
+                            val shapeNow = shapeState
+                            awaitEachGesture {
+                                val down = awaitFirstDown()
+                                val start = StrokePoint(
+                                    down.position.x / size.width,
+                                    down.position.y / size.height,
+                                )
+                                val selected = strokesNow.value.find { it.id == shapeNow.value }
+                                val handle = selected?.let {
+                                    hitHandle(it, start, 28.dp.toPx() / size.width)
+                                }
+                                if (handle != null && selected.style.isShape()) {
+                                    try {
+                                        while (true) {
+                                            val event = awaitPointerEvent()
+                                            val change =
+                                                event.changes.firstOrNull { it.id == down.id }
+                                                    ?: break
+                                            if (!change.pressed) break
+                                            change.consume()
+                                            model.dragShapeHandle(
+                                                handle,
+                                                StrokePoint(
+                                                    change.position.x / size.width,
+                                                    change.position.y / size.height,
+                                                ),
+                                            )
+                                        }
+                                    } finally {
+                                    }
+                                } else if (drawSettings.style.isShape()) {
+                                    var end = start
+                                    draftStroke = listOf(start, end)
+                                    try {
+                                        while (true) {
+                                            val event = awaitPointerEvent()
+                                            val change =
+                                                event.changes.firstOrNull { it.id == down.id }
+                                                    ?: break
+                                            if (!change.pressed) break
+                                            change.consume()
+                                            end = StrokePoint(
+                                                change.position.x / size.width,
+                                                change.position.y / size.height,
+                                            )
+                                            draftStroke = listOf(start, end)
+                                        }
+                                    } finally {
+                                        val path = draftStroke
+                                        draftStroke = emptyList()
+                                        if (path.size >= 2) model.addStroke(
+                                            strokeFor(
+                                                drawSettings,
+                                                path
                                             )
                                         )
                                     }
-                                    draftStroke = emptyList()
-                                },
-                            )
+                                } else {
+                                    draftStroke = listOf(start)
+                                    try {
+                                        while (true) {
+                                            val event = awaitPointerEvent()
+                                            val change =
+                                                event.changes.firstOrNull { it.id == down.id }
+                                                    ?: break
+                                            if (!change.pressed) break
+                                            change.consume()
+                                            draftStroke = draftStroke + StrokePoint(
+                                                change.position.x / size.width,
+                                                change.position.y / size.height,
+                                            )
+                                        }
+                                    } finally {
+                                        val path = draftStroke
+                                        draftStroke = emptyList()
+                                        if (path.size >= 2) model.addStroke(
+                                            strokeFor(
+                                                drawSettings,
+                                                path
+                                            )
+                                        )
+                                    }
+                                }
+                            }
                         }
 
                         tab == EditorTab.TRANSFORM -> Modifier.pointerInput(
@@ -986,9 +1215,22 @@ private fun EditorPhotoPreview(
                     )
                 }
             }
+            DrawStrokesOverlay(
+                strokes = edit.strokes,
+                draft = if (draftStroke.size >= 2 && drawSettings.style != DrawStyle.ERASER) {
+                    strokeFor(drawSettings, draftStroke)
+                } else {
+                    null
+                },
+                selectedId = shapeId,
+                modifier = Modifier.fillMaxSize(),
+            )
+            if (drawSettings.picking && aim != null) {
+                ColorAim(aim!!, Modifier.fillMaxSize())
+            }
             EditorStickersLayer(
                 stickers = edit.stickers,
-                interactive = tab == EditorTab.ADD && addMode != 0,
+                interactive = tab == EditorTab.ADD && addMode == 1,
                 selectedId = selectedStickerId,
                 onSelect = model::selectSticker,
                 onUpdate = model::updateSticker,
@@ -996,14 +1238,25 @@ private fun EditorPhotoPreview(
                 onFlip = model::flipSticker,
                 onDelete = model::deleteSticker,
             )
-            edit.texts.forEach { t ->
-                Text(
-                    text = t.text,
-                    color = Color(t.color),
-                    fontSize = (22 * t.scale).sp,
-                    fontWeight = FontWeight.Bold,
-                )
-            }
+            val selectedTextId by model.selectedTextId.collectAsState()
+            val textTyping by model.textTyping.collectAsState()
+            EditorTextsLayer(
+                texts = edit.texts,
+                interactive = tab == EditorTab.ADD && addMode == 2,
+                typing = textTyping && tab == EditorTab.ADD && addMode == 2,
+                selectedId = selectedTextId,
+                onSelect = model::selectText,
+                onClear = {
+                    model.stopTextInput()
+                    model.selectText(null)
+                },
+                onTypeAt = { x, y -> model.startTextInput(x = x, y = y) },
+                onTypeText = { model.startTextInput(it) },
+                onTextChange = { model.editTextFields(text = it, live = true) },
+                onUpdate = model::updateText,
+                onDuplicate = model::duplicateText,
+                onDelete = model::deleteText,
+            )
         }
     }
 }
@@ -1051,6 +1304,8 @@ private fun EditorZoomBox(
                     else Modifier.pointerInput(viewSize) {
                         awaitEachGesture {
                             awaitFirstDown(requireUnconsumed = false)
+                            var panTravel = 0f
+                            var panning = false
                             do {
                                 val event = awaitPointerEvent()
                                 val pressed = event.changes.count { it.pressed }
@@ -1076,19 +1331,24 @@ private fun EditorZoomBox(
                                     }
                                 } else if (scale > 1.01f && event.changes.none { it.isConsumed }) {
                                     val pan = event.calculatePan()
+                                    panTravel += hypot(pan.x, pan.y)
+                                    if (!panning && panTravel < viewConfiguration.touchSlop) {
+                                        continue
+                                    }
+                                    panning = true
                                     val maxX =
                                         max(0f, (viewSize.width * scale - viewSize.width) / 2f)
                                     val maxY =
                                         max(0f, (viewSize.height * scale - viewSize.height) / 2f)
                                     scope.launch {
                                         offsetX.snapTo(
-                                            (offsetX.value + pan.x).coerceIn(
+                                            (offsetX.value + pan.x * scale).coerceIn(
                                                 -maxX,
                                                 maxX
                                             )
                                         )
                                         offsetY.snapTo(
-                                            (offsetY.value + pan.y).coerceIn(
+                                            (offsetY.value + pan.y * scale).coerceIn(
                                                 -maxY,
                                                 maxY
                                             )
@@ -1436,30 +1696,11 @@ private fun EditorToolPanel(
     onTrimRangeFinished: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
-    val cropPill = tab == EditorTab.TRANSFORM
     Column(
         modifier
-            .then(
-                if (cropPill) Modifier
-                else Modifier
-                    .fillMaxWidth()
-                    .background(Color(0xFF121212))
-            )
-            .padding(vertical = 8.dp)
-            .then(
-                if (!cropPill) Modifier
-                else Modifier.pointerInput(Unit) {
-                    awaitEachGesture {
-                        val down = awaitFirstDown(requireUnconsumed = true)
-                        down.consume()
-                        var event = awaitPointerEvent()
-                        while (event.changes.fastAny { it.pressed }) {
-                            event.changes.fastForEach { if (it.pressed) it.consume() }
-                            event = awaitPointerEvent()
-                        }
-                    }
-                }
-            )
+            .fillMaxWidth()
+            .background(Color(0xFF121212))
+            .padding(vertical = if (tab == EditorTab.TRANSFORM) 2.dp else 8.dp)
     ) {
         when (tab) {
             EditorTab.TRANSFORM -> TransformPanel(
@@ -1467,6 +1708,7 @@ private fun EditorToolPanel(
                 imageHeight = imageHeight,
                 onAspect = model::setCrop,
                 onRotate = model::rotate90,
+                onRotateRight = model::rotateClockwise,
                 onFlipHorizontal = model::flipHorizontal,
                 onFlipVertical = model::flipVertical,
             )
@@ -1486,9 +1728,17 @@ private fun EditorToolPanel(
             EditorTab.ADD -> AddPanel(
                 categories = stickerCategories,
                 addMode = addMode,
+                drawSettings = model.drawSettings.collectAsState().value,
+                onDraw = model::setDraw,
                 onAddModeChange = model::setAddMode,
                 onAddSticker = model::addSticker,
-                onAddText = { model.addText(it) },
+                selectedText = edit.texts.find { it.id == model.selectedTextId.collectAsState().value },
+                onTextEdit = model::editTextFields,
+                onTextKeyboard = { model.startTextInput(model.selectedTextId.value) },
+                onTextDone = {
+                    model.stopTextInput()
+                    model.selectText(null)
+                },
                 onOpenOrder = onOpenStickerOrder,
             )
 
@@ -1524,32 +1774,20 @@ private fun TransformPanel(
     imageHeight: Int,
     onAspect: (CropRect?) -> Unit,
     onRotate: () -> Unit,
+    onRotateRight: () -> Unit,
     onFlipHorizontal: () -> Unit,
     onFlipVertical: () -> Unit,
 ) {
-    var ratiosOpen by remember { mutableStateOf(false) }
     var selectedId by remember { mutableStateOf<String?>(null) }
     val configuration = LocalConfiguration.current
     val screenAspect = configuration.screenWidthDp.toFloat() /
             configuration.screenHeightDp.toFloat().coerceAtLeast(1f)
     val presets = remember { aspectPresets() }
     val amber = Color(0xFFFFD54F)
-    val ratiosProgress by animateFloatAsState(
-        targetValue = if (ratiosOpen) 1f else 0f,
-        animationSpec = tween(durationMillis = 240, easing = FastOutSlowInEasing),
-        label = "ratios",
-    )
-    Layout(
-        modifier = Modifier
-            .then(if (ratiosProgress > 0f) Modifier.fillMaxWidth() else Modifier)
-            .padding(bottom = 4.dp)
-            .clipToBounds(),
-        content = {
+    Column(Modifier.fillMaxWidth()) {
         Row(
-            Modifier
-                .clip(RoundedCornerShape(28.dp))
-                .background(Color(0xFF2A2A2A).copy(alpha = 0.72f))
-                .padding(horizontal = 8.dp, vertical = 2.dp),
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.Center,
             verticalAlignment = Alignment.CenterVertically,
         ) {
             CropMenuButton(
@@ -1567,28 +1805,19 @@ private fun TransformPanel(
                 description = stringResource(R.string.editor_rotate),
                 onClick = onRotate,
             )
-            IconButton(onClick = { ratiosOpen = !ratiosOpen }) {
-                Icon(
-                    painterResource(
-                        if (ratiosOpen) R.drawable.editor_aspect_active
-                        else R.drawable.editor_aspect
-                    ),
-                    contentDescription = stringResource(R.string.editor_aspect),
-                    tint = Color.Unspecified,
-                    modifier = Modifier.size(22.dp),
-                )
-            }
+            CropMenuButton(
+                icon = R.drawable.editor_rotate_right,
+                description = stringResource(R.string.editor_rotate_right),
+                onClick = onRotateRight,
+            )
         }
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .padding(top = 8.dp)
-                    .clip(RoundedCornerShape(28.dp))
-                    .background(Color(0xFF2A2A2A).copy(alpha = 0.72f))
-                    .horizontalScroll(rememberScrollState())
-                    .padding(horizontal = 8.dp, vertical = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(2.dp),
-            ) {
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState())
+                .padding(horizontal = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(2.dp),
+        ) {
                 presets.forEach { preset ->
                     val selected = preset.id == selectedId
                     Column(
@@ -1613,27 +1842,12 @@ private fun TransformPanel(
                         Text(
                             text = preset.label ?: stringResource(preset.labelRes),
                             color = if (selected) amber else Color(0xFFB0B0B0),
-                            fontSize = 11.sp,
+                            fontSize = 10.sp,
                             maxLines = 1,
                         )
                     }
                 }
             }
-        },
-    ) { measurables, constraints ->
-        val tools = measurables[0].measure(constraints.copy(minWidth = 0, minHeight = 0))
-        val ratios = measurables[1].measure(constraints.copy(minWidth = 0, minHeight = 0))
-        val revealed = (ratios.height * ratiosProgress).roundToInt()
-        val height = tools.height + revealed
-        val width = if (constraints.hasBoundedWidth && ratiosProgress > 0f) {
-            constraints.maxWidth
-        } else {
-            tools.width
-        }
-        layout(width, height) {
-            tools.place((width - tools.width) / 2, 0)
-            ratios.place(0, tools.height)
-        }
     }
 }
 
@@ -1643,12 +1857,12 @@ private fun CropMenuButton(
     description: String,
     onClick: () -> Unit,
 ) {
-    IconButton(onClick = onClick) {
+    IconButton(onClick = onClick, modifier = Modifier.size(36.dp)) {
         Icon(
             painterResource(icon),
             contentDescription = description,
             tint = Color.White,
-            modifier = Modifier.size(22.dp),
+            modifier = Modifier.size(20.dp),
         )
     }
 }
@@ -1737,6 +1951,44 @@ private fun Modifier.spinFlip(
         scaleX = if (flipHorizontal) -1f else 1f
         scaleY = if (flipVertical) -1f else 1f
     }
+}
+
+private fun sampleDisplayedColor(
+    bitmap: android.graphics.Bitmap?,
+    x: Float,
+    y: Float,
+    layout: CropLayout?,
+    rotation: Int,
+    flipHorizontal: Boolean,
+    flipVertical: Boolean,
+): Long? {
+    val image = bitmap ?: return null
+    val slot = layout ?: return null
+    val centerX = slot.imageLeft + slot.imageWidth / 2f
+    val centerY = slot.imageTop + slot.imageHeight / 2f
+    val matrix = Matrix()
+    matrix.postScale(
+        if (flipHorizontal) -1f else 1f,
+        if (flipVertical) -1f else 1f,
+        centerX,
+        centerY,
+    )
+    matrix.postRotate(rotation.toFloat(), centerX, centerY)
+    val inverse = Matrix()
+    if (!matrix.invert(inverse)) return null
+    val point = floatArrayOf(x, y)
+    inverse.mapPoints(point)
+    val quarter = rotation % 180 != 0
+    val contentWidth = if (quarter) slot.imageHeight else slot.imageWidth
+    val contentHeight = if (quarter) slot.imageWidth else slot.imageHeight
+    val left = centerX - contentWidth / 2f
+    val top = centerY - contentHeight / 2f
+    val u = (point[0] - left) / contentWidth
+    val v = (point[1] - top) / contentHeight
+    if (u !in 0f..1f || v !in 0f..1f) return null
+    val px = (u * (image.width - 1)).roundToInt().coerceIn(0, image.width - 1)
+    val py = (v * (image.height - 1)).roundToInt().coerceIn(0, image.height - 1)
+    return 0xFF000000L or (image.getPixel(px, py).toLong() and 0xFFFFFFL)
 }
 
 private data class ImageFit(val left: Float, val top: Float, val width: Float, val height: Float)
@@ -2088,9 +2340,14 @@ private fun AdjustPanel(
 private fun AddPanel(
     categories: List<StickerCategory>,
     addMode: Int,
+    drawSettings: DrawSettings,
+    onDraw: (DrawSettings) -> Unit,
     onAddModeChange: (Int) -> Unit,
     onAddSticker: (StickerCategory, StickerItem) -> Unit,
-    onAddText: (String) -> Unit,
+    selectedText: TextOverlay?,
+    onTextEdit: (String?, Long?, String?, String?, String?, Boolean?, Boolean) -> Unit,
+    onTextKeyboard: () -> Unit,
+    onTextDone: () -> Unit,
     onOpenOrder: () -> Unit,
 ) {
     var selectedCat by remember(categories) { mutableStateOf(categories.firstOrNull()) }
@@ -2124,65 +2381,165 @@ private fun AddPanel(
             }
         }
         Spacer(Modifier.height(8.dp))
-        when (addMode) {
-            0 -> Text(
-                stringResource(R.string.editor_draw_hint),
-                color = Color.Gray,
-                modifier = Modifier.padding(horizontal = 16.dp),
+        AddModesBody(
+            categories = categories,
+            selectedCat = selectedCat,
+            onSelectCat = { selectedCat = it },
+            addMode = addMode,
+            drawSettings = drawSettings,
+            onDraw = onDraw,
+            onAddSticker = onAddSticker,
+            selectedText = selectedText,
+            onTextEdit = onTextEdit,
+            onTextKeyboard = onTextKeyboard,
+            onTextDone = onTextDone,
+        )
+    }
+}
+
+@Composable
+private fun AddModesBody(
+    categories: List<StickerCategory>,
+    selectedCat: StickerCategory?,
+    onSelectCat: (StickerCategory) -> Unit,
+    addMode: Int,
+    drawSettings: DrawSettings,
+    onDraw: (DrawSettings) -> Unit,
+    onAddSticker: (StickerCategory, StickerItem) -> Unit,
+    selectedText: TextOverlay?,
+    onTextEdit: (String?, Long?, String?, String?, String?, Boolean?, Boolean) -> Unit,
+    onTextKeyboard: () -> Unit,
+    onTextDone: () -> Unit,
+) {
+    SubcomposeLayout(Modifier.fillMaxWidth()) { constraints ->
+        val loose = Constraints(maxWidth = constraints.maxWidth, maxHeight = Constraints.Infinity)
+        val stickerTop = subcompose("sticker-top") {
+            StickerRowProbe(bottom = false)
+        }.first().measure(loose).height
+        val stickerBottom = subcompose("sticker-bottom") {
+            StickerRowProbe(bottom = true)
+        }.first().measure(loose).height
+        val emojiH = subcompose("emoji") {
+            StickerEmojiRow(selectedCat, null)
+        }.first().measure(loose).height
+        val gap = 8.dp.roundToPx()
+        val drawBottom = 46.dp.roundToPx()
+        val textSlot = (stickerTop + gap + stickerBottom).coerceAtLeast(1)
+        fun topHeight(bottom: Int): Dp =
+            (textSlot - gap - bottom).coerceAtLeast(0).toDp()
+
+        val shown = subcompose("shown") {
+            when (addMode) {
+                0 -> DrawToolbar(
+                    settings = drawSettings,
+                    onChange = onDraw,
+                    modifier = Modifier.fillMaxWidth(),
+                    topRowHeight = topHeight(drawBottom),
+                )
+
+                1 -> StickerBrowser(
+                    categories = categories,
+                    selected = selectedCat,
+                    onSelect = onSelectCat,
+                    onAdd = onAddSticker,
+                    topRowHeight = topHeight(emojiH),
+                )
+
+                else -> TextPanel(
+                    selected = selectedText,
+                    drawSettings = drawSettings,
+                    onDraw = onDraw,
+                    onEdit = onTextEdit,
+                    onKeyboard = onTextKeyboard,
+                    onDone = onTextDone,
+                    modifier = Modifier.fillMaxWidth(),
+                    buttonSize = stickerTop.coerceAtLeast(1).toDp(),
+                    chipSize = stickerBottom.coerceAtLeast(1).toDp(),
+                )
+            }
+        }.first().measure(
+            Constraints(maxWidth = constraints.maxWidth, maxHeight = textSlot),
+        )
+        layout(constraints.maxWidth, textSlot) {
+            shown.place(0, 0)
+        }
+    }
+}
+
+@Composable
+private fun StickerBrowser(
+    categories: List<StickerCategory>,
+    selected: StickerCategory?,
+    onSelect: (StickerCategory) -> Unit,
+    onAdd: (StickerCategory, StickerItem) -> Unit,
+    topRowHeight: Dp?,
+) {
+    Column(Modifier.fillMaxWidth()) {
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .then(
+                    if (topRowHeight != null) Modifier
+                        .height(topRowHeight)
+                        .clipToBounds() else Modifier
+                )
+                .horizontalScroll(rememberScrollState())
+                .padding(horizontal = 12.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            categories.forEach { cat ->
+                val active = cat.id == selected?.id
+                Text(
+                    text = "${cat.iconEmoji} ${cat.defaultTitle}",
+                    color = if (active) Color.Black else Color.White,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(if (active) Color.White else Color(0xFF2A2A2A))
+                        .clickable { onSelect(cat) }
+                        .padding(horizontal = 10.dp, vertical = 6.dp),
+                    fontSize = 12.sp,
+                )
+            }
+        }
+        Spacer(Modifier.height(8.dp))
+        StickerEmojiRow(selected, onAdd)
+    }
+}
+
+@Composable
+private fun StickerRowProbe(bottom: Boolean) {
+    Text(
+        text = if (bottom) "😀" else "Aa",
+        fontSize = if (bottom) 28.sp else 12.sp,
+        modifier = Modifier.padding(
+            horizontal = if (bottom) 10.dp else 10.dp,
+            vertical = if (bottom) 10.dp else 6.dp,
+        ),
+    )
+}
+
+@Composable
+private fun StickerEmojiRow(
+    selected: StickerCategory?,
+    onAdd: ((StickerCategory, StickerItem) -> Unit)?,
+) {
+    Row(
+        Modifier
+            .horizontalScroll(rememberScrollState())
+            .padding(horizontal = 12.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        selected?.stickers?.forEach { item ->
+            Text(
+                text = item.emoji,
+                fontSize = 28.sp,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(Color(0xFF2A2A2A))
+                    .clickable { onAdd?.invoke(selected, item) }
+                    .padding(10.dp),
             )
-
-            1 -> {
-                Row(
-                    Modifier
-                        .horizontalScroll(rememberScrollState())
-                        .padding(horizontal = 12.dp),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                ) {
-                    categories.forEach { cat ->
-                        val active = cat.id == selectedCat?.id
-                        Text(
-                            text = "${cat.iconEmoji} ${cat.defaultTitle}",
-                            color = if (active) Color.Black else Color.White,
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(16.dp))
-                                .background(if (active) Color.White else Color(0xFF2A2A2A))
-                                .clickable { selectedCat = cat }
-                                .padding(horizontal = 10.dp, vertical = 6.dp),
-                            fontSize = 12.sp,
-                        )
-                    }
-                }
-                Spacer(Modifier.height(8.dp))
-                Row(
-                    Modifier
-                        .horizontalScroll(rememberScrollState())
-                        .padding(horizontal = 12.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    selectedCat?.stickers?.forEach { item ->
-                        Text(
-                            text = item.emoji,
-                            fontSize = 28.sp,
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(10.dp))
-                                .background(Color(0xFF2A2A2A))
-                                .clickable { selectedCat?.let { onAddSticker(it, item) } }
-                                .padding(10.dp),
-                        )
-                    }
-                }
-            }
-
-            2 -> {
-                Row(
-                    Modifier.padding(horizontal = 12.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    listOf("Hello", "Love", "OK", "★").forEach { sample ->
-                        ToolChip(sample) { onAddText(sample) }
-                    }
-                }
-            }
         }
     }
 }

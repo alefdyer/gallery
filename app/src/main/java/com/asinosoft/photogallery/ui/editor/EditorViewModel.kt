@@ -66,9 +66,18 @@ class EditorViewModel @Inject constructor(
 
     private val _selectedStickerId = MutableStateFlow<Long?>(null)
     val selectedStickerId: StateFlow<Long?> = _selectedStickerId.asStateFlow()
+    private val _selectedTextId = MutableStateFlow<Long?>(null)
+    val selectedTextId: StateFlow<Long?> = _selectedTextId.asStateFlow()
+    private val _textTyping = MutableStateFlow(false)
+    val textTyping: StateFlow<Boolean> = _textTyping.asStateFlow()
 
     private val _addMode = MutableStateFlow(1) // 0 draw, 1 stickers, 2 text
     val addMode: StateFlow<Int> = _addMode.asStateFlow()
+
+    private val _draw = MutableStateFlow(DrawSettings())
+    val drawSettings: StateFlow<DrawSettings> = _draw.asStateFlow()
+    private val _shapeId = MutableStateFlow<Long?>(null)
+    val selectedShapeId: StateFlow<Long?> = _shapeId.asStateFlow()
 
     private var nextOverlayId = 1L
 
@@ -91,12 +100,22 @@ class EditorViewModel @Inject constructor(
 
     fun selectTab(tab: EditorTab) {
         _tab.value = tab
-        if (tab != EditorTab.ADD) _selectedStickerId.value = null
+        if (tab != EditorTab.ADD) {
+            _selectedStickerId.value = null
+            _selectedTextId.value = null
+            _textTyping.value = false
+            endLiveEdit()
+        }
     }
 
     fun setAddMode(mode: Int) {
         _addMode.value = mode
-        if (mode == 0) _selectedStickerId.value = null
+        if (mode != 1) _selectedStickerId.value = null
+        if (mode != 2) {
+            _selectedTextId.value = null
+            _textTyping.value = false
+            endLiveEdit()
+        }
     }
 
     fun selectSticker(id: Long?) {
@@ -110,6 +129,36 @@ class EditorViewModel @Inject constructor(
     fun setStickerCategoryOrder(ids: List<String>) {
         stickers.setCategoryOrder(ids)
         refreshStickers()
+    }
+
+    private fun near(a: StrokePoint, b: StrokePoint, radius: Float): Boolean {
+        val dx = a.x - b.x
+        val dy = a.y - b.y
+        return dx * dx + dy * dy <= radius * radius
+    }
+
+    private fun cutStroke(
+        stroke: DrawStroke,
+        path: List<StrokePoint>,
+        radius: Float
+    ): List<DrawStroke> {
+        if (stroke.style.isShape()) {
+            val hit = path.any { shapeHit(stroke, it, radius) }
+            return if (hit) emptyList() else listOf(stroke)
+        }
+        val parts = mutableListOf<DrawStroke>()
+        val run = mutableListOf<StrokePoint>()
+        stroke.points.forEach { point ->
+            val hit = path.any { near(point, it, radius) }
+            if (hit) {
+                if (run.size >= 2) parts += stroke.copy(points = run.toList())
+                run.clear()
+            } else {
+                run += point
+            }
+        }
+        if (run.size >= 2) parts += stroke.copy(points = run.toList())
+        return parts
     }
 
     private fun commit(block: (EditState) -> EditState) {
@@ -151,6 +200,13 @@ class EditorViewModel @Inject constructor(
         state.copy(
             rotationDegrees = (state.rotationDegrees + 270) % 360,
             crop = state.crop?.rotatedCounterClockwise(),
+        )
+    }
+
+    fun rotateClockwise() = commit { state ->
+        state.copy(
+            rotationDegrees = (state.rotationDegrees + 90) % 360,
+            crop = state.crop?.rotatedClockwise(),
         )
     }
 
@@ -213,17 +269,267 @@ class EditorViewModel @Inject constructor(
         )
     }
 
-    fun addStroke(stroke: DrawStroke) = commit { it.copy(strokes = it.strokes + stroke) }
-
-    fun addText(text: String, x: Float = 0.5f, y: Float = 0.5f) = commit {
-        it.copy(
-            texts = it.texts + TextOverlay(
-                id = nextOverlayId++,
-                text = text,
-                x = x,
-                y = y,
+    fun setDraw(settings: DrawSettings) {
+        val previous = _draw.value
+        _draw.value = settings
+        if (settings.style != previous.style) _shapeId.value = null
+        val id = _shapeId.value ?: return
+        if (settings.slider != DrawSlider.SIZE || settings.size == previous.size) return
+        _edit.update { state ->
+            state.copy(
+                strokes = state.strokes.map { stroke ->
+                    if (stroke.id == id && stroke.style.isShape()) {
+                        stroke.copy(width = brushWidth(settings))
+                    } else {
+                        stroke
+                    }
+                }
             )
-        )
+        }
+    }
+
+    fun addStroke(stroke: DrawStroke) {
+        val stored = stroke.copy(id = nextOverlayId++)
+        commit { it.copy(strokes = it.strokes + stored) }
+        _shapeId.value = if (stored.style.isShape()) stored.id else null
+    }
+
+    fun dragShapeHandle(index: Int, point: StrokePoint) {
+        val id = _shapeId.value ?: return
+        val size = _draw.value.size
+        _edit.update { state ->
+            state.copy(
+                strokes = state.strokes.map { stroke ->
+                    if (stroke.id == id) moveShapeHandle(stroke, index, point, size) else stroke
+                }
+            )
+        }
+    }
+
+    private var eraseBefore: EditState? = null
+
+    fun beginErase() {
+        if (eraseBefore == null) eraseBefore = _edit.value
+    }
+
+    /** Стирает сразу под пальцем. В историю попадает один жест целиком. */
+    fun eraseAlong(
+        from: StrokePoint?,
+        to: StrokePoint,
+        radius: Float,
+        wholeStroke: Boolean,
+    ) {
+        val samples = eraserSamples(from, to, radius)
+        _edit.update { state ->
+            val next = if (wholeStroke) {
+                state.strokes.filter { stroke ->
+                    stroke.points.none { point -> samples.any { hit -> near(point, hit, radius) } }
+                }
+            } else {
+                state.strokes.flatMap { stroke -> cutStroke(stroke, samples, radius) }
+            }
+            if (next == state.strokes) state else state.copy(strokes = next)
+        }
+    }
+
+    fun endErase() {
+        val start = eraseBefore ?: return
+        eraseBefore = null
+        val now = _edit.value
+        if (start == now) return
+        undoStack.addLast(start)
+        while (undoStack.size > 40) undoStack.removeFirst()
+        redoStack.clear()
+        updateHistoryFlags()
+    }
+
+    private fun eraserSamples(
+        from: StrokePoint?,
+        to: StrokePoint,
+        radius: Float
+    ): List<StrokePoint> {
+        if (from == null) return listOf(to)
+        val dx = to.x - from.x
+        val dy = to.y - from.y
+        val dist = kotlin.math.sqrt(dx * dx + dy * dy)
+        val step = (radius * 0.35f).coerceAtLeast(0.003f)
+        val count = (dist / step).toInt().coerceIn(1, 24)
+        return List(count) { index ->
+            val t = (index + 1f) / count
+            StrokePoint(from.x + dx * t, from.y + dy * t)
+        }
+    }
+
+    fun selectText(id: Long?) {
+        _selectedTextId.value = id
+    }
+
+    fun finishTextEdit() = endLiveEdit()
+
+    /** Пустое место — новая рамка. Нажатие на текст — правка этой рамки. */
+    fun startTextInput(id: Long? = null, x: Float = 0.5f, y: Float = 0.5f) {
+        if (_textTyping.value && id != null && _selectedTextId.value == id) return
+        if (_textTyping.value) {
+            val previous = _selectedTextId.value
+            val previousItem = _edit.value.texts.find { it.id == previous }
+            if (previousItem != null && previousItem.text.isBlank()) {
+                _edit.update { state -> state.copy(texts = state.texts.filterNot { it.id == previous }) }
+            }
+            endLiveEdit()
+        }
+        val existing = id?.let { wanted -> _edit.value.texts.find { it.id == wanted } }
+        if (existing != null) {
+            _selectedTextId.value = existing.id
+        } else {
+            val newId = nextOverlayId++
+            beginLiveEdit()
+            _edit.update { state ->
+                state.copy(
+                    texts = state.texts + TextOverlay(
+                        id = newId,
+                        text = "",
+                        x = x.coerceIn(0.08f, 0.92f),
+                        y = y.coerceIn(0.08f, 0.92f),
+                    )
+                )
+            }
+            _selectedTextId.value = newId
+        }
+        _textTyping.value = true
+    }
+
+    fun stopTextInput() {
+        if (!_textTyping.value && liveEditBaseline == null) return
+        _textTyping.value = false
+        val id = _selectedTextId.value
+        val item = _edit.value.texts.find { it.id == id }
+        if (item != null && item.text.isBlank()) {
+            _edit.update { state -> state.copy(texts = state.texts.filterNot { it.id == id }) }
+            _selectedTextId.value = null
+        }
+        endLiveEdit()
+    }
+
+    fun editTextFields(
+        text: String? = null,
+        color: Long? = null,
+        fontId: String? = null,
+        styleId: String? = null,
+        templateId: String? = null,
+        outlined: Boolean? = null,
+        live: Boolean = false,
+    ) {
+        val currentId = _selectedTextId.value
+        val existing = _edit.value.texts.find { it.id == currentId }
+        if (existing == null && text.isNullOrBlank()) return
+        val createdId = if (existing == null) {
+            val id = nextOverlayId++
+            _selectedTextId.value = id
+            id
+        } else {
+            existing.id
+        }
+        val next: (EditState) -> EditState = { state ->
+            val current = state.texts.find { it.id == createdId }
+            if (current == null) {
+                state.copy(
+                    texts = state.texts + TextOverlay(
+                        id = createdId,
+                        text = text.orEmpty(),
+                        x = 0.5f,
+                        y = 0.42f,
+                        color = color ?: 0xFFFFFFFF,
+                        fontId = fontId ?: "normal",
+                        styleId = styleId ?: "solid",
+                        templateId = templateId ?: "plain",
+                        outlined = outlined ?: false,
+                    )
+                )
+            } else {
+                state.copy(
+                    texts = state.texts.map { item ->
+                        if (item.id != current.id) item
+                        else item.copy(
+                            text = text ?: item.text,
+                            color = color ?: item.color,
+                            fontId = fontId ?: item.fontId,
+                            styleId = styleId ?: item.styleId,
+                            templateId = templateId ?: item.templateId,
+                            outlined = outlined ?: item.outlined,
+                        )
+                    }
+                )
+            }
+        }
+        if (live) {
+            beginLiveEdit()
+            _edit.update(next)
+        } else {
+            endLiveEdit()
+            commit(next)
+        }
+    }
+
+    fun tintSelectedText(color: Long) {
+        val id = _selectedTextId.value ?: return
+        beginLiveEdit()
+        _edit.update { state ->
+            state.copy(
+                texts = state.texts.map { item ->
+                    if (item.id != id) item else item.copy(color = color, styleId = "solid")
+                }
+            )
+        }
+    }
+
+    fun updateText(
+        id: Long,
+        x: Float? = null,
+        y: Float? = null,
+        scale: Float? = null,
+        rotation: Float? = null,
+        recordHistory: Boolean = false,
+    ) {
+        if (recordHistory) {
+            endLiveEdit()
+            return
+        }
+        beginLiveEdit()
+        _edit.update { state ->
+            state.copy(
+                texts = state.texts.map { item ->
+                    if (item.id != id) item
+                    else item.copy(
+                        x = (x ?: item.x).coerceIn(0.02f, 0.98f),
+                        y = (y ?: item.y).coerceIn(0.02f, 0.98f),
+                        scale = (scale ?: item.scale).coerceIn(0.35f, 4f),
+                        rotation = rotation ?: item.rotation,
+                    )
+                }
+            )
+        }
+    }
+
+    fun duplicateText(id: Long) {
+        endLiveEdit()
+        val src = _edit.value.texts.firstOrNull { it.id == id } ?: return
+        val newId = nextOverlayId++
+        commit {
+            it.copy(
+                texts = it.texts + src.copy(
+                    id = newId,
+                    x = (src.x + 0.06f).coerceIn(0.02f, 0.98f),
+                    y = (src.y + 0.06f).coerceIn(0.02f, 0.98f),
+                )
+            )
+        }
+        _selectedTextId.value = newId
+    }
+
+    fun deleteText(id: Long) {
+        endLiveEdit()
+        commit { it.copy(texts = it.texts.filterNot { item -> item.id == id }) }
+        if (_selectedTextId.value == id) _selectedTextId.value = null
     }
 
     fun addSticker(category: StickerCategory, item: StickerItem) {

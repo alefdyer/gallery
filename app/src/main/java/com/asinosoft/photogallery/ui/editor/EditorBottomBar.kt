@@ -1,5 +1,6 @@
 package com.asinosoft.photogallery.ui.editor
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -36,8 +37,9 @@ fun EditorBottomBar(
     LazyRow(
         modifier = modifier
             .fillMaxWidth()
+            .background(Color.Black)
             .navigationBarsPadding()
-            .padding(horizontal = 8.dp, vertical = 10.dp),
+            .padding(horizontal = 8.dp, vertical = 4.dp),
         horizontalArrangement = Arrangement.SpaceEvenly,
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -47,13 +49,13 @@ fun EditorBottomBar(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 modifier = Modifier
                     .clickable { onSelect(tab) }
-                    .padding(horizontal = 10.dp, vertical = 4.dp)
+                    .padding(horizontal = 10.dp, vertical = 2.dp)
             ) {
                 Icon(
                     painter = painterResource(tab.iconRes),
                     contentDescription = stringResource(tab.titleRes),
                     tint = if (selectedTab) active else inactive,
-                    modifier = Modifier.size(26.dp),
+                    modifier = Modifier.size(22.dp),
                 )
                 Text(
                     text = stringResource(tab.titleRes),
@@ -63,7 +65,7 @@ fun EditorBottomBar(
                     overflow = TextOverflow.Ellipsis,
                     textAlign = TextAlign.Center,
                     style = MaterialTheme.typography.labelSmall,
-                    modifier = Modifier.padding(top = 4.dp),
+                    modifier = Modifier.padding(top = 2.dp),
                 )
             }
         }

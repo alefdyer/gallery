@@ -21,10 +21,30 @@ enum class FilterPreset {
 
 data class StrokePoint(val x: Float, val y: Float)
 
+enum class DrawStyle {
+    ERASER, PEN, DOTTED, NEON, STAMPS, LINE, RECT, OVAL, ARROW,
+}
+
+enum class DrawSlider { SIZE, OPACITY }
+
+data class DrawSettings(
+    val style: DrawStyle = DrawStyle.PEN,
+    val slider: DrawSlider = DrawSlider.SIZE,
+    val size: Int = 20,
+    val opacity: Int = 100,
+    val color: Long = 0xFFE53935,
+    val picking: Boolean = false,
+)
+
 data class DrawStroke(
+    val id: Long = 0,
     val points: List<StrokePoint>,
+    val basePoints: List<StrokePoint> = points,
+    val baseSize: Int = 20,
     val color: Long,
     val width: Float,
+    val style: DrawStyle = DrawStyle.PEN,
+    val opacity: Float = 1f,
 )
 
 data class TextOverlay(
@@ -33,7 +53,12 @@ data class TextOverlay(
     val x: Float,
     val y: Float,
     val scale: Float = 1f,
+    val rotation: Float = 0f,
     val color: Long = 0xFFFFFFFF,
+    val fontId: String = "normal",
+    val styleId: String = "solid",
+    val templateId: String = "plain",
+    val outlined: Boolean = false,
 )
 
 data class StickerOverlay(
@@ -69,6 +94,9 @@ data class CropRect(
 
     /** Поворот содержимого на 90° против часовой стрелки. */
     fun rotatedCounterClockwise(): CropRect = CropRect(top, 1f - right, bottom, 1f - left)
+
+    /** Поворот содержимого на 90° по часовой стрелке. */
+    fun rotatedClockwise(): CropRect = CropRect(1f - bottom, left, 1f - top, right)
 
     companion object {
         /** Прямоугольник по центру с заданным отношением ширины к высоте в пикселях. */

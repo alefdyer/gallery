@@ -245,6 +245,7 @@
     <string name="editor_redo">Redo</string>
     <string name="editor_ai_apply">Auto</string>
     <string name="editor_rotate">Rotate</string>
+    <string name="editor_rotate_right">Rotate right</string>
     <string name="editor_flip">Flip</string>
     <string name="editor_reset_crop">Reset crop</string>
     <string name="editor_reset_perspective">Reset perspective</string>
@@ -260,9 +261,15 @@
     <string name="editor_saturation">Saturation</string>
     <string name="editor_sharpness">Sharpness</string>
     <string name="editor_draw">Draw</string>
+    <string name="editor_brush_size">Size</string>
+    <string name="editor_brush_opacity">Opacity</string>
     <string name="editor_stickers">Stickers</string>
     <string name="editor_text">Text</string>
+    <string name="editor_text_hint">Type text</string>
     <string name="editor_draw_hint">Draw on the photo with your finger</string>
+    <string name="editor_eraser_title">Eraser settings</string>
+    <string name="editor_eraser_stroke">Stroke corrector</string>
+    <string name="editor_eraser_area">Area corrector</string>
     <string name="editor_sticker_order">Reorder</string>
     <string name="editor_sticker_order_title">Change order</string>
     <string name="editor_sticker_copy">Copy</string>

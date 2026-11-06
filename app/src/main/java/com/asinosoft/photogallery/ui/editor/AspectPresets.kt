@@ -94,8 +94,8 @@ internal fun AspectPresetIcon(
         AspectMark.Pinterest -> "P"
         else -> null
     }
-    Box(modifier.size(40.dp), contentAlignment = Alignment.Center) {
-        Canvas(Modifier.size(40.dp)) {
+    Box(modifier.size(30.dp), contentAlignment = Alignment.Center) {
+        Canvas(Modifier.size(30.dp)) {
             val ratio = when {
                 preset.useScreen -> screenAspect.coerceIn(0.35f, 3.2f)
                 preset.mark == AspectMark.Corners -> 1f

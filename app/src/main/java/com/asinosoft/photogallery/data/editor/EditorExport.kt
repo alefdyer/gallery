@@ -32,6 +32,8 @@ import com.asinosoft.photogallery.data.Media
 import com.asinosoft.photogallery.data.positiveEpoch
 import com.asinosoft.photogallery.data.sortDateTimeEpochMillis
 import com.asinosoft.photogallery.ui.editor.AdjustParams
+import com.asinosoft.photogallery.ui.editor.paintStroke
+import com.asinosoft.photogallery.ui.editor.paintTextOverlay
 import com.asinosoft.photogallery.ui.editor.EditState
 import com.asinosoft.photogallery.ui.editor.FilterPreset
 import com.asinosoft.photogallery.ui.editor.PerspectiveQuad
@@ -85,32 +87,14 @@ class EditorExport @Inject constructor(
         if (state.strokes.isNotEmpty() || state.texts.isNotEmpty() || state.stickers.isNotEmpty()) {
             val out = bmp.copy(Bitmap.Config.ARGB_8888, true)
             val canvas = Canvas(out)
-            val strokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                style = Paint.Style.STROKE
-                strokeCap = Paint.Cap.ROUND
-                strokeJoin = Paint.Join.ROUND
-            }
             state.strokes.forEach { stroke ->
-                if (stroke.points.size < 2) return@forEach
-                strokePaint.color = stroke.color.toInt()
-                strokePaint.strokeWidth = stroke.width * out.width
-                val path = android.graphics.Path()
-                val first = stroke.points.first()
-                path.moveTo(first.x * out.width, first.y * out.height)
-                stroke.points.drop(1).forEach { p ->
-                    path.lineTo(p.x * out.width, p.y * out.height)
-                }
-                canvas.drawPath(path, strokePaint)
+                paintStroke(canvas, stroke, out.width, out.height)
             }
             val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                 typeface = Typeface.DEFAULT_BOLD
                 textAlign = Paint.Align.CENTER
             }
-            state.texts.forEach { t ->
-                textPaint.color = t.color.toInt()
-                textPaint.textSize = 48f * t.scale * (out.width / 1080f)
-                canvas.drawText(t.text, t.x * out.width, t.y * out.height, textPaint)
-            }
+            state.texts.forEach { paintTextOverlay(canvas, it, out.width, out.height) }
             state.stickers.forEach { s ->
                 textPaint.color = 0xFFFFFFFF.toInt()
                 textPaint.textSize = 72f * s.scale * (out.width / 1080f)

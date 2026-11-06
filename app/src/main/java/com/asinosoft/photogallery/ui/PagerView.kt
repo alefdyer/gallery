@@ -42,8 +42,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
+import kotlinx.coroutines.flow.first
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
@@ -102,7 +104,17 @@ fun PagerView(
 ) {
     val params by model.params.collectAsState()
     val loadedItems by model.images.collectAsState()
-    val offset = loadedItems.indexOfFirst { it.id == params.imageId }.coerceAtLeast(0)
+    val loadedItemsState = rememberUpdatedState(loadedItems)
+    val targetIndex = loadedItems.indexOfFirst { it.id == params.imageId }
+    val openedIndex = OpenedMedia.media?.let { opened ->
+        loadedItems.indexOfFirst { it.id == opened.id }
+    } ?: -1
+    // Нет копии в списке — не сваливаться на первое фото.
+    val offset = when {
+        targetIndex >= 0 -> targetIndex
+        openedIndex >= 0 -> openedIndex
+        else -> 0
+    }
 
     val opening = remember(params) { OpenedMedia.media?.takeIf { it.id == params.imageId } }
     var listReady by remember { mutableStateOf(null == opening) }
@@ -116,6 +128,14 @@ fun PagerView(
     val items = if (listReady || null == opening) loadedItems else listOf(opening)
     val pagerState: PagerState = key(items, offset) {
         rememberPagerState(if (listReady) offset else 0) { items.size }
+    }
+    LaunchedEffect(pagerState, params.imageId) {
+        val index = snapshotFlow {
+            loadedItemsState.value.indexOfFirst { it.id == params.imageId }
+        }.first { it >= 0 }
+        if (pagerState.currentPage != index && index < pagerState.pageCount) {
+            pagerState.scrollToPage(index)
+        }
     }
 
     fun closePager() {
