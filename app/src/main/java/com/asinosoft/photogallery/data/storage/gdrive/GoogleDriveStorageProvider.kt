@@ -245,27 +245,42 @@ class GoogleDriveStorageProvider(
             ?: media.thumbnail?.toString()
             ?: return false
         val url = bumpThumbnailSize(link)
-        val request = Request.Builder()
-            .url(url)
-            .header("Authorization", "Bearer $token")
-            .get()
-            .build()
+        // googleusercontent часто отвечает 403 на Bearer — пробуем с токеном, потом без.
+        if (writeThumbBytes(target, fetchThumbBytes(url, token))) return true
+        if (writeThumbBytes(target, fetchThumbBytes(url, bearer = null))) return true
+        if (url != link && writeThumbBytes(
+                target,
+                fetchThumbBytes(link, bearer = null)
+            )
+        ) return true
+        Log.w(TAG, "Thumb download failed ${media.filename}")
+        return false
+    }
+
+    private fun fetchThumbBytes(url: String, bearer: String?): ByteArray? {
+        val builder = Request.Builder().url(url).get()
+        if (!bearer.isNullOrBlank()) {
+            builder.header("Authorization", "Bearer $bearer")
+        }
         return try {
-            client.newCall(request).execute().use { response ->
+            client.newCall(builder.build()).execute().use { response ->
                 if (!response.isSuccessful) {
-                    Log.w(TAG, "Thumb download HTTP ${response.code} ${media.filename}")
-                    return false
+                    Log.w(TAG, "Thumb download HTTP ${response.code} ${url.take(80)}")
+                    return null
                 }
-                val bytes = response.body?.bytes() ?: return false
-                if (bytes.isEmpty()) return false
-                target.parentFile?.mkdirs()
-                target.writeBytes(bytes)
-                true
+                response.body?.bytes()?.takeIf { it.isNotEmpty() }
             }
         } catch (ex: Throwable) {
-            Log.w(TAG, "Thumb download failed ${media.filename}", ex)
-            false
+            Log.w(TAG, "Thumb download failed $url", ex)
+            null
         }
+    }
+
+    private fun writeThumbBytes(target: File, bytes: ByteArray?): Boolean {
+        if (bytes == null || bytes.isEmpty()) return false
+        target.parentFile?.mkdirs()
+        target.writeBytes(bytes)
+        return true
     }
 
     private fun fetchThumbnailLink(token: String, fileId: String): String? {

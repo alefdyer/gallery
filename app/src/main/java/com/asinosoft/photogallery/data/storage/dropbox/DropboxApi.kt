@@ -2,6 +2,7 @@ package com.asinosoft.photogallery.data.storage.dropbox
 
 import android.net.Uri
 import android.util.Base64
+import android.util.Log
 import androidx.core.net.toUri
 import com.asinosoft.photogallery.BuildConfig
 import com.google.gson.Gson
@@ -10,9 +11,9 @@ import java.security.MessageDigest
 import java.security.SecureRandom
 import java.util.UUID
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicReference
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import android.util.Log
 import okhttp3.FormBody
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -29,8 +30,12 @@ object DropboxApi {
     private lateinit var state: String
     private val delivered = AtomicBoolean(false)
 
+    /** Refresh token с последнего OAuth, пока addStorage не заберёт. */
+    private val pendingRefreshToken = AtomicReference<String?>(null)
+
     fun startAuthorization(): Uri {
         delivered.set(false)
+        pendingRefreshToken.set(null)
         codeVerifier = generateCodeVerifier()
         codeChallenge = codeChallengeS256(codeVerifier)
         state = UUID.randomUUID().toString()
@@ -47,6 +52,8 @@ object DropboxApi {
             .appendQueryParameter("state", state)
             .build()
     }
+
+    fun takePendingRefreshToken(): String? = pendingRefreshToken.getAndSet(null)
 
     suspend fun getTokenFromUrl(uri: Uri): Result<TokenResult> = runCatching {
         val url = uri.toString()
@@ -73,6 +80,43 @@ object DropboxApi {
         }
 
         return exchangeCodeForToken(code)
+    }
+
+    /**
+     * Обновить short-lived access token. PKCE-приложение: только client_id + refresh_token.
+     * Dropbox может вернуть новый refresh_token — его тоже надо сохранить.
+     */
+    suspend fun refreshAccessToken(
+        refreshToken: String,
+        client: OkHttpClient = OkHttpClient(),
+    ): TokenResult? = withContext(Dispatchers.IO) {
+        try {
+            val body = FormBody.Builder()
+                .add("grant_type", "refresh_token")
+                .add("refresh_token", refreshToken)
+                .add("client_id", BuildConfig.DROPBOX_APP_KEY)
+                .build()
+            val request = Request.Builder()
+                .url(OAUTH_TOKEN_URL)
+                .post(body)
+                .build()
+            client.newCall(request).execute().use { response ->
+                val payload = response.body?.string().orEmpty()
+                if (!response.isSuccessful) {
+                    Log.w(TAG, "refresh_token HTTP ${response.code}: ${payload.take(200)}")
+                    return@withContext null
+                }
+                val token = parseDropboxTokenResponse(payload) ?: return@withContext null
+                TokenResult(
+                    accessToken = token.accessToken,
+                    email = null,
+                    refreshToken = token.refreshToken ?: refreshToken,
+                )
+            }
+        } catch (ex: Throwable) {
+            Log.w(TAG, "refresh_token failed", ex)
+            null
+        }
     }
 
     private fun generateCodeVerifier(): String {
@@ -115,11 +159,17 @@ object DropboxApi {
                     }.getOrNull()
                     throw IllegalStateException(error ?: "HTTP ${response.code}")
                 }
-                val token = parseDropboxTokenResponse(payload)?.accessToken
+                val token = parseDropboxTokenResponse(payload)
                     ?: throw IllegalStateException("Empty token response")
+                if (!token.refreshToken.isNullOrBlank()) {
+                    pendingRefreshToken.set(token.refreshToken)
+                } else {
+                    Log.w(TAG, "OAuth response without refresh_token")
+                }
                 TokenResult(
-                    accessToken = token,
-                    email = fetchEmail(token, client)
+                    accessToken = token.accessToken,
+                    email = fetchEmail(token.accessToken, client),
+                    refreshToken = token.refreshToken,
                 )
             }
         }
@@ -156,22 +206,34 @@ object DropboxApi {
         val accessToken = raw.accessToken ?: return null
         return DropboxTokenResponse(
             accessToken = accessToken,
+            refreshToken = raw.refreshToken,
             accountId = raw.accountId,
-            uid = raw.uid
+            uid = raw.uid,
         )
     }
 
-    data class TokenResult(val accessToken: String, val email: String?)
+    data class TokenResult(
+        val accessToken: String,
+        val email: String?,
+        val refreshToken: String? = null,
+    )
 }
 
-data class DropboxTokenResponse(val accessToken: String, val accountId: String?, val uid: String?)
+data class DropboxTokenResponse(
+    val accessToken: String,
+    val refreshToken: String?,
+    val accountId: String?,
+    val uid: String?,
+)
 
 private data class DropboxTokenRawResponse(
     @SerializedName("access_token")
     val accessToken: String?,
+    @SerializedName("refresh_token")
+    val refreshToken: String?,
     @SerializedName("account_id")
     val accountId: String?,
-    val uid: String?
+    val uid: String?,
 )
 
 private data class DropboxAccountResponse(

@@ -115,13 +115,23 @@ import androidx.compose.ui.zIndex
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
+import androidx.media3.datasource.DefaultDataSource
+import androidx.media3.datasource.okhttp.OkHttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.ui.PlayerView
 import coil3.compose.AsyncImage
+import coil3.network.NetworkHeaders
+import coil3.network.httpHeaders
+import coil3.request.ImageRequest
+import com.asinosoft.photogallery.GalleryApp
 import com.asinosoft.photogallery.R
+import com.asinosoft.photogallery.data.Media
 import com.asinosoft.photogallery.data.editor.EditorExport
 import com.asinosoft.photogallery.data.editor.StickerCategory
 import com.asinosoft.photogallery.data.editor.StickerItem
+import com.asinosoft.photogallery.data.storage.StorageAuthProvider
+import com.asinosoft.photogallery.data.storage.StorageType
 import com.asinosoft.photogallery.ui.component.ZoomableMediaBox
 import kotlin.math.abs
 import kotlin.math.atan2
@@ -184,20 +194,33 @@ fun EditorScreen(
         }
     }
     val isVideo = media?.video != null
+    val remoteMedia = media?.takeIf { it.storageType != StorageType.LOCAL }
+    val isRemoteMedia = remoteMedia != null
     val tabs = remember(isVideo) { EditorTab.forMedia(isVideo) }
     val context = LocalContext.current
     val videoUri = media?.uri?.takeIf { isVideo }
-    val videoPlayer = remember {
-        ExoPlayer.Builder(context).build().apply {
-            repeatMode = Player.REPEAT_MODE_OFF
+    val videoPlayer = remember(media?.id, remoteMedia?.storageId) {
+        val builder = ExoPlayer.Builder(context)
+        if (remoteMedia != null) {
+            val app = context.applicationContext as GalleryApp
+            val httpFactory = OkHttpDataSource.Factory(app.httpClient)
+                .setDefaultRequestProperties(
+                    mapOf(
+                        StorageAuthProvider.HEADER_STORAGE_ID to remoteMedia.storageId.toString()
+                    )
+                )
+            builder.setMediaSourceFactory(
+                DefaultMediaSourceFactory(DefaultDataSource.Factory(context, httpFactory))
+            )
         }
+        builder.build().apply { repeatMode = Player.REPEAT_MODE_OFF }
     }
     var videoPlaying by remember { mutableStateOf(true) }
     var videoPositionMs by remember { mutableLongStateOf(0L) }
     val trimStart = edit.trimStartMs
     val trimEnd = edit.trimEndMs ?: (media?.video?.duration ?: 0L)
 
-    DisposableEffect(videoUri) {
+    DisposableEffect(videoUri, videoPlayer) {
         if (videoUri != null) {
             videoPlayer.setMediaItem(MediaItem.fromUri(videoUri))
             videoPlayer.prepare()
@@ -209,7 +232,7 @@ fun EditorScreen(
             videoPlayer.clearMediaItems()
         }
     }
-    DisposableEffect(Unit) {
+    DisposableEffect(videoPlayer) {
         onDispose { videoPlayer.release() }
     }
     DisposableEffect(edit.muted, edit.originalVolume) {
@@ -264,6 +287,7 @@ fun EditorScreen(
             imageWidth = displayWidth,
             imageHeight = displayHeight,
             previewUri = media?.uri,
+            previewMedia = media,
             isVideo = isVideo,
             stickerCategories = stickerCats,
             addMode = addMode,
@@ -347,6 +371,7 @@ fun EditorScreen(
                         ) {
                             EditorPhotoPreview(
                                 uri = uri,
+                                media = media,
                                 edit = edit,
                                 model = model,
                                 tab = tab,
@@ -502,8 +527,30 @@ private fun EditorTopBar(
 }
 
 @Composable
+private fun rememberEditorImageModel(uri: Uri, media: Media?): Any {
+    val context = LocalContext.current
+    val storageId = media?.storageId
+    val remote = media != null && media.storageType != StorageType.LOCAL
+    return remember(uri, storageId, remote) {
+        if (!remote || storageId == null) {
+            uri
+        } else {
+            ImageRequest.Builder(context)
+                .data(uri)
+                .httpHeaders(
+                    NetworkHeaders.Builder()
+                        .set(StorageAuthProvider.HEADER_STORAGE_ID, storageId.toString())
+                        .build()
+                )
+                .build()
+        }
+    }
+}
+
+@Composable
 private fun EditorPhotoPreview(
     uri: Uri,
+    media: Media?,
     edit: EditState,
     model: EditorViewModel,
     tab: EditorTab,
@@ -513,6 +560,7 @@ private fun EditorPhotoPreview(
     imageWidth: Int,
     imageHeight: Int,
 ) {
+    val imageModel = rememberEditorImageModel(uri, media)
     val matrix = remember(edit.filter, edit.adjust) {
         EditorExport.colorMatrix(edit.filter, edit.adjust)?.let { androidMatrix ->
             ColorFilter.colorMatrix(ColorMatrix(androidMatrix.array.copyOf()))
@@ -662,15 +710,35 @@ private fun EditorPhotoPreview(
     val pickLayout = rememberUpdatedState(fittedLayout)
     val pickPose = rememberUpdatedState(pose)
     val pickContext = LocalContext.current
-    LaunchedEffect(uri, drawSettings.picking) {
+    LaunchedEffect(uri, media?.storageId, drawSettings.picking) {
         if (!drawSettings.picking) {
             sampleBitmap = null
             return@LaunchedEffect
         }
         sampleBitmap = withContext(Dispatchers.IO) {
-            pickContext.contentResolver.openInputStream(uri)?.use { input ->
-                val options = android.graphics.BitmapFactory.Options().apply { inSampleSize = 4 }
-                android.graphics.BitmapFactory.decodeStream(input, null, options)
+            val remote = media != null && media.storageType != StorageType.LOCAL
+            if (remote && media != null) {
+                val app = pickContext.applicationContext as GalleryApp
+                val request = okhttp3.Request.Builder()
+                    .url(uri.toString())
+                    .header(StorageAuthProvider.HEADER_STORAGE_ID, media.storageId.toString())
+                    .build()
+                runCatching {
+                    app.httpClient.newCall(request).execute().use { response ->
+                        if (!response.isSuccessful) return@use null
+                        response.body?.byteStream()?.use { input ->
+                            val options = android.graphics.BitmapFactory.Options()
+                                .apply { inSampleSize = 4 }
+                            android.graphics.BitmapFactory.decodeStream(input, null, options)
+                        }
+                    }
+                }.getOrNull()
+            } else {
+                pickContext.contentResolver.openInputStream(uri)?.use { input ->
+                    val options =
+                        android.graphics.BitmapFactory.Options().apply { inSampleSize = 4 }
+                    android.graphics.BitmapFactory.decodeStream(input, null, options)
+                }
             }
         }
     }
@@ -1090,7 +1158,7 @@ private fun EditorPhotoPreview(
                         },
                 ) {
                     AsyncImage(
-                        model = uri,
+                        model = imageModel,
                         contentDescription = null,
                         contentScale = ContentScale.FillBounds,
                         colorFilter = matrix,
@@ -1099,7 +1167,7 @@ private fun EditorPhotoPreview(
                 }
             } else {
                 AsyncImage(
-                    model = uri,
+                    model = imageModel,
                     contentDescription = null,
                     contentScale = if (slot != null) ContentScale.FillBounds else ContentScale.Fit,
                     colorFilter = matrix,
@@ -1684,6 +1752,7 @@ private fun EditorToolPanel(
     imageWidth: Int,
     imageHeight: Int,
     previewUri: Uri?,
+    previewMedia: Media?,
     isVideo: Boolean,
     stickerCategories: List<StickerCategory>,
     addMode: Int,
@@ -1715,6 +1784,7 @@ private fun EditorToolPanel(
 
             EditorTab.FILTER -> FilterPanel(
                 previewUri = previewUri,
+                previewMedia = previewMedia,
                 selected = edit.filter,
                 onSelect = model::setFilter,
             )
@@ -2191,9 +2261,11 @@ private fun filterLabel(preset: FilterPreset): String = when (preset) {
 @Composable
 private fun FilterPanel(
     previewUri: Uri?,
+    previewMedia: Media?,
     selected: FilterPreset,
     onSelect: (FilterPreset) -> Unit,
 ) {
+    val filterImageModel = previewUri?.let { rememberEditorImageModel(it, previewMedia) }
     Column(Modifier.fillMaxWidth()) {
         Text(
             text = filterLabel(selected),
@@ -2228,9 +2300,9 @@ private fun FilterPanel(
                         )
                         .clickable { onSelect(preset) }
                 ) {
-                    if (previewUri != null) {
+                    if (filterImageModel != null) {
                         AsyncImage(
-                            model = previewUri,
+                            model = filterImageModel,
                             contentDescription = filterLabel(preset),
                             contentScale = ContentScale.Crop,
                             colorFilter = thumbFilter,

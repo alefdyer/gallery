@@ -17,6 +17,7 @@ import com.asinosoft.photogallery.data.editor.StickerCatalog
 import com.asinosoft.photogallery.data.editor.StickerCategory
 import com.asinosoft.photogallery.data.editor.StickerItem
 import com.asinosoft.photogallery.data.launchAndCatch
+import com.asinosoft.photogallery.data.storage.StorageType
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
@@ -87,11 +88,17 @@ class EditorViewModel @Inject constructor(
     init {
         viewModelScope.launchAndCatch {
             val m = withContext(Dispatchers.IO) { mediaDao.getById(mediaId) } // Room
-            _media.value = m
-            val isVideo = m?.video != null
+            val withUri = if (m == null) {
+                null
+            } else {
+                val source = mediaService.resolveEditorSourceUri(m) ?: m.uri
+                if (source != null && source != m.uri) m.copy(uri = source) else m
+            }
+            _media.value = withUri
+            val isVideo = withUri?.video != null
             _tab.value = EditorTab.forMedia(isVideo).first()
-            if (isVideo && m != null) {
-                val initial = EditState(trimEndMs = m.video?.duration?.takeIf { d -> d > 0 })
+            if (isVideo && withUri != null) {
+                val initial = EditState(trimEndMs = withUri.video?.duration?.takeIf { d -> d > 0 })
                 _edit.value = initial
                 _openedEdit.value = initial
             }
@@ -665,14 +672,20 @@ class EditorViewModel @Inject constructor(
             onDone(null)
             return@launchAndCatch
         }
-        val uri = m.uri ?: run {
-            onDone(null)
-            return@launchAndCatch
-        }
         _saving.value = true
         try {
+            // Облако → локальный файл; сохранение всегда в Pictures/Movies телефона.
+            val uri = mediaService.resolveLocalEditUri(m) ?: run {
+                MessageBus.emit(context.getString(R.string.editor_save_failed))
+                onDone(null)
+                return@launchAndCatch
+            }
+            // Из облака или из альбома хранилища («Главная» и т.п.) — новый файл в Pictures, текущие даты.
+            val fromRemoteMedia = m.storageType != StorageType.LOCAL
+            val fromRemoteAlbum = albumId?.let { mediaService.isRemoteStorageAlbum(it) } == true
+            val asNewCapture = fromRemoteMedia || fromRemoteAlbum
             val saved = if (m.video != null) {
-                export.exportVideo(uri, _edit.value, m)
+                export.exportVideo(uri, _edit.value, m, asNewCapture = asNewCapture)
             } else {
                 val bmp = withContext(Dispatchers.IO) {
                     context.contentResolver.openInputStream(uri)?.use {
@@ -685,7 +698,7 @@ class EditorViewModel @Inject constructor(
                 }
                 val out = withContext(Dispatchers.Default) { export.renderPhoto(bmp, _edit.value) }
                 withContext(Dispatchers.IO) {
-                    export.saveJpeg(out, m)
+                    export.saveJpeg(out, m, asNewCapture = asNewCapture)
                 }
             }
             if (saved == null) {
@@ -699,6 +712,7 @@ class EditorViewModel @Inject constructor(
                     storageId = m.storageId,
                     albumId = albumId,
                     favorite = favorite,
+                    stampNow = asNewCapture,
                 )
             }.getOrDefault(0L)
             MessageBus.emit(context.getString(R.string.editor_saved))

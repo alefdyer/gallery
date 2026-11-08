@@ -31,6 +31,7 @@ import androidx.media3.transformer.Transformer
 import com.asinosoft.photogallery.data.Media
 import com.asinosoft.photogallery.data.positiveEpoch
 import com.asinosoft.photogallery.data.sortDateTimeEpochMillis
+import com.asinosoft.photogallery.data.storage.StorageType
 import com.asinosoft.photogallery.ui.editor.AdjustParams
 import com.asinosoft.photogallery.ui.editor.paintStroke
 import com.asinosoft.photogallery.ui.editor.paintTextOverlay
@@ -111,8 +112,11 @@ class EditorExport @Inject constructor(
         return bmp
     }
 
-    fun saveJpeg(bitmap: Bitmap, source: Media): Uri? {
-        val placed = copyPlacement(source, video = false)
+    /**
+     * @param asNewCapture из облака / альбома хранилища: Pictures + текущие даты, не рядом с оригиналом.
+     */
+    fun saveJpeg(bitmap: Bitmap, source: Media, asNewCapture: Boolean = false): Uri? {
+        val placed = copyPlacement(source, video = false, asNewCapture = asNewCapture)
         val temp = File(context.cacheDir, "editor_${System.currentTimeMillis()}.jpg")
         var uri: Uri? = null
         return try {
@@ -121,8 +125,8 @@ class EditorExport @Inject constructor(
             }
             if (!compressed) return null
             // EXIF до первой публикации: этот телефон не заполняет дату съёмки, если дописать её позже.
-            writeJpegSortExif(temp, copySortMillis(source))
-            val dates = copyDateValues(source)
+            writeJpegSortExif(temp, copySortMillis(source, asNewCapture))
+            val dates = copyDateValues(source, asNewCapture)
             val values = ContentValues().apply {
                 put(MediaStore.MediaColumns.DISPLAY_NAME, placed.name)
                 put(MediaStore.MediaColumns.MIME_TYPE, "image/jpeg")
@@ -165,7 +169,12 @@ class EditorExport @Inject constructor(
      * Возвращает Uri в MediaStore или null.
      */
     @OptIn(UnstableApi::class)
-    suspend fun exportVideo(input: Uri, state: EditState, source: Media): Uri? =
+    suspend fun exportVideo(
+        input: Uri,
+        state: EditState,
+        source: Media,
+        asNewCapture: Boolean = false,
+    ): Uri? =
         withContext(Dispatchers.Main) {
             val tmp = File(
                 context.cacheDir,
@@ -178,7 +187,7 @@ class EditorExport @Inject constructor(
                     return@withContext null
                 }
                 withContext(Dispatchers.IO) {
-                    saveMp4(tmp, source)
+                    saveMp4(tmp, source, asNewCapture)
                 }
             } finally {
                 tmp.delete()
@@ -293,11 +302,11 @@ class EditorExport @Inject constructor(
         transformer.start(composition, output.absolutePath)
     }
 
-    private fun saveMp4(file: File, source: Media): Uri? {
-        val placed = copyPlacement(source, video = true)
+    private fun saveMp4(file: File, source: Media, asNewCapture: Boolean = false): Uri? {
+        val placed = copyPlacement(source, video = true, asNewCapture = asNewCapture)
         var uri: Uri? = null
         return try {
-            val dates = copyDateValues(source)
+            val dates = copyDateValues(source, asNewCapture)
             val values = ContentValues().apply {
                 put(MediaStore.MediaColumns.DISPLAY_NAME, placed.name)
                 put(MediaStore.MediaColumns.MIME_TYPE, "video/mp4")
@@ -334,19 +343,31 @@ class EditorExport @Inject constructor(
     }
 
     /**
-     * Равное время оставляет копию под оригиналом в списке от новых к старым.
-     * Миллисекунда вперёд ставит её сразу перед ним.
+     * Локальный оригинал: миллисекунда вперёд — копия сразу перед ним в списке.
+     * Из облака / как новый снимок: сейчас — первой в общем списке.
      */
-    private fun copySortMillis(source: Media): Long =
-        source.sortDateTimeEpochMillis() + 1L
+    private fun copySortMillis(source: Media, asNewCapture: Boolean = false): Long =
+        if (asNewCapture || source.storageType != StorageType.LOCAL) {
+            System.currentTimeMillis()
+        } else {
+            source.sortDateTimeEpochMillis() + 1L
+        }
 
-    /** Создание — как у исходного файла, изменение — сейчас, съёмка — сразу перед оригиналом. */
-    private fun copyDateValues(source: Media): ContentValues {
-        val sortMs = copySortMillis(source)
-        val createdMs = positiveEpoch(source.createdAt)
-            ?: positiveEpoch(source.takenAt)
-            ?: sortMs
+    /**
+     * Локально: создание как у исходного, съёмка рядом с оригиналом.
+     * Из хранилища / новый снимок: все даты текущие.
+     */
+    private fun copyDateValues(source: Media, asNewCapture: Boolean = false): ContentValues {
         val nowMs = System.currentTimeMillis()
+        val asNew = asNewCapture || source.storageType != StorageType.LOCAL
+        val sortMs = copySortMillis(source, asNewCapture)
+        val createdMs = if (asNew) {
+            nowMs
+        } else {
+            positiveEpoch(source.createdAt)
+                ?: positiveEpoch(source.takenAt)
+                ?: sortMs
+        }
         return ContentValues().apply {
             put(MediaStore.MediaColumns.DATE_ADDED, createdMs / 1000L)
             put(MediaStore.MediaColumns.DATE_MODIFIED, nowMs / 1000L)
@@ -483,31 +504,66 @@ class EditorExport @Inject constructor(
         val absolutePath: String,
     )
 
-    /** Копия рядом с оригиналом: имя-2, имя-3, … первый свободный номер. */
-    private fun copyPlacement(source: Media, video: Boolean): CopyPlacement {
-        val original = File(source.filename).name.ifBlank {
-            source.filename.ifBlank { if (video) "video.mp4" else "photo.jpg" }
-        }
-        val dot = original.lastIndexOf('.')
-        val stem = if (dot > 0) original.substring(0, dot) else original
+    /**
+     * Локально: имя-2, имя-3 рядом с оригиналом.
+     * Из облака / новый снимок: IMG_/VID_ с текущим временем + Pictures/Movies.
+     */
+    private fun copyPlacement(
+        source: Media,
+        video: Boolean,
+        asNewCapture: Boolean = false,
+    ): CopyPlacement {
         val ext = if (video) ".mp4" else ".jpg"
-        val relative = relativeFolder(source, video)
+        val asNew = asNewCapture || source.storageType != StorageType.LOCAL
+        val relative = relativeFolder(source, video, asNewCapture)
         val taken = namesInFolder(relative, video)
-        var n = 2
-        var name = "$stem-$n$ext"
-        while (taken.any { it.equals(name, ignoreCase = true) }) {
-            n++
-            name = "$stem-$n$ext"
-            if (n > 10_000) {
-                name = "$stem-${System.currentTimeMillis()}$ext"
-                break
+        val name = if (asNew) {
+            val prefix = if (video) "VID" else "IMG"
+            var candidate = "${prefix}_${remoteCopyStamp()}$ext"
+            var n = 2
+            while (taken.any { it.equals(candidate, ignoreCase = true) }) {
+                candidate = "${prefix}_${remoteCopyStamp()}_$n$ext"
+                n++
+                if (n > 100) break
             }
+            candidate
+        } else {
+            val original = File(source.filename).name.ifBlank {
+                source.filename.ifBlank { if (video) "video.mp4" else "photo.jpg" }
+            }
+            val dot = original.lastIndexOf('.')
+            val stem = if (dot > 0) original.substring(0, dot) else original
+            var n = 2
+            var candidate = "$stem-$n$ext"
+            while (taken.any { it.equals(candidate, ignoreCase = true) }) {
+                n++
+                candidate = "$stem-$n$ext"
+                if (n > 10_000) {
+                    candidate = "$stem-${System.currentTimeMillis()}$ext"
+                    break
+                }
+            }
+            candidate
         }
         val absolute = File(Environment.getExternalStorageDirectory(), relative + name).absolutePath
         return CopyPlacement(name, relative, absolute)
     }
 
-    private fun relativeFolder(source: Media, video: Boolean): String {
+    private fun remoteCopyStamp(): String {
+        val zoned = Instant.ofEpochMilli(System.currentTimeMillis()).atZone(ZoneId.systemDefault())
+        return DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss").format(zoned)
+    }
+
+    private fun relativeFolder(
+        source: Media,
+        video: Boolean,
+        asNewCapture: Boolean = false,
+    ): String {
+        // Облако/WebDAV или сохранение из альбома хранилища → Pictures/Movies.
+        if (asNewCapture || source.storageType != StorageType.LOCAL) {
+            val bucket = if (video) Environment.DIRECTORY_MOVIES else Environment.DIRECTORY_PICTURES
+            return "$bucket/"
+        }
         val stored = source.path.trim().replace('\\', '/').trim('/')
         if (stored.isNotEmpty()) return "$stored/"
         val parent = File(source.filename).parentFile

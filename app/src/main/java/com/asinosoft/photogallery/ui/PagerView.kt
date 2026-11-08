@@ -55,6 +55,7 @@ import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChanged
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.LocalView
@@ -76,12 +77,15 @@ import com.asinosoft.photogallery.ui.component.Carousel
 import com.asinosoft.photogallery.ui.component.DismissDragState
 import com.asinosoft.photogallery.ui.component.LocalDismissDrag
 import com.asinosoft.photogallery.ui.component.MoveToPrivateDialog
+import com.asinosoft.photogallery.ui.component.RemoteStorageNoticeDialog
 import com.asinosoft.photogallery.ui.component.StatusBanner
 import com.asinosoft.photogallery.ui.component.dragToDismiss
 import com.asinosoft.photogallery.ui.component.isOpeningTransition
+import com.asinosoft.photogallery.ui.component.isRemoteStorage
 import com.asinosoft.photogallery.ui.component.rememberAutoplayVideo
 import com.asinosoft.photogallery.ui.component.rememberTrashIntro
 import com.asinosoft.photogallery.ui.component.rememberVideoSound
+import com.asinosoft.photogallery.ui.component.remoteDeleteBlockedMessage
 import com.asinosoft.photogallery.ui.theme.StatusBarIconAppearance
 
 /** Нажатое фото: просмотр показывает его сразу, пока из базы грузится весь список */
@@ -206,7 +210,9 @@ fun PagerView(
     val currentIsVideo = null != items.getOrNull(pagerState.currentPage)?.video
 
     var showAddToAlbum by remember { mutableStateOf(false) }
+    var remoteNotice by remember { mutableStateOf<String?>(null) }
     var pendingFavorite by remember { mutableStateOf<Pair<Media, Boolean>?>(null) }
+    val context = LocalContext.current
     val favoriteLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.StartIntentSenderForResult()
     ) { result ->
@@ -220,12 +226,23 @@ fun PagerView(
 
     val deleteCurrent = rememberTrashIntro {
         items.getOrNull(pagerState.currentPage)?.let { media ->
+            if (media.isRemoteStorage()) {
+                remoteNotice = context.remoteDeleteBlockedMessage(media.storageType)
+                return@rememberTrashIntro
+            }
             model.delete(media) {
                 if (1 == items.count()) {
                     closePager()
                 }
             }
         }
+    }
+
+    remoteNotice?.let { message ->
+        RemoteStorageNoticeDialog(
+            message = message,
+            onDismiss = { remoteNotice = null },
+        )
     }
 
     val actionsBar = @Composable {

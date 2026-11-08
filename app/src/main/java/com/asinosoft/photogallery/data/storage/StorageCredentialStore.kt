@@ -44,12 +44,32 @@ class StorageCredentialStore @Inject constructor(
         }
     }
 
+    fun getRefresh(storageId: Long): String? =
+        prefs.getString(refreshKey(storageId), null)?.takeIf { it.isNotEmpty() }
+
+    fun putRefresh(storageId: Long, refreshToken: String?) {
+        if (storageId <= 0L) return
+        prefs.edit().apply {
+            if (refreshToken.isNullOrEmpty()) {
+                remove(refreshKey(storageId))
+            } else {
+                putString(refreshKey(storageId), refreshToken)
+            }
+            apply()
+        }
+    }
+
     fun remove(storageId: Long) {
         if (storageId <= 0L) return
-        prefs.edit().remove(key(storageId)).apply()
+        prefs.edit()
+            .remove(key(storageId))
+            .remove(refreshKey(storageId))
+            .apply()
     }
 
     private fun key(storageId: Long) = "pwd_$storageId"
+
+    private fun refreshKey(storageId: Long) = "refresh_$storageId"
 
     companion object {
         const val PREFS_NAME = "storage_credentials"

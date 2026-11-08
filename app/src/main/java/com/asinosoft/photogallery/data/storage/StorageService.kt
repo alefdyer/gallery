@@ -1,5 +1,7 @@
 package com.asinosoft.photogallery.data.storage
 
+import android.accounts.Account
+import android.app.PendingIntent
 import android.content.Context
 import android.util.Log
 import com.asinosoft.photogallery.R
@@ -9,11 +11,11 @@ import com.asinosoft.photogallery.data.MediaDao
 import com.asinosoft.photogallery.data.MediaService
 import com.asinosoft.photogallery.data.MessageBus
 import com.asinosoft.photogallery.data.ThumbnailCache
-import android.app.PendingIntent
 import com.asinosoft.photogallery.data.storage.dropbox.DropboxApi
 import com.asinosoft.photogallery.data.storage.gdrive.GoogleDriveGalleryAuth
 import com.asinosoft.photogallery.data.storage.gdrive.GoogleDriveReauthRequest
 import com.asinosoft.photogallery.data.storage.gdrive.GoogleDriveStorageProvider
+import com.asinosoft.photogallery.data.storage.onedrive.OneDriveApi
 import com.google.android.gms.auth.api.identity.Identity
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
@@ -80,8 +82,17 @@ class StorageService @Inject constructor(
         ) {
             toSave = toSave.copy(login = DropboxApi.fetchEmail(toSave.password!!))
         }
+        val oauthRefresh = when (toSave.type) {
+            StorageType.DROPBOX -> DropboxApi.takePendingRefreshToken()
+            StorageType.ONEDRIVE -> OneDriveApi.takePendingRefreshToken()
+            else -> null
+        }
         val insertedId = storageDao.upsert(toSave)
         val saved = if (insertedId > 0) toSave.withId(insertedId) else toSave
+        if (!oauthRefresh.isNullOrBlank()) {
+            storageDao.putRefreshToken(saved.id, oauthRefresh)
+            Log.i(TAG, "Saved ${toSave.type} refresh token for storage ${saved.id}")
+        }
         storageProviderRegistry.invalidate(saved.id)
         storageAuthProvider.refresh()
         enqueueFetch(saved, force = true, reason = SyncReason.Manual)
@@ -161,7 +172,7 @@ class StorageService @Inject constructor(
                 if (reason == SyncReason.AppOpen && !fresh.allowsAutoSync()) {
                     return@withLock
                 }
-                fresh = refreshGoogleDriveAccessToken(fresh) ?: return@withLock
+                fresh = refreshOAuthAccessToken(fresh) ?: return@withLock
                 storageProviderRegistry.invalidate(fresh.id)
                 val provider = storageProviderRegistry.getStorageProvider(fresh.id)
                 (provider as? FolderListingScan)?.setFastStampCheck(reason != SyncReason.Manual)
@@ -205,8 +216,74 @@ class StorageService @Inject constructor(
     suspend fun ensureFreshAuth(storageId: Long): Storage? {
         val storage = runCatching { storageDao.getStorageById(storageId) }.getOrNull()
             ?: return null
-        if (storage.type != StorageType.GOOGLE_DRIVE) return storage
-        return refreshGoogleDriveAccessToken(storage)
+        return refreshOAuthAccessToken(storage)
+    }
+
+    /** Drive / Dropbox / OneDrive: свежий access token. null только если Drive ждёт UI consent. */
+    private suspend fun refreshOAuthAccessToken(storage: Storage): Storage? = when (storage.type) {
+        StorageType.GOOGLE_DRIVE -> refreshGoogleDriveAccessToken(storage)
+        StorageType.DROPBOX -> refreshDropboxAccessToken(storage)
+        StorageType.ONEDRIVE -> refreshOneDriveAccessToken(storage)
+        else -> storage
+    }
+
+    /**
+     * Dropbox access ~4 часа. Refresh token живёт долго — обновляем перед синком/файлом.
+     * Старые подключения без refresh token: оставляем access, пока не перелогинятся.
+     */
+    private suspend fun refreshDropboxAccessToken(storage: Storage): Storage {
+        if (storage.type != StorageType.DROPBOX) return storage
+        val refresh = storageDao.getRefreshToken(storage.id)
+        if (refresh.isNullOrBlank()) {
+            Log.d(TAG, "Dropbox ${storage.id}: no refresh token yet — using stored access token")
+            return storage
+        }
+        val tokens = DropboxApi.refreshAccessToken(refresh)
+        if (tokens == null) {
+            Log.w(TAG, "Dropbox ${storage.id}: refresh failed — keeping stored access token")
+            return storage
+        }
+        if (tokens.accessToken == storage.password &&
+            (tokens.refreshToken.isNullOrBlank() || tokens.refreshToken == refresh)
+        ) {
+            return storage
+        }
+        val updated = storage.copy(password = tokens.accessToken)
+        storageDao.upsert(updated)
+        if (!tokens.refreshToken.isNullOrBlank()) {
+            storageDao.putRefreshToken(storage.id, tokens.refreshToken)
+        }
+        storageProviderRegistry.invalidate(storage.id)
+        Log.i(TAG, "Refreshed Dropbox access token for storage ${storage.id}")
+        return updated
+    }
+
+    /** OneDrive access ~1 час. Без refresh token — один повторный вход. */
+    private suspend fun refreshOneDriveAccessToken(storage: Storage): Storage {
+        if (storage.type != StorageType.ONEDRIVE) return storage
+        val refresh = storageDao.getRefreshToken(storage.id)
+        if (refresh.isNullOrBlank()) {
+            Log.d(TAG, "OneDrive ${storage.id}: no refresh token yet — using stored access token")
+            return storage
+        }
+        val tokens = OneDriveApi.refreshAccessToken(refresh)
+        if (tokens == null) {
+            Log.w(TAG, "OneDrive ${storage.id}: refresh failed — keeping stored access token")
+            return storage
+        }
+        if (tokens.accessToken == storage.password &&
+            (tokens.refreshToken.isNullOrBlank() || tokens.refreshToken == refresh)
+        ) {
+            return storage
+        }
+        val updated = storage.copy(password = tokens.accessToken)
+        storageDao.upsert(updated)
+        if (!tokens.refreshToken.isNullOrBlank()) {
+            storageDao.putRefreshToken(storage.id, tokens.refreshToken)
+        }
+        storageProviderRegistry.invalidate(storage.id)
+        Log.i(TAG, "Refreshed OneDrive access token for storage ${storage.id}")
+        return updated
     }
 
     /** Заголовки для плееров без OkHttp interceptor (LibVLC). */
@@ -356,16 +433,27 @@ class StorageService @Inject constructor(
     }
 
     /**
-     * Access token Drive живёт ~1 час. Тихо запрашиваем новый через Identity;
-     * если нужен UI — эмитим PendingIntent для Activity.
+     * Access token Drive живёт ~1 час. Тихо запрашиваем новый через Identity
+     * **для email этого Storage** — без setAccount() Google отдаёт чужой аккаунт
+     * и as010201 начинает открываться токеном asinosoft (404/403).
      * @return null — ждём consent UI, скан/загрузку пропускаем.
      */
     private suspend fun refreshGoogleDriveAccessToken(storage: Storage): Storage? {
         if (storage.type != StorageType.GOOGLE_DRIVE) return storage
         return withContext(Dispatchers.IO) {
             try {
+                val expectedEmail = storage.login?.takeIf { it.isNotBlank() }
+                    ?: storage.password?.let { GoogleDriveStorageProvider.fetchEmail(it) }
+                if (expectedEmail.isNullOrBlank()) {
+                    Log.w(
+                        TAG,
+                        "Drive ${storage.id}: no account email for refresh — keeping stored token",
+                    )
+                    return@withContext storage.takeIf { !it.password.isNullOrBlank() }
+                }
+                val account = Account(expectedEmail, "com.google")
                 val result = Identity.getAuthorizationClient(context)
-                    .authorize(GoogleDriveGalleryAuth.authorizationRequest())
+                    .authorize(GoogleDriveGalleryAuth.authorizationRequest(account))
                     .await()
                 if (result.hasResolution()) {
                     val pending = result.pendingIntent
@@ -383,23 +471,36 @@ class StorageService @Inject constructor(
                 }
                 val token = result.accessToken?.takeIf { it.isNotBlank() }
                     ?: return@withContext storage
-                val email = storage.login?.takeIf { it.isNotBlank() }
-                    ?: GoogleDriveStorageProvider.fetchEmail(token)
+                val tokenEmail = GoogleDriveStorageProvider.fetchEmail(token)
+                    ?: result.toGoogleSignInAccount()?.email
+                if (tokenEmail != null &&
+                    !tokenEmail.equals(expectedEmail, ignoreCase = true)
+                ) {
+                    Log.w(
+                        TAG,
+                        "Drive ${storage.id}: got token for $tokenEmail, " +
+                                "expected $expectedEmail — not saving",
+                    )
+                    return@withContext storage.takeIf { !it.password.isNullOrBlank() }
+                }
                 if (token == storage.password &&
-                    (email.isNullOrBlank() || email == storage.login)
+                    expectedEmail.equals(storage.login, ignoreCase = true)
                 ) {
                     return@withContext storage
                 }
                 val updated = storage.copy(
                     password = token,
-                    login = email ?: storage.login,
+                    login = expectedEmail,
                 )
                 storageDao.upsert(updated)
                 storageProviderRegistry.invalidate(storage.id)
-                Log.i(TAG, "Refreshed Google Drive access token for storage ${storage.id}")
+                Log.i(
+                    TAG,
+                    "Refreshed Google Drive access token for storage ${storage.id} ($expectedEmail)",
+                )
                 updated
             } catch (ex: Throwable) {
-                Log.w(TAG, "Silent Drive token refresh failed", ex)
+                Log.w(TAG, "Silent Drive token refresh failed for ${storage.id}", ex)
                 // Не рвём открытие файла: пробуем токен из БД; UI-reauth — если нет токена.
                 if (!storage.password.isNullOrBlank()) {
                     return@withContext storage

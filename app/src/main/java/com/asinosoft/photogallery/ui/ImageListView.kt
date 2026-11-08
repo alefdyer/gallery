@@ -104,6 +104,7 @@ import com.asinosoft.photogallery.ui.component.ImageListHeaderInfo
 import com.asinosoft.photogallery.ui.component.LazyGridVerticalScrollIndicator
 import com.asinosoft.photogallery.ui.component.MediaThumbnail
 import com.asinosoft.photogallery.ui.component.MoveToPrivateDialog
+import com.asinosoft.photogallery.ui.component.RemoteStorageNoticeDialog
 import com.asinosoft.photogallery.ui.component.ScrollToTopButton
 import com.asinosoft.photogallery.ui.component.SelectionControlBar
 import com.asinosoft.photogallery.ui.component.SelectionInfoBar
@@ -114,12 +115,14 @@ import com.asinosoft.photogallery.ui.component.TIP_PHOTO_APPS_FILTER
 import com.asinosoft.photogallery.ui.component.TIP_PHOTO_COUNTERS
 import com.asinosoft.photogallery.ui.component.TIP_PHOTO_DATE
 import com.asinosoft.photogallery.ui.component.dragSelection
+import com.asinosoft.photogallery.ui.component.isRemoteStorage
 import com.asinosoft.photogallery.ui.component.isTipSeen
 import com.asinosoft.photogallery.ui.component.pinchGridColumns
 import com.asinosoft.photogallery.ui.component.rememberFeatureTip
 import com.asinosoft.photogallery.ui.component.rememberGridColumns
 import com.asinosoft.photogallery.ui.component.rememberTrashIntro
 import com.asinosoft.photogallery.ui.component.rememberVideoPreviewQueue
+import com.asinosoft.photogallery.ui.component.remoteDeleteBlockedMessage
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
@@ -161,7 +164,15 @@ fun ImageListView(
     var showTagDialog by remember { mutableStateOf(false) }
     var pendingAlbumAdd by remember { mutableStateOf<PendingAlbumAdd?>(null) }
     var showMoveToPrivate by remember { mutableStateOf(false) }
-    val deleteSelection = rememberTrashIntro { model.deleteSelection() }
+    var remoteNotice by remember { mutableStateOf<String?>(null) }
+    val deleteSelection = rememberTrashIntro {
+        val remote = images.firstOrNull { it.id in selection && it.isRemoteStorage() }
+        if (remote != null) {
+            remoteNotice = context.remoteDeleteBlockedMessage(remote.storageType)
+        } else {
+            model.deleteSelection()
+        }
+    }
     val dragSelectionState = remember { DragSelectionState() }
     val videoPreview = rememberVideoPreviewQueue(images, lazyGridState)
 
@@ -835,6 +846,13 @@ fun ImageListView(
                     model.moveSelectionToPrivate()
                 },
                 onDismiss = { showMoveToPrivate = false }
+            )
+        }
+
+        remoteNotice?.let { message ->
+            RemoteStorageNoticeDialog(
+                message = message,
+                onDismiss = { remoteNotice = null },
             )
         }
 

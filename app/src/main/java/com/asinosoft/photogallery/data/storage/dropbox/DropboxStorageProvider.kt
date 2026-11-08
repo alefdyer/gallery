@@ -2,6 +2,7 @@ package com.asinosoft.photogallery.data.storage.dropbox
 
 import android.content.Context
 import android.net.Uri
+import android.util.Log
 import androidx.core.net.toUri
 import com.asinosoft.photogallery.data.Image
 import com.asinosoft.photogallery.data.Media
@@ -79,7 +80,9 @@ class DropboxStorageProvider(
 
     override suspend fun fetchAll(): Flow<Media> {
         val token = storage.password
-        if (token.isNullOrBlank()) return flow { }
+        if (token.isNullOrBlank()) {
+            error("Dropbox: missing OAuth token")
+        }
 
         return flow {
             var hasMore = true
@@ -106,11 +109,13 @@ class DropboxStorageProvider(
                     "files/list_folder/continue"
                 }
 
+                // Нельзя молча break: пустой fetchAll + deleteMissing стирает все альбомы.
                 val payload = withContext(Dispatchers.IO) {
-                    apiPost(endpoint, requestPayload) ?: return@withContext null
-                } ?: break
+                    apiPostOrThrow(endpoint, requestPayload)
+                }
 
-                val page = gson.fromJson(payload, DropboxListFolderResponse::class.java) ?: break
+                val page = gson.fromJson(payload, DropboxListFolderResponse::class.java)
+                    ?: error("Dropbox: empty list_folder body")
                 page.entries.asSequence()
                     .filter { it.tag == "file" }
                     .mapNotNull { item -> item.toMedia(storage) }
@@ -124,7 +129,9 @@ class DropboxStorageProvider(
     }
 
     override suspend fun fetchChanges(cursor: String): Flow<StorageChange> {
-        if (storage.password.isNullOrBlank()) return flow { }
+        if (storage.password.isNullOrBlank()) {
+            error("Dropbox: missing OAuth token")
+        }
 
         return flow {
             var hasMore = true
@@ -236,6 +243,7 @@ class DropboxStorageProvider(
 
         client.newCall(request).execute().use { response ->
             if (!response.isSuccessful) {
+                Log.w(TAG, "Dropbox $path HTTP ${response.code}")
                 return null
             }
             return response.body?.string()
@@ -254,10 +262,19 @@ class DropboxStorageProvider(
                 throw SyncCursorExpiredException("Dropbox cursor reset")
             }
             if (!response.isSuccessful) {
+                Log.w(TAG, "Dropbox $path HTTP ${response.code}: ${body.take(200)}")
+                // 401/403 — не «протухший курсор», а токен; иначе полный resync снова пустой и раньше стирал БД.
+                if (response.code == 401 || response.code == 403) {
+                    error("Dropbox authorization failed: HTTP ${response.code}")
+                }
                 throw SyncCursorExpiredException("Dropbox HTTP ${response.code}")
             }
             return body
         }
+    }
+
+    private companion object {
+        const val TAG = "dropbox"
     }
 }
 

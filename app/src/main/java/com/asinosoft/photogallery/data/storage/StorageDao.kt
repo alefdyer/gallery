@@ -35,6 +35,12 @@ class StorageDao @Inject constructor(
         return if (storage.id == 0L && rowId > 0L) rowId else storage.id
     }
 
+    fun getRefreshToken(storageId: Long): String? = credentials.getRefresh(storageId)
+
+    fun putRefreshToken(storageId: Long, refreshToken: String?) {
+        credentials.putRefresh(storageId, refreshToken)
+    }
+
     suspend fun delete(storage: Storage) {
         room.delete(storage)
         credentials.remove(storage.id)

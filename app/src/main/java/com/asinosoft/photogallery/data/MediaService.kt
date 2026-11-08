@@ -86,28 +86,86 @@ class MediaService @Inject constructor(
     /**
      * Копия из редактора уже лежит в MediaStore. Кладём её в базу и ждём,
      * пока она появится в том списке, который показывает карусель.
+     *
+     * @param stampNow текущие date/takenAt (копия из облака — первой в ленте).
      */
     suspend fun indexSavedCopy(
         uri: Uri,
         storageId: Long,
         albumId: Long?,
         favorite: Boolean,
+        stampNow: Boolean = false,
     ): Long {
         val localId = localStorageId(storageId)
-        val media = LocalStorageProvider(Storage(id = localId), context).fetchOne(uri) ?: return 0L
+        val fetched =
+            LocalStorageProvider(Storage(id = localId), context).fetchOne(uri) ?: return 0L
+        val media = if (stampNow) {
+            val now = System.currentTimeMillis()
+            val (sortDate, sortTime) = mediaSortDateTime(now, now, now)
+            fetched.copy(
+                date = sortDate,
+                time = sortTime,
+                takenAt = now,
+                createdAt = now,
+                modifiedAt = now,
+            )
+        } else {
+            fetched
+        }
         val mediaId = add(media)
         if (mediaId <= 0L) return 0L
-        if (albumId != null) addToAlbum(listOf(mediaId), albumId)
+        // Альбомы Drive/WebDAV («Главная» и т.п.) — не засоряем локальными копиями.
+        val safeAlbumId = albumId?.takeUnless { isRemoteStorageAlbum(it) }
+        if (safeAlbumId != null) addToAlbum(listOf(mediaId), safeAlbumId)
         if (favorite) setFavorite(listOf(mediaId), true)
         withTimeoutOrNull(2_000) {
             val visible = when {
                 favorite -> mediaDao.getFavorites()
-                albumId != null -> albumDao.getMediaInAlbum(albumId)
+                safeAlbumId != null -> albumDao.getMediaInAlbum(safeAlbumId)
                 else -> mediaDao.getImages(localId)
             }
             visible.first { list -> list.any { it.id == mediaId } }
         }
         return mediaId
+    }
+
+    /** Альбом из категории удалённого хранилища (`:storage:…`). */
+    suspend fun isRemoteStorageAlbum(albumId: Long): Boolean = withContext(Dispatchers.IO) {
+        val album =
+            runCatching { albumDao.getAlbumById(albumId) }.getOrNull() ?: return@withContext false
+        val category = albumDao.getCategoryById(album.categoryId) ?: return@withContext false
+        category.isStorageCategory()
+    }
+
+    /** URI для превью в редакторе (с auth через Coil/Exo OkHttp). */
+    suspend fun resolveEditorSourceUri(media: Media): Uri? = withContext(Dispatchers.IO) {
+        if (media.storageType == StorageType.LOCAL ||
+            media.storageId == EXTERNAL_STORAGE_ID
+        ) {
+            return@withContext media.uri
+        }
+        runCatching {
+            storageService.get().ensureFreshAuth(media.storageId)
+                ?: throw WaitingForGoogleSignIn()
+            storageProviderRegistry.invalidate(media.storageId)
+            storageProviderRegistry.getStorageProvider(media.storageId).getMediaUri(media)
+        }.onFailure {
+            Log.w(TAG, "Editor source uri failed media=${media.id}", it)
+        }.getOrNull()
+    }
+
+    /**
+     * Локальный content/file URI для сохранения из редактора.
+     * Облако скачивается в кэш (как при шаринге).
+     */
+    suspend fun resolveLocalEditUri(media: Media): Uri? {
+        media.uri?.takeIf { isLocalShareableUri(it) }?.let { return it }
+        return runCatching {
+            val file = resolveShareFile(media) ?: return null
+            fileProviderUri(file)
+        }.onFailure {
+            Log.w(TAG, "Editor local uri failed media=${media.id}", it)
+        }.getOrNull()
     }
 
     private suspend fun localStorageId(preferred: Long): Long {
@@ -121,14 +179,20 @@ class MediaService @Inject constructor(
 
     /** На Android 11+ файлы попадают в системную корзину, откуда их можно восстановить в течение 30 дней */
     suspend fun delete(mediaIds: Collection<Long>, context: Context, callback: () -> Unit) {
-        val uris = withContext(Dispatchers.IO) { mediaDao.getUris(mediaIds) }
+        val localIds = withContext(Dispatchers.IO) {
+            mediaDao.getByIds(mediaIds)
+                .filter { it.storageType == StorageType.LOCAL }
+                .map { it.id }
+        }
+        if (localIds.isEmpty()) return
+        val uris = withContext(Dispatchers.IO) { mediaDao.getUris(localIds) }
         val onDeleted: suspend () -> Unit = {
-            val albums = albumDao.getMediaAlbumIds(mediaIds)
-            mediaDao.deleteAll(mediaIds)
+            val albums = albumDao.getMediaAlbumIds(localIds)
+            mediaDao.deleteAll(localIds)
             albums.forEach {
                 albumDao.updateAlbumStats(it) }
             callback()
-            if (mediaIds.isNotEmpty()) analytics.mediaDeleted(AppAnalytics.SOURCE_LIBRARY)
+            if (localIds.isNotEmpty()) analytics.mediaDeleted(AppAnalytics.SOURCE_LIBRARY)
         }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             intentHelper.trashRequest(uris, context, trashed = true) { granted ->
@@ -810,11 +874,23 @@ class MediaService @Inject constructor(
                                 "timeSkip=${listing.skippedByTime}",
                     )
                 }
-                val removed = mediaDao.getIdsForStorage(provider.storage.id)
-                    .filter { it !in updated }
-                val albums = albumIdsOf(removed)
-                mediaDao.deleteMissing(provider.storage.id, updated)
-                albums.forEach { albumDao.updateAlbumStats(it) }
+                val existingIds = mediaDao.getIdsForStorage(provider.storage.id)
+                // Пустой полный sync у Dropbox/облака при сбое API раньше стирал все папки.
+                if (isRemote &&
+                    listing == null &&
+                    updated.isEmpty() &&
+                    existingIds.isNotEmpty()
+                ) {
+                    Log.e(
+                        "MediaService",
+                        "Remote full sync returned 0 items id=${provider.storage.id}, keep existing",
+                    )
+                } else {
+                    val removed = existingIds.filter { it !in updated }
+                    val albums = albumIdsOf(removed)
+                    mediaDao.deleteMissing(provider.storage.id, updated)
+                    albums.forEach { albumDao.updateAlbumStats(it) }
+                }
             }
             repairFolderAlbumsOnce(provider.storage.id)
             mergeDuplicateAlbumsOnce()

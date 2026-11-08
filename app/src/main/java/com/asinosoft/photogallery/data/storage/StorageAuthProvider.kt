@@ -43,7 +43,10 @@ class StorageAuthProvider @Inject constructor(
         val remotes = storageDao.getStorages().first()
             .filterNot { it.type == StorageType.LOCAL }
         remotes.firstOrNull { it.url?.host == host }?.let { return it }
-        return remotes.firstOrNull { matchesSharedHost(it.type, host) }
+        // Несколько Drive/Dropbox на одном host — без X-Gallery-Storage-Id
+        // нельзя угадать аккаунт (иначе as010201 получит токен asinosoft).
+        val shared = remotes.filter { matchesSharedHost(it.type, host) }
+        return shared.singleOrNull()
     }
 
     private fun matchesSharedHost(type: StorageType, host: String): Boolean = when (type) {
