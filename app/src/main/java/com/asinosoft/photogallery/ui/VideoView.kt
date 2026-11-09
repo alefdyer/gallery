@@ -32,6 +32,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -138,6 +139,10 @@ fun VideoView(
     var buffering by remember(media.id) { mutableStateOf(false) }
     var showProgress by remember(media.id) { mutableStateOf(false) }
     var loadProgress by remember(media.id) { mutableStateOf<Float?>(null) }
+    var bufferedFraction by remember(media.id) { mutableFloatStateOf(0f) }
+    var bufferTier by remember(media.id) { mutableIntStateOf(0) }
+    var rebufferStreak by remember(media.id) { mutableIntStateOf(0) }
+    var restorePositionMs by remember(media.id) { mutableLongStateOf(0L) }
     var downloading by remember(media.id) { mutableStateOf(false) }
     var localPlaybackUri by remember(media.id) { mutableStateOf<Uri?>(null) }
 
@@ -198,14 +203,10 @@ fun VideoView(
      */
     var player by remember(media.id) { mutableStateOf<ExoPlayer?>(null) }
     LaunchedEffect(player, showProgress, media.id) {
-        val current = player
-        if (!showProgress || current == null) {
-            return@LaunchedEffect
-        }
-        if (loadProgress == null) loadProgress = 0f
+        val current = player ?: return@LaunchedEffect
         while (true) {
             val pct = current.bufferedPercentage
-            val dur = current.duration
+            val dur = current.duration.takeIf { it > 0 } ?: duration
             val buffered = current.bufferedPosition
             val fromBuffer = if (dur > 0L && buffered >= 0L) {
                 (buffered.toFloat() / dur.toFloat()).coerceIn(0f, 1f)
@@ -218,8 +219,12 @@ fun VideoView(
             }
             val next = listOfNotNull(fromBuffer, fromPct).maxOrNull()
                 ?.takeIf { it.isFinite() }
-            if (next != null && next >= (loadProgress ?: 0f)) {
-                loadProgress = next
+            if (next != null) {
+                bufferedFraction = maxOf(bufferedFraction, next)
+                if (showProgress) {
+                    if (loadProgress == null) loadProgress = 0f
+                    if (next >= (loadProgress ?: 0f)) loadProgress = next
+                }
             }
             delay(150.milliseconds)
         }
@@ -227,7 +232,8 @@ fun VideoView(
     val isLocalMedia = 1L == media.storageId || EXTERNAL_STORAGE_ID == media.storageId
 
     // Плеер только на активной странице (и local, и remote): соседние Exo + буферы → OOM 512МБ.
-    DisposableEffect(media.id, isActive) {
+    // bufferTier в ключе — пересоздание с большим preload после rebuffer/IO.
+    DisposableEffect(media.id, isActive, bufferTier) {
         if (!isActive) {
             player = null
             onDispose { }
@@ -249,16 +255,21 @@ fun VideoView(
                         ),
                 )
             }
+            val remote = remoteBufferForTier(bufferTier)
             val loadControl = DefaultLoadControl.Builder()
                 .setBufferDurationsMs(
-                    if (isLocalMedia) MIN_BUFFER_MS else REMOTE_MIN_BUFFER_MS,
-                    if (isLocalMedia) MAX_BUFFER_MS else REMOTE_MAX_BUFFER_MS,
+                    if (isLocalMedia) MIN_BUFFER_MS else remote.minMs,
+                    if (isLocalMedia) MAX_BUFFER_MS else remote.maxMs,
                     BUFFER_FOR_PLAYBACK_MS,
-                    BUFFER_FOR_PLAYBACK_AFTER_REBUFFER_MS
+                    if (isLocalMedia) {
+                        BUFFER_FOR_PLAYBACK_AFTER_REBUFFER_MS
+                    } else {
+                        remote.afterRebufferMs
+                    },
                 )
                 .apply {
                     if (!isLocalMedia) {
-                        setTargetBufferBytes(REMOTE_TARGET_BUFFER_BYTES)
+                        setTargetBufferBytes(remote.targetBytes)
                         setPrioritizeTimeOverSizeThresholds(false)
                     }
                 }
@@ -272,6 +283,7 @@ fun VideoView(
                     repeatMode = Player.REPEAT_MODE_ONE
                 }
             player = created
+            Log.i(TAG, "ExoPlayer created media=${media.id} bufferTier=$bufferTier")
             onDispose {
                 runCatching { created.playWhenReady = false }
                 runCatching { created.stop() }
@@ -383,6 +395,12 @@ fun VideoView(
             // mime не навязываем: для .MPG/Drive sniff надёжнее, чем video/mpeg.
             current.setMediaItem(MediaItem.fromUri(uri))
             current.prepare()
+            val restore = restorePositionMs
+            if (restore > 0L) {
+                current.seekTo(restore)
+                position = restore
+                restorePositionMs = 0L
+            }
             if (startAfterDownload && isActive) {
                 current.playWhenReady = true
                 current.play()
@@ -443,7 +461,28 @@ fun VideoView(
         val listener =
             object : Player.Listener {
                 override fun onPlaybackStateChanged(playbackState: Int) {
+                    val wasBuffering = buffering
                     buffering = Player.STATE_BUFFERING == playbackState
+                    // Обычный rebuffer: играет → буфер → играет. Не сбрасываем streak на READY.
+                    if (!isLocalMedia &&
+                        firstFrameRendered &&
+                        buffering &&
+                        !wasBuffering &&
+                        bufferTier < 2
+                    ) {
+                        rebufferStreak++
+                        if (rebufferStreak >= 2) {
+                            Log.i(
+                                TAG,
+                                "Exo rebuffer storm → bump tier media=${media.id} " +
+                                        "from=$bufferTier streak=$rebufferStreak",
+                            )
+                            restorePositionMs = current.currentPosition.coerceAtLeast(0L)
+                            bufferTier++
+                            rebufferStreak = 0
+                            bufferedFraction = 0f
+                        }
+                    }
                 }
 
                 override fun onIsPlayingChanged(playing: Boolean) {
@@ -487,9 +526,21 @@ fun VideoView(
                         }
 
                         else -> {
-                            playbackError = error.message?.takeIf { it.isNotBlank() }
-                                ?: "Error ${error.errorCode}"
-                            buffering = false
+                            if (!isLocalMedia && bufferTier < 2) {
+                                Log.i(
+                                    TAG,
+                                    "Exo stream error → bump tier media=${media.id} " +
+                                            "code=${error.errorCode} from=$bufferTier",
+                                )
+                                restorePositionMs = current.currentPosition.coerceAtLeast(0L)
+                                bufferTier++
+                                bufferedFraction = 0f
+                                buffering = false
+                            } else {
+                                playbackError = error.message?.takeIf { it.isNotBlank() }
+                                    ?: "Error ${error.errorCode}"
+                                buffering = false
+                            }
                         }
                     }
                 }
@@ -639,6 +690,7 @@ fun VideoView(
                 isPlaying = isPlaying,
                 position = position,
                 duration = duration,
+                bufferedFraction = bufferedFraction,
                 onPlayPause = { paused = true == player?.playWhenReady },
                 onSeek = { target ->
                     position = target
@@ -682,6 +734,7 @@ internal fun VideoControls(
     duration: Long,
     onPlayPause: () -> Unit,
     onSeek: (Long) -> Unit,
+    bufferedFraction: Float = 0f,
 ) {
     Surface(
         shape = RoundedCornerShape(20.dp),
@@ -705,6 +758,7 @@ internal fun VideoControls(
 
             SeekBar(
                 fraction = if (duration > 0) position.toFloat() / duration else 0f,
+                bufferedFraction = bufferedFraction,
                 onSeek = { fraction -> if (duration > 0) onSeek((fraction * duration).toLong()) },
                 modifier = Modifier
                     .weight(1f)
@@ -724,11 +778,13 @@ internal fun VideoControls(
 @Composable
 private fun SeekBar(
     fraction: Float,
+    bufferedFraction: Float,
     onSeek: (Float) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var dragFraction by remember { mutableFloatStateOf(-1f) }
     val shown = (if (dragFraction >= 0f) dragFraction else fraction).coerceIn(0f, 1f)
+    val buffered = bufferedFraction.coerceIn(0f, 1f)
 
     Canvas(
         modifier
@@ -755,6 +811,7 @@ private fun SeekBar(
         val start = thumbRadius
         val width = size.width - thumbRadius * 2
         val thumbX = start + width * shown
+        val bufferedX = start + width * buffered
         val centerY = size.height / 2
         val top = centerY - trackHeight / 2
         val radius = CornerRadius(trackHeight / 2)
@@ -765,6 +822,14 @@ private fun SeekBar(
             size = Size(width, trackHeight),
             cornerRadius = radius
         )
+        if (buffered > 0.001f) {
+            drawRoundRect(
+                color = Color.White.copy(alpha = 0.55f),
+                topLeft = Offset(start, top),
+                size = Size((bufferedX - start).coerceAtLeast(0f), trackHeight),
+                cornerRadius = radius
+            )
+        }
         drawRoundRect(
             color = Color.White,
             topLeft = Offset(start, top),
@@ -872,11 +937,20 @@ private const val DOUBLE_TAP_SEEK_MS = 5_000L
 private const val SEEK_HINT_MS = 700
 private const val MIN_BUFFER_MS = 2_000
 private const val MAX_BUFFER_MS = 15_000
-private const val REMOTE_MIN_BUFFER_MS = 1_000
-private const val REMOTE_MAX_BUFFER_MS = 3_000
-
-/** Жёсткий потолок: иначе при свайпе WebDAV-видео куча упирается в 512МБ. */
-private const val REMOTE_TARGET_BUFFER_BYTES = 2 * 1024 * 1024
 private const val BUFFER_FOR_PLAYBACK_MS = 250
 private const val BUFFER_FOR_PLAYBACK_AFTER_REBUFFER_MS = 750
 private val SEEK_THUMB_RADIUS = 9.dp
+
+private data class RemoteBufferTier(
+    val minMs: Int,
+    val maxMs: Int,
+    val afterRebufferMs: Int,
+    val targetBytes: Int,
+)
+
+/** 0=лёгкий, 1–2 после rebuffer/IO; byte-cap из‑за 512МБ heap. */
+private fun remoteBufferForTier(tier: Int): RemoteBufferTier = when (tier.coerceIn(0, 2)) {
+    0 -> RemoteBufferTier(1_000, 3_000, 750, 2 * 1024 * 1024)
+    1 -> RemoteBufferTier(3_000, 8_000, 1_500, 6 * 1024 * 1024)
+    else -> RemoteBufferTier(5_000, 12_000, 2_500, 10 * 1024 * 1024)
+}

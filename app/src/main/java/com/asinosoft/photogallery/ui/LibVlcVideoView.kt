@@ -20,6 +20,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -95,6 +96,9 @@ fun LibVlcVideoView(
     var buffering by remember(media.id) { mutableStateOf(true) }
     var showProgress by remember(media.id) { mutableStateOf(false) }
     var loadProgress by remember(media.id) { mutableStateOf<Float?>(null) }
+    var bufferedFraction by remember(media.id) { mutableFloatStateOf(0f) }
+    var networkCachingMs by remember(media.id) { mutableIntStateOf(1_500) }
+    var restorePositionMs by remember(media.id) { mutableLongStateOf(0L) }
     var downloading by remember(media.id) { mutableStateOf(false) }
     var localFilePath by remember(media.id) { mutableStateOf<String?>(null) }
 
@@ -173,7 +177,8 @@ fun LibVlcVideoView(
     }
 
     // generation/exclusive/isActive: соседние страницы и share не держат LibVLC (OOM / getTime).
-    DisposableEffect(media.id, vlcGeneration, vlcExclusive, isActive) {
+    // networkCachingMs — пересоздание с большим preload после сбоев стрима.
+    DisposableEffect(media.id, vlcGeneration, vlcExclusive, isActive, networkCachingMs) {
         if (vlcExclusive || !isActive) {
             libVlc = null
             vlcPlayer = null
@@ -201,9 +206,9 @@ fun LibVlcVideoView(
                 onDispose { }
             } else {
             // hw=none: MPEG-2 на телефоне без аппаратного декодера
-            // network-caching умеренный: WebDAV-стрим иначе раздувает кучу.
+            // network-caching умеренный: WebDAV-стрим иначе раздувает кучу; растёт после сбоев.
             val options = arrayListOf(
-                "--network-caching=1500",
+                "--network-caching=$networkCachingMs",
                 "--file-caching=1000",
                 "--avcodec-hw=none",
                 "--no-audio-time-stretch",
@@ -217,9 +222,11 @@ fun LibVlcVideoView(
             firstFrameRendered = false
             buffering = true
             playbackError = null
+            bufferedFraction = 0f
             Log.i(
                 TAG,
-                "LibVLC created for media=${media.id} file=${media.filename} gen=$vlcGeneration fds=$fdCount"
+                "LibVLC created for media=${media.id} file=${media.filename} " +
+                        "gen=$vlcGeneration fds=$fdCount caching=${networkCachingMs}ms"
             )
 
             val eventListener = MediaPlayer.EventListener { event ->
@@ -239,15 +246,37 @@ fun LibVlcVideoView(
                         val pct = event.buffering
                         buffering = pct in 0f..<100f
                         if (pct.isFinite() && pct in 0f..100f) {
-                            loadProgress = (pct / 100f).coerceIn(0f, 1f)
+                            val fill = (pct / 100f).coerceIn(0f, 1f)
+                            loadProgress = fill
+                            val posFrac = if (duration > 0L) {
+                                (position.toFloat() / duration.toFloat()).coerceIn(0f, 1f)
+                            } else {
+                                0f
+                            }
+                            bufferedFraction = (posFrac + (1f - posFrac) * fill).coerceIn(0f, 1f)
                         }
                     }
 
                     MediaPlayer.Event.EncounteredError -> {
                         buffering = false
                         isPlaying = false
-                        playbackError = "VLC playback error"
-                        Log.w(TAG, "LibVLC EncounteredError media=${media.id}")
+                        val canBump = isRemoteMedia &&
+                                localFilePath == null &&
+                                networkCachingMs < 6_000
+                        if (canBump) {
+                            val next = if (networkCachingMs < 3_000) 3_000 else 6_000
+                            Log.w(
+                                TAG,
+                                "LibVLC EncounteredError → bump caching " +
+                                        "media=${media.id} ${networkCachingMs}→$next",
+                            )
+                            restorePositionMs = position.coerceAtLeast(0L)
+                            playbackError = null
+                            networkCachingMs = next
+                        } else {
+                            playbackError = "VLC playback error"
+                            Log.w(TAG, "LibVLC EncounteredError media=${media.id}")
+                        }
                     }
 
                     MediaPlayer.Event.EndReached -> {
@@ -398,6 +427,12 @@ fun LibVlcVideoView(
                 player.media = vlcMedia
                 vlcMedia.release()
                 player.volume = if (muted) 0 else 100
+                val restore = restorePositionMs
+                if (restore > 0L) {
+                    runCatching { player.time = restore }
+                    position = restore
+                    restorePositionMs = 0L
+                }
                 mediaReady = true
             }.onFailure {
                 runCatching { vlcMedia.release() }
@@ -453,6 +488,21 @@ fun LibVlcVideoView(
                 player.pause()
             }
         }
+    }
+
+    // Долгий buffering на стриме — поднять network-caching и пересоздать плеер.
+    LaunchedEffect(buffering, networkCachingMs, isRemoteMedia, localFilePath, media.id) {
+        if (!buffering || !isRemoteMedia || localFilePath != null) return@LaunchedEffect
+        if (networkCachingMs >= 6_000) return@LaunchedEffect
+        delay(4_000.milliseconds)
+        if (!buffering) return@LaunchedEffect
+        val next = if (networkCachingMs < 3_000) 3_000 else 6_000
+        Log.i(
+            TAG,
+            "LibVLC long buffering → bump caching media=${media.id} ${networkCachingMs}→$next",
+        )
+        restorePositionMs = position.coerceAtLeast(0L)
+        networkCachingMs = next
     }
 
     LaunchedEffect(vlcPlayer, muted) {
@@ -621,6 +671,7 @@ fun LibVlcVideoView(
                 isPlaying = isPlaying,
                 position = position,
                 duration = duration,
+                bufferedFraction = bufferedFraction,
                 onPlayPause = {
                     paused = runCatching { vlcPlayer?.isPlaying == true }.getOrDefault(true)
                 },

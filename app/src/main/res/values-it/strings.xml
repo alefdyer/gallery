@@ -1,4 +1,4 @@
-<resources>
+﻿<resources>
     <string name="app_name">Gallery</string>
     <string name="permission_disclaimer">Per funzionare, l\'app richiede l\'accesso ai file multimediali</string>
     <string name="grant">Consenti</string>
@@ -16,6 +16,18 @@
     <string name="autoplay_video_hint">Avvia i video all\'apertura</string>
     <string name="video_sound">Attiva l\'audio dei video</string>
     <string name="video_sound_hint">L\'audio è attivo all\'apertura di un video</string>
+    <string name="cache_cleanup_section">Svuota cache</string>
+    <string name="cache_view_and_clear">Visualizza e svuota cache</string>
+    <string name="cache_view_and_clear_hint">Miniature, immagini, video e file di condivisione</string>
+    <string name="temporary_files">File temporanei</string>
+    <string name="cache_thumbnails">Miniature</string>
+    <string name="cache_image">Cache immagini</string>
+    <string name="cache_video">Video scaricati</string>
+    <string name="cache_share">Cache di condivisione</string>
+    <string name="cache_other">Altri file temporanei</string>
+    <string name="temporary_files_cleared">Cancellato: %1$s</string>
+    <string name="cache_clear_all">Cancella tutto</string>
+    <string name="cache_cleared_all">Tutti i file temporanei sono stati cancellati</string>
     <string name="backup_section">Backup</string>
     <string name="backup_drive_connect">Collega Google Drive</string>
     <string name="backup_drive_disconnect">Scollega Google Drive</string>

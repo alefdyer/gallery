@@ -29,11 +29,19 @@
         android:fullBackupContent="@xml/backup_rules"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
+        android:manageSpaceActivity=".ManageSpaceActivity"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.Gallery"
         android:usesCleartextTraffic="true"
         tools:targetApi="33">
+
+        <activity
+            android:name=".ManageSpaceActivity"
+            android:exported="true"
+            android:excludeFromRecents="true"
+            android:label="@string/temporary_files"
+            android:theme="@style/Theme.Gallery" />
 
         <activity
             android:name=".MainActivity"

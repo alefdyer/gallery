@@ -1,4 +1,4 @@
-<resources>
+﻿<resources>
     <string name="app_name">Gallery</string>
     <string name="permission_disclaimer">应用需要访问媒体文件才能正常工作</string>
     <string name="grant">允许</string>
@@ -16,6 +16,18 @@
     <string name="autoplay_video_hint">打开时开始播放视频</string>
     <string name="video_sound">开启视频声音</string>
     <string name="video_sound_hint">打开视频时声音为开启状态</string>
+    <string name="cache_cleanup_section">清除缓存</string>
+    <string name="cache_view_and_clear">查看并清除缓存</string>
+    <string name="cache_view_and_clear_hint">缩略图、图片、视频和分享文件</string>
+    <string name="temporary_files">临时文件</string>
+    <string name="cache_thumbnails">缩略图</string>
+    <string name="cache_image">图片缓存</string>
+    <string name="cache_video">已下载的视频</string>
+    <string name="cache_share">分享缓存</string>
+    <string name="cache_other">其他临时文件</string>
+    <string name="temporary_files_cleared">已清除：%1$s</string>
+    <string name="cache_clear_all">全部清除</string>
+    <string name="cache_cleared_all">已清除所有临时文件</string>
     <string name="backup_section">备份</string>
     <string name="backup_drive_connect">连接 Google Drive</string>
     <string name="backup_drive_disconnect">断开 Google Drive</string>

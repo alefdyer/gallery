@@ -411,7 +411,8 @@ fun AlbumListView(
                         ?: systemIcon,
                     // Цветной телефон / логотипы — без tint; mail — монохром.
                     titleIconTinted = systemIcon == R.drawable.mail,
-                    titleIconRounded = storageInfo != null,
+                    // Локально, Мессенджеры и облака — One UI squircle.
+                    titleIconRounded = storageInfo != null || systemIcon != null,
                     cardSize = cardSize,
                     albumsPerRow = albumsPerRow,
                     highlighted = isDragActive && category == dropCategory,

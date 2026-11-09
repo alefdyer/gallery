@@ -1,4 +1,4 @@
-<resources>
+﻿<resources>
     <string name="app_name">Gallery</string>
     <string name="permission_disclaimer">Aplikacja wymaga dostępu do plików multimedialnych</string>
     <string name="grant">Zezwól</string>
@@ -16,6 +16,18 @@
     <string name="autoplay_video_hint">Uruchamiaj wideo po otwarciu</string>
     <string name="video_sound">Włączaj dźwięk wideo</string>
     <string name="video_sound_hint">Dźwięk jest włączony po otwarciu wideo</string>
+    <string name="cache_cleanup_section">Wyczyść pamięć podręczną</string>
+    <string name="cache_view_and_clear">Zobacz i wyczyść pamięć podręczną</string>
+    <string name="cache_view_and_clear_hint">Miniatury, obrazy, filmy i pliki udostępniania</string>
+    <string name="temporary_files">Pliki tymczasowe</string>
+    <string name="cache_thumbnails">Miniatury</string>
+    <string name="cache_image">Pamięć podręczna obrazów</string>
+    <string name="cache_video">Pobrane filmy</string>
+    <string name="cache_share">Pamięć podręczna udostępniania</string>
+    <string name="cache_other">Inne pliki tymczasowe</string>
+    <string name="temporary_files_cleared">Wyczyszczono: %1$s</string>
+    <string name="cache_clear_all">Wyczyść wszystko</string>
+    <string name="cache_cleared_all">Wyczyszczono wszystkie pliki tymczasowe</string>
     <string name="backup_section">Kopia zapasowa</string>
     <string name="backup_drive_connect">Połącz Google Drive</string>
     <string name="backup_drive_disconnect">Odłącz Google Drive</string>

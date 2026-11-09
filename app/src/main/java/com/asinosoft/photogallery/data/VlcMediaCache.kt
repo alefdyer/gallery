@@ -13,7 +13,7 @@ object VlcMediaCache {
     private const val DIR_NAME = "vlc_media"
 
     /** Полный кэш скачанных .MPG и т.п. */
-    const val MAX_BYTES = 300L * 1024 * 1024
+    const val MAX_BYTES = 500L * 1024 * 1024
 
     fun dir(context: Context): File =
         File(context.cacheDir, DIR_NAME).also { it.mkdirs() }

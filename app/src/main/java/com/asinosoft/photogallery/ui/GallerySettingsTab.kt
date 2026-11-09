@@ -3,6 +3,7 @@ package com.asinosoft.photogallery.ui
 import android.app.Activity
 import android.content.Context
 import android.content.ContextWrapper
+import android.content.Intent
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.IntentSenderRequest
@@ -46,6 +47,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import com.asinosoft.photogallery.ManageSpaceActivity
 import com.asinosoft.photogallery.R
 import com.asinosoft.photogallery.data.backup.DriveBackupFile
 import com.asinosoft.photogallery.data.backup.SettingsRestoreMode
@@ -269,6 +271,20 @@ fun GallerySettingsTab(
                     subtitle = stringResource(R.string.video_sound_hint),
                     checked = sound,
                     onCheckedChange = { GallerySettings.setVideoSound(context, it) }
+                )
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            SettingsSectionTitle(stringResource(R.string.cache_cleanup_section))
+            SettingsGroup {
+                SettingsActionRow(
+                    title = stringResource(R.string.cache_view_and_clear),
+                    subtitle = stringResource(R.string.cache_view_and_clear_hint),
+                    enabled = true,
+                    onClick = {
+                        context.startActivity(Intent(context, ManageSpaceActivity::class.java))
+                    },
                 )
             }
 

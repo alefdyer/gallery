@@ -1,4 +1,4 @@
-<resources>
+﻿<resources>
     <string name="app_name">Gallery</string>
     <string name="permission_disclaimer">يحتاج التطبيق إلى الوصول إلى ملفات الوسائط</string>
     <string name="grant">السماح</string>
@@ -16,6 +16,18 @@
     <string name="autoplay_video_hint">بدء الفيديو عند الفتح</string>
     <string name="video_sound">تشغيل صوت الفيديو</string>
     <string name="video_sound_hint">الصوت مفعّل عند فتح الفيديو</string>
+    <string name="cache_cleanup_section">مسح الذاكرة المؤقتة</string>
+    <string name="cache_view_and_clear">عرض ومسح الذاكرة المؤقتة</string>
+    <string name="cache_view_and_clear_hint">الصور المصغرة والصور والفيديو وملفات المشاركة</string>
+    <string name="temporary_files">الملفات المؤقتة</string>
+    <string name="cache_thumbnails">الصور المصغرة</string>
+    <string name="cache_image">ذاكرة الصور</string>
+    <string name="cache_video">الفيديوهات التي تم تنزيلها</string>
+    <string name="cache_share">ذاكرة المشاركة</string>
+    <string name="cache_other">ملفات مؤقتة أخرى</string>
+    <string name="temporary_files_cleared">تم المسح: %1$s</string>
+    <string name="cache_clear_all">مسح الكل</string>
+    <string name="cache_cleared_all">تم مسح جميع الملفات المؤقتة</string>
     <string name="backup_section">نسخة احتياطية</string>
     <string name="backup_drive_connect">ربط Google Drive</string>
     <string name="backup_drive_disconnect">قطع اتصال Google Drive</string>

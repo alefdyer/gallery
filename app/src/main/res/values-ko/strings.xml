@@ -1,4 +1,4 @@
-<resources>
+﻿<resources>
     <string name="app_name">Gallery</string>
     <string name="permission_disclaimer">앱을 사용하려면 미디어 파일 접근 권한이 필요합니다</string>
     <string name="grant">허용</string>
@@ -16,6 +16,18 @@
     <string name="autoplay_video_hint">열 때 동영상 재생 시작</string>
     <string name="video_sound">동영상 소리 켜기</string>
     <string name="video_sound_hint">동영상을 열 때 소리가 켜집니다</string>
+    <string name="cache_cleanup_section">캐시 삭제</string>
+    <string name="cache_view_and_clear">캐시 보기 및 삭제</string>
+    <string name="cache_view_and_clear_hint">썸네일, 이미지, 동영상 및 공유 파일</string>
+    <string name="temporary_files">임시 파일</string>
+    <string name="cache_thumbnails">썸네일</string>
+    <string name="cache_image">이미지 캐시</string>
+    <string name="cache_video">다운로드한 동영상</string>
+    <string name="cache_share">공유 캐시</string>
+    <string name="cache_other">기타 임시 파일</string>
+    <string name="temporary_files_cleared">삭제됨: %1$s</string>
+    <string name="cache_clear_all">모두 삭제</string>
+    <string name="cache_cleared_all">모든 임시 파일이 삭제됨</string>
     <string name="backup_section">백업</string>
     <string name="backup_drive_connect">Google Drive 연결</string>
     <string name="backup_drive_disconnect">Google Drive 연결 해제</string>

@@ -140,10 +140,7 @@ fun ImageListHeaderInfo(
                             },
                             modifier = Modifier
                                 .size(18.dp)
-                                .then(
-                                    if (!subtitleIconTinted) Modifier.clip(SystemAppIconShape)
-                                    else Modifier
-                                )
+                                .clip(SystemAppIconShape)
                         )
                         Text(
                             text = subtitle,

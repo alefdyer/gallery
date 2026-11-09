@@ -1,4 +1,4 @@
-<resources>
+﻿<resources>
     <string name="app_name">Gallery</string>
     <string name="permission_disclaimer">ऐप को मीडिया फ़ाइलों तक पहुँच की आवश्यकता है</string>
     <string name="grant">अनुमति दें</string>
@@ -16,6 +16,18 @@
     <string name="autoplay_video_hint">खोलने पर वीडियो शुरू करें</string>
     <string name="video_sound">वीडियो ध्वनि चालू करें</string>
     <string name="video_sound_hint">वीडियो खोलने पर ध्वनि चालू रहती है</string>
+    <string name="cache_cleanup_section">कैश साफ़ करें</string>
+    <string name="cache_view_and_clear">कैश देखें और साफ़ करें</string>
+    <string name="cache_view_and_clear_hint">थंबनेल, छवियाँ, वीडियो और शेयर फ़ाइलें</string>
+    <string name="temporary_files">अस्थायी फ़ाइलें</string>
+    <string name="cache_thumbnails">थंबनेल</string>
+    <string name="cache_image">छवि कैश</string>
+    <string name="cache_video">डाउनलोड किए गए वीडियो</string>
+    <string name="cache_share">शेयर कैश</string>
+    <string name="cache_other">अन्य अस्थायी फ़ाइलें</string>
+    <string name="temporary_files_cleared">साफ़ किया गया: %1$s</string>
+    <string name="cache_clear_all">सभी साफ़ करें</string>
+    <string name="cache_cleared_all">सभी अस्थायी फ़ाइलें साफ़ की गईं</string>
     <string name="backup_section">बैकअप</string>
     <string name="backup_drive_connect">Google Drive कनेक्ट करें</string>
     <string name="backup_drive_disconnect">Google Drive डिस्कनेक्ट करें</string>
