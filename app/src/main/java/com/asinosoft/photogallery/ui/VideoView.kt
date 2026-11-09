@@ -270,7 +270,7 @@ fun VideoView(
                 .apply {
                     if (!isLocalMedia) {
                         setTargetBufferBytes(remote.targetBytes)
-                        setPrioritizeTimeOverSizeThresholds(false)
+                        setPrioritizeTimeOverSizeThresholds(true)
                     }
                 }
                 .build()
@@ -951,6 +951,6 @@ private data class RemoteBufferTier(
 /** 0=лёгкий, 1–2 после rebuffer/IO; byte-cap из‑за 512МБ heap. */
 private fun remoteBufferForTier(tier: Int): RemoteBufferTier = when (tier.coerceIn(0, 2)) {
     0 -> RemoteBufferTier(1_000, 3_000, 750, 2 * 1024 * 1024)
-    1 -> RemoteBufferTier(3_000, 8_000, 1_500, 6 * 1024 * 1024)
-    else -> RemoteBufferTier(5_000, 12_000, 2_500, 10 * 1024 * 1024)
+    1 -> RemoteBufferTier(5_000, 12_000, 2_500, 6 * 1024 * 1024)
+    else -> RemoteBufferTier(12_000, 20_000, 4_000, 10 * 1024 * 1024)
 }

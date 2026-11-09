@@ -8,6 +8,7 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.asinosoft.photogallery.R
+import com.asinosoft.photogallery.data.AppAnalytics
 import com.asinosoft.photogallery.data.ExifTakenAt
 import com.asinosoft.photogallery.data.Image
 import com.asinosoft.photogallery.data.Media
@@ -37,6 +38,7 @@ class EditorViewModel @Inject constructor(
     private val mediaService: MediaService,
     private val export: EditorExport,
     private val stickers: StickerCatalog,
+    private val analytics: AppAnalytics,
     @param:ApplicationContext private val context: Context,
 ) : ViewModel() {
     private val mediaId: Long = state["mediaId"]!!
@@ -120,6 +122,12 @@ class EditorViewModel @Inject constructor(
             _media.value = withUri
             val isVideo = withUri?.video != null
             _tab.value = EditorTab.forMedia(isVideo).first()
+            if (withUri != null) {
+                analytics.editorOpened(
+                    AppAnalytics.mediaType(withUri),
+                    AppAnalytics.mediaSource(withUri),
+                )
+            }
             if (isVideo && withUri != null) {
                 val initial = EditState(trimEndMs = withUri.video?.duration?.takeIf { d -> d > 0 })
                 _edit.value = initial
@@ -753,6 +761,10 @@ class EditorViewModel @Inject constructor(
                     stampNow = asNewCapture,
                 )
             }.getOrDefault(0L)
+            analytics.editorSaved(
+                AppAnalytics.mediaType(m),
+                AppAnalytics.mediaSource(m),
+            )
             MessageBus.emit(context.getString(R.string.editor_saved))
             onDone(copyId)
         } finally {

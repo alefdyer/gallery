@@ -1,6 +1,7 @@
 package com.asinosoft.photogallery.model
 
 import androidx.lifecycle.viewModelScope
+import com.asinosoft.photogallery.data.AppAnalytics
 import com.asinosoft.photogallery.data.Media
 import com.asinosoft.photogallery.data.PrivateAlbum
 import com.asinosoft.photogallery.data.launchAndCatch
@@ -9,8 +10,13 @@ import javax.inject.Inject
 
 @HiltViewModel
 class PrivateAlbumViewModel @Inject constructor(
-    private val privateAlbum: PrivateAlbum
+    private val privateAlbum: PrivateAlbum,
+    analytics: AppAnalytics,
 ) : MediaFolderViewModel(privateAlbum.media) {
+    init {
+        analytics.privateOpened()
+    }
+
     override fun restore(items: Collection<Media>) {
         viewModelScope.launchAndCatch { privateAlbum.restore(items) }
     }

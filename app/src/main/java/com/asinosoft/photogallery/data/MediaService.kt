@@ -211,7 +211,8 @@ class MediaService @Inject constructor(
     }
 
     suspend fun edit(mediaId: Long, context: Context) {
-        val uri = withContext(Dispatchers.IO) { mediaDao.getUri(mediaId) }
+        val media = withContext(Dispatchers.IO) { mediaDao.getById(mediaId) } ?: return
+        val uri = media.uri ?: return
         val edit =
             Intent().apply {
                 action = Intent.ACTION_EDIT
@@ -219,6 +220,7 @@ class MediaService @Inject constructor(
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             }
         context.startActivity(edit)
+        analytics.mediaEdited(AppAnalytics.mediaType(media))
     }
 
     suspend fun share(mediaIds: Collection<Long>, context: Context) {
@@ -275,6 +277,7 @@ class MediaService @Inject constructor(
                     }
                 coroutineContext.ensureActive()
                 startShareChooser(context, send, uris)
+                analytics.mediaShared()
                 // Мессенджер ещё читает FileProvider — чистим share-кэш с задержкой.
                 ShareCache.schedulePurgeAfterShare(context)
             } finally {
@@ -652,6 +655,7 @@ class MediaService @Inject constructor(
                 ids.forEach { ThumbnailCache.getFile(context, it).delete() }
             }
             privateAlbum.onMovedIn(ids.size)
+            analytics.privateMediaAdded()
             callback()
         }
     }

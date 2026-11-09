@@ -9,6 +9,7 @@ import android.util.Log
 import com.asinosoft.photogallery.R
 import com.asinosoft.photogallery.data.AlbumCategory
 import com.asinosoft.photogallery.data.AlbumDao
+import com.asinosoft.photogallery.data.AppAnalytics
 import com.asinosoft.photogallery.data.MediaDao
 import com.asinosoft.photogallery.data.MediaService
 import com.asinosoft.photogallery.data.ThumbnailCache
@@ -46,6 +47,7 @@ class StorageService @Inject constructor(
     private val storageDao: StorageDao,
     private val storageProviderRegistry: StorageProviderRegistry,
     private val storageAuthProvider: StorageAuthProvider,
+    private val analytics: AppAnalytics,
     @param:ApplicationContext private val context: Context,
 ) {
     private val fetchingFlow = MutableStateFlow(false)
@@ -146,6 +148,7 @@ class StorageService @Inject constructor(
             runCatching { fetch(storage, force = force, reason = reason) }
                 .onFailure { ex ->
                     Log.e(TAG, "Fetch failed: ${storage.type} id=${storage.id} reason=$reason", ex)
+                    analytics.storageError(storage.type.name.lowercase())
                     val label = storage.categoryTitle(context)
                     val authExpired = isAuthExpiredFailure(ex)
                     markStorageAttention(
@@ -306,6 +309,7 @@ class StorageService @Inject constructor(
                     )
                 )
                 clearStorageAttention(fresh.id)
+                analytics.storageSynced(fresh.type.name.lowercase())
             }
         } finally {
             endFetching(storage)

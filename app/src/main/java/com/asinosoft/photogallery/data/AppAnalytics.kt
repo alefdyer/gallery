@@ -1,6 +1,7 @@
 package com.asinosoft.photogallery.data
 
 import android.os.Bundle
+import com.asinosoft.photogallery.data.storage.StorageType
 import com.google.firebase.analytics.FirebaseAnalytics
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -35,9 +36,33 @@ class AppAnalytics @Inject constructor(private val firebase: FirebaseAnalytics) 
 
     fun storageAdded(type: String) = log(STORAGE_ADDED, PARAM_STORAGE_TYPE to type)
 
+    fun storageSynced(type: String) = log(STORAGE_SYNCED, PARAM_STORAGE_TYPE to type)
+
+    fun storageError(type: String) = log(STORAGE_ERROR, PARAM_STORAGE_TYPE to type)
+
     fun recommendFriends() = log(RECOMMEND_FRIENDS)
 
     fun mediaDeleted(source: String) = log(MEDIA_DELETED, PARAM_SOURCE to source)
+
+    fun mediaShared() = log(MEDIA_SHARED)
+
+    fun mediaEdited(mediaType: String) = log(MEDIA_EDITED, PARAM_MEDIA_TYPE to mediaType)
+
+    fun editorOpened(mediaType: String, source: String) = log(
+        EDITOR_OPENED,
+        PARAM_MEDIA_TYPE to mediaType,
+        PARAM_SOURCE to source,
+    )
+
+    fun editorSaved(mediaType: String, source: String) = log(
+        EDITOR_SAVED,
+        PARAM_MEDIA_TYPE to mediaType,
+        PARAM_SOURCE to source,
+    )
+
+    fun privateOpened() = log(PRIVATE_OPENED)
+
+    fun privateMediaAdded() = log(PRIVATE_MEDIA_ADDED)
 
     fun googleSignedIn() = log(GOOGLE_SIGNED_IN)
 
@@ -59,6 +84,16 @@ class AppAnalytics @Inject constructor(private val firebase: FirebaseAnalytics) 
     companion object {
         const val SOURCE_LIBRARY = "library"
         const val SOURCE_TRASH = "trash"
+        const val SOURCE_LOCAL = "local"
+        const val SOURCE_CLOUD = "cloud"
+        const val MEDIA_PHOTO = "photo"
+        const val MEDIA_VIDEO = "video"
+
+        fun mediaType(media: Media): String =
+            if (media.video != null) MEDIA_VIDEO else MEDIA_PHOTO
+
+        fun mediaSource(media: Media): String =
+            if (media.storageType == StorageType.LOCAL) SOURCE_LOCAL else SOURCE_CLOUD
 
         private const val SCAN_COMPLETED = "scan_completed"
         private const val FILTER_APPS = "filter_apps"
@@ -74,12 +109,21 @@ class AppAnalytics @Inject constructor(private val firebase: FirebaseAnalytics) 
         private const val ALBUM_MEDIA_ADDED = "album_media_added"
         private const val FAVORITE_ADDED = "favorite_added"
         private const val STORAGE_ADDED = "storage_added"
+        private const val STORAGE_SYNCED = "storage_synced"
+        private const val STORAGE_ERROR = "storage_error"
         private const val RECOMMEND_FRIENDS = "recommend_friends"
         private const val MEDIA_DELETED = "media_deleted"
+        private const val MEDIA_SHARED = "media_shared"
+        private const val MEDIA_EDITED = "media_edited"
+        private const val EDITOR_OPENED = "editor_opened"
+        private const val EDITOR_SAVED = "editor_saved"
+        private const val PRIVATE_OPENED = "private_opened"
+        private const val PRIVATE_MEDIA_ADDED = "private_media_added"
         private const val GOOGLE_SIGNED_IN = "google_signed_in"
         private const val BACKUP_SAVED = "backup_saved"
         private const val BACKUP_RESTORED = "backup_restored"
         private const val PARAM_STORAGE_TYPE = "storage_type"
         private const val PARAM_SOURCE = "source"
+        private const val PARAM_MEDIA_TYPE = "media_type"
     }
 }
