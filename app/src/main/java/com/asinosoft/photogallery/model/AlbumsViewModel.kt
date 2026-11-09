@@ -72,6 +72,7 @@ class AlbumsViewModel @Inject constructor(
 
     val fetchingStorageIds: StateFlow<Set<Long>> = storageService.fetchingStorageIds
     val attentionStorageIds: StateFlow<Set<Long>> = storageService.attentionStorageIds
+    val reauthRequiredIds: StateFlow<Set<Long>> = storageService.reauthRequiredIds
 
     fun attentionMessage(storageId: Long): String? = storageService.attentionMessage(storageId)
 
@@ -290,7 +291,7 @@ class AlbumsViewModel @Inject constructor(
                 GalleryApp.TAG,
                 "Refresh storage category ${category.name} → ${storage.type} id=${storage.id}",
             )
-            storageService.enqueueFetch(storage)
+            storageService.enqueueFetch(storage, force = true, reason = SyncReason.Manual)
         }
     }
 

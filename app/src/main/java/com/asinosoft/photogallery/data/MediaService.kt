@@ -157,11 +157,15 @@ class MediaService @Inject constructor(
     /**
      * Локальный content/file URI для сохранения из редактора.
      * Облако скачивается в кэш (как при шаринге).
+     * @param onProgress 0f..1f при скачивании с удалённого хранилища.
      */
-    suspend fun resolveLocalEditUri(media: Media): Uri? {
+    suspend fun resolveLocalEditUri(
+        media: Media,
+        onProgress: (Float) -> Unit = {},
+    ): Uri? {
         media.uri?.takeIf { isLocalShareableUri(it) }?.let { return it }
         return runCatching {
-            val file = resolveShareFile(media) ?: return null
+            val file = resolveShareFile(media, onProgress) ?: return null
             fileProviderUri(file)
         }.onFailure {
             Log.w(TAG, "Editor local uri failed media=${media.id}", it)
@@ -397,13 +401,17 @@ class MediaService @Inject constructor(
         return fileProviderUri(converted.first) to converted.second
     }
 
-    private suspend fun resolveShareFile(media: Media): File? {
+    private suspend fun resolveShareFile(
+        media: Media,
+        onProgress: (Float) -> Unit = {},
+    ): File? {
         val cachedVlc = VlcMediaCache.fileFor(context, media.id, media.filename)
         // Уже скачан для LibVLC-плеера — берём его, даже если Drive size чуть врёт.
         if (cachedVlc.exists() &&
             cachedVlc.length() > 0L &&
             !looksLikeErrorPayload(cachedVlc)
         ) {
+            onProgress(1f)
             return cachedVlc
         }
 
@@ -413,7 +421,7 @@ class MediaService @Inject constructor(
             return null
         }
 
-        return downloadRemoteForShare(media)
+        return downloadRemoteForShare(media, onProgress)
     }
 
     private suspend fun copyLocalToShareCache(media: Media, uri: Uri): File? =
@@ -432,7 +440,10 @@ class MediaService @Inject constructor(
             }.getOrNull()
         }
 
-    private suspend fun downloadRemoteForShare(media: Media): File = withContext(Dispatchers.IO) {
+    private suspend fun downloadRemoteForShare(
+        media: Media,
+        onProgress: (Float) -> Unit = {},
+    ): File = withContext(Dispatchers.IO) {
         if (media.size > MAX_SHARE_DOWNLOAD_BYTES) {
             error(context.getString(R.string.share_too_large))
         }
@@ -449,6 +460,7 @@ class MediaService @Inject constructor(
             .replace(Regex("[^a-zA-Z0-9._-]"), "_")
         val out = File(dir, safe)
         if (isCompleteShareFile(out, media.size)) {
+            onProgress(1f)
             return@withContext out
         }
 
@@ -464,6 +476,7 @@ class MediaService @Inject constructor(
             .header(StorageAuthProvider.HEADER_STORAGE_ID, media.storageId.toString())
             .build()
         Log.i(TAG, "Share download media=${media.id} → ${out.name}")
+        onProgress(0f)
         val call = app.httpClient.newCall(request)
         coroutineContext.job.invokeOnCompletion { call.cancel() }
         call.execute().use { response ->
@@ -489,7 +502,9 @@ class MediaService @Inject constructor(
                             val pct = ((read * 100L) / contentLength).toInt().coerceIn(0, 100)
                             if (pct != lastPct) {
                                 lastPct = pct
-                                ShareUi.setProgress(pct / 100f)
+                                val fraction = pct / 100f
+                                ShareUi.setProgress(fraction)
+                                onProgress(fraction)
                             }
                         }
                     }

@@ -127,8 +127,8 @@
     <string name="storage_field_password">비밀번호</string>
     <string name="storage_check_server_not_found">서버를 찾을 수 없음</string>
     <string name="storage_check_authorization_failed">인증 실패</string>
-    <string name="storage_refresh_failed">%1$s을(를) 새로고침하지 못했습니다. 네트워크에서 저장소를 다시 연결하세요.</string>
-    <string name="storage_reconnect_required">%1$s 로그인을 새로고침하지 못했습니다. 다시 시도하거나 네트워크에서 다시 연결하세요.</string>
+    <string name="storage_refresh_failed">%1$s을(를) 새로고침하지 못했습니다. {{LINK}}{{NETWORK}}에서 저장소를 다시 연결하세요{{/LINK}}.</string>
+    <string name="storage_reconnect_required">%1$s 로그인을 새로고침하지 못했습니다. 다시 시도하거나 {{LINK}}{{NETWORK}}에서 다시 연결하세요{{/LINK}}.</string>
     <string name="storage_offline">인터넷 없음 — %1$s을(를) 업데이트할 수 없습니다. 연결 후 다시 시도하세요.</string>
     <string name="storage_check_unknown_error">오류: %1$s</string>
     <string name="other">로컬</string>

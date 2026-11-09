@@ -8,6 +8,8 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.asinosoft.photogallery.R
+import com.asinosoft.photogallery.data.ExifTakenAt
+import com.asinosoft.photogallery.data.Image
 import com.asinosoft.photogallery.data.Media
 import com.asinosoft.photogallery.data.MediaDao
 import com.asinosoft.photogallery.data.MediaService
@@ -41,6 +43,10 @@ class EditorViewModel @Inject constructor(
 
     private val _media = MutableStateFlow<Media?>(null)
     val media: StateFlow<Media?> = _media.asStateFlow()
+
+    /** Скачивание с облака в редактор: 0f..1f, null — не идёт. */
+    private val _loadProgress = MutableStateFlow<Float?>(null)
+    val loadProgress: StateFlow<Float?> = _loadProgress.asStateFlow()
 
     private val _tab = MutableStateFlow(EditorTab.TRANSFORM)
     val tab: StateFlow<EditorTab> = _tab.asStateFlow()
@@ -91,8 +97,25 @@ class EditorViewModel @Inject constructor(
             val withUri = if (m == null) {
                 null
             } else {
-                val source = mediaService.resolveEditorSourceUri(m) ?: m.uri
-                if (source != null && source != m.uri) m.copy(uri = source) else m
+                val remote = m.storageType != StorageType.LOCAL
+                if (remote) {
+                    _loadProgress.value = 0f
+                    val local = runCatching {
+                        mediaService.resolveLocalEditUri(m) { p -> _loadProgress.value = p }
+                    }.getOrNull()
+                    val resolved = if (local != null) {
+                        m.withEditorImageSize(local)
+                    } else {
+                        // Кэш недоступен / слишком большой — стрим по сети.
+                        val source = mediaService.resolveEditorSourceUri(m) ?: m.uri
+                        if (source != null) m.withEditorImageSize(source) else m
+                    }
+                    _loadProgress.value = null
+                    resolved
+                } else {
+                    val source = mediaService.resolveEditorSourceUri(m) ?: m.uri
+                    if (source != null) m.withEditorImageSize(source) else m
+                }
             }
             _media.value = withUri
             val isVideo = withUri?.video != null
@@ -103,6 +126,18 @@ class EditorViewModel @Inject constructor(
                 _openedEdit.value = initial
             }
         }
+    }
+
+    /** URI + размер как на экране (EXIF), иначе альбомное жмётся в портрет. */
+    private fun Media.withEditorImageSize(uri: Uri): Media {
+        if (video != null) return copy(uri = uri)
+        val probe = ExifTakenAt.probeUri(context, uri)
+        val nextImage = if (probe.width > 0 && probe.height > 0) {
+            Image(width = probe.width, height = probe.height, orientation = probe.orientation)
+        } else {
+            image
+        }
+        return copy(uri = uri, image = nextImage)
     }
 
     fun selectTab(tab: EditorTab) {

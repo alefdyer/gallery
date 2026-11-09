@@ -7,6 +7,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.browser.customtabs.CustomTabsIntent
+import androidx.compose.foundation.background
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import kotlinx.coroutines.Dispatchers
@@ -88,9 +89,11 @@ import kotlinx.coroutines.launch
 fun StoragesView(
     modifier: Modifier = Modifier,
     onOpenTerms: () -> Unit = {},
+    focusStorageId: Long? = null,
     model: StoragesViewModel = hiltViewModel(),
 ) {
     val storages by model.storages.collectAsState(initial = listOf())
+    val reauthRequiredIds by model.reauthRequiredIds.collectAsState()
 
     val showStorageEditor = remember { mutableStateOf(false) }
     val account = remember { mutableStateOf<Storage?>(null) }
@@ -146,8 +149,12 @@ fun StoragesView(
             SettingsGroup {
                 storages.forEachIndexed { index, storage ->
                     if (index > 0) SettingsGroupDivider()
+                    val needsReauth = model.needsSignIn(storage) ||
+                            storage.id in reauthRequiredIds
                     ConnectedStorageRow(
                         storage = storage,
+                        needsReauth = needsReauth,
+                        highlighted = focusStorageId != null && storage.id == focusStorageId,
                         onEdit = {
                             account.value = storage
                             showStorageEditor.value = true
@@ -204,19 +211,26 @@ fun StoragesView(
 @Composable
 private fun ConnectedStorageRow(
     storage: Storage,
+    needsReauth: Boolean,
+    highlighted: Boolean = false,
     onEdit: () -> Unit,
     onReauth: () -> Unit,
     onDelete: () -> Unit,
 ) {
-    // Drive без login — старый аккаунт; просим войти, чтобы сохранить почту.
-    val needsReauth = storage.type != StorageType.LOCAL && (
-            storage.password.isNullOrBlank() ||
-                    (storage.type == StorageType.GOOGLE_DRIVE && storage.login.isNullOrBlank())
-            )
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
             .fillMaxWidth()
+            .then(
+                if (highlighted) {
+                    Modifier.background(
+                        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f),
+                        RoundedCornerShape(12.dp),
+                    )
+                } else {
+                    Modifier
+                }
+            )
             .padding(horizontal = 12.dp, vertical = 8.dp)
     ) {
         Surface(

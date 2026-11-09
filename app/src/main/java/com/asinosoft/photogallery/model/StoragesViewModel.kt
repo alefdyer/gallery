@@ -26,6 +26,10 @@ class StoragesViewModel @Inject constructor(
         initialValue = emptyList()
     )
 
+    val reauthRequiredIds: StateFlow<Set<Long>> = storageService.reauthRequiredIds
+
+    fun needsSignIn(storage: Storage): Boolean = storageService.needsSignIn(storage)
+
     init {
         viewModelScope.launchAndCatch {
             storageService.backfillMissingGoogleDriveEmails()

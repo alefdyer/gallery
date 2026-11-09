@@ -127,8 +127,8 @@
     <string name="storage_field_password">Password</string>
     <string name="storage_check_server_not_found">Server non trovato</string>
     <string name="storage_check_authorization_failed">Autorizzazione non riuscita</string>
-    <string name="storage_refresh_failed">Impossibile aggiornare %1$s. Ricollega l\'archiviazione in «Rete».</string>
-    <string name="storage_reconnect_required">Impossibile aggiornare l\'accesso a %1$s. Riprova o riconnetti in «Rete».</string>
+    <string name="storage_refresh_failed">Impossibile aggiornare %1$s. {{LINK}}Ricollega l\'archiviazione in «{{NETWORK}}»{{/LINK}}.</string>
+    <string name="storage_reconnect_required">Impossibile aggiornare l\'accesso a %1$s. Riprova o {{LINK}}riconnetti in «{{NETWORK}}»{{/LINK}}.</string>
     <string name="storage_offline">Nessuna connessione — impossibile aggiornare %1$s. Connettiti e riprova.</string>
     <string name="storage_check_unknown_error">Errore: %1$s</string>
     <string name="other">Locale</string>

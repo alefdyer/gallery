@@ -127,8 +127,8 @@
     <string name="storage_field_password">Password</string>
     <string name="storage_check_server_not_found">Server not found</string>
     <string name="storage_check_authorization_failed">Authorisation failed</string>
-    <string name="storage_refresh_failed">Couldn\'t refresh %1$s. Reconnect the storage in Network.</string>
-    <string name="storage_reconnect_required">Could not refresh %1$s sign-in. Try again or reconnect in Network.</string>
+    <string name="storage_refresh_failed">Couldn\'t refresh %1$s. {{LINK}}Reconnect the storage in {{NETWORK}}{{/LINK}}.</string>
+    <string name="storage_reconnect_required">Could not refresh %1$s sign-in. Try again or {{LINK}}reconnect in {{NETWORK}}{{/LINK}}.</string>
     <string name="storage_offline">No internet — can\'t update %1$s. Connect and try again.</string>
     <string name="storage_check_unknown_error">Error: %1$s</string>
     <string name="other">Local</string>

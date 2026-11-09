@@ -127,8 +127,8 @@
     <string name="storage_field_password">パスワード</string>
     <string name="storage_check_server_not_found">サーバーが見つかりません</string>
     <string name="storage_check_authorization_failed">認証に失敗しました</string>
-    <string name="storage_refresh_failed">%1$sを更新できませんでした。「ネットワーク」でストレージを再接続してください。</string>
-    <string name="storage_reconnect_required">%1$sのサインインを更新できませんでした。もう一度試すか、「ネットワーク」で再接続してください。</string>
+    <string name="storage_refresh_failed">%1$sを更新できませんでした。{{LINK}}「{{NETWORK}}」でストレージを再接続してください{{/LINK}}。</string>
+    <string name="storage_reconnect_required">%1$sのサインインを更新できませんでした。もう一度試すか、{{LINK}}「{{NETWORK}}」で再接続してください{{/LINK}}。</string>
     <string name="storage_offline">インターネットがありません — %1$sを更新できません。接続して再試行してください。</string>
     <string name="storage_check_unknown_error">エラー: %1$s</string>
     <string name="other">ローカル</string>

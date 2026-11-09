@@ -159,6 +159,7 @@ fun EditorScreen(
     model: EditorViewModel = hiltViewModel(),
 ) {
     val media by model.media.collectAsState()
+    val loadProgress by model.loadProgress.collectAsState()
     val tab by model.tab.collectAsState()
     val edit by model.edit.collectAsState()
     val openedEdit by model.openedEdit.collectAsState()
@@ -383,8 +384,6 @@ fun EditorScreen(
                             )
                         }
                     }
-                } else {
-                    CircularProgressIndicator(color = Color.White)
                 }
             }
 
@@ -411,11 +410,11 @@ fun EditorScreen(
                 }
             }
         }
-        if (saving) {
+        if ((loadProgress != null && media?.uri == null) || saving) {
             Box(
                 Modifier
                     .fillMaxSize()
-                    .background(Color.Black.copy(alpha = 0.45f)),
+                    .background(Color.Black.copy(alpha = if (saving) 0.45f else 0f)),
                 contentAlignment = Alignment.Center,
             ) {
                 CircularProgressIndicator(color = Color.White)

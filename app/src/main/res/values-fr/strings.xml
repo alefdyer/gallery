@@ -127,8 +127,8 @@
     <string name="storage_field_password">Mot de passe</string>
     <string name="storage_check_server_not_found">Serveur introuvable</string>
     <string name="storage_check_authorization_failed">Échec de l\'autorisation</string>
-    <string name="storage_refresh_failed">Impossible d\'actualiser %1$s. Reconnectez le stockage dans « Réseau ».</string>
-    <string name="storage_reconnect_required">Impossible d\'actualiser la connexion à %1$s. Réessayez ou reconnectez-vous dans « Réseau ».</string>
+    <string name="storage_refresh_failed">Impossible d\'actualiser %1$s. {{LINK}}Reconnectez le stockage dans « {{NETWORK}} »{{/LINK}}.</string>
+    <string name="storage_reconnect_required">Impossible d\'actualiser la connexion à %1$s. Réessayez ou {{LINK}}reconnectez-vous dans « {{NETWORK}} »{{/LINK}}.</string>
     <string name="storage_offline">Pas d\'internet — impossible de mettre à jour %1$s. Connectez-vous et réessayez.</string>
     <string name="storage_check_unknown_error">Erreur : %1$s</string>
     <string name="other">Local</string>

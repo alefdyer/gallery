@@ -127,8 +127,8 @@
     <string name="storage_field_password">पासवर्ड</string>
     <string name="storage_check_server_not_found">सर्वर नहीं मिला</string>
     <string name="storage_check_authorization_failed">प्रमाणीकरण विफल</string>
-    <string name="storage_refresh_failed">%1$s रीफ़्रेश नहीं हो सका। “नेटवर्क” में स्टोरेज फिर से कनेक्ट करें।</string>
-    <string name="storage_reconnect_required">%1$s का साइन-इन रीफ़्रेश नहीं हो सका। फिर कोशिश करें या “नेटवर्क” में फिर से कनेक्ट करें।</string>
+    <string name="storage_refresh_failed">%1$s रीफ़्रेश नहीं हो सका। {{LINK}}“{{NETWORK}}” में स्टोरेज फिर से कनेक्ट करें{{/LINK}}।</string>
+    <string name="storage_reconnect_required">%1$s का साइन-इन रीफ़्रेश नहीं हो सका। फिर कोशिश करें या {{LINK}}“{{NETWORK}}” में फिर से कनेक्ट करें{{/LINK}}।</string>
     <string name="storage_offline">इंटरनेट नहीं है — %1$s अपडेट नहीं हो सका। कनेक्ट करके फिर कोशिश करें।</string>
     <string name="storage_check_unknown_error">त्रुटि: %1$s</string>
     <string name="other">स्थानीय</string>

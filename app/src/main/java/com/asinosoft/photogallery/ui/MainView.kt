@@ -62,6 +62,7 @@ fun MainView(
     onAlbumClick: (Album) -> Unit,
     onStorageClick: (Storage) -> Unit,
     onSettingsClick: () -> Unit,
+    onNetworkReauthClick: (Long) -> Unit = {},
     onFavoritesClick: () -> Unit,
     onPrivateAlbumClick: () -> Unit,
     onTrashClick: () -> Unit,
@@ -182,6 +183,7 @@ fun MainView(
                         1 -> AlbumListView(
                             onAlbumClick = onAlbumClick,
                             onStorageClick = onStorageClick,
+                            onNetworkReauthClick = onNetworkReauthClick,
                             nestedScroll = syncPanelsScrollConnection,
                             contentPadding = contentPadding,
                             bottomPanelHidden = navbarHeight > 0f && navbarOffset > navbarHeight / 2f

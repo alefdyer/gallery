@@ -127,8 +127,8 @@
     <string name="storage_field_password">密码</string>
     <string name="storage_check_server_not_found">未找到服务器</string>
     <string name="storage_check_authorization_failed">授权失败</string>
-    <string name="storage_refresh_failed">无法刷新 %1$s。请在“网络”中重新连接该存储。</string>
-    <string name="storage_reconnect_required">无法刷新 %1$s 的登录。请重试，或在“网络”中重新连接。</string>
+    <string name="storage_refresh_failed">无法刷新 %1$s。{{LINK}}请在“{{NETWORK}}”中重新连接该存储{{/LINK}}。</string>
+    <string name="storage_reconnect_required">无法刷新 %1$s 的登录。请重试，或{{LINK}}在“{{NETWORK}}”中重新连接{{/LINK}}。</string>
     <string name="storage_offline">无网络 — 无法更新%1$s。请连接后重试。</string>
     <string name="storage_check_unknown_error">错误：%1$s</string>
     <string name="other">本地</string>

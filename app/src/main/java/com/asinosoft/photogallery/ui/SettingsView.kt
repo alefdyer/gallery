@@ -17,6 +17,7 @@ import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
@@ -34,8 +35,8 @@ import com.asinosoft.photogallery.ui.component.AdBanner
 import dagger.hilt.android.EntryPointAccessors
 import kotlinx.coroutines.launch
 
-private const val TAB_GALLERY = 0
-private const val TAB_NETWORK = 1
+const val SETTINGS_TAB_GALLERY = 0
+const val SETTINGS_TAB_NETWORK = 1
 private const val TAB_ABOUT = 2
 private const val TAB_COUNT = 3
 private val AD_BANNER_HEIGHT = 60.dp
@@ -47,6 +48,8 @@ fun SettingsView(
     onOpenLicenses: () -> Unit,
     onOpenPrivacy: () -> Unit,
     onOpenTerms: () -> Unit,
+    initialTab: Int = SETTINGS_TAB_GALLERY,
+    focusStorageId: Long? = null,
 ) {
     val context = LocalContext.current
     val resources = LocalResources.current
@@ -57,7 +60,16 @@ fun SettingsView(
         ).appAnalytics()
     }
     val scope = rememberCoroutineScope()
-    val pagerState = rememberPagerState(pageCount = { TAB_COUNT })
+    val startPage = initialTab.coerceIn(0, TAB_COUNT - 1)
+    val pagerState = rememberPagerState(
+        initialPage = startPage,
+        pageCount = { TAB_COUNT },
+    )
+    LaunchedEffect(startPage) {
+        if (pagerState.currentPage != startPage) {
+            pagerState.scrollToPage(startPage)
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -84,8 +96,10 @@ fun SettingsView(
                 edgePadding = 12.dp
             ) {
                 Tab(
-                    selected = TAB_GALLERY == pagerState.currentPage,
-                    onClick = { scope.launch { pagerState.animateScrollToPage(TAB_GALLERY) } },
+                    selected = SETTINGS_TAB_GALLERY == pagerState.currentPage,
+                    onClick = {
+                        scope.launch { pagerState.animateScrollToPage(SETTINGS_TAB_GALLERY) }
+                    },
                     text = {
                         Text(
                             text = stringResource(R.string.gallery_tab),
@@ -95,8 +109,10 @@ fun SettingsView(
                     }
                 )
                 Tab(
-                    selected = TAB_NETWORK == pagerState.currentPage,
-                    onClick = { scope.launch { pagerState.animateScrollToPage(TAB_NETWORK) } },
+                    selected = SETTINGS_TAB_NETWORK == pagerState.currentPage,
+                    onClick = {
+                        scope.launch { pagerState.animateScrollToPage(SETTINGS_TAB_NETWORK) }
+                    },
                     text = {
                         Text(
                             text = stringResource(R.string.network),
@@ -125,10 +141,11 @@ fun SettingsView(
             ) { page ->
                 val pageModifier = Modifier.fillMaxSize()
                 when (page) {
-                    TAB_GALLERY -> GallerySettingsTab(pageModifier)
-                    TAB_NETWORK -> StoragesView(
+                    SETTINGS_TAB_GALLERY -> GallerySettingsTab(pageModifier)
+                    SETTINGS_TAB_NETWORK -> StoragesView(
                         modifier = pageModifier,
                         onOpenTerms = onOpenTerms,
+                        focusStorageId = focusStorageId,
                     )
                     else -> AboutAppTab(
                         version = "${BuildConfig.VERSION_NAME}.${BuildConfig.VERSION_CODE}",

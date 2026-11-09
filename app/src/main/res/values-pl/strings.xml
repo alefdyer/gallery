@@ -127,8 +127,8 @@
     <string name="storage_field_password">Hasło</string>
     <string name="storage_check_server_not_found">Nie znaleziono serwera</string>
     <string name="storage_check_authorization_failed">Błąd autoryzacji</string>
-    <string name="storage_refresh_failed">Nie udało się odświeżyć %1$s. Połącz magazyn ponownie w „Sieć”.</string>
-    <string name="storage_reconnect_required">Nie udało się odświeżyć logowania do %1$s. Spróbuj ponownie lub połącz ponownie w „Sieć”.</string>
+    <string name="storage_refresh_failed">Nie udało się odświeżyć %1$s. {{LINK}}Połącz magazyn ponownie w „{{NETWORK}}”{{/LINK}}.</string>
+    <string name="storage_reconnect_required">Nie udało się odświeżyć logowania do %1$s. Spróbuj ponownie lub {{LINK}}połącz ponownie w „{{NETWORK}}”{{/LINK}}.</string>
     <string name="storage_offline">Brak internetu — nie można zaktualizować %1$s. Połącz się i spróbuj ponownie.</string>
     <string name="storage_check_unknown_error">Błąd: %1$s</string>
     <string name="other">Lokalne</string>

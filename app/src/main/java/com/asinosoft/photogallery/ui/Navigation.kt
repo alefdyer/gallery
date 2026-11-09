@@ -100,7 +100,12 @@ fun Navigation(
         OpenedMedia.media = media
         nav.navigate("storage/$storageId/pager/${pagerArgs(media, filters, date, type)}")
     }
-    val navigateToSettings = { nav.navigate("settings") }
+    val navigateToSettings = {
+        nav.navigate("settings?tab=gallery&reauthStorageId=-1")
+    }
+    val navigateToNetworkReauth: (Long) -> Unit = { storageId ->
+        nav.navigate("settings?tab=network&reauthStorageId=$storageId")
+    }
     val reportCurrentMedia: (Long) -> Unit = { mediaId ->
         ActiveSharedMedia.id = mediaId
         nav.previousBackStackEntry?.savedStateHandle?.set(RETURN_MEDIA_ID, mediaId)
@@ -121,6 +126,7 @@ fun Navigation(
                     nav, navigateToMedia, navigateToAlbum, navigateToAlbumMedia, navigateToStorage,
                     navigateToStorageMedia,
                     navigateToSettings,
+                    navigateToNetworkReauth,
                     reportCurrentMedia,
                     openPrivateAlbum,
                     openEditor,
@@ -196,6 +202,7 @@ private fun AppNavHost(
     navigateToStorage: (Storage) -> Unit,
     navigateToStorageMedia: (Long, Media, Set<String>, DateFilter?, MediaType?) -> Unit,
     navigateToSettings: () -> Unit,
+    navigateToNetworkReauth: (Long) -> Unit,
     reportCurrentMedia: (Long) -> Unit,
     openPrivateAlbum: () -> Unit,
     openEditor: (Media) -> Unit,
@@ -251,6 +258,7 @@ private fun AppNavHost(
                     onAlbumClick = navigateToAlbum,
                     onStorageClick = navigateToStorage,
                     onSettingsClick = navigateToSettings,
+                    onNetworkReauthClick = navigateToNetworkReauth,
                     onFavoritesClick = { nav.navigate("favorites") },
                     onPrivateAlbumClick = openPrivateAlbum,
                     onTrashClick = { nav.navigate(TRASH_ROUTE) },
@@ -453,8 +461,23 @@ private fun AppNavHost(
             }
         }
 
-        composable("settings") {
+        composable(
+            route = "settings?tab={tab}&reauthStorageId={reauthStorageId}",
+            arguments = listOf(
+                navArgument("tab") {
+                    type = NavType.StringType
+                    defaultValue = "gallery"
+                },
+                navArgument("reauthStorageId") {
+                    type = NavType.LongType
+                    defaultValue = -1L
+                },
+            ),
+        ) { entry ->
             val context = LocalContext.current
+            val tab = entry.arguments?.getString("tab").orEmpty()
+            val reauthStorageId = entry.arguments?.getLong("reauthStorageId")
+                ?.takeIf { it >= 0L }
             SettingsView(
                 onClose = nav::navigateUp,
                 onOpenLicenses = {
@@ -467,6 +490,12 @@ private fun AppNavHost(
                 },
                 onOpenPrivacy = { nav.navigate("privacy") },
                 onOpenTerms = { nav.navigate("terms") },
+                initialTab = if (tab == "network") {
+                    SETTINGS_TAB_NETWORK
+                } else {
+                    SETTINGS_TAB_GALLERY
+                },
+                focusStorageId = reauthStorageId,
             )
         }
 

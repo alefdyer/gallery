@@ -127,8 +127,8 @@
     <string name="storage_field_password">Passwort</string>
     <string name="storage_check_server_not_found">Server nicht gefunden</string>
     <string name="storage_check_authorization_failed">Autorisierung fehlgeschlagen</string>
-    <string name="storage_refresh_failed">%1$s konnte nicht aktualisiert werden. Verbinden Sie den Speicher unter „Netzwerk“ erneut.</string>
-    <string name="storage_reconnect_required">Anmeldung für %1$s konnte nicht aktualisiert werden. Versuchen Sie es erneut oder verbinden Sie unter „Netzwerk“ neu.</string>
+    <string name="storage_refresh_failed">%1$s konnte nicht aktualisiert werden. {{LINK}}Verbinden Sie den Speicher unter „{{NETWORK}}“ erneut{{/LINK}}.</string>
+    <string name="storage_reconnect_required">Anmeldung für %1$s konnte nicht aktualisiert werden. Versuchen Sie es erneut oder {{LINK}}verbinden Sie unter „{{NETWORK}}“ neu{{/LINK}}.</string>
     <string name="storage_offline">Kein Internet — %1$s kann nicht aktualisiert werden. Verbinden und erneut versuchen.</string>
     <string name="storage_check_unknown_error">Fehler: %1$s</string>
     <string name="other">Lokal</string>

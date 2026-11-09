@@ -67,8 +67,10 @@ import androidx.compose.ui.draganddrop.DragAndDropTransferData
 import androidx.compose.ui.draganddrop.mimeTypes
 import androidx.compose.ui.draganddrop.toAndroidDragEvent
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.nestedScroll
@@ -79,8 +81,14 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.LinkAnnotation
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.withLink
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
@@ -95,6 +103,7 @@ import com.asinosoft.photogallery.data.isSystem
 import com.asinosoft.photogallery.data.name
 import com.asinosoft.photogallery.data.storageIdOrNull
 import com.asinosoft.photogallery.data.storage.Storage
+import com.asinosoft.photogallery.data.storage.StorageService
 import com.asinosoft.photogallery.model.AlbumsViewModel
 import com.asinosoft.photogallery.ui.component.AlbumCover
 import com.asinosoft.photogallery.ui.component.FeatureTipCard
@@ -116,11 +125,17 @@ import kotlinx.coroutines.launch
 import kotlin.math.abs
 import kotlin.math.sign
 
+private data class AttentionDialogState(
+    val storageId: Long,
+    val message: String,
+)
+
 @Composable
 fun AlbumListView(
     modifier: Modifier = Modifier,
     onAlbumClick: (Album) -> Unit = {},
     onStorageClick: (Storage) -> Unit = {},
+    onNetworkReauthClick: (Long) -> Unit = {},
     nestedScroll: NestedScrollConnection,
     contentPadding: PaddingValues = PaddingValues(0.dp),
     bottomPanelHidden: Boolean = false,
@@ -132,7 +147,8 @@ fun AlbumListView(
     val systemCategoryTitles by model.systemCategoryTitles.collectAsState()
     val fetchingStorageIds by model.fetchingStorageIds.collectAsState()
     val attentionStorageIds by model.attentionStorageIds.collectAsState()
-    var attentionDialog by remember { mutableStateOf<String?>(null) }
+    val reauthRequiredIds by model.reauthRequiredIds.collectAsState()
+    var attentionDialog by remember { mutableStateOf<AttentionDialogState?>(null) }
     val lazyListState = rememberLazyListState()
     var droppedAlbum by remember { mutableStateOf<Album?>(null) }
     var showNewCategoryDialog by remember { mutableStateOf(false) }
@@ -430,11 +446,18 @@ fun AlbumListView(
                             storageId !in fetchingStorageIds,
                     onAttentionClick = storageId?.let { sid ->
                         {
-                            attentionDialog = model.attentionMessage(sid)
-                                ?: tipContext.getString(
-                                    R.string.storage_reconnect_required,
-                                    storageInfo?.title ?: categoryTitle,
+                            if (sid in reauthRequiredIds) {
+                                onNetworkReauthClick(sid)
+                            } else {
+                                attentionDialog = AttentionDialogState(
+                                    storageId = sid,
+                                    message = model.attentionMessage(sid)
+                                        ?: tipContext.getString(
+                                            R.string.storage_reconnect_required,
+                                            storageInfo?.title ?: categoryTitle,
+                                        ),
                                 )
+                            }
                         }
                     },
                     showCategoryTip = isFirstCategory && categoryTip.visible,
@@ -496,10 +519,25 @@ fun AlbumListView(
         )
     }
 
-    attentionDialog?.let { message ->
+    attentionDialog?.let { dialog ->
+        val networkLabel = stringResource(R.string.network)
+        val linkColor = MaterialTheme.colorScheme.primary
         AlertDialog(
             onDismissRequest = { attentionDialog = null },
-            text = { Text(message) },
+            text = {
+                Text(
+                    text = buildAttentionMessage(
+                        message = dialog.message,
+                        networkLabel = networkLabel,
+                        linkColor = linkColor,
+                        onNetworkClick = {
+                            val storageId = dialog.storageId
+                            attentionDialog = null
+                            onNetworkReauthClick(storageId)
+                        },
+                    )
+                )
+            },
             confirmButton = {
                 TextButton(onClick = { attentionDialog = null }) {
                     Text(stringResource(R.string.close))
@@ -976,6 +1014,68 @@ private fun LazyListState.keyAt(event: DragAndDropEvent): Any? {
     return layoutInfo.visibleItemsInfo.firstOrNull { item ->
         y >= item.offset && y <= item.offset + item.size
     }?.key
+}
+
+private fun buildAttentionMessage(
+    message: String,
+    networkLabel: String,
+    linkColor: Color,
+    onNetworkClick: () -> Unit,
+): AnnotatedString {
+    val linkStart = StorageService.NETWORK_LINK_START
+    val linkEnd = StorageService.NETWORK_LINK_END
+    val networkMarker = StorageService.NETWORK_LINK_MARKER
+    val start = message.indexOf(linkStart)
+    val end = message.indexOf(linkEnd)
+    if (start >= 0 && end > start) {
+        val linkText = message
+            .substring(start + linkStart.length, end)
+            .replace(networkMarker, networkLabel)
+        return buildAnnotatedString {
+            append(message.substring(0, start))
+            withLink(
+                LinkAnnotation.Clickable(
+                    tag = "network",
+                    linkInteractionListener = { onNetworkClick() },
+                )
+            ) {
+                withStyle(
+                    SpanStyle(
+                        color = linkColor,
+                        textDecoration = TextDecoration.Underline,
+                    )
+                ) {
+                    append(linkText)
+                }
+            }
+            append(message.substring(end + linkEnd.length))
+        }
+    }
+
+    // Старые сообщения только с {{NETWORK}}.
+    val markerIndex = message.indexOf(networkMarker)
+    if (markerIndex < 0) {
+        return AnnotatedString(message)
+    }
+    return buildAnnotatedString {
+        append(message.substring(0, markerIndex))
+        withLink(
+            LinkAnnotation.Clickable(
+                tag = "network",
+                linkInteractionListener = { onNetworkClick() },
+            )
+        ) {
+            withStyle(
+                SpanStyle(
+                    color = linkColor,
+                    textDecoration = TextDecoration.Underline,
+                )
+            ) {
+                append(networkLabel)
+            }
+        }
+        append(message.substring(markerIndex + networkMarker.length))
+    }
 }
 
 private fun AlbumCategory.canRename(): Boolean =

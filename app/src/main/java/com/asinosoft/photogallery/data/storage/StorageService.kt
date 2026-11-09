@@ -59,6 +59,12 @@ class StorageService @Inject constructor(
     private val attentionStorageIdsFlow = MutableStateFlow<Set<Long>>(emptySet())
     val attentionStorageIds: StateFlow<Set<Long>> = attentionStorageIdsFlow
     private val attentionMessages = mutableMapOf<Long, String>()
+    /** Помечены только из‑за офлайна — снимаем, как только сеть снова есть. */
+    private val offlineAttentionIds = mutableSetOf<Long>()
+    /** Нужен повторный OAuth («Войти» в «Сеть»). */
+    private val reauthRequiredIdSet = mutableSetOf<Long>()
+    private val reauthRequiredIdsFlow = MutableStateFlow<Set<Long>>(emptySet())
+    val reauthRequiredIds: StateFlow<Set<Long>> = reauthRequiredIdsFlow
 
     /** Отдельный mutex на хранилище — локальный скан не блокирует облако. */
     private val fetchMutexes = mutableMapOf<Long, Mutex>()
@@ -99,6 +105,7 @@ class StorageService @Inject constructor(
             storageDao.putRefreshToken(saved.id, oauthRefresh)
             Log.i(TAG, "Saved ${toSave.type} refresh token for storage ${saved.id}")
         }
+        clearStorageAttention(saved.id)
         storageProviderRegistry.invalidate(saved.id)
         storageAuthProvider.refresh()
         enqueueFetch(saved, force = true, reason = SyncReason.Manual)
@@ -140,9 +147,15 @@ class StorageService @Inject constructor(
                 .onFailure { ex ->
                     Log.e(TAG, "Fetch failed: ${storage.type} id=${storage.id} reason=$reason", ex)
                     val label = storage.categoryTitle(context)
+                    val authExpired = isAuthExpiredFailure(ex)
                     markStorageAttention(
                         storage.id,
-                        context.getString(R.string.storage_refresh_failed, label),
+                        context.getString(
+                            if (authExpired) R.string.storage_reconnect_required
+                            else R.string.storage_refresh_failed,
+                            label,
+                        ),
+                        reauth = authExpired,
                     )
                 }
         }
@@ -152,15 +165,54 @@ class StorageService @Inject constructor(
         attentionMessages[storageId]
     }
 
-    private fun markStorageAttention(storageId: Long, message: String) {
+    /** Показать «Войти» в «Сеть»: протухший OAuth, нет токена или нет refresh. */
+    fun needsSignIn(storage: Storage): Boolean {
+        if (storage.type == StorageType.LOCAL) return false
+        if (storage.password.isNullOrBlank()) return true
+        if (storage.type == StorageType.GOOGLE_DRIVE && storage.login.isNullOrBlank()) return true
+        synchronized(attentionMessages) {
+            if (storage.id in reauthRequiredIdSet) return true
+        }
+        if (storage.type == StorageType.DROPBOX || storage.type == StorageType.ONEDRIVE) {
+            return storageDao.getRefreshToken(storage.id).isNullOrBlank()
+        }
+        return false
+    }
+
+    private fun markStorageAttention(
+        storageId: Long,
+        message: String,
+        offline: Boolean = false,
+        reauth: Boolean = false,
+    ) {
         synchronized(attentionMessages) {
             attentionMessages[storageId] = message
+            if (offline) offlineAttentionIds.add(storageId)
+            else offlineAttentionIds.remove(storageId)
+            if (reauth) reauthRequiredIdSet.add(storageId)
+            else reauthRequiredIdSet.remove(storageId)
             attentionStorageIdsFlow.value = attentionMessages.keys.toSet()
+            reauthRequiredIdsFlow.value = reauthRequiredIdSet.toSet()
         }
     }
 
     private fun clearStorageAttention(storageId: Long) {
         synchronized(attentionMessages) {
+            offlineAttentionIds.remove(storageId)
+            reauthRequiredIdSet.remove(storageId)
+            reauthRequiredIdsFlow.value = reauthRequiredIdSet.toSet()
+            if (attentionMessages.remove(storageId) != null) {
+                attentionStorageIdsFlow.value = attentionMessages.keys.toSet()
+            }
+        }
+    }
+
+    /** Сеть снова есть — убрать ! от офлайна (синк мог скипнуться по интервалу). */
+    private fun clearOfflineAttentionIfOnline(storageId: Long) {
+        if (!isNetworkAvailable()) return
+        synchronized(attentionMessages) {
+            if (storageId !in offlineAttentionIds) return
+            offlineAttentionIds.remove(storageId)
             if (attentionMessages.remove(storageId) != null) {
                 attentionStorageIdsFlow.value = attentionMessages.keys.toSet()
             }
@@ -181,6 +233,8 @@ class StorageService @Inject constructor(
                 TAG,
                 "Skip fresh sync id=${storage.id} reason=$reason age=${System.currentTimeMillis() - storage.lastFetchedAt}ms",
             )
+            // Иначе ! после краткого офлайна висит, пока не пройдёт полный sync.
+            clearOfflineAttentionIfOnline(storage.id)
             return
         }
         // Без сети не крутим спиннер — сразу жёлтая ! у категории облака.
@@ -191,9 +245,16 @@ class StorageService @Inject constructor(
                     R.string.storage_offline,
                     storage.categoryTitle(context),
                 ),
+                offline = true,
             )
             Log.d(TAG, "Skip sync offline id=${storage.id} type=${storage.type}")
             return
+        }
+        // Явное «Обновить» / сеть есть — сразу убрать залипшую ! (в т.ч. старую до offline-флага).
+        if (force || reason == SyncReason.Manual) {
+            clearStorageAttention(storage.id)
+        } else {
+            clearOfflineAttentionIfOnline(storage.id)
         }
 
         beginFetching(storage)
@@ -218,6 +279,7 @@ class StorageService @Inject constructor(
                                 R.string.storage_reconnect_required,
                                 storage.categoryTitle(context),
                             ),
+                            reauth = true,
                         )
                     }
                     return@withLock
@@ -290,7 +352,16 @@ class StorageService @Inject constructor(
         }
         val tokens = DropboxApi.refreshAccessToken(refresh)
         if (tokens == null) {
-            Log.w(TAG, "Dropbox ${storage.id}: refresh failed — keeping stored access token")
+            // Access протух, refresh не прошёл — нужен повторный вход в «Сеть».
+            Log.w(TAG, "Dropbox ${storage.id}: refresh failed — reauth required")
+            markStorageAttention(
+                storage.id,
+                context.getString(
+                    R.string.storage_reconnect_required,
+                    storage.categoryTitle(context),
+                ),
+                reauth = true,
+            )
             return storage
         }
         if (tokens.accessToken == storage.password &&
@@ -318,7 +389,15 @@ class StorageService @Inject constructor(
         }
         val tokens = OneDriveApi.refreshAccessToken(refresh)
         if (tokens == null) {
-            Log.w(TAG, "OneDrive ${storage.id}: refresh failed — keeping stored access token")
+            Log.w(TAG, "OneDrive ${storage.id}: refresh failed — reauth required")
+            markStorageAttention(
+                storage.id,
+                context.getString(
+                    R.string.storage_reconnect_required,
+                    storage.categoryTitle(context),
+                ),
+                reauth = true,
+            )
             return storage
         }
         if (tokens.accessToken == storage.password &&
@@ -517,6 +596,7 @@ class StorageService @Inject constructor(
                                 R.string.storage_reconnect_required,
                                 storage.categoryTitle(context),
                             ),
+                            reauth = true,
                         )
                     }
                     return@withContext null
@@ -563,6 +643,7 @@ class StorageService @Inject constructor(
                         R.string.storage_reconnect_required,
                         storage.categoryTitle(context),
                     ),
+                    reauth = true,
                 )
                 null
             }
@@ -618,7 +699,23 @@ class StorageService @Inject constructor(
         return caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
     }
 
-    private companion object {
-        const val TAG = "data"
+    private fun isAuthExpiredFailure(ex: Throwable): Boolean {
+        val text = buildString {
+            append(ex.message.orEmpty())
+            append(' ')
+            append(ex.cause?.message.orEmpty())
+        }.lowercase()
+        return "401" in text ||
+                "expired_access_token" in text ||
+                "invalid_access_token" in text ||
+                "authorization failed" in text ||
+                "unauthorized" in text
+    }
+
+    companion object {
+        const val NETWORK_LINK_MARKER = "{{NETWORK}}"
+        const val NETWORK_LINK_START = "{{LINK}}"
+        const val NETWORK_LINK_END = "{{/LINK}}"
+        private const val TAG = "data"
     }
 }

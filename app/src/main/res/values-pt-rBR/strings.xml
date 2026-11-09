@@ -127,8 +127,8 @@
     <string name="storage_field_password">Senha</string>
     <string name="storage_check_server_not_found">Servidor não encontrado</string>
     <string name="storage_check_authorization_failed">Falha na autorização</string>
-    <string name="storage_refresh_failed">Não foi possível atualizar %1$s. Reconecte o armazenamento em «Rede».</string>
-    <string name="storage_reconnect_required">Não foi possível atualizar o login de %1$s. Tente novamente ou reconecte em «Rede».</string>
+    <string name="storage_refresh_failed">Não foi possível atualizar %1$s. {{LINK}}Reconecte o armazenamento em «{{NETWORK}}»{{/LINK}}.</string>
+    <string name="storage_reconnect_required">Não foi possível atualizar o login de %1$s. Tente novamente ou {{LINK}}reconecte em «{{NETWORK}}»{{/LINK}}.</string>
     <string name="storage_offline">Sem internet — não foi possível atualizar %1$s. Conecte-se e tente novamente.</string>
     <string name="storage_check_unknown_error">Erro: %1$s</string>
     <string name="other">Local</string>
