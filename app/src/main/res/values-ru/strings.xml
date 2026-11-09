@@ -271,8 +271,14 @@
     <string name="editor_filter_vivid">Яркий</string>
     <string name="editor_filter_fade">Блеклый</string>
     <string name="editor_brightness">Яркость</string>
+    <string name="editor_exposure">Экспозиция</string>
     <string name="editor_contrast">Контраст</string>
+    <string name="editor_highlights">Светлые</string>
+    <string name="editor_shadows">Тени</string>
     <string name="editor_saturation">Насыщенность</string>
+    <string name="editor_tint">Оттенок</string>
+    <string name="editor_temperature">Температура</string>
+    <string name="editor_definition">Чёткость</string>
     <string name="editor_sharpness">Резкость</string>
     <string name="editor_draw">Рисование</string>
     <string name="editor_brush_size">Размер</string>

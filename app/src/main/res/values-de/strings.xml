@@ -264,6 +264,12 @@
     <string name="editor_filter_vivid">Lebendig</string>
     <string name="editor_filter_fade">Verblasst</string>
     <string name="editor_brightness">Helligkeit</string>
+    <string name="editor_exposure">Exposure</string>
+    <string name="editor_highlights">Highlights</string>
+    <string name="editor_shadows">Shadows</string>
+    <string name="editor_tint">Tint</string>
+    <string name="editor_temperature">Temperature</string>
+    <string name="editor_definition">Definition</string>
     <string name="editor_contrast">Kontrast</string>
     <string name="editor_saturation">Sättigung</string>
     <string name="editor_sharpness">Schärfe</string>

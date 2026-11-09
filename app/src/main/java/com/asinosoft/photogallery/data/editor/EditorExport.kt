@@ -86,6 +86,9 @@ class EditorExport @Inject constructor(
             canvas.drawBitmap(bmp, 0f, 0f, paint)
             bmp = out
         }
+        if (state.adjust.sharpness > 0f) {
+            bmp = sharpenBitmap(bmp, state.adjust.sharpness)
+        }
         if (state.strokes.isNotEmpty() || state.texts.isNotEmpty() || state.stickers.isNotEmpty()) {
             val out = bmp.copy(Bitmap.Config.ARGB_8888, true)
             val canvas = Canvas(out)
@@ -471,33 +474,166 @@ class EditorExport @Inject constructor(
                     )
                 )
             }
-            val b = adjust.brightness * 80f
-            val c = 1f + adjust.contrast
-            val t = (1f - c) / 2f * 255f
-            val contrastBrightness = ColorMatrix(
-                floatArrayOf(
-                    c, 0f, 0f, 0f, t + b,
-                    0f, c, 0f, 0f, t + b,
-                    0f, 0f, c, 0f, t + b,
-                    0f, 0f, 0f, 1f, 0f,
-                )
-            )
-            val sat = ColorMatrix().apply { setSaturation(1f + adjust.saturation) }
             val result = ColorMatrix()
             var used = false
-            if (base != null) {
-                result.set(base)
+            fun append(m: ColorMatrix) {
+                if (used) result.postConcat(m) else result.set(m)
                 used = true
             }
-            if (adjust.contrast != 0f || adjust.brightness != 0f) {
-                if (used) result.postConcat(contrastBrightness) else result.set(contrastBrightness)
-                used = true
+            if (base != null) append(base)
+
+            val brightness = adjust.brightness * 80f
+            val exposure = adjust.exposure * 120f
+            if (adjust.brightness != 0f || adjust.exposure != 0f) {
+                val lift = brightness + exposure
+                append(
+                    ColorMatrix(
+                        floatArrayOf(
+                            1f, 0f, 0f, 0f, lift,
+                            0f, 1f, 0f, 0f, lift,
+                            0f, 0f, 1f, 0f, lift,
+                            0f, 0f, 0f, 1f, 0f,
+                        )
+                    )
+                )
             }
+
+            if (adjust.contrast != 0f) {
+                val c = 1f + adjust.contrast
+                val t = (1f - c) / 2f * 255f
+                append(
+                    ColorMatrix(
+                        floatArrayOf(
+                            c, 0f, 0f, 0f, t,
+                            0f, c, 0f, 0f, t,
+                            0f, 0f, c, 0f, t,
+                            0f, 0f, 0f, 1f, 0f,
+                        )
+                    )
+                )
+            }
+
+            // Highlights / shadows: offset with opposing channel weights (curve approximation)
+            if (adjust.highlights != 0f || adjust.shadows != 0f) {
+                val hi = adjust.highlights * 45f
+                val sh = adjust.shadows * 55f
+                append(
+                    ColorMatrix(
+                        floatArrayOf(
+                            1f + adjust.highlights * 0.12f, 0f, 0f, 0f, sh - hi * 0.35f,
+                            0f, 1f + adjust.highlights * 0.12f, 0f, 0f, sh - hi * 0.35f,
+                            0f, 0f, 1f + adjust.highlights * 0.12f, 0f, sh - hi * 0.35f,
+                            0f, 0f, 0f, 1f, 0f,
+                        )
+                    )
+                )
+            }
+
             if (adjust.saturation != 0f) {
-                if (used) result.postConcat(sat) else result.set(sat)
-                used = true
+                append(ColorMatrix().apply { setSaturation(1f + adjust.saturation) })
             }
+
+            // Temperature: cool↔warm via R↔B
+            if (adjust.temperature != 0f) {
+                val t = adjust.temperature * 0.35f
+                append(
+                    ColorMatrix(
+                        floatArrayOf(
+                            1f + t, 0f, 0f, 0f, 0f,
+                            0f, 1f, 0f, 0f, 0f,
+                            0f, 0f, 1f - t, 0f, 0f,
+                            0f, 0f, 0f, 1f, 0f,
+                        )
+                    )
+                )
+            }
+
+            // Tint: green↔magenta
+            if (adjust.tint != 0f) {
+                val g = adjust.tint * 0.3f
+                append(
+                    ColorMatrix(
+                        floatArrayOf(
+                            1f + g * 0.25f, 0f, 0f, 0f, 0f,
+                            0f, 1f - g, 0f, 0f, 0f,
+                            0f, 0f, 1f + g * 0.25f, 0f, 0f,
+                            0f, 0f, 0f, 1f, 0f,
+                        )
+                    )
+                )
+            }
+
+            // Definition: midtone contrast
+            if (adjust.definition != 0f) {
+                val d = 1f + adjust.definition * 0.55f
+                val o = (1f - d) / 2f * 255f
+                append(
+                    ColorMatrix(
+                        floatArrayOf(
+                            d, 0f, 0f, 0f, o,
+                            0f, d, 0f, 0f, o,
+                            0f, 0f, d, 0f, o,
+                            0f, 0f, 0f, 1f, 0f,
+                        )
+                    )
+                )
+            }
+
+            // Sharpness preview: local-contrast boost (real sharpen on JPEG export)
+            if (adjust.sharpness > 0f) {
+                val s = 1f + adjust.sharpness * 0.35f
+                val o = (1f - s) / 2f * 255f
+                append(
+                    ColorMatrix(
+                        floatArrayOf(
+                            s, 0f, 0f, 0f, o,
+                            0f, s, 0f, 0f, o,
+                            0f, 0f, s, 0f, o,
+                            0f, 0f, 0f, 1f, 0f,
+                        )
+                    )
+                )
+            }
+
             return if (used) result else null
+        }
+
+        /** Mild 3×3 unsharp convolution for JPEG export. */
+        fun sharpenBitmap(source: Bitmap, amount: Float): Bitmap {
+            val a = amount.coerceIn(0f, 1f) * 0.65f
+            if (a <= 0.001f) return source
+            val w = source.width
+            val h = source.height
+            if (w < 3 || h < 3) return source
+            val src = IntArray(w * h)
+            source.getPixels(src, 0, w, 0, 0, w, h)
+            val dst = src.copyOf()
+            val center = 1f + 4f * a
+            fun lum(p: Int): Int {
+                val r = (p shr 16) and 0xFF
+                val g = (p shr 8) and 0xFF
+                val b = p and 0xFF
+                return (r * 3 + g * 6 + b) / 10
+            }
+            fun clamp(v: Int) = v.coerceIn(0, 255)
+            for (y in 1 until h - 1) {
+                for (x in 1 until w - 1) {
+                    val i = y * w + x
+                    val p = src[i]
+                    val alpha = p and 0xFF000000.toInt()
+                    val neighbors =
+                        lum(src[i - w]) + lum(src[i - 1]) + lum(src[i + 1]) + lum(src[i + w])
+                    val sharp = (lum(p) * center - neighbors * a).toInt()
+                    val delta = sharp - lum(p)
+                    val r = clamp(((p shr 16) and 0xFF) + delta)
+                    val g = clamp(((p shr 8) and 0xFF) + delta)
+                    val b = clamp((p and 0xFF) + delta)
+                    dst[i] = alpha or (r shl 16) or (g shl 8) or b
+                }
+            }
+            val out = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+            out.setPixels(dst, 0, w, 0, 0, w, h)
+            return out
         }
     }
 

@@ -307,6 +307,9 @@ class EditorViewModel @Inject constructor(
                 contrast = (it.adjust.contrast + 0.15f).coerceIn(-1f, 1f),
                 saturation = (it.adjust.saturation + 0.12f).coerceIn(-1f, 1f),
                 brightness = (it.adjust.brightness + 0.05f).coerceIn(-1f, 1f),
+                exposure = (it.adjust.exposure + 0.04f).coerceIn(-1f, 1f),
+                definition = (it.adjust.definition + 0.08f).coerceIn(-1f, 1f),
+                sharpness = (it.adjust.sharpness + 0.1f).coerceIn(0f, 1f),
             )
         )
     }
@@ -383,6 +386,13 @@ class EditorViewModel @Inject constructor(
         while (undoStack.size > 40) undoStack.removeFirst()
         redoStack.clear()
         updateHistoryFlags()
+    }
+
+    /** Щипок / второй палец — откат без записи в историю. */
+    fun cancelErase() {
+        val start = eraseBefore ?: return
+        eraseBefore = null
+        _edit.value = start
     }
 
     private fun eraserSamples(

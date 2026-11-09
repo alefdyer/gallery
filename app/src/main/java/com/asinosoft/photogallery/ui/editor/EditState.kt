@@ -5,8 +5,14 @@ import androidx.compose.ui.geometry.Rect
 
 data class AdjustParams(
     val brightness: Float = 0f, // -1..1
+    val exposure: Float = 0f, // -1..1
     val contrast: Float = 0f, // -1..1
+    val highlights: Float = 0f, // -1..1
+    val shadows: Float = 0f, // -1..1
     val saturation: Float = 0f, // -1..1
+    val tint: Float = 0f, // -1..1 green↔magenta
+    val temperature: Float = 0f, // -1..1 cool↔warm
+    val definition: Float = 0f, // -1..1 midtone contrast
     val sharpness: Float = 0f, // 0..1
 )
 

@@ -264,6 +264,12 @@
     <string name="editor_filter_vivid">선명</string>
     <string name="editor_filter_fade">색바램</string>
     <string name="editor_brightness">밝기</string>
+    <string name="editor_exposure">Exposure</string>
+    <string name="editor_highlights">Highlights</string>
+    <string name="editor_shadows">Shadows</string>
+    <string name="editor_tint">Tint</string>
+    <string name="editor_temperature">Temperature</string>
+    <string name="editor_definition">Definition</string>
     <string name="editor_contrast">대비</string>
     <string name="editor_saturation">채도</string>
     <string name="editor_sharpness">선명도</string>

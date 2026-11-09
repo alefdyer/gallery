@@ -474,23 +474,21 @@ fun DrawStrokesOverlay(
     strokes: List<DrawStroke>,
     draft: DrawStroke?,
     selectedId: Long?,
+    contentFrame: OverlayContentFrame? = null,
     modifier: Modifier = Modifier,
 ) {
     Canvas(modifier) {
-        strokes.forEach { paintUserStroke(it) }
-        draft?.let { paintUserStroke(it) }
+        val ox = contentFrame?.left ?: 0f
+        val oy = contentFrame?.top ?: 0f
+        val cw = contentFrame?.width?.takeIf { it > 1f } ?: size.width
+        val ch = contentFrame?.height?.takeIf { it > 1f } ?: size.height
+        strokes.forEach { paintUserStroke(it, cw, ch, ox, oy) }
+        draft?.let { paintUserStroke(it, cw, ch, ox, oy) }
         strokes.find { it.id == selectedId && it.style.isShape() }?.let { stroke ->
             shapeHandles(stroke).forEach { handle ->
-                drawCircle(
-                    Amber,
-                    7.dp.toPx(),
-                    Offset(handle.x * size.width, handle.y * size.height)
-                )
-                drawCircle(
-                    Color.White,
-                    3.dp.toPx(),
-                    Offset(handle.x * size.width, handle.y * size.height)
-                )
+                val at = Offset(ox + handle.x * cw, oy + handle.y * ch)
+                drawCircle(Amber, 7.dp.toPx(), at)
+                drawCircle(Color.White, 3.dp.toPx(), at)
             }
         }
     }
@@ -515,28 +513,49 @@ fun ColorAim(at: Offset, modifier: Modifier = Modifier) {
     }
 }
 
-private fun DrawScope.paintUserStroke(stroke: DrawStroke) {
+private fun DrawScope.paintUserStroke(
+    stroke: DrawStroke,
+    contentWidth: Float,
+    contentHeight: Float,
+    originX: Float,
+    originY: Float,
+) {
     if (stroke.points.size < 2 || stroke.style == DrawStyle.ERASER) return
     val color = inkColor(stroke)
-    val widthPx = stroke.width * size.width
+    val widthPx = stroke.width * contentWidth
     when (stroke.style) {
         DrawStyle.DOTTED -> strokePath(
-            stroke,
-            widthPx,
-            color,
-            PathEffect.dashPathEffect(dashIntervals(widthPx))
+            stroke, widthPx, color, PathEffect.dashPathEffect(dashIntervals(widthPx)),
+            contentWidth, contentHeight, originX, originY,
         )
 
         DrawStyle.NEON -> {
-            strokePath(stroke, widthPx * 3.2f, color.copy(alpha = color.alpha * 0.35f), null)
-            strokePath(stroke, widthPx, color, null)
+            strokePath(
+                stroke, widthPx * 3.2f, color.copy(alpha = color.alpha * 0.35f), null,
+                contentWidth, contentHeight, originX, originY,
+            )
+            strokePath(
+                stroke, widthPx, color, null,
+                contentWidth, contentHeight, originX, originY,
+            )
         }
 
-        DrawStyle.STAMPS -> drawStamps(stroke, color, widthPx)
-        DrawStyle.LINE -> lineEnds(stroke, widthPx, color, arrow = false)
-        DrawStyle.ARROW -> lineEnds(stroke, widthPx, color, arrow = true)
+        DrawStyle.STAMPS -> drawStamps(
+            stroke, color, widthPx, contentWidth, contentHeight, originX, originY,
+        )
+
+        DrawStyle.LINE -> lineEnds(
+            stroke, widthPx, color, arrow = false,
+            contentWidth, contentHeight, originX, originY,
+        )
+
+        DrawStyle.ARROW -> lineEnds(
+            stroke, widthPx, color, arrow = true,
+            contentWidth, contentHeight, originX, originY,
+        )
+
         DrawStyle.RECT -> {
-            val box = pixelBounds(stroke)
+            val box = pixelBounds(stroke, contentWidth, contentHeight, originX, originY)
             drawRoundRect(
                 color,
                 Offset(box[0], box[1]),
@@ -547,7 +566,7 @@ private fun DrawScope.paintUserStroke(stroke: DrawStroke) {
         }
 
         DrawStyle.OVAL -> {
-            val box = pixelBounds(stroke)
+            val box = pixelBounds(stroke, contentWidth, contentHeight, originX, originY)
             drawOval(
                 color,
                 Offset(box[0], box[1]),
@@ -556,7 +575,10 @@ private fun DrawScope.paintUserStroke(stroke: DrawStroke) {
             )
         }
 
-        else -> strokePath(stroke, widthPx, color, null)
+        else -> strokePath(
+            stroke, widthPx, color, null,
+            contentWidth, contentHeight, originX, originY,
+        )
     }
 }
 
@@ -564,12 +586,18 @@ private fun DrawScope.strokePath(
     stroke: DrawStroke,
     widthPx: Float,
     color: Color,
-    effect: PathEffect?
+    effect: PathEffect?,
+    contentWidth: Float,
+    contentHeight: Float,
+    originX: Float,
+    originY: Float,
 ) {
     val path = Path()
     val first = stroke.points.first()
-    path.moveTo(first.x * size.width, first.y * size.height)
-    stroke.points.drop(1).forEach { path.lineTo(it.x * size.width, it.y * size.height) }
+    path.moveTo(originX + first.x * contentWidth, originY + first.y * contentHeight)
+    stroke.points.drop(1).forEach {
+        path.lineTo(originX + it.x * contentWidth, originY + it.y * contentHeight)
+    }
     drawPath(
         path,
         color,
@@ -577,11 +605,20 @@ private fun DrawScope.strokePath(
     )
 }
 
-private fun DrawScope.lineEnds(stroke: DrawStroke, widthPx: Float, color: Color, arrow: Boolean) {
+private fun DrawScope.lineEnds(
+    stroke: DrawStroke,
+    widthPx: Float,
+    color: Color,
+    arrow: Boolean,
+    contentWidth: Float,
+    contentHeight: Float,
+    originX: Float,
+    originY: Float,
+) {
     val a = stroke.points.first()
     val b = stroke.points.last()
-    val start = Offset(a.x * size.width, a.y * size.height)
-    val end = Offset(b.x * size.width, b.y * size.height)
+    val start = Offset(originX + a.x * contentWidth, originY + a.y * contentHeight)
+    val end = Offset(originX + b.x * contentWidth, originY + b.y * contentHeight)
     drawLine(color, start, end, widthPx, StrokeCap.Round)
     if (!arrow) return
     val angle = atan2(end.y - start.y, end.x - start.x)
@@ -595,7 +632,15 @@ private fun DrawScope.lineEnds(stroke: DrawStroke, widthPx: Float, color: Color,
     drawPath(path, color)
 }
 
-private fun DrawScope.drawStamps(stroke: DrawStroke, color: Color, widthPx: Float) {
+private fun DrawScope.drawStamps(
+    stroke: DrawStroke,
+    color: Color,
+    widthPx: Float,
+    contentWidth: Float,
+    contentHeight: Float,
+    originX: Float,
+    originY: Float,
+) {
     val faces = arrayOf("😣", "🙂", "😒", "😄")
     val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
         textSize = (widthPx * 2.2f).coerceAtLeast(18.dp.toPx())
@@ -608,15 +653,15 @@ private fun DrawScope.drawStamps(stroke: DrawStroke, color: Color, widthPx: Floa
     stroke.points.forEach { point ->
         val last = previous
         if (last != null) {
-            val dx = (point.x - last.x) * size.width
-            val dy = (point.y - last.y) * size.height
+            val dx = (point.x - last.x) * contentWidth
+            val dy = (point.y - last.y) * contentHeight
             walked += hypot(dx, dy)
         }
         if (previous == null || walked >= step) {
             drawContext.canvas.nativeCanvas.drawText(
                 faces[index % faces.size],
-                point.x * size.width,
-                point.y * size.height,
+                originX + point.x * contentWidth,
+                originY + point.y * contentHeight,
                 paint,
             )
             index++
@@ -626,13 +671,19 @@ private fun DrawScope.drawStamps(stroke: DrawStroke, color: Color, widthPx: Floa
     }
 }
 
-private fun DrawScope.pixelBounds(stroke: DrawStroke): FloatArray {
+private fun pixelBounds(
+    stroke: DrawStroke,
+    contentWidth: Float,
+    contentHeight: Float,
+    originX: Float,
+    originY: Float,
+): FloatArray {
     val box = bounds(stroke.points)
     return floatArrayOf(
-        box[0] * size.width,
-        box[1] * size.height,
-        box[2] * size.width,
-        box[3] * size.height
+        originX + box[0] * contentWidth,
+        originY + box[1] * contentHeight,
+        originX + box[2] * contentWidth,
+        originY + box[3] * contentHeight,
     )
 }
 

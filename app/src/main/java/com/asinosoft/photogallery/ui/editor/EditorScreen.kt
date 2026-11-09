@@ -705,6 +705,9 @@ private fun EditorPhotoPreview(
     val shapeId by model.selectedShapeId.collectAsState()
     val strokesState = rememberUpdatedState(edit.strokes)
     val shapeState = rememberUpdatedState(shapeId)
+    val strokeFrameState = rememberUpdatedState(
+        fittedLayout?.frame?.takeIf { it.width > 1f && it.height > 1f }
+    )
     var aim by remember { mutableStateOf<Offset?>(null) }
     var sampleBitmap by remember { mutableStateOf<android.graphics.Bitmap?>(null) }
     val pickSettings = rememberUpdatedState(drawSettings)
@@ -850,26 +853,26 @@ private fun EditorPhotoPreview(
                         tab == EditorTab.ADD && addMode == 0 && drawSettings.style == DrawStyle.ERASER ->
                             Modifier.pointerInput(drawSettings) {
                                 val radius = brushWidth(drawSettings)
+                                fun norm(pos: Offset) = strokePointInFrame(pos, strokeFrameState.value, size)
                                 awaitEachGesture {
                                     val down = awaitFirstDown()
-                                    var last = StrokePoint(
-                                        down.position.x / size.width,
-                                        down.position.y / size.height,
-                                    )
+                                    var last = norm(down.position)
+                                    var cancelled = false
                                     model.beginErase()
                                     model.eraseAlong(null, last, radius, wholeStroke = false)
                                     try {
                                         while (true) {
                                             val event = awaitPointerEvent()
+                                            if (event.changes.count { it.pressed } >= 2) {
+                                                cancelled = true
+                                                break
+                                            }
                                             val change =
                                                 event.changes.firstOrNull { it.id == down.id }
                                                     ?: break
                                             if (!change.pressed) break
                                             change.consume()
-                                            val point = StrokePoint(
-                                                change.position.x / size.width,
-                                                change.position.y / size.height,
-                                            )
+                                            val point = norm(change.position)
                                             model.eraseAlong(
                                                 last,
                                                 point,
@@ -879,7 +882,7 @@ private fun EditorPhotoPreview(
                                             last = point
                                         }
                                     } finally {
-                                        model.endErase()
+                                        if (cancelled) model.cancelErase() else model.endErase()
                                     }
                                 }
                             }
@@ -887,86 +890,76 @@ private fun EditorPhotoPreview(
                         tab == EditorTab.ADD && addMode == 0 -> Modifier.pointerInput(drawSettings) {
                             val strokesNow = strokesState
                             val shapeNow = shapeState
+                            fun norm(pos: Offset) = strokePointInFrame(pos, strokeFrameState.value, size)
                             awaitEachGesture {
                                 val down = awaitFirstDown()
-                                val start = StrokePoint(
-                                    down.position.x / size.width,
-                                    down.position.y / size.height,
-                                )
+                                val start = norm(down.position)
                                 val selected = strokesNow.value.find { it.id == shapeNow.value }
+                                val frameW = strokeFrameState.value?.width?.takeIf { it > 1f }
+                                    ?: size.width.toFloat()
                                 val handle = selected?.let {
-                                    hitHandle(it, start, 28.dp.toPx() / size.width)
+                                    hitHandle(it, start, 28.dp.toPx() / frameW)
                                 }
                                 if (handle != null && selected.style.isShape()) {
-                                    try {
-                                        while (true) {
-                                            val event = awaitPointerEvent()
-                                            val change =
-                                                event.changes.firstOrNull { it.id == down.id }
-                                                    ?: break
-                                            if (!change.pressed) break
-                                            change.consume()
-                                            model.dragShapeHandle(
-                                                handle,
-                                                StrokePoint(
-                                                    change.position.x / size.width,
-                                                    change.position.y / size.height,
-                                                ),
-                                            )
-                                        }
-                                    } finally {
+                                    while (true) {
+                                        val event = awaitPointerEvent()
+                                        if (event.changes.count { it.pressed } >= 2) break
+                                        val change =
+                                            event.changes.firstOrNull { it.id == down.id }
+                                                ?: break
+                                        if (!change.pressed) break
+                                        change.consume()
+                                        model.dragShapeHandle(handle, norm(change.position))
                                     }
                                 } else if (drawSettings.style.isShape()) {
                                     var end = start
+                                    var cancelled = false
                                     draftStroke = listOf(start, end)
                                     try {
                                         while (true) {
                                             val event = awaitPointerEvent()
+                                            if (event.changes.count { it.pressed } >= 2) {
+                                                cancelled = true
+                                                break
+                                            }
                                             val change =
                                                 event.changes.firstOrNull { it.id == down.id }
                                                     ?: break
                                             if (!change.pressed) break
                                             change.consume()
-                                            end = StrokePoint(
-                                                change.position.x / size.width,
-                                                change.position.y / size.height,
-                                            )
+                                            end = norm(change.position)
                                             draftStroke = listOf(start, end)
                                         }
                                     } finally {
                                         val path = draftStroke
                                         draftStroke = emptyList()
-                                        if (path.size >= 2) model.addStroke(
-                                            strokeFor(
-                                                drawSettings,
-                                                path
-                                            )
-                                        )
+                                        if (!cancelled && path.size >= 2) {
+                                            model.addStroke(strokeFor(drawSettings, path))
+                                        }
                                     }
                                 } else {
+                                    var cancelled = false
                                     draftStroke = listOf(start)
                                     try {
                                         while (true) {
                                             val event = awaitPointerEvent()
+                                            if (event.changes.count { it.pressed } >= 2) {
+                                                cancelled = true
+                                                break
+                                            }
                                             val change =
                                                 event.changes.firstOrNull { it.id == down.id }
                                                     ?: break
                                             if (!change.pressed) break
                                             change.consume()
-                                            draftStroke = draftStroke + StrokePoint(
-                                                change.position.x / size.width,
-                                                change.position.y / size.height,
-                                            )
+                                            draftStroke = draftStroke + norm(change.position)
                                         }
                                     } finally {
                                         val path = draftStroke
                                         draftStroke = emptyList()
-                                        if (path.size >= 2) model.addStroke(
-                                            strokeFor(
-                                                drawSettings,
-                                                path
-                                            )
-                                        )
+                                        if (!cancelled && path.size >= 2) {
+                                            model.addStroke(strokeFor(drawSettings, path))
+                                        }
                                     }
                                 }
                             }
@@ -1286,6 +1279,9 @@ private fun EditorPhotoPreview(
                     )
                 }
             }
+            val overlayFrame = fittedLayout?.frame?.takeIf { it.width > 1f && it.height > 1f }?.let {
+                OverlayContentFrame(it.left, it.top, it.width, it.height)
+            }
             DrawStrokesOverlay(
                 strokes = edit.strokes,
                 draft = if (draftStroke.size >= 2 && drawSettings.style != DrawStyle.ERASER) {
@@ -1294,13 +1290,11 @@ private fun EditorPhotoPreview(
                     null
                 },
                 selectedId = shapeId,
+                contentFrame = overlayFrame,
                 modifier = Modifier.fillMaxSize(),
             )
             if (drawSettings.picking && aim != null) {
                 ColorAim(aim!!, Modifier.fillMaxSize())
-            }
-            val overlayFrame = fittedLayout?.frame?.takeIf { it.width > 1f && it.height > 1f }?.let {
-                OverlayContentFrame(it.left, it.top, it.width, it.height)
             }
             EditorStickersLayer(
                 stickers = edit.stickers,
@@ -2174,6 +2168,20 @@ private fun sampleDisplayedColor(
 
 private data class ImageFit(val left: Float, val top: Float, val width: Float, val height: Float)
 
+/** Нормализация штриха к кадру фото (как стикеры/текст), не к letterbox-контейнеру. */
+private fun strokePointInFrame(pos: Offset, frame: ImageFit?, box: IntSize): StrokePoint {
+    val fw = frame?.width?.takeIf { it > 1f }
+    val fh = frame?.height?.takeIf { it > 1f }
+    return if (frame != null && fw != null && fh != null) {
+        StrokePoint((pos.x - frame.left) / fw, (pos.y - frame.top) / fh)
+    } else {
+        StrokePoint(
+            pos.x / box.width.coerceAtLeast(1).toFloat(),
+            pos.y / box.height.coerceAtLeast(1).toFloat(),
+        )
+    }
+}
+
 private data class CropLayout(
     val frame: ImageFit,
     val imageLeft: Float,
@@ -2432,7 +2440,21 @@ private fun FilterPanel(
     }
 }
 
-private enum class AdjustTarget { Brightness, Contrast, Saturation, Sharpness }
+private enum class AdjustTarget(
+    @androidx.annotation.DrawableRes val icon: Int,
+    @androidx.annotation.StringRes val label: Int,
+) {
+    Brightness(R.drawable.editor_adj_brightness, R.string.editor_brightness),
+    Exposure(R.drawable.editor_adj_exposure, R.string.editor_exposure),
+    Contrast(R.drawable.editor_adj_contrast, R.string.editor_contrast),
+    Highlights(R.drawable.editor_adj_highlights, R.string.editor_highlights),
+    Shadows(R.drawable.editor_adj_shadows, R.string.editor_shadows),
+    Saturation(R.drawable.editor_adj_saturation, R.string.editor_saturation),
+    Tint(R.drawable.editor_adj_tint, R.string.editor_tint),
+    Temperature(R.drawable.editor_adj_temperature, R.string.editor_temperature),
+    Definition(R.drawable.editor_adj_definition, R.string.editor_definition),
+    Sharpness(R.drawable.editor_adj_sharpness, R.string.editor_sharpness),
+}
 
 @Composable
 private fun AdjustPanel(
@@ -2443,18 +2465,19 @@ private fun AdjustPanel(
     var target by remember { mutableStateOf(AdjustTarget.Brightness) }
     val value = when (target) {
         AdjustTarget.Brightness -> params.brightness
+        AdjustTarget.Exposure -> params.exposure
         AdjustTarget.Contrast -> params.contrast
+        AdjustTarget.Highlights -> params.highlights
+        AdjustTarget.Shadows -> params.shadows
         AdjustTarget.Saturation -> params.saturation
+        AdjustTarget.Tint -> params.tint
+        AdjustTarget.Temperature -> params.temperature
+        AdjustTarget.Definition -> params.definition
         AdjustTarget.Sharpness -> params.sharpness
     }
     Column(Modifier.padding(horizontal = 16.dp)) {
         Text(
-            text = when (target) {
-                AdjustTarget.Brightness -> stringResource(R.string.editor_brightness)
-                AdjustTarget.Contrast -> stringResource(R.string.editor_contrast)
-                AdjustTarget.Saturation -> stringResource(R.string.editor_saturation)
-                AdjustTarget.Sharpness -> stringResource(R.string.editor_sharpness)
-            },
+            text = stringResource(target.label),
             color = Color.White,
             modifier = Modifier.align(Alignment.CenterHorizontally),
         )
@@ -2490,14 +2513,11 @@ private fun AdjustPanel(
                         .clickable { target = t },
                     contentAlignment = Alignment.Center,
                 ) {
-                    Text(
-                        text = when (t) {
-                            AdjustTarget.Brightness -> "☀"
-                            AdjustTarget.Contrast -> "◐"
-                            AdjustTarget.Saturation -> "◆"
-                            AdjustTarget.Sharpness -> "!"
-                        },
-                        color = if (active) Color.Black else Color.White,
+                    Icon(
+                        painter = painterResource(t.icon),
+                        contentDescription = stringResource(t.label),
+                        tint = if (active) Color.Black else Color.White,
+                        modifier = Modifier.size(22.dp),
                     )
                 }
             }
@@ -2508,8 +2528,14 @@ private fun AdjustPanel(
                 onChange(
                     when (target) {
                         AdjustTarget.Brightness -> params.copy(brightness = v)
+                        AdjustTarget.Exposure -> params.copy(exposure = v)
                         AdjustTarget.Contrast -> params.copy(contrast = v)
+                        AdjustTarget.Highlights -> params.copy(highlights = v)
+                        AdjustTarget.Shadows -> params.copy(shadows = v)
                         AdjustTarget.Saturation -> params.copy(saturation = v)
+                        AdjustTarget.Tint -> params.copy(tint = v)
+                        AdjustTarget.Temperature -> params.copy(temperature = v)
+                        AdjustTarget.Definition -> params.copy(definition = v)
                         AdjustTarget.Sharpness -> params.copy(sharpness = v)
                     }
                 )

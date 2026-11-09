@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- Circle with vertical white bands (gaps read as gray steps on dark bg) -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:fillType="evenOdd"
+        android:pathData="M12,2.8A9.2,9.2 0,1 1,2.8 12,9.2 9.2,0 0,1 12,2.8z
+            M12,4.5A7.5,7.5 0,1 0,19.5 12,7.5 7.5,0 0,0 12,4.5z" />
+    <path android:fillColor="#FFFFFFFF" android:pathData="M5.4,6.2h1.15v11.6H5.4z" />
+    <path android:fillColor="#FFFFFFFF" android:pathData="M7.7,5.2h1.35v13.6H7.7z" />
+    <path android:fillColor="#FFFFFFFF" android:pathData="M10.2,4.6h1.55v14.8H10.2z" />
+    <path android:fillColor="#FFFFFFFF" android:pathData="M12.9,4.6h1.7v14.8H12.9z" />
+    <path android:fillColor="#FFFFFFFF" android:pathData="M15.8,5.2h1.9v13.6H15.8z" />
+</vector>

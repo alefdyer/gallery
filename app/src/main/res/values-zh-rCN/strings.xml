@@ -264,6 +264,12 @@
     <string name="editor_filter_vivid">鲜艳</string>
     <string name="editor_filter_fade">褪色</string>
     <string name="editor_brightness">亮度</string>
+    <string name="editor_exposure">Exposure</string>
+    <string name="editor_highlights">Highlights</string>
+    <string name="editor_shadows">Shadows</string>
+    <string name="editor_tint">Tint</string>
+    <string name="editor_temperature">Temperature</string>
+    <string name="editor_definition">Definition</string>
     <string name="editor_contrast">对比度</string>
     <string name="editor_saturation">饱和度</string>
     <string name="editor_sharpness">锐度</string>
