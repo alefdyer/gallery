@@ -432,6 +432,7 @@ class EditorViewModel @Inject constructor(
                         text = "",
                         x = x.coerceIn(0.08f, 0.92f),
                         y = y.coerceIn(0.08f, 0.92f),
+                        color = _draw.value.color,
                     )
                 )
             }
@@ -480,7 +481,7 @@ class EditorViewModel @Inject constructor(
                         text = text.orEmpty(),
                         x = 0.5f,
                         y = 0.42f,
-                        color = color ?: 0xFFFFFFFF,
+                        color = color ?: _draw.value.color,
                         fontId = fontId ?: "normal",
                         styleId = styleId ?: "solid",
                         templateId = templateId ?: "plain",
@@ -513,15 +514,7 @@ class EditorViewModel @Inject constructor(
     }
 
     fun tintSelectedText(color: Long) {
-        val id = _selectedTextId.value ?: return
-        beginLiveEdit()
-        _edit.update { state ->
-            state.copy(
-                texts = state.texts.map { item ->
-                    if (item.id != id) item else item.copy(color = color, styleId = "solid")
-                }
-            )
-        }
+        editTextFields(color = color, styleId = "solid", live = false)
     }
 
     fun updateText(
@@ -532,24 +525,25 @@ class EditorViewModel @Inject constructor(
         rotation: Float? = null,
         recordHistory: Boolean = false,
     ) {
-        if (recordHistory) {
-            endLiveEdit()
-            return
+        // Даже при recordHistory сначала применяем x/y/scale/rotation —
+        // иначе финальный кадр жеста с true мог бы отбросить размер.
+        if (x != null || y != null || scale != null || rotation != null) {
+            beginLiveEdit()
+            _edit.update { state ->
+                state.copy(
+                    texts = state.texts.map { item ->
+                        if (item.id != id) item
+                        else item.copy(
+                            x = (x ?: item.x).coerceIn(0.02f, 0.98f),
+                            y = (y ?: item.y).coerceIn(0.02f, 0.98f),
+                            scale = (scale ?: item.scale).coerceIn(0.35f, 4f),
+                            rotation = rotation ?: item.rotation,
+                        )
+                    }
+                )
+            }
         }
-        beginLiveEdit()
-        _edit.update { state ->
-            state.copy(
-                texts = state.texts.map { item ->
-                    if (item.id != id) item
-                    else item.copy(
-                        x = (x ?: item.x).coerceIn(0.02f, 0.98f),
-                        y = (y ?: item.y).coerceIn(0.02f, 0.98f),
-                        scale = (scale ?: item.scale).coerceIn(0.35f, 4f),
-                        rotation = rotation ?: item.rotation,
-                    )
-                }
-            )
-        }
+        if (recordHistory) endLiveEdit()
     }
 
     fun duplicateText(id: Long) {
@@ -600,24 +594,23 @@ class EditorViewModel @Inject constructor(
         rotation: Float? = null,
         recordHistory: Boolean = false,
     ) {
-        if (recordHistory) {
-            endLiveEdit()
-            return
+        if (x != null || y != null || scale != null || rotation != null) {
+            beginLiveEdit()
+            _edit.update { s ->
+                s.copy(
+                    stickers = s.stickers.map { sticker ->
+                        if (sticker.id != id) sticker
+                        else sticker.copy(
+                            x = (x ?: sticker.x).coerceIn(0.02f, 0.98f),
+                            y = (y ?: sticker.y).coerceIn(0.02f, 0.98f),
+                            scale = (scale ?: sticker.scale).coerceIn(0.35f, 4f),
+                            rotation = rotation ?: sticker.rotation,
+                        )
+                    }
+                )
+            }
         }
-        beginLiveEdit()
-        _edit.update { s ->
-            s.copy(
-                stickers = s.stickers.map { sticker ->
-                    if (sticker.id != id) sticker
-                    else sticker.copy(
-                        x = (x ?: sticker.x).coerceIn(0.02f, 0.98f),
-                        y = (y ?: sticker.y).coerceIn(0.02f, 0.98f),
-                        scale = (scale ?: sticker.scale).coerceIn(0.35f, 4f),
-                        rotation = rotation ?: sticker.rotation,
-                    )
-                }
-            )
-        }
+        if (recordHistory) endLiveEdit()
     }
 
     fun duplicateSticker(id: Long) {

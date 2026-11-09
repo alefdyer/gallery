@@ -12,7 +12,6 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
-import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
@@ -64,15 +63,19 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.graphics.vector.PathParser
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.graphics.drawscope.translate
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.graphics.vector.PathParser
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.layout
-import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.platform.LocalDensity
@@ -80,11 +83,13 @@ import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.PlatformTextStyle
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
@@ -1003,8 +1008,10 @@ private fun editTextStyle(
     val family = FontFamily(typefaceOf(fontId))
     val brush = styleBrush(styleId)
     val weight = if (font.style == Typeface.BOLD) FontWeight.Bold else FontWeight.Normal
-    val spacing = (font.spacing * fontSize.value).sp
+    // em как у Paint.letterSpacing — совпадение с JPEG.
+    val spacing = font.spacing.em
     val shadow = styleShadow(styleId)
+    val platform = PlatformTextStyle(includeFontPadding = false)
     return if (brush != null) {
         TextStyle(
             brush = brush,
@@ -1014,6 +1021,7 @@ private fun editTextStyle(
             letterSpacing = spacing,
             textAlign = TextAlign.Start,
             shadow = shadow,
+            platformStyle = platform,
         )
     } else {
         TextStyle(
@@ -1024,6 +1032,7 @@ private fun editTextStyle(
             letterSpacing = spacing,
             textAlign = TextAlign.Start,
             shadow = shadow,
+            platformStyle = platform,
         )
     }
 }
@@ -1042,8 +1051,9 @@ private fun StyledLine(
     val family = FontFamily(typefaceOf(fontId))
     val brush = styleBrush(styleId)
     val weight = if (font.style == Typeface.BOLD) FontWeight.Bold else FontWeight.Normal
-    val spacing = (font.spacing * fontSize.value).sp
+    val spacing = font.spacing.em
     val shadow = styleShadow(styleId)
+    val platform = PlatformTextStyle(includeFontPadding = false)
     val base = if (brush != null) {
         TextStyle(
             brush = brush,
@@ -1053,6 +1063,7 @@ private fun StyledLine(
             letterSpacing = spacing,
             textAlign = TextAlign.Center,
             shadow = shadow,
+            platformStyle = platform,
         )
     } else {
         TextStyle(
@@ -1063,6 +1074,7 @@ private fun StyledLine(
             letterSpacing = spacing,
             textAlign = TextAlign.Center,
             shadow = shadow,
+            platformStyle = platform,
         )
     }
     val strokeColor =
@@ -1079,6 +1091,7 @@ private fun StyledLine(
                     letterSpacing = spacing,
                     textAlign = TextAlign.Center,
                     drawStyle = Stroke(width = if (styleId == "blockBlue") 6f else 3f),
+                    platformStyle = platform,
                 ),
                 textAlign = TextAlign.Center,
                 maxLines = 12,
@@ -1166,9 +1179,11 @@ private fun styleShadow(styleId: String): Shadow? = when (styleId) {
 @Composable
 fun EditorTextsLayer(
     texts: List<TextOverlay>,
+    contentFrame: OverlayContentFrame? = null,
     interactive: Boolean,
     typing: Boolean,
     selectedId: Long?,
+    zoom: Float = 1f,
     onSelect: (Long?) -> Unit,
     onClear: () -> Unit,
     onTypeAt: (Float, Float) -> Unit,
@@ -1178,9 +1193,19 @@ fun EditorTextsLayer(
     onDuplicate: (Long) -> Unit,
     onDelete: (Long) -> Unit,
 ) {
-    BoxWithConstraints(Modifier.fillMaxSize()) {
+    var layerCoords by remember { mutableStateOf<LayoutCoordinates?>(null) }
+    BoxWithConstraints(
+        Modifier
+            .fillMaxSize()
+            .onGloballyPositioned { layerCoords = it },
+    ) {
         val widthPx = constraints.maxWidth.toFloat().coerceAtLeast(1f)
         val heightPx = constraints.maxHeight.toFloat().coerceAtLeast(1f)
+        val frameLeft = contentFrame?.left ?: 0f
+        val frameTop = contentFrame?.top ?: 0f
+        val frameW = contentFrame?.width?.takeIf { it > 1f } ?: widthPx
+        val frameH = contentFrame?.height?.takeIf { it > 1f } ?: heightPx
+        val sizeRefPx = frameW
         val density = LocalDensity.current
         val editFocus = remember { FocusRequester() }
         val keyboard = LocalSoftwareKeyboardController.current
@@ -1199,72 +1224,120 @@ fun EditorTextsLayer(
                 Modifier
                     .fillMaxSize()
                     .zIndex(0.5f)
-                    .pointerInput(selectedId, typing) {
+                    .pointerInput(selectedId, typing, frameLeft, frameTop, frameW, frameH) {
                         awaitEachGesture {
                             val down = awaitFirstDown(requireUnconsumed = false)
                             val start = down.position
                             val slop = viewConfiguration.touchSlop
-                            var moved = false
                             while (true) {
                                 val event = awaitPointerEvent()
+                                // Не мешаем pinch-zoom / пан: второй палец или драг — выходим.
+                                if (event.changes.count { it.pressed } >= 2) return@awaitEachGesture
                                 val change = event.changes.firstOrNull { it.id == down.id }
                                     ?: return@awaitEachGesture
-                                if (!change.pressed) break
+                                if (!change.pressed) {
+                                    if (selectedId != null || typing) onClear()
+                                    else {
+                                        val nx = ((start.x - frameLeft) / frameW).coerceIn(0f, 1f)
+                                        val ny = ((start.y - frameTop) / frameH).coerceIn(0f, 1f)
+                                        onTypeAt(nx, ny)
+                                    }
+                                    return@awaitEachGesture
+                                }
                                 val delta = change.position - start
-                                if (hypot(delta.x, delta.y) > slop) moved = true
-                            }
-                            if (!moved) {
-                                if (selectedId != null || typing) onClear()
-                                else onTypeAt(start.x / widthPx, start.y / heightPx)
+                                if (hypot(delta.x, delta.y) > slop) return@awaitEachGesture
                             }
                         }
                     },
             )
         }
+        val frameWi = frameW.roundToInt().coerceAtLeast(1)
+        val frameHi = frameH.roundToInt().coerceAtLeast(1)
+        val onUpdateState by rememberUpdatedState(onUpdate)
+        val z = zoom.coerceAtLeast(0.01f)
+        val chromeStroke = with(density) { 1.5.dp.toPx() / z }
+        val handleSizePx = with(density) { 22.dp.toPx() / z }
+        val handleR = handleSizePx / 2f
         texts.forEach { item ->
             val selected = selectedId == item.id
+            val editing = typing && selected
             val latest by rememberUpdatedState(item)
-            var measured by remember(item.id) { mutableStateOf(IntSizeZero) }
-            var drag by remember(item.id) { mutableStateOf(Offset.Zero) }
             val selectedNow by rememberUpdatedState(selected)
-            val cx = item.x * widthPx
-            val cy = item.y * heightPx
+            var dragPx by remember(item.id) { mutableStateOf(Offset.Zero) }
+            var liveScale by remember(item.id) { mutableStateOf<Float?>(null) }
+            var liveRotation by remember(item.id) { mutableStateOf<Float?>(null) }
+            val drawScale = liveScale ?: item.scale
+            val drawRotation = liveRotation ?: item.rotation
+            // Тот же scale, что в JPEG — без graphicsLayer-scale (иначе другой wrap).
+            val drawItem = item.copy(scale = drawScale, rotation = 0f)
+            val box = measureTextOverlayBox(drawItem, frameWi, frameHi)
+            val chromePadPx = with(density) { 4.dp.toPx() }
+            val hitW = (box.width + chromePadPx * 2f).coerceAtLeast(with(density) { 12.dp.toPx() })
+            val hitH = (box.height + chromePadPx * 2f).coerceAtLeast(with(density) { 18.dp.toPx() })
+            val halfW = hitW / 2f
+            val halfH = hitH / 2f
+            val cx = frameLeft + item.x * frameW + dragPx.x
+            val cy = frameTop + item.y * frameH + dragPx.y
+            val center = Offset(cx, cy)
+            val corners = listOf(
+                Offset(-1f, -1f),
+                Offset(1f, -1f),
+                Offset(1f, 1f),
+                Offset(-1f, 1f),
+            ).map { corner ->
+                textRotateOffset(Offset(corner.x * halfW, corner.y * halfH), drawRotation) + center
+            }
             Box(
                 Modifier
                     .zIndex(if (selected) 4f else 2f)
-                    .onSizeChanged { measured = it }
                     .offset {
-                        IntOffset(
-                            (cx - measured.width / 2f).roundToInt(),
-                            (cy - measured.height / 2f).roundToInt(),
-                        )
+                        IntOffset((cx - halfW).roundToInt(), (cy - halfH).roundToInt())
+                    }
+                    .size(with(density) { hitW.toDp() }, with(density) { hitH.toDp() })
+                    .graphicsLayer {
+                        rotationZ = drawRotation
+                        transformOrigin = androidx.compose.ui.graphics.TransformOrigin.Center
                     }
                     .then(
-                        if (!interactive || (typing && selected)) Modifier
-                        else Modifier.pointerInput(item.id, widthPx, heightPx) {
+                        if (!interactive || editing) Modifier
+                        else Modifier.pointerInput(item.id, frameW, frameH) {
                             awaitEachGesture {
                                 val down = awaitFirstDown()
                                 down.consume()
                                 val slop = viewConfiguration.touchSlop
                                 var dragging = false
-                                var previous = down.position
-                                var moved = Offset.Zero
+                                var acc = Offset.Zero
                                 while (true) {
                                     val event = awaitPointerEvent()
+                                    if (event.changes.count { it.pressed } >= 2) {
+                                        if (dragging) {
+                                            val cur = latest
+                                            onUpdateState(
+                                                cur.id,
+                                                cur.x + acc.x / frameW,
+                                                cur.y + acc.y / frameH,
+                                                null,
+                                                null,
+                                                true,
+                                            )
+                                            dragPx = Offset.Zero
+                                        }
+                                        return@awaitEachGesture
+                                    }
                                     val change = event.changes.firstOrNull { it.id == down.id }
                                         ?: return@awaitEachGesture
                                     if (!change.pressed) {
                                         if (dragging) {
-                                            onUpdate(
-                                                item.id,
-                                                latest.x + moved.x / widthPx,
-                                                latest.y + moved.y / heightPx,
+                                            val cur = latest
+                                            onUpdateState(
+                                                cur.id,
+                                                cur.x + acc.x / frameW,
+                                                cur.y + acc.y / frameH,
                                                 null,
                                                 null,
-                                                false,
+                                                true,
                                             )
-                                            drag = Offset.Zero
-                                            onUpdate(item.id, null, null, null, null, true)
+                                            dragPx = Offset.Zero
                                         } else if (selectedNow) {
                                             onTypeText(item.id)
                                         } else {
@@ -1272,44 +1345,29 @@ fun EditorTextsLayer(
                                         }
                                         return@awaitEachGesture
                                     }
-                                    val delta = change.position - previous
-                                    previous = change.position
+                                    val delta = change.positionChange()
                                     change.consume()
                                     val fromDown = change.position - down.position
                                     if (!dragging && hypot(fromDown.x, fromDown.y) > slop) {
                                         dragging = true
                                         if (!selectedNow) onSelect(item.id)
                                     }
-                                    if (dragging) {
-                                        moved += delta
-                                        drag = moved
+                                    if (dragging && (delta.x != 0f || delta.y != 0f)) {
+                                        val cur = latest
+                                        val parent = textRotateOffset(delta, cur.rotation)
+                                        acc += parent
+                                        dragPx = acc
                                     }
                                 }
                             }
                         },
                     ),
             ) {
-                Box(
-                    Modifier.graphicsLayer {
-                        translationX = drag.x
-                        translationY = drag.y
-                        rotationZ = item.rotation
-                        transformOrigin = androidx.compose.ui.graphics.TransformOrigin.Center
-                    },
-                ) {
+                if (editing) {
                     Box(
                         Modifier
-                            .drawBehind {
-                                if (interactive && selected) {
-                                    drawRoundRect(
-                                        Color.White,
-                                        style = Stroke(width = 1.5.dp.toPx()),
-                                        cornerRadius = CornerRadius(4.dp.toPx(), 4.dp.toPx()),
-                                    )
-                                }
-                            }
-                            .padding(4.dp)
-                            .defaultMinSize(minWidth = 12.dp, minHeight = 18.dp),
+                            .fillMaxSize()
+                            .padding(4.dp),
                         contentAlignment = Alignment.Center,
                     ) {
                         TemplateArtwork(
@@ -1319,21 +1377,190 @@ fun EditorTextsLayer(
                             item.fontId,
                             item.styleId,
                             item.outlined,
-                            (22f * item.scale).sp,
-                            editing = typing && selected,
+                            with(density) {
+                                textOverlaySizePx(sizeRefPx, drawScale).toSp()
+                            },
+                            editing = true,
                             onTextChange = onTextChange,
-                            editFocus = if (typing && selected) editFocus else null,
+                            editFocus = editFocus,
                         )
                     }
-                    if (interactive && selected) {
-                        Box(Modifier.matchParentSize()) {
-                            TextFrameChrome(
-                                item = latest,
-                                boxW = measured.width.toFloat().coerceAtLeast(1f),
-                                boxH = measured.height.toFloat().coerceAtLeast(1f),
-                                onUpdate = onUpdate,
-                                onDuplicate = onDuplicate,
-                                onDelete = onDelete,
+                } else {
+                    Canvas(Modifier.fillMaxSize()) {
+                        if (interactive && selected) {
+                            drawRoundRect(
+                                Color.White,
+                                style = Stroke(width = chromeStroke),
+                                cornerRadius = CornerRadius(
+                                    4.dp.toPx() / z,
+                                    4.dp.toPx() / z,
+                                ),
+                            )
+                        }
+                        drawIntoCanvas { conf ->
+                            val c = conf.nativeCanvas
+                            c.save()
+                            c.translate(size.width / 2f, size.height / 2f)
+                            drawTextOverlayContent(c, drawItem, frameWi, frameHi)
+                            c.restore()
+                        }
+                    }
+                }
+            }
+            if (interactive && selected) {
+                val centerState by rememberUpdatedState(center)
+                val layerCoordsState by rememberUpdatedState(layerCoords)
+                // Углы — только scale; отдельная ручка снизу — только rotate.
+                corners.forEachIndexed { index, at ->
+                    var handleCoords by remember(item.id, index) {
+                        mutableStateOf<LayoutCoordinates?>(null)
+                    }
+                    Box(
+                        Modifier
+                            .zIndex(5f)
+                            .offset {
+                                IntOffset(
+                                    (at.x - handleR).roundToInt(),
+                                    (at.y - handleR).roundToInt(),
+                                )
+                            }
+                            .size(with(density) { handleSizePx.toDp() })
+                            .onGloballyPositioned { handleCoords = it }
+                            .clip(CircleShape)
+                            .background(Color.White)
+                            .border(
+                                with(density) { (1.dp.toPx() / z).toDp() },
+                                Color(0xFFBDBDBD),
+                                CircleShape,
+                            )
+                            .pointerInput(item.id, index) {
+                                detectOverlayScaleGesture(
+                                    center = { centerState },
+                                    layerCoords = { layerCoordsState },
+                                    handleCoords = { handleCoords },
+                                    startScale = { latest.scale },
+                                    onScale = { scale ->
+                                        liveScale = scale
+                                        onUpdateState(
+                                            latest.id, null, null, scale, null, false,
+                                        )
+                                    },
+                                    onEnd = {
+                                        onUpdateState(
+                                            latest.id,
+                                            null,
+                                            null,
+                                            liveScale ?: latest.scale,
+                                            null,
+                                            true,
+                                        )
+                                        liveScale = null
+                                    },
+                                )
+                            },
+                    )
+                }
+                val rotateAt = center + textRotateOffset(
+                    Offset(0f, halfH + handleSizePx * 1.15f),
+                    drawRotation,
+                )
+                var rotateCoords by remember(item.id) {
+                    mutableStateOf<LayoutCoordinates?>(null)
+                }
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier
+                        .zIndex(5f)
+                        .offset {
+                            IntOffset(
+                                (rotateAt.x - handleR).roundToInt(),
+                                (rotateAt.y - handleR).roundToInt(),
+                            )
+                        }
+                        .size(with(density) { handleSizePx.toDp() })
+                        .onGloballyPositioned { rotateCoords = it }
+                        .clip(CircleShape)
+                        .background(Color.White)
+                        .border(
+                            with(density) { (1.dp.toPx() / z).toDp() },
+                            Color(0xFFBDBDBD),
+                            CircleShape,
+                        )
+                        .pointerInput(item.id) {
+                            detectOverlayRotateGesture(
+                                center = { centerState },
+                                layerCoords = { layerCoordsState },
+                                handleCoords = { rotateCoords },
+                                startRotation = { latest.rotation },
+                                onRotation = { rot ->
+                                    liveRotation = rot
+                                    onUpdateState(
+                                        latest.id, null, null, null, rot, false,
+                                    )
+                                },
+                                onEnd = {
+                                    onUpdateState(
+                                        latest.id,
+                                        null,
+                                        null,
+                                        null,
+                                        liveRotation ?: latest.rotation,
+                                        true,
+                                    )
+                                    liveRotation = null
+                                },
+                            )
+                        },
+                ) {
+                    Icon(
+                        painterResource(R.drawable.editor_rotate),
+                        contentDescription = stringResource(R.string.editor_rotate),
+                        tint = Color.Black,
+                        modifier = Modifier.size(with(density) { (handleSizePx * 0.55f).toDp() }),
+                    )
+                }
+                Surface(
+                    shape = RoundedCornerShape(14.dp),
+                    color = Color.White,
+                    shadowElevation = 3.dp,
+                    modifier = Modifier
+                        .zIndex(6f)
+                        .graphicsLayer {
+                            scaleX = 1f / z
+                            scaleY = 1f / z
+                            transformOrigin =
+                                androidx.compose.ui.graphics.TransformOrigin.Center
+                        }
+                        .offset {
+                            IntOffset(
+                                (cx - with(density) { 48.dp.toPx() }).roundToInt(),
+                                (cy - halfH - with(density) { 40.dp.toPx() / z })
+                                    .coerceAtLeast(with(density) { 4.dp.toPx() })
+                                    .roundToInt(),
+                            )
+                        },
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        IconButton(
+                            onClick = { onDuplicate(item.id) },
+                            modifier = Modifier.size(28.dp),
+                        ) {
+                            Icon(
+                                painterResource(R.drawable.editor_sticker_copy),
+                                contentDescription = stringResource(R.string.editor_sticker_copy),
+                                tint = Color.Black,
+                                modifier = Modifier.size(16.dp),
+                            )
+                        }
+                        IconButton(
+                            onClick = { onDelete(item.id) },
+                            modifier = Modifier.size(28.dp),
+                        ) {
+                            Icon(
+                                painterResource(R.drawable.delete),
+                                contentDescription = stringResource(R.string.editor_sticker_delete),
+                                tint = Color.Black,
+                                modifier = Modifier.size(16.dp),
                             )
                         }
                     }
@@ -1343,119 +1570,78 @@ fun EditorTextsLayer(
     }
 }
 
-private val IntSizeZero = androidx.compose.ui.unit.IntSize.Zero
+private fun textRotateOffset(point: Offset, degrees: Float): Offset {
+    val rad = Math.toRadians(degrees.toDouble())
+    val cos = kotlin.math.cos(rad).toFloat()
+    val sin = kotlin.math.sin(rad).toFloat()
+    return Offset(point.x * cos - point.y * sin, point.x * sin + point.y * cos)
+}
 
-@Composable
-private fun BoxScope.TextFrameChrome(
-    item: TextOverlay,
-    boxW: Float,
-    boxH: Float,
-    onUpdate: (Long, Float?, Float?, Float?, Float?, Boolean) -> Unit,
-    onDuplicate: (Long) -> Unit,
-    onDelete: (Long) -> Unit,
-) {
-    val latest by rememberUpdatedState(item)
-    val halfW by rememberUpdatedState(boxW / 2f)
-    val halfH by rememberUpdatedState(boxH / 2f)
-    listOf(
-        Alignment.TopStart to Offset(-1f, -1f),
-        Alignment.TopEnd to Offset(1f, -1f),
-        Alignment.BottomEnd to Offset(1f, 1f),
-        Alignment.BottomStart to Offset(-1f, 1f),
-    ).forEachIndexed { index, (alignment, corner) ->
-        Box(
-            Modifier
-                .align(alignment)
-                .offset(x = (corner.x * 11f).dp, y = (corner.y * 11f).dp)
-                .size(22.dp)
-                .zIndex(5f)
-                .clip(CircleShape)
-                .background(Color.White)
-                .border(1.dp, Color(0xFFBDBDBD), CircleShape)
-                .pointerInput(item.id, index) {
-                    var startScale = 1f
-                    var startRot = 0f
-                    var startAngle = 0f
-                    var startDist = 1f
-                    var finger = Offset.Zero
-                    detectDragGestures(
-                        onDragStart = {
-                            finger = Offset(corner.x * halfW, corner.y * halfH)
-                            startScale = latest.scale
-                            startRot = latest.rotation
-                            startDist = hypot(finger.x, finger.y).coerceAtLeast(1f)
-                            startAngle = atan2(finger.y, finger.x)
-                        },
-                        onDrag = { change, drag ->
-                            change.consume()
-                            finger += drag
-                            val dist = hypot(finger.x, finger.y).coerceAtLeast(1f)
-                            val angle = atan2(finger.y, finger.x)
-                            val deg = Math.toDegrees((angle - startAngle).toDouble()).toFloat()
-                            onUpdate(
-                                latest.id,
-                                null,
-                                null,
-                                (startScale * dist / startDist).coerceIn(0.35f, 4f),
-                                startRot + deg,
-                                false,
-                            )
-                        },
-                        onDragEnd = { onUpdate(item.id, null, null, null, null, true) },
-                        onDragCancel = { onUpdate(item.id, null, null, null, null, true) },
-                    )
-                },
-        )
-    }
-    Surface(
-        shape = RoundedCornerShape(14.dp),
-        color = Color.White,
-        shadowElevation = 3.dp,
-        modifier = Modifier
-            .align(Alignment.TopCenter)
-            .offset(y = (-40).dp)
-            .zIndex(6f),
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = { onDuplicate(item.id) }, modifier = Modifier.size(28.dp)) {
-                Icon(
-                    painterResource(R.drawable.editor_sticker_copy),
-                    contentDescription = stringResource(R.string.editor_sticker_copy),
-                    tint = Color.Black,
-                    modifier = Modifier.size(16.dp)
-                )
-            }
-            IconButton(onClick = { onDelete(item.id) }, modifier = Modifier.size(28.dp)) {
-                Icon(
-                    painterResource(R.drawable.delete),
-                    contentDescription = stringResource(R.string.editor_sticker_delete),
-                    tint = Color.Black,
-                    modifier = Modifier.size(16.dp)
-                )
-            }
-        }
-    }
+private fun textNormalizeAngleRad(delta: Float): Float {
+    var d = delta
+    val pi = Math.PI.toFloat()
+    while (d > pi) d -= 2f * pi
+    while (d < -pi) d += 2f * pi
+    return d
 }
 
 fun paintTextOverlay(canvas: AndroidCanvas, item: TextOverlay, width: Int, height: Int) {
-    val paint = TextPaint(AndroidPaint.ANTI_ALIAS_FLAG).apply {
-        typeface = typefaceOf(item.fontId)
-        textAlign = AndroidPaint.Align.LEFT
-        textSize = 54f * item.scale * (width / 1080f)
-        color = templateInk(item.templateId, item.color).toInt()
-        letterSpacing = fontOf(item.fontId).spacing
-    }
-    val maxWidth = (width * 0.72f).toInt().coerceAtLeast(1)
-    val layout = StaticLayout.Builder.obtain(item.text, 0, item.text.length, paint, maxWidth)
-        .setAlignment(Layout.Alignment.ALIGN_CENTER)
-        .build()
     canvas.save()
     canvas.translate(item.x * width, item.y * height)
     canvas.rotate(item.rotation)
-    canvas.translate(-layout.width / 2f, -layout.height / 2f)
-    if (item.outlined || item.styleId == "outlineBlue" || item.fontId == "giant" || item.fontId == "aemstel") {
+    drawTextOverlayContent(canvas, item, width, height)
+    canvas.restore()
+}
+
+/** Размер рамки текста (как в JPEG) в координатах кадра width×height. */
+fun measureTextOverlayBox(item: TextOverlay, width: Int, height: Int): Size {
+    val built = buildTextOverlayLayout(item, width)
+    return Size(built.boxW, built.boxH)
+}
+
+/**
+ * Рисует текст+шаблон с центром в (0,0) — тот же путь, что JPEG.
+ * Поворот item.rotation снаружи (Compose graphicsLayer / translate+rotate в paintTextOverlay).
+ */
+fun drawTextOverlayContent(canvas: AndroidCanvas, item: TextOverlay, width: Int, height: Int) {
+    val built = buildTextOverlayLayout(item, width)
+    val paint = built.paint
+    val layout = built.layout
+    val dateLayout = built.dateLayout
+    val contentW = built.contentW
+    val contentH = built.contentH
+    val boxW = built.boxW
+    val boxH = built.boxH
+    val maxWidth = built.maxWidth
+    val layoutW = layout.width.toFloat().coerceAtLeast(1f)
+    val dateLayoutW = dateLayout?.width?.toFloat()?.coerceAtLeast(1f) ?: layoutW
+
+    canvas.save()
+    if (item.templateId == "boom") canvas.rotate(-8f)
+    paintTemplateBackground(
+        canvas,
+        item.templateId,
+        -boxW / 2f,
+        -boxH / 2f,
+        boxW / 2f,
+        boxH / 2f,
+    )
+    canvas.translate(0f, -contentH / 2f)
+    var y = 0f
+    dateLayout?.let {
+        canvas.save()
+        canvas.translate(-dateLayoutW / 2f, y)
+        it.draw(canvas)
+        canvas.restore()
+        y += it.height
+    }
+    canvas.translate(-layoutW / 2f, y)
+    if (item.outlined || item.styleId == "outlineBlue" || item.fontId == "giant" || item.fontId == "aemstel" ||
+        item.templateId == "paint"
+    ) {
         paint.style = AndroidPaint.Style.STROKE
         paint.strokeWidth = paint.textSize * 0.06f
+        paint.shader = null
         val strokeLayout =
             StaticLayout.Builder.obtain(item.text, 0, item.text.length, paint, maxWidth)
                 .setAlignment(Layout.Alignment.ALIGN_CENTER)
@@ -1468,15 +1654,98 @@ fun paintTextOverlay(canvas: AndroidCanvas, item: TextOverlay, width: Int, heigh
         paint.shader = LinearGradient(
             0f,
             0f,
-            layout.width.toFloat(),
+            contentW,
             layout.height.toFloat(),
             colors,
             null,
             Shader.TileMode.CLAMP
         )
+    } else {
+        paint.shader = null
+        paint.color = templateInk(item.templateId, item.color).toInt()
     }
     layout.draw(canvas)
     canvas.restore()
+}
+
+private data class TextOverlayBuilt(
+    val paint: TextPaint,
+    val layout: StaticLayout,
+    val dateLayout: StaticLayout?,
+    val maxWidth: Int,
+    val contentW: Float,
+    val contentH: Float,
+    val boxW: Float,
+    val boxH: Float,
+)
+
+private fun buildTextOverlayLayout(item: TextOverlay, width: Int): TextOverlayBuilt {
+    val paint = TextPaint(AndroidPaint.ANTI_ALIAS_FLAG).apply {
+        typeface = typefaceOf(item.fontId)
+        textAlign = AndroidPaint.Align.LEFT
+        textSize = textOverlaySizePx(width.toFloat(), item.scale)
+        color = templateInk(item.templateId, item.color).toInt()
+        letterSpacing = fontOf(item.fontId).spacing
+    }
+    // До ~95% кадра — одна строка при увеличении; перенос только когда уже не влезает.
+    val wrapLimit = (width * 0.95f).toInt().coerceAtLeast(1)
+    val desired = if (item.text.isEmpty()) {
+        1
+    } else {
+        item.text.split('\n').maxOf { line ->
+            kotlin.math.ceil(
+                StaticLayout.getDesiredWidth(line.ifEmpty { " " }, paint).toDouble(),
+            ).toInt()
+        }.coerceAtLeast(1)
+    }
+    val maxWidth = minOf(desired + 2, wrapLimit).coerceAtLeast(1)
+    val layout = StaticLayout.Builder.obtain(item.text, 0, item.text.length, paint, maxWidth)
+        .setAlignment(Layout.Alignment.ALIGN_CENTER)
+        .build()
+
+    val datePaint = TextPaint(paint).apply {
+        textSize = paint.textSize * 0.78f
+        color = 0xFFFFFFFF.toInt()
+        typeface = Typeface.DEFAULT_BOLD
+        shader = null
+    }
+    val dateText = if (item.templateId == "date") {
+        val today = java.time.LocalDate.now()
+        "${today.year}/${today.monthValue}/${today.dayOfMonth}"
+    } else {
+        null
+    }
+    val dateLayout = dateText?.let {
+        val dateDesired = kotlin.math.ceil(StaticLayout.getDesiredWidth(it, datePaint).toDouble())
+            .toInt()
+            .coerceAtLeast(1)
+        val dateMax = minOf(dateDesired + 2, wrapLimit).coerceAtLeast(1)
+        StaticLayout.Builder.obtain(it, 0, it.length, datePaint, dateMax)
+            .setAlignment(Layout.Alignment.ALIGN_CENTER)
+            .build()
+    }
+    val contentW = maxOf(layoutTightWidth(layout), dateLayout?.let { layoutTightWidth(it) } ?: 0f)
+        .coerceAtLeast(1f)
+    val contentH = layout.height + (dateLayout?.height ?: 0).toFloat()
+    val (padH, padV) = templatePadPx(item.templateId, paint.textSize)
+    return TextOverlayBuilt(
+        paint = paint,
+        layout = layout,
+        dateLayout = dateLayout,
+        maxWidth = maxWidth,
+        contentW = contentW,
+        contentH = contentH,
+        boxW = contentW + padH * 2f,
+        boxH = contentH + padV * 2f,
+    )
+}
+
+private fun layoutTightWidth(layout: StaticLayout): Float {
+    var w = 0f
+    for (i in 0 until layout.lineCount) {
+        w = maxOf(w, layout.getLineWidth(i))
+    }
+    return w
 }
 
 private fun exportColors(styleId: String): IntArray? = when (styleId) {

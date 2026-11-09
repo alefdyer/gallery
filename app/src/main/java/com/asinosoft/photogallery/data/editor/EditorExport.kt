@@ -38,6 +38,7 @@ import com.asinosoft.photogallery.ui.editor.paintTextOverlay
 import com.asinosoft.photogallery.ui.editor.EditState
 import com.asinosoft.photogallery.ui.editor.FilterPreset
 import com.asinosoft.photogallery.ui.editor.PerspectiveQuad
+import com.asinosoft.photogallery.ui.editor.stickerTextSizePx
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.io.File
 import java.time.Instant
@@ -98,13 +99,15 @@ class EditorExport @Inject constructor(
             state.texts.forEach { paintTextOverlay(canvas, it, out.width, out.height) }
             state.stickers.forEach { s ->
                 textPaint.color = 0xFFFFFFFF.toInt()
-                textPaint.textSize = 72f * s.scale * (out.width / 1080f)
+                textPaint.textSize = stickerTextSizePx(out.width.toFloat(), s.scale)
                 val cx = s.x * out.width
                 val cy = s.y * out.height
+                val metrics = textPaint.fontMetrics
+                val baseline = cy - (metrics.ascent + metrics.descent) / 2f
                 canvas.save()
                 canvas.rotate(s.rotation, cx, cy)
                 if (s.flipHorizontal) canvas.scale(-1f, 1f, cx, cy)
-                canvas.drawText(s.emoji, cx, cy, textPaint)
+                canvas.drawText(s.emoji, cx, baseline, textPaint)
                 canvas.restore()
             }
             bmp = out
