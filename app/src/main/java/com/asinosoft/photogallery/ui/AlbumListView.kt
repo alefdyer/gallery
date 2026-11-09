@@ -40,10 +40,12 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -65,6 +67,7 @@ import androidx.compose.ui.draganddrop.DragAndDropTransferData
 import androidx.compose.ui.draganddrop.mimeTypes
 import androidx.compose.ui.draganddrop.toAndroidDragEvent
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
@@ -104,6 +107,7 @@ import com.asinosoft.photogallery.ui.component.NewAlbumPlaceholder
 import com.asinosoft.photogallery.ui.component.ScrollToTopButton
 import com.asinosoft.photogallery.ui.component.TIP_ALBUM_CATEGORY
 import com.asinosoft.photogallery.ui.component.TIP_ALBUM_DRAG
+import com.asinosoft.photogallery.ui.component.SystemAppIconShape
 import com.asinosoft.photogallery.ui.component.drawableRes
 import com.asinosoft.photogallery.ui.component.isTipSeen
 import com.asinosoft.photogallery.ui.component.rememberFeatureTip
@@ -125,7 +129,10 @@ fun AlbumListView(
     val scope = rememberCoroutineScope()
     val categories by model.albums.collectAsState()
     val remoteStorages by model.remoteStorages.collectAsState()
+    val systemCategoryTitles by model.systemCategoryTitles.collectAsState()
     val fetchingStorageIds by model.fetchingStorageIds.collectAsState()
+    val attentionStorageIds by model.attentionStorageIds.collectAsState()
+    var attentionDialog by remember { mutableStateOf<String?>(null) }
     val lazyListState = rememberLazyListState()
     var droppedAlbum by remember { mutableStateOf<Album?>(null) }
     var showNewCategoryDialog by remember { mutableStateOf(false) }
@@ -376,10 +383,19 @@ fun AlbumListView(
 
                 val storageInfo = category.category.storageIdOrNull()
                     ?.let { remoteStorages[it] }
+                val storageId = storageInfo?.storage?.id
+                val categoryTitle = storageInfo?.title
+                    ?: systemCategoryTitles[category.category.name]
+                    ?: model.categoryDisplayTitle(category.category)
+                val systemIcon = category.category.systemIconRes()
                 AlbumCategoriesRow(
                     category = category,
-                    title = storageInfo?.title ?: category.category.name(),
-                    titleIcon = storageInfo?.storage?.type?.drawableRes(),
+                    title = categoryTitle,
+                    titleIcon = storageInfo?.storage?.type?.drawableRes()
+                        ?: systemIcon,
+                    // Цветной телефон / логотипы — без tint; mail — монохром.
+                    titleIconTinted = systemIcon == R.drawable.mail,
+                    titleIconRounded = storageInfo != null,
                     cardSize = cardSize,
                     albumsPerRow = albumsPerRow,
                     highlighted = isDragActive && category == dropCategory,
@@ -403,11 +419,24 @@ fun AlbumListView(
                         menuCategoryId = null
                         renamingCategory = category.category
                     },
+                    canRename = category.category.canRename(),
                     onAlbumRenameClick = { album -> renamingAlbum = album },
                     onDragStart = { onCategoryDragStart(id) },
                     onDrag = ::onCategoryDrag,
                     onDragEnd = ::onCategoryDragEnd,
-                    showLoading = storageInfo?.storage?.id in fetchingStorageIds,
+                    showLoading = storageId != null && storageId in fetchingStorageIds,
+                    showAttention = storageId != null &&
+                            storageId in attentionStorageIds &&
+                            storageId !in fetchingStorageIds,
+                    onAttentionClick = storageId?.let { sid ->
+                        {
+                            attentionDialog = model.attentionMessage(sid)
+                                ?: tipContext.getString(
+                                    R.string.storage_reconnect_required,
+                                    storageInfo?.title ?: categoryTitle,
+                                )
+                        }
+                    },
                     showCategoryTip = isFirstCategory && categoryTip.visible,
                     onCategoryTipDismiss = categoryTip.dismiss,
                     showAlbumDragTip = isFirstCategory && albumDragTip.visible,
@@ -456,13 +485,26 @@ fun AlbumListView(
         val storageId = category.storageIdOrNull()
         val storageInfo = storageId?.let { remoteStorages[it] }
         val defaultTitle = storageId?.let { model.defaultStorageCategoryTitle(it) }
+            ?: category.defaultDisplayTitle()
         NewAlbumCategoryDialog(
             title = stringResource(R.string.rename_category),
-            initialName = storageInfo?.title ?: category.name,
+            initialName = storageInfo?.title ?: model.categoryDisplayTitle(category),
             confirmText = stringResource(R.string.save),
             resetToName = defaultTitle,
             onCreateCategory = { name -> model.renameCategory(category, name) },
             onDismiss = { renamingCategory = null }
+        )
+    }
+
+    attentionDialog?.let { message ->
+        AlertDialog(
+            onDismissRequest = { attentionDialog = null },
+            text = { Text(message) },
+            confirmButton = {
+                TextButton(onClick = { attentionDialog = null }) {
+                    Text(stringResource(R.string.close))
+                }
+            },
         )
     }
 
@@ -495,6 +537,8 @@ private fun AlbumCategoriesRow(
     category: CategoryWithAlbums,
     title: String,
     titleIcon: Int? = null,
+    titleIconTinted: Boolean = false,
+    titleIconRounded: Boolean = false,
     cardSize: Dp,
     albumsPerRow: Int,
     highlighted: Boolean,
@@ -509,11 +553,14 @@ private fun AlbumCategoriesRow(
     menuExpanded: Boolean,
     onMenuDismiss: () -> Unit,
     onRenameClick: () -> Unit,
+    canRename: Boolean = true,
     onAlbumRenameClick: (Album) -> Unit,
     onDragStart: () -> Unit,
     onDrag: (Float) -> Unit,
     onDragEnd: () -> Unit,
     showLoading: Boolean = false,
+    showAttention: Boolean = false,
+    onAttentionClick: (() -> Unit)? = null,
     showCategoryTip: Boolean = false,
     onCategoryTipDismiss: () -> Unit = {},
     showAlbumDragTip: Boolean = false,
@@ -533,9 +580,13 @@ private fun AlbumCategoriesRow(
             SectionTitle(
                 title = title,
                 titleIcon = titleIcon,
+                titleIconTinted = titleIconTinted,
+                titleIconRounded = titleIconRounded,
                 count = category.albums.size,
                 titleMaxWidth = cardSize * 2 + CARD_SPACING,
                 showLoading = showLoading,
+                showAttention = showAttention,
+                onAttentionClick = onAttentionClick,
                 expanded = expanded.takeIf { expandable },
                 onToggleExpand = onToggleExpand,
                 modifier = Modifier
@@ -567,8 +618,7 @@ private fun AlbumCategoriesRow(
             ) {
                 FloatingMenuItem(
                     text = stringResource(R.string.rename),
-                    enabled = !category.category.isSystem() ||
-                            category.category.isStorageCategory(),
+                    enabled = canRename,
                     onClick = onRenameClick
                 )
                 if (expandable) {
@@ -792,8 +842,12 @@ private fun SectionTitle(
     count: Int? = null,
     modifier: Modifier = Modifier,
     titleIcon: Int? = null,
+    titleIconTinted: Boolean = false,
+    titleIconRounded: Boolean = false,
     titleMaxWidth: Dp? = null,
     showLoading: Boolean = false,
+    showAttention: Boolean = false,
+    onAttentionClick: (() -> Unit)? = null,
     expanded: Boolean? = null,
     onToggleExpand: () -> Unit = {},
 ) {
@@ -812,9 +866,15 @@ private fun SectionTitle(
             Image(
                 painter = painterResource(titleIcon),
                 contentDescription = null,
+                colorFilter = if (titleIconTinted) {
+                    ColorFilter.tint(MaterialTheme.colorScheme.onBackground)
+                } else {
+                    null
+                },
                 modifier = Modifier
                     .padding(end = 8.dp)
                     .size(24.dp)
+                    .then(if (titleIconRounded) Modifier.clip(SystemAppIconShape) else Modifier)
             )
         }
         Text(
@@ -862,6 +922,21 @@ private fun SectionTitle(
                     .size(18.dp),
                 strokeWidth = 2.dp
             )
+        } else if (showAttention) {
+            Icon(
+                painter = painterResource(R.drawable.warning_amber),
+                contentDescription = stringResource(R.string.storage_needs_reauth),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier
+                    .padding(start = 4.dp)
+                    .clip(RoundedCornerShape(50))
+                    .then(
+                        if (onAttentionClick != null) Modifier.clickable(onClick = onAttentionClick)
+                        else Modifier
+                    )
+                    .padding(4.dp)
+                    .size(24.dp)
+            )
         }
     }
 }
@@ -901,6 +976,23 @@ private fun LazyListState.keyAt(event: DragAndDropEvent): Any? {
     return layoutInfo.visibleItemsInfo.firstOrNull { item ->
         y >= item.offset && y <= item.offset + item.size
     }?.key
+}
+
+private fun AlbumCategory.canRename(): Boolean =
+    !isSystem() || isStorageCategory() ||
+            name == ":other" || name == AlbumCategory.MESSENGERS_NAME
+
+private fun AlbumCategory.systemIconRes(): Int? = when (name) {
+    ":other" -> R.drawable.smartphone
+    AlbumCategory.MESSENGERS_NAME -> R.drawable.mail
+    else -> null
+}
+
+@Composable
+private fun AlbumCategory.defaultDisplayTitle(): String = when (name) {
+    ":other" -> stringResource(R.string.other)
+    AlbumCategory.MESSENGERS_NAME -> stringResource(R.string.messengers)
+    else -> name
 }
 
 private const val HEADER_KEY = "header"

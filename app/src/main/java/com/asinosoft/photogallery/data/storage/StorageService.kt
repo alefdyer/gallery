@@ -3,13 +3,14 @@ package com.asinosoft.photogallery.data.storage
 import android.accounts.Account
 import android.app.PendingIntent
 import android.content.Context
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import android.util.Log
 import com.asinosoft.photogallery.R
 import com.asinosoft.photogallery.data.AlbumCategory
 import com.asinosoft.photogallery.data.AlbumDao
 import com.asinosoft.photogallery.data.MediaDao
 import com.asinosoft.photogallery.data.MediaService
-import com.asinosoft.photogallery.data.MessageBus
 import com.asinosoft.photogallery.data.ThumbnailCache
 import com.asinosoft.photogallery.data.storage.dropbox.DropboxApi
 import com.asinosoft.photogallery.data.storage.gdrive.GoogleDriveGalleryAuth
@@ -53,6 +54,11 @@ class StorageService @Inject constructor(
     val fetchingTypes: StateFlow<Set<StorageType>> = fetchingTypesFlow
     private val fetchingStorageIdsFlow = MutableStateFlow<Set<Long>>(emptySet())
     val fetchingStorageIds: StateFlow<Set<Long>> = fetchingStorageIdsFlow
+
+    /** Нужно переподключить / скан упал — жёлтая ! на месте крутилки. */
+    private val attentionStorageIdsFlow = MutableStateFlow<Set<Long>>(emptySet())
+    val attentionStorageIds: StateFlow<Set<Long>> = attentionStorageIdsFlow
+    private val attentionMessages = mutableMapOf<Long, String>()
 
     /** Отдельный mutex на хранилище — локальный скан не блокирует облако. */
     private val fetchMutexes = mutableMapOf<Long, Mutex>()
@@ -134,10 +140,30 @@ class StorageService @Inject constructor(
                 .onFailure { ex ->
                     Log.e(TAG, "Fetch failed: ${storage.type} id=${storage.id} reason=$reason", ex)
                     val label = storage.categoryTitle(context)
-                    MessageBus.emit(
-                        context.getString(R.string.storage_refresh_failed, label)
+                    markStorageAttention(
+                        storage.id,
+                        context.getString(R.string.storage_refresh_failed, label),
                     )
                 }
+        }
+    }
+
+    fun attentionMessage(storageId: Long): String? = synchronized(attentionMessages) {
+        attentionMessages[storageId]
+    }
+
+    private fun markStorageAttention(storageId: Long, message: String) {
+        synchronized(attentionMessages) {
+            attentionMessages[storageId] = message
+            attentionStorageIdsFlow.value = attentionMessages.keys.toSet()
+        }
+    }
+
+    private fun clearStorageAttention(storageId: Long) {
+        synchronized(attentionMessages) {
+            if (attentionMessages.remove(storageId) != null) {
+                attentionStorageIdsFlow.value = attentionMessages.keys.toSet()
+            }
         }
     }
 
@@ -157,6 +183,18 @@ class StorageService @Inject constructor(
             )
             return
         }
+        // Без сети не крутим спиннер — сразу жёлтая ! у категории облака.
+        if (storage.type != StorageType.LOCAL && !isNetworkAvailable()) {
+            markStorageAttention(
+                storage.id,
+                context.getString(
+                    R.string.storage_offline,
+                    storage.categoryTitle(context),
+                ),
+            )
+            Log.d(TAG, "Skip sync offline id=${storage.id} type=${storage.type}")
+            return
+        }
 
         beginFetching(storage)
         try {
@@ -172,12 +210,23 @@ class StorageService @Inject constructor(
                 if (reason == SyncReason.AppOpen && !fresh.allowsAutoSync()) {
                     return@withLock
                 }
-                fresh = refreshOAuthAccessToken(fresh) ?: return@withLock
+                fresh = refreshOAuthAccessToken(fresh) ?: run {
+                    if (attentionMessage(storage.id) == null) {
+                        markStorageAttention(
+                            storage.id,
+                            context.getString(
+                                R.string.storage_reconnect_required,
+                                storage.categoryTitle(context),
+                            ),
+                        )
+                    }
+                    return@withLock
+                }
                 storageProviderRegistry.invalidate(fresh.id)
                 val provider = storageProviderRegistry.getStorageProvider(fresh.id)
                 (provider as? FolderListingScan)?.setFastStampCheck(reason != SyncReason.Manual)
                 var newCursor: String? = null
-                measureTimeMillis {
+            measureTimeMillis {
                     Log.i(
                         TAG,
                         "Update storage: ${fresh.type} id=${fresh.id} reason=$reason " +
@@ -185,7 +234,7 @@ class StorageService @Inject constructor(
                                 "fast=${reason != SyncReason.Manual}",
                     )
                     newCursor = mediaService.update(provider)
-                }.also {
+            }.also {
                     Log.i(TAG, "Updated ${fresh.type} id=${fresh.id} in $it ms")
                 }
                 storageDao.upsert(
@@ -194,6 +243,7 @@ class StorageService @Inject constructor(
                         syncCursor = newCursor,
                     )
                 )
+                clearStorageAttention(fresh.id)
             }
         } finally {
             endFetching(storage)
@@ -328,6 +378,7 @@ class StorageService @Inject constructor(
         storageDao.upsert(updated)
         storageProviderRegistry.invalidate(storageId)
         storageAuthProvider.refresh()
+        clearStorageAttention(storageId)
         Log.i(TAG, "Applied Google Drive token for storage $storageId")
         if (retryFetch) enqueueFetch(updated, force = true, reason = SyncReason.Manual)
     }
@@ -460,11 +511,12 @@ class StorageService @Inject constructor(
                     if (pending != null) {
                         offerDriveReauth(storage.id, pending)
                     } else {
-                        MessageBus.emit(
+                        markStorageAttention(
+                            storage.id,
                             context.getString(
                                 R.string.storage_reconnect_required,
-                                storage.categoryTitle(context)
-                            )
+                                storage.categoryTitle(context),
+                            ),
                         )
                     }
                     return@withContext null
@@ -505,11 +557,12 @@ class StorageService @Inject constructor(
                 if (!storage.password.isNullOrBlank()) {
                     return@withContext storage
                 }
-                MessageBus.emit(
+                markStorageAttention(
+                    storage.id,
                     context.getString(
                         R.string.storage_reconnect_required,
-                        storage.categoryTitle(context)
-                    )
+                        storage.categoryTitle(context),
+                    ),
                 )
                 null
             }
@@ -556,6 +609,13 @@ class StorageService @Inject constructor(
         fetchingStorageIdsFlow.value = fetchingRefCounts.keys.toSet()
         fetchingTypesFlow.value = fetchingTypesRefCounts.keys.toSet()
         fetchingFlow.value = fetchingRefCounts.isNotEmpty()
+    }
+
+    private fun isNetworkAvailable(): Boolean {
+        val cm = context.getSystemService(ConnectivityManager::class.java) ?: return true
+        val network = cm.activeNetwork ?: return false
+        val caps = cm.getNetworkCapabilities(network) ?: return false
+        return caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
     }
 
     private companion object {

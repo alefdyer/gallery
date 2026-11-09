@@ -129,8 +129,9 @@
     <string name="storage_check_authorization_failed">認証に失敗しました</string>
     <string name="storage_refresh_failed">%1$sを更新できませんでした。「ネットワーク」でストレージを再接続してください。</string>
     <string name="storage_reconnect_required">%1$sのサインインを更新できませんでした。もう一度試すか、「ネットワーク」で再接続してください。</string>
+    <string name="storage_offline">インターネットがありません — %1$sを更新できません。接続して再試行してください。</string>
     <string name="storage_check_unknown_error">エラー: %1$s</string>
-    <string name="other">その他</string>
+    <string name="other">ローカル</string>
     <string name="messengers">メッセンジャー</string>
     <string name="favorites">お気に入り</string>
     <string name="add_to_favorites">お気に入りに追加</string>

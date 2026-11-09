@@ -129,8 +129,9 @@
     <string name="storage_check_authorization_failed">فشل التفويض</string>
     <string name="storage_refresh_failed">تعذّر تحديث %1$s. أعد توصيل التخزين في «الشبكة».</string>
     <string name="storage_reconnect_required">تعذّر تحديث تسجيل الدخول إلى %1$s. حاول مرة أخرى أو أعد الاتصال في «الشبكة».</string>
+    <string name="storage_offline">لا يوجد إنترنت — تعذّر تحديث %1$s. اتصل وحاول مرة أخرى.</string>
     <string name="storage_check_unknown_error">خطأ: %1$s</string>
-    <string name="other">أخرى</string>
+    <string name="other">محلي</string>
     <string name="messengers">المراسلات</string>
     <string name="favorites">المفضلة</string>
     <string name="add_to_favorites">إضافة إلى المفضلة</string>

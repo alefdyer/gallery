@@ -3,9 +3,7 @@
     android:height="64dp"
     android:viewportWidth="64"
     android:viewportHeight="64">
-  <path
-      android:pathData="M32,32m-32,0a32,32 0,1 1,64 0a32,32 0,1 1,-64 0"
-      android:fillColor="#E0995E"/>
+  <!-- Круглый фон прозрачный — только телефон -->
   <path
       android:pathData="M44,48c0,2.2 -1.8,4 -4,4H24c-2.2,0 -4,-1.8 -4,-4V16c0,-2.2 1.8,-4 4,-4h16c2.2,0 4,1.8 4,4V48z"
       android:strokeAlpha="0.2"

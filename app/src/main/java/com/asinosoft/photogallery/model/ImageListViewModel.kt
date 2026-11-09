@@ -319,7 +319,9 @@ class ImageListViewModel @Inject constructor(
                 )
                 val storageIcon = category?.let { resolveCategorySubtitleIcon(it) }
                 albumCategorySubtitleIcon.emit(storageIcon ?: R.drawable.folder)
-                albumCategorySubtitleIconTinted.emit(storageIcon == null)
+                albumCategorySubtitleIconTinted.emit(
+                    storageIcon == null || category?.name == AlbumCategory.MESSENGERS_NAME
+                )
                 album.emit(value)
             }
 
@@ -390,6 +392,30 @@ class ImageListViewModel @Inject constructor(
 
     fun clearFilters() = viewModelScope.launch {
         applyActiveFilters(setOf())
+    }
+
+    /** Назад при нестандартном фильтре: вернуть дефолт, а не «показать всё». */
+    fun restoreDefaultOrClearFilters() = viewModelScope.launch {
+        val saved = savedDefaultFilters.value ?: readDefaultAppFilters()
+        if (saved != null) {
+            savedDefaultFilters.value = saved
+            applyActiveFilters(saved)
+        } else {
+            applyActiveFilters(setOf())
+        }
+    }
+
+    /**
+     * После возврата в приложение: снова применить сохранённый дефолт
+     * (иначе после «назад» остаётся «все приложения» до kill процесса).
+     */
+    fun restoreDefaultAppFiltersOnResume() {
+        if (albumId != null || favoritesOnly) return
+        val saved = readDefaultAppFilters()
+        savedDefaultFilters.value = saved
+        if (saved != null && activeFilters.value != saved) {
+            viewModelScope.launch { applyActiveFilters(saved) }
+        }
     }
 
     fun hideAllFilters() = viewModelScope.launch {
@@ -645,6 +671,8 @@ class ImageListViewModel @Inject constructor(
 
     private suspend fun resolveCategorySubtitleIcon(category: AlbumCategory): Int? {
         val storageId = category.storageIdOrNull() ?: return when (category.name) {
+            ":other" -> R.drawable.smartphone
+            AlbumCategory.MESSENGERS_NAME -> R.drawable.mail
             AlbumCategory.WEBDAV_NAME -> R.drawable.webdav
             else -> null
         }

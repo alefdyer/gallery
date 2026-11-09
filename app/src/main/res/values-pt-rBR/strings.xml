@@ -129,8 +129,9 @@
     <string name="storage_check_authorization_failed">Falha na autorização</string>
     <string name="storage_refresh_failed">Não foi possível atualizar %1$s. Reconecte o armazenamento em «Rede».</string>
     <string name="storage_reconnect_required">Não foi possível atualizar o login de %1$s. Tente novamente ou reconecte em «Rede».</string>
+    <string name="storage_offline">Sem internet — não foi possível atualizar %1$s. Conecte-se e tente novamente.</string>
     <string name="storage_check_unknown_error">Erro: %1$s</string>
-    <string name="other">Outros</string>
+    <string name="other">Local</string>
     <string name="messengers">Mensageiros</string>
     <string name="favorites">Favoritos</string>
     <string name="add_to_favorites">Adicionar aos favoritos</string>

@@ -129,8 +129,9 @@
     <string name="storage_check_authorization_failed">Error de autorización</string>
     <string name="storage_refresh_failed">No se pudo actualizar %1$s. Reconecta el almacenamiento en «Red».</string>
     <string name="storage_reconnect_required">No se pudo actualizar el inicio de sesión de %1$s. Inténtalo de nuevo o reconecta en «Red».</string>
+    <string name="storage_offline">Sin internet — no se puede actualizar %1$s. Conéctate e inténtalo de nuevo.</string>
     <string name="storage_check_unknown_error">Error: %1$s</string>
-    <string name="other">Otros</string>
+    <string name="other">Local</string>
     <string name="messengers">Mensajeros</string>
     <string name="favorites">Favoritos</string>
     <string name="add_to_favorites">Agregar a favoritos</string>

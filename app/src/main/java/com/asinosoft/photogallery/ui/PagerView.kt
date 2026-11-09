@@ -166,7 +166,18 @@ fun PagerView(
     val dismissDrag = remember { DismissDragState() }
     var showControls by remember { mutableStateOf(true) }
     val dragging by remember { derivedStateOf { dismissDrag.isDragging } }
-    val controlsVisible = showControls && !dragging && !openingTransition
+    // Shared-element иногда «залипает» в opening — не прячем панели навсегда.
+    var openingUiSettled by remember { mutableStateOf(!openingTransition) }
+    LaunchedEffect(openingTransition) {
+        if (!openingTransition) {
+            openingUiSettled = true
+        } else {
+            openingUiSettled = false
+            kotlinx.coroutines.delay(450)
+            openingUiSettled = true
+        }
+    }
+    val controlsVisible = showControls && !dragging && openingUiSettled
     val lightTheme = MaterialTheme.colorScheme.background.luminance() > 0.5f
     val lightBackground = lightTheme && showControls
     StatusBarIconAppearance(if (lightTheme && lightBackground) true else null)

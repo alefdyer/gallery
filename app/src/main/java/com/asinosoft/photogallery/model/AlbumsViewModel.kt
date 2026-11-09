@@ -6,6 +6,7 @@ import androidx.core.content.edit
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.asinosoft.photogallery.GalleryApp
+import com.asinosoft.photogallery.R
 import com.asinosoft.photogallery.data.Album
 import com.asinosoft.photogallery.data.AlbumCategory
 import com.asinosoft.photogallery.data.AppAnalytics
@@ -65,8 +66,27 @@ class AlbumsViewModel @Inject constructor(
     private val expandedCategoriesFlow = MutableStateFlow(alwaysExpandedCategoriesFlow.value)
     val expandedCategories: StateFlow<Set<Long>> = expandedCategoriesFlow
     private val storageTitleOverrides = MutableStateFlow(loadStorageTitleOverrides())
+    private val systemCategoryTitleOverrides =
+        MutableStateFlow(loadSystemCategoryTitleOverrides())
+    val systemCategoryTitles: StateFlow<Map<String, String>> = systemCategoryTitleOverrides
 
     val fetchingStorageIds: StateFlow<Set<Long>> = storageService.fetchingStorageIds
+    val attentionStorageIds: StateFlow<Set<Long>> = storageService.attentionStorageIds
+
+    fun attentionMessage(storageId: Long): String? = storageService.attentionMessage(storageId)
+
+    fun categoryDisplayTitle(category: AlbumCategory): String {
+        systemCategoryTitleOverrides.value[category.name]?.takeIf { it.isNotBlank() }
+            ?.let { return it }
+        return defaultSystemCategoryTitle(category.name) ?: category.name
+    }
+
+    private fun defaultSystemCategoryTitle(key: String): String? = when (key) {
+        ":other" -> context.getString(R.string.other)
+        AlbumCategory.MESSENGERS_NAME -> context.getString(R.string.messengers)
+        AlbumCategory.WEBDAV_NAME -> context.getString(R.string.storage_type_webdav)
+        else -> null
+    }
 
     val remoteStorages: StateFlow<Map<Long, StorageCategoryInfo>> =
         combine(storageDao.getStorages(), storageTitleOverrides) { storages, overrides ->
@@ -154,12 +174,28 @@ class AlbumsViewModel @Inject constructor(
             renameStorageCategoryTitle(storageId, newName)
             return@launch
         }
+        if (category.name == ":other" || category.name == AlbumCategory.MESSENGERS_NAME) {
+            renameSystemCategoryTitle(category.name, newName)
+            return@launch
+        }
         if (category.name.startsWith(":")) return@launch
         if (newName == category.name) return@launch
 
         runCatching { albumDao.renameCategory(category.id, newName) }
             .onSuccess { analytics.categoryRenamed() }
             .onFailure { Log.w(GalleryApp.TAG, "Can't rename category ${category.id}", it) }
+    }
+
+    private fun renameSystemCategoryTitle(categoryKey: String, title: String) {
+        val default = defaultSystemCategoryTitle(categoryKey) ?: return
+        val trimmed = title.trim()
+        if (trimmed.isEmpty()) return
+        prefs.edit {
+            if (trimmed == default) remove(systemCategoryTitleKey(categoryKey))
+            else putString(systemCategoryTitleKey(categoryKey), trimmed)
+        }
+        systemCategoryTitleOverrides.value = loadSystemCategoryTitleOverrides()
+        analytics.categoryRenamed()
     }
 
     /** Имя категории хранилища по умолчанию (без пользовательского override). */
@@ -279,12 +315,22 @@ class AlbumsViewModel @Inject constructor(
             id to title
         }.toMap()
 
+    private fun loadSystemCategoryTitleOverrides(): Map<String, String> =
+        prefs.all.mapNotNull { (key, value) ->
+            if (!key.startsWith(KEY_SYSTEM_TITLE_PREFIX)) return@mapNotNull null
+            val name = key.removePrefix(KEY_SYSTEM_TITLE_PREFIX).ifBlank { return@mapNotNull null }
+            val title = (value as? String)?.takeIf { it.isNotBlank() } ?: return@mapNotNull null
+            name to title
+        }.toMap()
+
     private companion object {
         const val PREFS_NAME = "album_categories"
         const val KEY_ORDER = "order"
         const val KEY_EXPANDED = "expanded"
         const val KEY_TITLE_PREFIX = "title_"
+        const val KEY_SYSTEM_TITLE_PREFIX = "system_title_"
 
         fun storageTitleKey(storageId: Long) = "$KEY_TITLE_PREFIX$storageId"
+        fun systemCategoryTitleKey(categoryKey: String) = "$KEY_SYSTEM_TITLE_PREFIX$categoryKey"
     }
 }

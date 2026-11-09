@@ -32,6 +32,12 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.navigation.NavType
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
 import com.asinosoft.photogallery.data.EXTERNAL_STORAGE_ID
 import com.asinosoft.photogallery.data.Image
 import com.asinosoft.photogallery.data.Media
@@ -46,6 +52,8 @@ import com.asinosoft.photogallery.ui.PagerView
 import com.asinosoft.photogallery.ui.VideoView
 import com.asinosoft.photogallery.ui.component.rememberAutoplayVideo
 import com.asinosoft.photogallery.ui.component.rememberVideoSound
+import com.asinosoft.photogallery.ui.editor.EditorScreen
+import com.asinosoft.photogallery.ui.editor.StickerOrderScreen
 import com.asinosoft.photogallery.ui.theme.GalleryTheme
 import dagger.hilt.android.AndroidEntryPoint
 
@@ -62,6 +70,7 @@ class ViewerActivity : ComponentActivity() {
             finish()
             return
         }
+        val openEditor = Intent.ACTION_EDIT == intent.action
 
         if (hasMediaPermissions()) {
             viewer.resolve(requireNotNull(media.uri))
@@ -86,18 +95,60 @@ class ViewerActivity : ComponentActivity() {
                             intent.putExtra("imageId", current.mediaId)
                             current.albumId?.let { intent.putExtra("albumId", it) }
                         }
-                        PagerView(
-                            onAlbumClick = { album ->
-                                startActivity(
-                                    Intent(this, MainActivity::class.java)
-                                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
-                                        .putExtra(MainActivity.EXTRA_ALBUM_ID, album.id)
-                                )
-                            },
-                            onClose = ::finish
-                        )
+                        if (openEditor) {
+                            ExternalEditorHost(
+                                mediaId = current.mediaId,
+                                onClose = ::finish,
+                            )
+                        } else {
+                            PagerView(
+                                onAlbumClick = { album ->
+                                    startActivity(
+                                        Intent(this, MainActivity::class.java)
+                                            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                                            .putExtra(MainActivity.EXTRA_ALBUM_ID, album.id)
+                                    )
+                                },
+                                onClose = ::finish
+                            )
+                        }
                     }
                 }
+            }
+        }
+    }
+
+    @Composable
+    private fun ExternalEditorHost(mediaId: Long, onClose: () -> Unit) {
+        val nav = rememberNavController()
+        NavHost(
+            navController = nav,
+            startDestination = "editor/$mediaId",
+            modifier = Modifier.fillMaxSize(),
+        ) {
+            composable(
+                "editor/{mediaId}",
+                arguments = listOf(navArgument("mediaId") { type = NavType.LongType }),
+            ) { entry ->
+                val id = entry.arguments?.getLong("mediaId") ?: mediaId
+                EditorScreen(
+                    onClose = onClose,
+                    onOpenStickerOrder = { nav.navigate("editor/$id/stickers/order") },
+                    onSaved = { onClose() },
+                )
+            }
+            composable(
+                "editor/{mediaId}/stickers/order",
+                arguments = listOf(navArgument("mediaId") { type = NavType.LongType }),
+            ) { entry ->
+                val id = entry.arguments?.getLong("mediaId") ?: mediaId
+                val parentEntry = remember(entry) {
+                    nav.getBackStackEntry("editor/$id")
+                }
+                StickerOrderScreen(
+                    onClose = nav::navigateUp,
+                    model = hiltViewModel(parentEntry),
+                )
             }
         }
     }

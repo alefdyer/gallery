@@ -191,7 +191,7 @@ fun ImageListView(
 
     BackHandler(
         enabled = filters.any { !it.enabled } && !isDefaultAppFilter,
-        onBack = model::clearFilters
+        onBack = model::restoreDefaultOrClearFilters
     )
 
     var showAppsPanel by remember { mutableStateOf(false) }

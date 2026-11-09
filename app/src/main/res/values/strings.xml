@@ -130,9 +130,10 @@
     <string name="storage_check_authorization_failed">Authorization failed</string>
     <string name="storage_refresh_failed">Couldn\'t refresh %1$s. Reconnect the storage in Network.</string>
     <string name="storage_reconnect_required">Could not refresh %1$s sign-in. Try again or reconnect in Network.</string>
+    <string name="storage_offline">No internet — can\'t update %1$s. Connect and try again.</string>
     <string name="storage_check_unknown_error">Error: %1$s</string>
     <string name="storage_delete_impossible">Deletion from %1$s is not possible!</string>
-    <string name="other">Other</string>
+    <string name="other">Local</string>
     <string name="messengers">Messengers</string>
     <string name="favorites">Favorites</string>
     <string name="add_to_favorites">Add to favorites</string>

@@ -129,9 +129,10 @@
     <string name="storage_check_authorization_failed">Ошибка авторизации</string>
     <string name="storage_refresh_failed">Не удалось обновить %1$s. Подключите хранилище заново в «Сеть».</string>
     <string name="storage_reconnect_required">Не удалось обновить вход в %1$s. Попробуйте ещё раз или переподключите в «Сеть».</string>
+    <string name="storage_offline">Нет интернета — не удалось обновить %1$s. Подключитесь и попробуйте снова.</string>
     <string name="storage_check_unknown_error">Ошибка: %1$s</string>
     <string name="storage_delete_impossible">Удаление из %1$s невозможно!</string>
-    <string name="other">Прочее</string>
+    <string name="other">Локально</string>
     <string name="messengers">Мессенджеры</string>
     <string name="favorites">Избранное</string>
     <string name="add_to_favorites">Добавить в избранное</string>

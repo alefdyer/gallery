@@ -11,6 +11,7 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -27,12 +28,16 @@ import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.LifecycleOwner
 import com.asinosoft.photogallery.R
 import com.asinosoft.photogallery.data.Album
 import com.asinosoft.photogallery.data.Media
@@ -68,6 +73,17 @@ fun MainView(
     val pagerState = rememberPagerState { 2 }
     val coroutineScope = rememberCoroutineScope()
     val selection by model.selection.collectAsState()
+    // Activity lifecycle: только возврат из фона/другого activity, не уход на pager в NavHost.
+    val activityLifecycleOwner = LocalContext.current as LifecycleOwner
+    DisposableEffect(activityLifecycleOwner, model) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                model.restoreDefaultAppFiltersOnResume()
+            }
+        }
+        activityLifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { activityLifecycleOwner.lifecycle.removeObserver(observer) }
+    }
 
     var navbarHeight by remember { mutableFloatStateOf(0f) }
     var navbarOffset by remember { mutableFloatStateOf(0f) }
