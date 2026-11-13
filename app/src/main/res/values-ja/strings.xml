@@ -79,7 +79,7 @@
     <string name="storage_terms_of_use">利用規約</string>
     <string name="storage_terms_of_use_url">https://asinosoft.ru/gallery_terms_of_use.html</string>
     <string name="storage_password_encrypted_hint">パスワードはこの端末内に暗号化して保存され、この端末の外へ送信されることはありません。</string>
-    <string name="share_app_text">Galleryを試す: https://play.google.com/store/apps/details?id=com.asinosoft.gallery</string>
+    <string name="share_app_text">Galleryを試す: https://play.google.com/store/apps/details?id=%1$s</string>
     <string name="share">共有</string>
     <string name="video_loading">動画を読み込み中…</string>
     <string name="video_download">ダウンロード</string>

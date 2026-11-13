@@ -79,7 +79,7 @@
     <string name="storage_terms_of_use">شروط الاستخدام</string>
     <string name="storage_terms_of_use_url">https://asinosoft.ru/gallery_terms_of_use.html</string>
     <string name="storage_password_encrypted_hint">تُخزَّن كلمة المرور مشفّرة محليًا على هذا الهاتف ولا تُرسَل أبدًا خارج هذا الجهاز.</string>
-    <string name="share_app_text">جرّب Gallery: https://play.google.com/store/apps/details?id=com.asinosoft.gallery</string>
+    <string name="share_app_text">جرّب Gallery: https://play.google.com/store/apps/details?id=%1$s</string>
     <string name="share">مشاركة</string>
     <string name="video_loading">جارٍ تحميل الفيديو…</string>
     <string name="video_download">تنزيل</string>

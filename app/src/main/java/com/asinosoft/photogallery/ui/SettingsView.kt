@@ -171,7 +171,10 @@ fun SettingsView(
                                         type = "text/plain"
                                         putExtra(
                                             Intent.EXTRA_TEXT,
-                                            resources.getString(R.string.share_app_text)
+                                            resources.getString(
+                                                R.string.share_app_text,
+                                                BuildConfig.APPLICATION_ID,
+                                            )
                                         )
                                     },
                                     resources.getString(R.string.recommend_friends)

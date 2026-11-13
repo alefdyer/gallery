@@ -79,7 +79,7 @@
     <string name="storage_terms_of_use">Condiciones de uso</string>
     <string name="storage_terms_of_use_url">https://asinosoft.ru/gallery_terms_of_use.html</string>
     <string name="storage_password_encrypted_hint">La contraseña se guarda cifrada localmente en este teléfono y nunca se envía fuera de este dispositivo.</string>
-    <string name="share_app_text">Prueba Gallery: https://play.google.com/store/apps/details?id=com.asinosoft.gallery</string>
+    <string name="share_app_text">Prueba Gallery: https://play.google.com/store/apps/details?id=%1$s</string>
     <string name="share">Compartir</string>
     <string name="video_loading">Cargando vídeo…</string>
     <string name="video_download">Descargar</string>

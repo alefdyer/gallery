@@ -79,7 +79,7 @@
     <string name="storage_terms_of_use">उपयोग की शर्तें</string>
     <string name="storage_terms_of_use_url">https://asinosoft.ru/gallery_terms_of_use.html</string>
     <string name="storage_password_encrypted_hint">पासवर्ड इस फ़ोन पर एन्क्रिप्टेड रूप में स्थानीय रूप से रखा जाता है और इस डिवाइस के बाहर कभी नहीं भेजा जाता।</string>
-    <string name="share_app_text">Gallery आज़माएँ: https://play.google.com/store/apps/details?id=com.asinosoft.gallery</string>
+    <string name="share_app_text">Gallery आज़माएँ: https://play.google.com/store/apps/details?id=%1$s</string>
     <string name="share">शेयर करें</string>
     <string name="video_loading">वीडियो लोड हो रहा है…</string>
     <string name="video_download">डाउनलोड करें</string>

@@ -79,7 +79,7 @@
     <string name="storage_terms_of_use">Condizioni d\'uso</string>
     <string name="storage_terms_of_use_url">https://asinosoft.ru/gallery_terms_of_use.html</string>
     <string name="storage_password_encrypted_hint">La password è memorizzata in forma crittografata localmente su questo telefono e non viene mai inviata al di fuori di questo dispositivo.</string>
-    <string name="share_app_text">Prova Gallery: https://play.google.com/store/apps/details?id=com.asinosoft.gallery</string>
+    <string name="share_app_text">Prova Gallery: https://play.google.com/store/apps/details?id=%1$s</string>
     <string name="share">Condividi</string>
     <string name="video_loading">Caricamento del video…</string>
     <string name="video_download">Scarica</string>

@@ -79,7 +79,7 @@
     <string name="storage_terms_of_use">使用条款</string>
     <string name="storage_terms_of_use_url">https://asinosoft.ru/gallery_terms_of_use.html</string>
     <string name="storage_password_encrypted_hint">密码以加密形式仅保存在这台手机本地，绝不会发送到此设备之外。</string>
-    <string name="share_app_text">试试 Gallery：https://play.google.com/store/apps/details?id=com.asinosoft.gallery</string>
+    <string name="share_app_text">试试 Gallery：https://play.google.com/store/apps/details?id=%1$s</string>
     <string name="share">分享</string>
     <string name="video_loading">正在加载视频…</string>
     <string name="video_download">下载</string>
