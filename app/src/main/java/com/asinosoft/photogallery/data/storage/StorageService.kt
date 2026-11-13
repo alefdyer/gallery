@@ -309,7 +309,10 @@ class StorageService @Inject constructor(
                     )
                 )
                 clearStorageAttention(fresh.id)
-                analytics.storageSynced(fresh.type.name.lowercase())
+                // Только автосинк при входе — не раскрытие категории / «Обновить».
+                if (reason == SyncReason.AppOpen) {
+                    analytics.storageSynced(fresh.type.name.lowercase())
+                }
             }
         } finally {
             endFetching(storage)
