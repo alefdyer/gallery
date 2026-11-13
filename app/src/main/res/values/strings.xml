@@ -1,5 +1,8 @@
 <resources>
     <string name="app_name">Gallery</string>
+    <string name="pick_media_title">Choose media</string>
+    <string name="pick_media_summary">Photos and videos</string>
+    <string name="pick_media_empty">No local photos or videos</string>
     <string name="permission_disclaimer">This app needs access to your media files</string>
     <string name="grant">Allow</string>
     <string name="permission_denied">No access to media files</string>

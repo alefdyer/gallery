@@ -1,6 +1,7 @@
 package com.asinosoft.photogallery
 
 import android.app.Application
+import android.util.Log
 import coil3.ImageLoader
 import coil3.SingletonImageLoader
 import coil3.disk.DiskCache
@@ -13,6 +14,7 @@ import coil3.svg.SvgDecoder
 import coil3.video.VideoFrameDecoder
 import com.asinosoft.photogallery.data.ShareCache
 import com.asinosoft.photogallery.data.VlcNative
+import com.asinosoft.photogallery.data.storage.GalleryStorageTag
 import com.asinosoft.photogallery.data.storage.StorageAuthProvider
 import com.asinosoft.photogallery.data.storage.StorageDao
 import com.asinosoft.photogallery.data.storage.StorageService
@@ -64,8 +66,36 @@ class GalleryApp : Application() {
                 .Builder()
                 // Network: Drive alt=media часто редиректит на googleusercontent —
                 // application-interceptor не увидит второй hop, Bearer пропадёт.
+                // Tag хранит storageId между hop'ами (header снимается в authorize).
                 .addNetworkInterceptor { chain ->
-                    chain.proceed(storageAuthProvider.authorize(chain.request()))
+                    val incoming = chain.request()
+                    val storageId = incoming.header(StorageAuthProvider.HEADER_STORAGE_ID)
+                        ?.toLongOrNull()
+                        ?: incoming.tag(GalleryStorageTag::class.java)?.id
+                    val tagged = if (storageId != null) {
+                        incoming.newBuilder()
+                            .tag(GalleryStorageTag::class.java, GalleryStorageTag(storageId))
+                            .build()
+                    } else {
+                        incoming
+                    }
+                    val authorized = storageAuthProvider.authorize(tagged)
+                    val response = chain.proceed(authorized)
+                    val host = authorized.url.host
+                    val driveHost = host.contains("googleapis") ||
+                            host.contains("googleusercontent")
+                    if (!response.isSuccessful && driveHost) {
+                        val body = runCatching {
+                            response.peekBody(512).string().replace('\n', ' ').take(240)
+                        }.getOrDefault("")
+                        Log.w(
+                            TAG,
+                            "Drive HTTP ${response.code} storageId=$storageId " +
+                                    "hasAuth=${!authorized.header("Authorization").isNullOrBlank()} " +
+                                    "url=${authorized.url} body=$body",
+                        )
+                    }
+                    response
                 }.build()
 
         SingletonImageLoader.setSafe {

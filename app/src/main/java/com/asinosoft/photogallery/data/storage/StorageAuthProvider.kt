@@ -7,6 +7,9 @@ import okhttp3.Request
 import javax.inject.Inject
 import javax.inject.Singleton
 
+/** OkHttp Request.tag — переживает редирект, в отличие от X-Gallery-Storage-Id. */
+data class GalleryStorageTag(val id: Long)
+
 @Singleton
 class StorageAuthProvider @Inject constructor(
     val storageDao: StorageDao,
@@ -19,6 +22,7 @@ class StorageAuthProvider @Inject constructor(
      */
     fun authorize(request: Request): Request {
         val forcedId = request.header(HEADER_STORAGE_ID)?.toLongOrNull()
+            ?: request.tag(GalleryStorageTag::class.java)?.id
         val clean = request.newBuilder().removeHeader(HEADER_STORAGE_ID).build()
 
         val storage = runBlocking {

@@ -93,6 +93,25 @@ interface MediaDao {
     @Query("SELECT * FROM media WHERE id IN (:mediaIds)")
     suspend fun getByIds(mediaIds: Collection<Long>): List<Media>
 
+    /** Локальные MediaStore-элементы для системного пикера / DocumentsProvider. */
+    @Query(
+        """
+        SELECT * FROM media
+        WHERE storageId = 1 AND uri IS NOT NULL
+        ORDER BY date DESC, time DESC
+        LIMIT :limit
+        """
+    )
+    suspend fun getLocalPickable(limit: Int): List<Media>
+
+    @Query(
+        """
+        SELECT * FROM media
+        WHERE storageId = 1 AND uri IS NOT NULL AND id = :id
+        """
+    )
+    suspend fun getLocalPickableById(id: Long): Media?
+
     @Query("SELECT * FROM media WHERE filename = :filename LIMIT 1")
     suspend fun findByFilename(filename: String): Media?
 
