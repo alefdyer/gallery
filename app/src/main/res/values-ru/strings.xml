@@ -31,6 +31,12 @@
     <string name="cache_other">Другие временные файлы</string>
     <string name="temporary_files_cleared">Очищено: %1$s</string>
     <string name="cache_clear_all">Очистить все</string>
+    <string name="app_data_clear">Сбросить все данные приложения</string>
+    <string name="app_data_clear_hint">Удалит базу, настройки, входы в облака и кэш. Фото на телефоне не трогает.</string>
+    <string name="app_data_clear_title">Сбросить все данные приложения?</string>
+    <string name="app_data_clear_confirm">Альбомы, избранное, подключения к облакам и настройки будут удалены. Файлы на устройстве останутся. Приложение закроется.</string>
+    <string name="app_data_clear_action">Сбросить данные</string>
+    <string name="app_data_clear_failed">Не удалось сбросить данные приложения</string>
     <string name="cache_cleared_all">Все временные файлы очищены</string>
     <string name="backup_section">Резервная копия</string>
     <string name="backup_drive_connect">Подключить Google Drive</string>

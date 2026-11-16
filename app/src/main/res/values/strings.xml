@@ -33,6 +33,12 @@
     <string name="temporary_files_cleared">Cleared: %1$s</string>
     <string name="cache_clear_all">Clear all</string>
     <string name="cache_cleared_all">All temporary files cleared</string>
+    <string name="app_data_clear">Clear all app data</string>
+    <string name="app_data_clear_hint">Deletes the database, settings, cloud logins and cache. Photos on the phone are not removed.</string>
+    <string name="app_data_clear_title">Clear all app data?</string>
+    <string name="app_data_clear_confirm">Albums, favorites, cloud connections and settings will be erased. Media files on the device stay. The app will close.</string>
+    <string name="app_data_clear_action">Clear data</string>
+    <string name="app_data_clear_failed">Could not clear app data</string>
     <string name="backup_section">Backup</string>
     <string name="backup_drive_connect">Connect Google Drive</string>
     <string name="backup_drive_disconnect">Disconnect Google Drive</string>

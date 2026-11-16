@@ -1,5 +1,7 @@
 package com.asinosoft.photogallery.ui.component
 
+import android.app.ActivityManager
+import android.content.Context
 import android.widget.Toast
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -9,8 +11,10 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -39,6 +43,7 @@ fun TemporaryFilesPanel(
     val scope = rememberCoroutineScope()
     var entries by remember { mutableStateOf<List<AppCacheEntry>>(emptyList()) }
     var clearing by remember { mutableStateOf(false) }
+    var showClearAppData by remember { mutableStateOf(false) }
     val title = sectionTitle ?: stringResource(R.string.temporary_files)
     val hasAnything = entries.any { it.bytes > 0L }
 
@@ -48,6 +53,32 @@ fun TemporaryFilesPanel(
 
     LaunchedEffect(Unit) {
         refresh()
+    }
+
+    if (showClearAppData) {
+        AlertDialog(
+            onDismissRequest = { showClearAppData = false },
+            title = { Text(stringResource(R.string.app_data_clear_title)) },
+            text = { Text(stringResource(R.string.app_data_clear_confirm)) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showClearAppData = false
+                        clearAllAppData(context)
+                    },
+                ) {
+                    Text(
+                        text = stringResource(R.string.app_data_clear_action),
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showClearAppData = false }) {
+                    Text(stringResource(R.string.cancel))
+                }
+            },
+        )
     }
 
     Column(modifier = modifier.fillMaxWidth()) {
@@ -128,7 +159,7 @@ fun TemporaryFilesPanel(
                             MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f)
                         },
                     )
-                    Spacer(Modifier.height(2.dp))
+                    Spacer(modifier = Modifier.height(2.dp))
                     Text(
                         text = entry.formattedSize(context),
                         style = MaterialTheme.typography.bodySmall,
@@ -139,6 +170,44 @@ fun TemporaryFilesPanel(
                 }
             }
         }
+
+        Spacer(modifier = Modifier.height(24.dp))
+        SettingsSectionTitle(text = stringResource(R.string.app_data_clear))
+        SettingsGroup {
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .clickable(enabled = !clearing) { showClearAppData = true }
+                    .padding(horizontal = 16.dp, vertical = 14.dp),
+            ) {
+                Text(
+                    text = stringResource(R.string.app_data_clear_action),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.error,
+                )
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = stringResource(R.string.app_data_clear_hint),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+        Spacer(modifier = Modifier.height(24.dp))
+    }
+}
+
+/** Полный wipe как системное «Очистить данные»; процесс приложения завершится. */
+private fun clearAllAppData(context: Context) {
+    val am = context.getSystemService(ActivityManager::class.java) ?: return
+    val ok = runCatching { am.clearApplicationUserData() }.getOrDefault(false)
+    if (!ok) {
+        Toast.makeText(
+            context,
+            context.getString(R.string.app_data_clear_failed),
+            Toast.LENGTH_LONG,
+        ).show()
     }
 }
 
