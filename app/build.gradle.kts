@@ -161,7 +161,7 @@ afterEvaluate {
 }
 
 dependencies {
-    implementation("com.google.code.gson:gson:2.14.0")
+    implementation("com.google.code.gson:gson:2.15.0")
 
     // Core
     implementation("androidx.core:core-ktx:1.19.1")
@@ -187,12 +187,12 @@ dependencies {
     implementation("androidx.media3:media3-transformer:1.11.1")
     implementation("androidx.media3:media3-effect:1.11.1")
     // FFmpeg через LibVLC — MPEG/.MPG и прочие кодеки без MediaCodec
-    implementation("org.videolan.android:libvlc-all:3.6.5")
+    implementation("org.videolan.android:libvlc-all:3.7.7")
 
     // Google Sign-In / Authorization (Drive App Data backup)
     implementation("com.google.android.gms:play-services-auth:22.0.0")
-    implementation("com.google.android.gms:play-services-oss-licenses:17.5.2")
-    implementation(platform("com.google.firebase:firebase-bom:35.0.2"))
+    implementation("com.google.android.gms:play-services-oss-licenses:17.5.3")
+    implementation(platform("com.google.firebase:firebase-bom:35.2.0"))
     implementation("com.google.firebase:firebase-analytics")
     implementation("com.google.firebase:firebase-config")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.11.0")
@@ -233,7 +233,7 @@ dependencies {
     // Test
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.11.0")
-    testImplementation("io.mockk:mockk-android:1.14.11")
+    testImplementation("io.mockk:mockk-android:1.14.12")
     androidTestImplementation("androidx.test.ext:junit:1.3.0")
     androidTestImplementation("androidx.test.espresso:espresso-core:3.7.0")
     androidTestImplementation("androidx.room:room-testing:$roomVersion")
