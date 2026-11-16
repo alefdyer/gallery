@@ -175,6 +175,7 @@ fun GallerySettingsTab(
                 if (null != existing) {
                     pendingReplace = existing
                 } else {
+                    showSaveDialog = false
                     backupModel.saveNew(name)
                 }
             },
@@ -200,6 +201,7 @@ fun GallerySettingsTab(
             confirmButton = {
                 TextButton(onClick = {
                     pendingReplace = null
+                    showSaveDialog = false
                     backupModel.replaceBackup(file)
                 }) { Text(stringResource(R.string.backup_replace)) }
             },
@@ -219,6 +221,7 @@ fun GallerySettingsTab(
             confirmButton = {
                 TextButton(onClick = {
                     pendingDelete = null
+                    showSaveDialog = false
                     backupModel.deleteBackup(file)
                 }) { Text(stringResource(R.string.delete)) }
             },
@@ -239,10 +242,12 @@ fun GallerySettingsTab(
                 Row {
                     TextButton(onClick = {
                         pendingRestore = null
+                        showRestoreDialog = false
                         backupModel.restore(file, SettingsRestoreMode.REPLACE)
                     }) { Text(stringResource(R.string.backup_overwrite)) }
                     TextButton(onClick = {
                         pendingRestore = null
+                        showRestoreDialog = false
                         backupModel.restore(file, SettingsRestoreMode.MERGE)
                     }) { Text(stringResource(R.string.backup_merge)) }
                 }

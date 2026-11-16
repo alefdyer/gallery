@@ -1,7 +1,5 @@
 package com.asinosoft.photogallery.ui.component
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -13,33 +11,39 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import com.asinosoft.photogallery.R
 import com.asinosoft.photogallery.model.BackupJob
 import com.asinosoft.photogallery.model.BackupUiState
 
+/** Отдельное окно поверх диалогов сохранения/восстановления. */
 @Composable
-fun BoxScope.BackupProgressBanner(
+fun BackupProgressBanner(
     state: BackupUiState,
     modifier: Modifier = Modifier,
 ) {
     val job = state.job
-    AnimatedVisibility(
-        visible = null != job && state.busy,
-        modifier = modifier
-            .align(Alignment.BottomCenter)
-            .padding(bottom = 24.dp)
+    if (null == job || !state.busy) return
+
+    Dialog(
+        onDismissRequest = {},
+        properties = DialogProperties(
+            dismissOnBackPress = false,
+            dismissOnClickOutside = false,
+            usePlatformDefaultWidth = false,
+        ),
     ) {
         Surface(
             shape = RoundedCornerShape(16.dp),
-            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f),
+            color = MaterialTheme.colorScheme.surface,
             tonalElevation = 6.dp,
             shadowElevation = 8.dp,
-            modifier = Modifier
+            modifier = modifier
                 .padding(horizontal = 24.dp)
                 .fillMaxWidth(0.9f)
         ) {
@@ -52,7 +56,6 @@ fun BoxScope.BackupProgressBanner(
                             BackupJob.Saving -> R.string.backup_progress_saving
                             BackupJob.Restoring -> R.string.backup_progress_restoring
                             BackupJob.Deleting -> R.string.backup_progress_deleting
-                            null -> R.string.backup_section
                         }
                     ),
                     style = MaterialTheme.typography.titleSmall,
