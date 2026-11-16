@@ -8,7 +8,11 @@ import javax.inject.Singleton
 
 @Singleton
 class AppAnalytics @Inject constructor(private val firebase: FirebaseAnalytics) {
-    fun scanCompleted() = log(SCAN_COMPLETED)
+    fun scanCompleted(durationMs: Long, mediaCountBucket: String) = log(
+        SCAN_COMPLETED,
+        PARAM_DURATION_MS to durationMs,
+        PARAM_MEDIA_COUNT to mediaCountBucket,
+    )
 
     fun filterApps() = log(FILTER_APPS)
 
@@ -70,12 +74,18 @@ class AppAnalytics @Inject constructor(private val firebase: FirebaseAnalytics) 
 
     fun backupRestored() = log(BACKUP_RESTORED)
 
-    private fun log(name: String, vararg params: Pair<String, String>) {
+    private fun log(name: String, vararg params: Pair<String, Any>) {
         val bundle = if (params.isEmpty()) {
             null
         } else {
             Bundle(params.size).apply {
-                params.forEach { (key, value) -> putString(key, value) }
+                params.forEach { (key, value) ->
+                    when (value) {
+                        is Long -> putLong(key, value)
+                        is Int -> putLong(key, value.toLong())
+                        else -> putString(key, value.toString())
+                    }
+                }
             }
         }
         firebase.logEvent(name, bundle)
@@ -94,6 +104,14 @@ class AppAnalytics @Inject constructor(private val firebase: FirebaseAnalytics) 
 
         fun mediaSource(media: Media): String =
             if (media.storageType == StorageType.LOCAL) SOURCE_LOCAL else SOURCE_CLOUD
+
+        fun mediaCountBucket(count: Int): String = when {
+            count <= 0 -> "0"
+            count <= 100 -> "1-100"
+            count <= 1_000 -> "100-1k"
+            count <= 5_000 -> "1k-5k"
+            else -> "5k+"
+        }
 
         private const val SCAN_COMPLETED = "scan_completed"
         private const val FILTER_APPS = "filter_apps"
@@ -125,5 +143,7 @@ class AppAnalytics @Inject constructor(private val firebase: FirebaseAnalytics) 
         private const val PARAM_STORAGE_TYPE = "storage_type"
         private const val PARAM_SOURCE = "source"
         private const val PARAM_MEDIA_TYPE = "media_type"
+        private const val PARAM_DURATION_MS = "duration_ms"
+        private const val PARAM_MEDIA_COUNT = "media_count"
     }
 }

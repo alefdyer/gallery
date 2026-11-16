@@ -9,6 +9,7 @@ import android.provider.MediaStore
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.asinosoft.photogallery.data.AppAnalytics
+import com.asinosoft.photogallery.data.MediaDao
 import com.asinosoft.photogallery.data.MessageBus
 import com.asinosoft.photogallery.data.launchAndCatch
 import com.asinosoft.photogallery.data.storage.Storage
@@ -20,11 +21,13 @@ import com.asinosoft.photogallery.data.storage.local.LocalStorageObserver
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
+import kotlin.system.measureTimeMillis
 import kotlinx.coroutines.flow.first
 
 @HiltViewModel
 class MainViewModel @Inject constructor(
     private val storageDao: StorageDao,
+    private val mediaDao: MediaDao,
     private val storageService: StorageService,
     private val analytics: AppAnalytics,
     @param:ApplicationContext private val context: Context
@@ -39,8 +42,17 @@ class MainViewModel @Inject constructor(
 
                 registerContentObserver(storage)
 
-                storageService.fetch(storage, force = true, reason = SyncReason.Manual)
-                analytics.scanCompleted()
+                val isFirstScan = storage.lastFetchedAt == 0L
+                val durationMs = measureTimeMillis {
+                    storageService.fetch(storage, force = true, reason = SyncReason.Manual)
+                }
+                if (isFirstScan) {
+                    val mediaCount = mediaDao.getStorageStatistics(storage.id).total
+                    analytics.scanCompleted(
+                        durationMs = durationMs,
+                        mediaCountBucket = AppAnalytics.mediaCountBucket(mediaCount),
+                    )
+                }
             } else if (storage.allowsAutoSync()) {
                 storageService.enqueueFetch(
                     storage,
