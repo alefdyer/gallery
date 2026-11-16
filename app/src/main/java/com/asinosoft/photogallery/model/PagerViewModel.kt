@@ -56,6 +56,13 @@ class PagerViewModel @Inject constructor(
     private val activeMediaType: MediaType? = state.get<String?>("type")
         ?.let { type -> MediaType.entries.firstOrNull { it.name == type } }
 
+    init {
+        viewModelScope.launchAndCatch {
+            val media = mediaDao.getById(paramsFlow.value.imageId) ?: return@launchAndCatch
+            analytics.mediaOpened(AppAnalytics.mediaType(media))
+        }
+    }
+
     @OptIn(ExperimentalCoroutinesApi::class)
     val images: StateFlow<List<Media>> = params.flatMapLatest { current ->
         val source = if (current.favoritesOnly) {

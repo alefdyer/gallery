@@ -54,6 +54,8 @@ class AppAnalytics @Inject constructor(private val firebase: FirebaseAnalytics) 
 
     fun mediaEdited(mediaType: String) = log(MEDIA_EDITED, PARAM_MEDIA_TYPE to mediaType)
 
+    fun mediaOpened(mediaType: String) = log(MEDIA_OPENED, PARAM_MEDIA_TYPE to mediaType)
+
     fun editorOpened(mediaType: String, source: String) = log(
         EDITOR_OPENED,
         PARAM_MEDIA_TYPE to mediaType,
@@ -146,6 +148,7 @@ class AppAnalytics @Inject constructor(private val firebase: FirebaseAnalytics) 
         private const val MEDIA_DELETED = "media_deleted"
         private const val MEDIA_SHARED = "media_shared"
         private const val MEDIA_EDITED = "media_edited"
+        private const val MEDIA_OPENED = "media_opened"
         private const val EDITOR_OPENED = "editor_opened"
         private const val EDITOR_SAVED = "editor_saved"
         private const val PRIVATE_OPENED = "private_opened"
