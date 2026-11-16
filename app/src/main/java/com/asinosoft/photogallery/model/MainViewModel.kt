@@ -47,10 +47,9 @@ class MainViewModel @Inject constructor(
                     storageService.fetch(storage, force = true, reason = SyncReason.Manual)
                 }
                 if (isFirstScan) {
-                    val mediaCount = mediaDao.getStorageStatistics(storage.id).total
                     analytics.scanCompleted(
                         durationMs = durationMs,
-                        mediaCountBucket = AppAnalytics.mediaCountBucket(mediaCount),
+                        mediaCount = mediaDao.getStorageStatistics(storage.id).total,
                     )
                 }
             } else if (storage.allowsAutoSync()) {

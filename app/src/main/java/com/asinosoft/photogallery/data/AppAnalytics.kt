@@ -8,10 +8,10 @@ import javax.inject.Singleton
 
 @Singleton
 class AppAnalytics @Inject constructor(private val firebase: FirebaseAnalytics) {
-    fun scanCompleted(durationMs: Long, mediaCountBucket: String) = log(
+    fun scanCompleted(durationMs: Long, mediaCount: Int) = log(
         SCAN_COMPLETED,
-        PARAM_DURATION_MS to durationMs,
-        PARAM_MEDIA_COUNT to mediaCountBucket,
+        PARAM_DURATION_MS to durationMsBucket(durationMs),
+        PARAM_MEDIA_COUNT to mediaCountBucket(mediaCount),
     )
 
     fun filterApps() = log(FILTER_APPS)
@@ -23,6 +23,8 @@ class AppAnalytics @Inject constructor(private val firebase: FirebaseAnalytics) 
     fun filterDateSlider() = log(FILTER_DATE_SLIDER)
 
     fun categoryCreated() = log(CATEGORY_CREATED)
+
+    fun tipDismissed(tipId: String) = log(TIP_DISMISSED, PARAM_TIP_ID to tipId)
 
     fun albumCreated() = log(ALBUM_CREATED)
 
@@ -110,7 +112,17 @@ class AppAnalytics @Inject constructor(private val firebase: FirebaseAnalytics) 
             count <= 100 -> "1-100"
             count <= 1_000 -> "100-1k"
             count <= 5_000 -> "1k-5k"
-            else -> "5k+"
+            count <= 10_000 -> "5k-10k"
+            count <= 20_000 -> "10k-20k"
+            else -> "20k+"
+        }
+
+        fun durationMsBucket(durationMs: Long): String = when {
+            durationMs <= 10_000L -> "0-10s"
+            durationMs <= 30_000L -> "10-30s"
+            durationMs <= 60_000L -> "30-60s"
+            durationMs <= 120_000L -> "60-120s"
+            else -> "120s+"
         }
 
         private const val SCAN_COMPLETED = "scan_completed"
@@ -119,6 +131,7 @@ class AppAnalytics @Inject constructor(private val firebase: FirebaseAnalytics) 
         private const val FILTER_COUNTERS = "filter_counters"
         private const val FILTER_DATE_SLIDER = "filter_date_slider"
         private const val CATEGORY_CREATED = "category_created"
+        private const val TIP_DISMISSED = "tip_dismissed"
         private const val ALBUM_CREATED = "album_created"
         private const val CATEGORY_RENAMED = "category_renamed"
         private const val CATEGORY_MOVED = "category_moved"
@@ -145,5 +158,6 @@ class AppAnalytics @Inject constructor(private val firebase: FirebaseAnalytics) 
         private const val PARAM_MEDIA_TYPE = "media_type"
         private const val PARAM_DURATION_MS = "duration_ms"
         private const val PARAM_MEDIA_COUNT = "media_count"
+        private const val PARAM_TIP_ID = "tip_id"
     }
 }

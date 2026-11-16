@@ -24,7 +24,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import androidx.core.content.edit
 import com.asinosoft.photogallery.R
+import com.asinosoft.photogallery.di.AnalyticsEntryPoint
 import com.asinosoft.photogallery.ui.theme.floatingPanelColor
+import dagger.hilt.android.EntryPointAccessors
 import kotlinx.coroutines.delay
 
 const val TIP_PHOTO_DATE = "tip_photo_date"
@@ -59,6 +61,12 @@ fun rememberFeatureTip(
     delayMs: Long = 0L
 ): FeatureTipState {
     val context = LocalContext.current
+    val analytics = remember(context) {
+        EntryPointAccessors.fromApplication(
+            context.applicationContext,
+            AnalyticsEntryPoint::class.java,
+        ).appAnalytics()
+    }
     var visible by remember(key) { mutableStateOf(false) }
 
     LaunchedEffect(key, enabled, delayMs) {
@@ -75,6 +83,9 @@ fun rememberFeatureTip(
     return FeatureTipState(
         visible = visible && enabled,
         dismiss = {
+            if (!isTipSeen(context, key)) {
+                analytics.tipDismissed(key)
+            }
             visible = false
             markTipSeen(context, key)
         }
