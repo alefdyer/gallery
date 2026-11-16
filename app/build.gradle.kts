@@ -194,6 +194,7 @@ dependencies {
     implementation("com.google.android.gms:play-services-oss-licenses:17.5.2")
     implementation(platform("com.google.firebase:firebase-bom:35.0.2"))
     implementation("com.google.firebase:firebase-analytics")
+    implementation("com.google.firebase:firebase-config")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.11.0")
 
     // YandexAds

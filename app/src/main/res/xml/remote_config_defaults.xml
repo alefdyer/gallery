@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<defaultsMap>
+    <!-- JSON-массив имён StorageType. Пустой/битый → все addable включены. -->
+    <entry>
+        <key>storage_types_enabled</key>
+        <value>["GOOGLE_DRIVE","DROPBOX","NEXTCLOUD","WEBDAV","ONEDRIVE","YANDEX"]</value>
+    </entry>
+</defaultsMap>

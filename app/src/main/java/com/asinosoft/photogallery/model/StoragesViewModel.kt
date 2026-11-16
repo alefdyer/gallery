@@ -7,7 +7,9 @@ import com.asinosoft.photogallery.data.launchAndCatch
 import com.asinosoft.photogallery.data.storage.Storage
 import com.asinosoft.photogallery.data.storage.StorageCheckResult
 import com.asinosoft.photogallery.data.storage.StorageDao
+import com.asinosoft.photogallery.data.storage.StorageRemoteConfig
 import com.asinosoft.photogallery.data.storage.StorageService
+import com.asinosoft.photogallery.data.storage.StorageType
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.flow.SharingStarted
@@ -18,6 +20,7 @@ import kotlinx.coroutines.flow.stateIn
 class StoragesViewModel @Inject constructor(
     storageDao: StorageDao,
     private val storageService: StorageService,
+    storageRemoteConfig: StorageRemoteConfig,
     private val analytics: AppAnalytics
 ) : ViewModel() {
     val storages: StateFlow<List<Storage>> = storageDao.getAccounts().stateIn(
@@ -25,6 +28,9 @@ class StoragesViewModel @Inject constructor(
         started = SharingStarted.Eagerly,
         initialValue = emptyList()
     )
+
+    /** Типы, которые можно добавить (уже подключённые не зависят от этого). */
+    val enabledAddTypes: StateFlow<Set<StorageType>> = storageRemoteConfig.enabledForNew
 
     val reauthRequiredIds: StateFlow<Set<Long>> = storageService.reauthRequiredIds
 

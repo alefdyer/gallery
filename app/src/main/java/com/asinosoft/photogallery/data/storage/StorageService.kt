@@ -47,6 +47,7 @@ class StorageService @Inject constructor(
     private val storageDao: StorageDao,
     private val storageProviderRegistry: StorageProviderRegistry,
     private val storageAuthProvider: StorageAuthProvider,
+    private val storageRemoteConfig: StorageRemoteConfig,
     private val analytics: AppAnalytics,
     @param:ApplicationContext private val context: Context,
 ) {
@@ -90,6 +91,13 @@ class StorageService @Inject constructor(
 
     suspend fun addStorage(storage: Storage): Storage {
         var toSave = storage
+        // Новое подключение: Remote Config может скрыть тип. Редактирование id>0 — всегда ок.
+        if (toSave.id == 0L &&
+            toSave.type != StorageType.LOCAL &&
+            !storageRemoteConfig.isEnabledForNew(toSave.type)
+        ) {
+            error("Storage type ${toSave.type} disabled by Remote Config")
+        }
         if (toSave.type == StorageType.DROPBOX &&
             toSave.login.isNullOrBlank() &&
             !toSave.password.isNullOrBlank()

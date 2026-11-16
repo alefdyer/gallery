@@ -94,6 +94,7 @@ fun StoragesView(
 ) {
     val storages by model.storages.collectAsState(initial = listOf())
     val reauthRequiredIds by model.reauthRequiredIds.collectAsState()
+    val enabledAddTypes by model.enabledAddTypes.collectAsState()
 
     val showStorageEditor = remember { mutableStateOf(false) }
     val account = remember { mutableStateOf<Storage?>(null) }
@@ -107,6 +108,7 @@ fun StoragesView(
         val editing = account.value
         StorageEditor(
             storage = editing,
+            enabledAddTypes = enabledAddTypes,
             existingGoogleDriveEmails = storages
                 .filter {
                     it.type == StorageType.GOOGLE_DRIVE &&
@@ -293,6 +295,7 @@ private fun ConnectedStorageRow(
 @Composable
 private fun StorageEditor(
     storage: Storage?,
+    enabledAddTypes: Set<StorageType>,
     existingGoogleDriveEmails: Set<String> = emptySet(),
     hasGoogleDrive: Boolean = false,
     onCheckStorageConnection: suspend (Storage) -> StorageCheckResult,
@@ -383,6 +386,7 @@ private fun StorageEditor(
 
             when (type) {
                 null -> StorageTypeSelector(
+                    enabledTypes = enabledAddTypes,
                     modifier = Modifier.weight(1f),
                     onSelect = { type = it }
                 )
@@ -469,11 +473,45 @@ private fun storageTypeTitle(type: StorageType): String = when (type) {
     StorageType.LOCAL -> stringResource(R.string.phone)
 }
 
+private data class StorageProviderChoice(
+    val type: StorageType,
+    val titleRes: Int,
+    val subtitleRes: Int,
+)
+
+/** Порядок в UI «Добавить»; показ только если тип в Remote Config. */
+private val ADD_STORAGE_CHOICES = listOf(
+    StorageProviderChoice(
+        StorageType.GOOGLE_DRIVE,
+        R.string.storage_type_google_drive,
+        R.string.storage_type_google_drive_hint,
+    ),
+    StorageProviderChoice(
+        StorageType.DROPBOX,
+        R.string.storage_type_dropbox,
+        R.string.storage_type_dropbox_hint,
+    ),
+    StorageProviderChoice(
+        StorageType.NEXTCLOUD,
+        R.string.storage_type_nextcloud,
+        R.string.storage_type_nextcloud_hint,
+    ),
+    StorageProviderChoice(
+        StorageType.WEBDAV,
+        R.string.storage_type_webdav,
+        R.string.storage_type_webdav_hint,
+    ),
+)
+
 @Composable
 private fun StorageTypeSelector(
+    enabledTypes: Set<StorageType>,
     onSelect: (StorageType) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val visible = remember(enabledTypes) {
+        ADD_STORAGE_CHOICES.filter { it.type in enabledTypes }
+    }
     SettingsPage(modifier) {
         Text(
             text = stringResource(R.string.storage_add_subtitle),
@@ -481,34 +519,25 @@ private fun StorageTypeSelector(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(start = 4.dp, end = 4.dp, bottom = 12.dp)
         )
-        SettingsGroup {
-            StorageProviderOption(
-                type = StorageType.GOOGLE_DRIVE,
-                title = stringResource(R.string.storage_type_google_drive),
-                subtitle = stringResource(R.string.storage_type_google_drive_hint),
-                onClick = { onSelect(StorageType.GOOGLE_DRIVE) }
+        if (visible.isEmpty()) {
+            Text(
+                text = stringResource(R.string.storage_add_none_available),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(horizontal = 4.dp)
             )
-            SettingsGroupDivider()
-            StorageProviderOption(
-                type = StorageType.DROPBOX,
-                title = stringResource(R.string.storage_type_dropbox),
-                subtitle = stringResource(R.string.storage_type_dropbox_hint),
-                onClick = { onSelect(StorageType.DROPBOX) }
-            )
-            SettingsGroupDivider()
-            StorageProviderOption(
-                type = StorageType.NEXTCLOUD,
-                title = stringResource(R.string.storage_type_nextcloud),
-                subtitle = stringResource(R.string.storage_type_nextcloud_hint),
-                onClick = { onSelect(StorageType.NEXTCLOUD) }
-            )
-            SettingsGroupDivider()
-            StorageProviderOption(
-                type = StorageType.WEBDAV,
-                title = stringResource(R.string.storage_type_webdav),
-                subtitle = stringResource(R.string.storage_type_webdav_hint),
-                onClick = { onSelect(StorageType.WEBDAV) }
-            )
+        } else {
+            SettingsGroup {
+                visible.forEachIndexed { index, choice ->
+                    if (index > 0) SettingsGroupDivider()
+                    StorageProviderOption(
+                        type = choice.type,
+                        title = stringResource(choice.titleRes),
+                        subtitle = stringResource(choice.subtitleRes),
+                        onClick = { onSelect(choice.type) }
+                    )
+                }
+            }
         }
         Spacer(modifier = Modifier.height(24.dp))
     }

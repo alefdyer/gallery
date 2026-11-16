@@ -17,6 +17,7 @@ import com.asinosoft.photogallery.data.VlcNative
 import com.asinosoft.photogallery.data.storage.GalleryStorageTag
 import com.asinosoft.photogallery.data.storage.StorageAuthProvider
 import com.asinosoft.photogallery.data.storage.StorageDao
+import com.asinosoft.photogallery.data.storage.StorageRemoteConfig
 import com.asinosoft.photogallery.data.storage.StorageService
 import com.yandex.mobile.ads.common.YandexAds
 import dagger.hilt.android.HiltAndroidApp
@@ -34,6 +35,8 @@ class GalleryApp : Application() {
     lateinit var storageDao: StorageDao
     @Inject
     lateinit var storageService: StorageService
+    @Inject
+    lateinit var storageRemoteConfig: StorageRemoteConfig
 
     lateinit var httpClient: OkHttpClient
         private set
@@ -59,6 +62,7 @@ class GalleryApp : Application() {
             runCatching { storageDao.migratePlaintextPasswords() }
             runCatching { storageService.backfillMissingGoogleDriveEmails() }
             runCatching { storageService.backfillMissingDropboxEmails() }
+            runCatching { storageRemoteConfig.refresh() }
         }
 
         httpClient =

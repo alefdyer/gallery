@@ -13,6 +13,7 @@
     <string name="storage">Storage</string>
     <string name="network">Network</string>
     <string name="network_section">Connections</string>
+    <string name="storage_add_none_available">No cloud storages available to add right now</string>
     <string name="gallery_tab">Gallery</string>
     <string name="about_app">About</string>
     <string name="viewing_section">Viewing</string>

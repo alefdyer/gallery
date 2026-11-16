@@ -12,6 +12,7 @@
     <string name="storage">Хранилище</string>
     <string name="network">Сеть</string>
     <string name="network_section">Подключения</string>
+    <string name="storage_add_none_available">Сейчас нет доступных облачных хранилищ для подключения</string>
     <string name="gallery_tab">Галерея</string>
     <string name="about_app">О приложении</string>
     <string name="viewing_section">Просмотр</string>
