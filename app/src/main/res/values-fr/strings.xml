@@ -36,7 +36,7 @@
     <string name="backup_drive_connected">Google Drive connecté</string>
     <string name="backup_drive_auth_cancelled">Connexion annulée</string>
     <string name="backup_save">Enregistrer sur Google Drive</string>
-    <string name="backup_save_hint">Catégories, Albums, Favoris et ordre. Les photos et vidéos ne sont pas téléversées.</string>
+    <string name="backup_save_hint">Enregistre catégories, albums, favoris et ordre. Non enregistrés : photos et vidéos, identifiants et mots de passe cloud, jetons d\'accès et paramètres d\'affichage.</string>
     <string name="backup_restore">Restaurer depuis Google Drive</string>
     <string name="backup_restore_hint">Choisir une sauvegarde enregistrée à charger</string>
     <string name="backup_restore_title">Restaurer la sauvegarde ?</string>

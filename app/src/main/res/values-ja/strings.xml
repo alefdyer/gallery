@@ -36,7 +36,7 @@
     <string name="backup_drive_connected">Google Drive に接続しました</string>
     <string name="backup_drive_auth_cancelled">サインインがキャンセルされました</string>
     <string name="backup_save">Google Drive に保存</string>
-    <string name="backup_save_hint">カテゴリ、アルバム、お気に入り、並び順。写真と動画はアップロードされません。</string>
+    <string name="backup_save_hint">カテゴリ、アルバム、お気に入り、並び順を保存します。保存されないもの: 写真・動画、クラウドのログインとパスワード、アクセストークン、表示設定。</string>
     <string name="backup_restore">Google Drive から復元</string>
     <string name="backup_restore_hint">読み込む保存済みバックアップを選択</string>
     <string name="backup_restore_title">バックアップを復元しますか？</string>

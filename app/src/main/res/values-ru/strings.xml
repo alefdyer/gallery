@@ -40,7 +40,7 @@
     <string name="backup_drive_connected">Google Drive подключён</string>
     <string name="backup_drive_auth_cancelled">Вход отменён</string>
     <string name="backup_save">Сохранить на Google Drive</string>
-    <string name="backup_save_hint">Категории, Альбомы, Избранное и порядок. Фото и видео не загружаются.</string>
+    <string name="backup_save_hint">Сохраняются категории, альбомы, избранное и порядок. Не сохраняются: фото и видео, логины и пароли облаков, токены доступа и настройки просмотра.</string>
     <string name="backup_restore">Восстановить из Google Drive</string>
     <string name="backup_restore_hint">Выбрать сохранённую копию для загрузки</string>
     <string name="backup_restore_title">Восстановить копию?</string>

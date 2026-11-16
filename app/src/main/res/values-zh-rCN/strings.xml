@@ -36,7 +36,7 @@
     <string name="backup_drive_connected">已连接 Google Drive</string>
     <string name="backup_drive_auth_cancelled">已取消登录</string>
     <string name="backup_save">保存到 Google Drive</string>
-    <string name="backup_save_hint">分类、相册、收藏和顺序。不会上传照片和视频。</string>
+    <string name="backup_save_hint">保存分类、相册、收藏和顺序。不保存：照片和视频、云端登录名和密码、访问令牌以及查看设置。</string>
     <string name="backup_restore">从 Google Drive 恢复</string>
     <string name="backup_restore_hint">选择要加载的已保存备份</string>
     <string name="backup_restore_title">恢复备份？</string>

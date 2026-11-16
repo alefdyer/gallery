@@ -36,7 +36,7 @@
     <string name="backup_drive_connected">Google Drive verbunden</string>
     <string name="backup_drive_auth_cancelled">Anmeldung abgebrochen</string>
     <string name="backup_save">In Google Drive speichern</string>
-    <string name="backup_save_hint">Kategorien, Alben, Favoriten und Reihenfolge. Fotos und Videos werden nicht hochgeladen.</string>
+    <string name="backup_save_hint">Speichert Kategorien, Alben, Favoriten und Reihenfolge. Nicht gespeichert: Fotos und Videos, Cloud-Anmeldedaten und Passwörter, Zugriffstoken sowie Anzeigeeinstellungen.</string>
     <string name="backup_restore">Aus Google Drive wiederherstellen</string>
     <string name="backup_restore_hint">Gesicherte Sicherung zum Laden auswählen</string>
     <string name="backup_restore_title">Sicherung wiederherstellen?</string>

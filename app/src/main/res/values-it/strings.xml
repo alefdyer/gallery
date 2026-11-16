@@ -36,7 +36,7 @@
     <string name="backup_drive_connected">Google Drive collegato</string>
     <string name="backup_drive_auth_cancelled">Accesso annullato</string>
     <string name="backup_save">Salva su Google Drive</string>
-    <string name="backup_save_hint">Categorie, Album, Preferiti e ordine. Foto e video non vengono caricati.</string>
+    <string name="backup_save_hint">Salva categorie, album, preferiti e ordine. Non salvati: foto e video, login e password cloud, token di accesso e impostazioni di visualizzazione.</string>
     <string name="backup_restore">Ripristina da Google Drive</string>
     <string name="backup_restore_hint">Scegli un backup salvato da caricare</string>
     <string name="backup_restore_title">Ripristinare il backup?</string>
