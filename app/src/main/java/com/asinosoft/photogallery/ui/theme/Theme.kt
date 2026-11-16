@@ -78,7 +78,8 @@ fun GalleryTheme(
         }
 
     val statusBarIcons = remember { StatusBarIconsState() }
-    val lightStatusBars = statusBarIcons.lightAppearance ?: darkTheme
+    // true = тёмные иконки статус-бара (для светлого фона).
+    val lightStatusBars = statusBarIcons.lightAppearance ?: !darkTheme
 
     val view = LocalView.current
     if (!view.isInEditMode) {
